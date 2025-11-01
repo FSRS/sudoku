@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>for some reason - Irreducible Sudoku</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300..700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=M+PLUS+1+Code:wght@100..700&family=Nanum+Gothic+Coding&display=swap"
+      crossorigin="anonymous"
+    />
+    <link href="sudoku/sudoku.css" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Satisfy&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body
+    class="bg-gray-100 dark:bg-gray-900 flex flex-col items-center justify-center min-h-screen p-4"
+  >
+    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg w-full max-w-xl">
+      <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">
+        <a
+          href="https://fsrs.darksabun.club/"
+          class="hover:underline font-calligraphy"
+          >fsrs</a
+        >
+        <span id="sudoku-title-text"> Daily Sudoku</span>
+      </h1>
+
+      <div
+        id="puzzle-selectors"
+        class="mb-2 flex items-center justify-between gap-4 flex-wrap"
+      >
+        <div class="flex items-center gap-2">
+          <label for="date-select" class="text-lg font-medium">Date</label>
+          <select
+            id="date-select"
+            class="block p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          ></select>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label for="level-select" class="text-lg font-medium">Level</label>
+          <select
+            id="level-select"
+            class="block p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          ></select>
+        </div>
+      </div>
+
+      <div
+        id="message-area"
+        class="flex items-center justify-center text-center mb-2 text-xs font-semibold min-h-10"
+      ></div>
+
+      <div
+        id="sudoku-grid"
+        class="sudoku-grid grid grid-cols-1 w-full border-2 border-gray-700"
+      ></div>
+
+      <div
+        id="puzzle-info"
+        class="flex justify-between text-sm text-gray-600 mt-2 px-1 font-semibold"
+      >
+        <span id="puzzle-level"></span>
+        <span id="puzzle-timer"></span>
+        <span id="puzzle-score"></span>
+      </div>
+
+      <div class="mt-2">
+        <div
+          class="flex items-center justify-center space-x-2 mb-2"
+          id="mode-selector"
+        >
+          <button
+            id="mode-toggle-btn"
+            class="control-btn active px-4 py-2 text-sm font-semibold border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-100"
+          >
+            Number (Z)
+          </button>
+          <button
+            data-mode="color"
+            class="control-btn px-4 py-2 text-sm font-semibold border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-100"
+          >
+            Color (X)
+          </button>
+          <button
+            id="format-toggle-btn"
+            class="control-btn px-4 py-2 text-sm font-semibold border border-gray-300 dark:border-gray-500 dark:text-gray-200 rounded-md shadow-sm bg-white hover:bg-gray-100"
+          >
+            Display A (D)
+          </button>
+          <button
+            id="expt-mode-btn"
+            class="control-btn hidden px-4 py-2 text-sm font-semibold border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-100"
+          >
+            Expt. OFF
+          </button>
+          <button
+            id="vague-hint-btn"
+            class="control-btn px-4 py-2 text-sm font-semibold border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-100"
+          >
+            ? (V)
+          </button>
+          <div
+            id="difficulty-lamp"
+            class="w-4 h-8 rounded-sm border border-gray-400 ml-2"
+            data-tooltip="Difficulty Indicator"
+          ></div>
+        </div>
+        <div class="grid grid-cols-9 gap-1" id="number-pad"></div>
+      </div>
+      <div class="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <button
+          id="undo-btn"
+          data-tooltip="Undo the last action (Ctrl+Z)."
+          class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-100"
+        >
+          <span>Undo</span
+          ><span class="shortcut-indicator">&nbsp;(Ctrl+Z)</span>
+        </button>
+        <button
+          id="redo-btn"
+          data-tooltip="Redo the last undone action (Ctrl+Y)."
+          class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-100"
+        >
+          <span>Redo</span
+          ><span class="shortcut-indicator">&nbsp;(Ctrl+Y)</span>
+        </button>
+        <button
+          id="auto-pencil-btn"
+          data-tooltip="Fill all empty cells with possible candidates (A)."
+          class="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+        >
+          <span>Auto-Pencil</span
+          ><span class="shortcut-indicator">&nbsp;(A)</span>
+        </button>
+        <button
+          id="solve-btn"
+          data-tooltip="Reveal the solution for the puzzle (S)."
+          class="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
+        >
+          <span>Solve</span><span class="shortcut-indicator">&nbsp;(S)</span>
+        </button>
+        <button
+          id="clear-btn"
+          data-tooltip="Clear all user-entered numbers and pencil marks (Q)."
+          class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-100"
+        >
+          <span>Quick Reset</span
+          ><span class="shortcut-indicator">&nbsp;(Q)</span>
+        </button>
+        <button
+          id="clear-colors-btn"
+          data-tooltip="Clear all cell and candidate colors (W)."
+          class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-100"
+        >
+          <span>Wipe Colors</span
+          ><span class="shortcut-indicator">&nbsp;(W)</span>
+        </button>
+      </div>
+      <div id="solver-link-container" class="text-center mt-2"></div>
+      <div class="mt-2">
+        <div class="mt-1 flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            id="puzzle-string"
+            class="flex-grow shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
+            placeholder="Enter 81 characters..."
+          />
+          <button
+            id="load-btn"
+            data-tooltip="Load a custom 81-character puzzle string."
+            class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+          >
+            Load
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="date-modal"
+      class="fixed inset-0 z-20 hidden items-center justify-center bg-black bg-opacity-50"
+    >
+      <div class="bg-white p-6 rounded-lg shadow-xl w-80">
+        <h3 class="text-lg font-medium text-center mb-2">
+          Enter a Date (2025-09-12 - )
+        </h3>
+        <input
+          type="text"
+          id="date-input"
+          maxlength="10"
+          inputmode="numeric"
+          pattern="\d*"
+          placeholder="YYYY-MM-DD"
+          class="w-full border p-2 rounded-md text-center mb-2"
+        />
+        <div
+          id="date-error"
+          class="text-red-600 text-sm font-semibold h-5 mb-2 text-center"
+        ></div>
+        <div class="flex justify-between">
+          <button
+            id="date-cancel-btn"
+            class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            id="date-submit-btn"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Submit
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="candidate-modal"
+      class="fixed inset-0 z-10 hidden items-center justify-center"
+    >
+      <div class="bg-white p-6 rounded-lg shadow-xl">
+        <h3 class="text-lg font-medium text-center mb-2">Color a Candidate</h3>
+        <div id="candidate-grid" class="grid grid-cols-3 gap-2"></div>
+        <button
+          id="close-modal-btn"
+          class="mt-2 w-full px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+    <script src="sudoku/sudoku_constants.js" defer></script>
+    <script src="sudoku/sudoku_teks.js" defer></script>
+    <script src="sudoku/sudoku_solver.js" defer></script>
+    <script src="sudoku/sudoku_ui.js" defer></script>
+    <script src="sudoku/sudoku_main.js" defer></script>
+  </body>
+</html>
