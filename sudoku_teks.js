@@ -2716,9 +2716,8 @@ const techniques = {
     }
     return { change: false };
   },
-  // Add this constant and helper function inside the 'techniques' object.
 
-  // Pre-translated from the C++ offsets relative to a 3x3 selection of rows/cols
+  // Offsets relative to a 3x3 selection of rows/cols
   // The inner arrays represent [row_index, col_index] into the selected 3 rows and 3 columns.
   HEX_PATTERNS: [
     [
@@ -2770,29 +2769,23 @@ const techniques = {
       [2, 2],
     ],
   ],
-
   _findUniqueHexagons: function (pencils) {
-    const cells_by_pair = new Map();
+    // 1. Do one pass to find all "pure" bivalue cells and group them by their pair.
     const bivalue_cells_by_pair = new Map();
 
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
-        if (pencils[r][c].size < 2) continue;
-        const cands = [...pencils[r][c]];
-        const id = r * 9 + c;
-
-        for (const pair of techniques.combinations(cands, 2)) {
-          const [d1, d2] = pair.sort((a, b) => a - b);
+        const cands = pencils[r][c];
+        // We only care about pure bivalue cells for this map
+        if (cands.size === 2) {
+          const [d1, d2] = [...cands].sort((a, b) => a - b);
           const pair_key = `${d1},${d2}`;
+          const id = r * 9 + c;
 
-          if (!cells_by_pair.has(pair_key)) cells_by_pair.set(pair_key, []);
-          cells_by_pair.get(pair_key).push(id);
-
-          if (pencils[r][c].size === 2) {
-            if (!bivalue_cells_by_pair.has(pair_key))
-              bivalue_cells_by_pair.set(pair_key, new Set());
-            bivalue_cells_by_pair.get(pair_key).add(id);
+          if (!bivalue_cells_by_pair.has(pair_key)) {
+            bivalue_cells_by_pair.set(pair_key, new Set());
           }
+          bivalue_cells_by_pair.get(pair_key).add(id);
         }
       }
     }
@@ -2800,13 +2793,36 @@ const techniques = {
     const hexagons = [];
     const found = new Set();
 
-    for (const [pair_key, cell_list] of cells_by_pair.entries()) {
+    if (typeof techniques.combinations !== 'function') {
+      console.error("techniques.combinations helper function is missing.");
+      return [];
+    }
+
+    // 2. Iterate ONLY over pairs that have at least 2 bivalue cells
+    for (const [pair_key, bivalue_set_for_pair] of bivalue_cells_by_pair.entries()) {
+      
+      // This is the optimization: We skip any pair that doesn't have at least 2
+      // pure bivalue cells, before doing any more work.
+      if (bivalue_set_for_pair.size < 2) continue;
+
+      const [d1, d2] = pair_key.split(",").map(Number);
+      const cell_list = []; // Cells containing d1 OR d2
+
+      // 3. Now, for this "promising" pair, find all cells
+      //    that contain at least one of the core digits.
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          const cands = pencils[r][c];
+          if (cands.size < 1) continue;
+
+          if (cands.has(d1) || cands.has(d2)) {
+            cell_list.push(r * 9 + c);
+          }
+        }
+      }
+
+      // 4. The rest of the logic is the same as before
       if (cell_list.length < 6) continue;
-      if (
-        !bivalue_cells_by_pair.has(pair_key) ||
-        bivalue_cells_by_pair.get(pair_key).size < 2
-      )
-        continue;
 
       const cellset = new Set(cell_list);
       const row_cnt = Array(9).fill(0),
@@ -2833,6 +2849,7 @@ const techniques = {
             for (const [r_idx, c_idx] of pattern) {
               const r = rr[r_idx],
                 c = cc[c_idx];
+
               if (!cellset.has(r * 9 + c)) {
                 isValid = false;
                 break;
@@ -2847,7 +2864,7 @@ const techniques = {
             const hex_key = sorted_ids.join(",");
             if (found.has(hex_key)) continue;
 
-            const bivalue_set_for_pair = bivalue_cells_by_pair.get(pair_key);
+            // Check that the found hexagon contains at least 2 pure bivalue cells
             const biv_count = hex_cells.filter(([r, c]) =>
               bivalue_set_for_pair.has(r * 9 + c)
             ).length;
@@ -2860,7 +2877,7 @@ const techniques = {
 
             hexagons.push({
               cells: hex_cells,
-              digits: pair_key.split(",").map(Number),
+              digits: [d1, d2], // Already have them as numbers
             });
             found.add(hex_key);
           }
@@ -2869,7 +2886,6 @@ const techniques = {
     }
     return hexagons;
   },
-  // Add this main technique function inside the 'techniques' object.
   uniqueHexagon: (board, pencils) => {
     const hexagons = techniques._findUniqueHexagons(pencils);
     if (hexagons.length === 0) return { change: false };
