@@ -684,11 +684,12 @@ function setupEventListeners() {
   formatToggleBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
-    updateButtonLabels();
+    // updateButtonLabels();
     const tip = `Candidate display set to ${
       candidatePopupFormat === "A" ? "Numpad (A)" : "Phone (B)"
     } layout.`;
     showMessage(tip, "gray");
+    renderBoard();
     if (
       !candidateModal.classList.contains("hidden") &&
       selectedCell.row !== null
