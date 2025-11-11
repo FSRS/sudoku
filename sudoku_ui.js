@@ -1150,8 +1150,20 @@ function handleCellClick(e) {
       }
       needsRenderOnly = true;
     } else if (coloringSubMode === "candidate") {
-      if (isMobile && !isExperimentalMode) {
-        showCandidatePopup(selectedCell.row, selectedCell.col);
+      if (cellState.value !== 0) {
+        // Cell is concrete (has a value), apply highlighting logic
+        if (highlightedDigit !== cellState.value) {
+          highlightedDigit = cellState.value;
+          highlightState = 1;
+        } else {
+          highlightedDigit = null;
+          highlightState = 0;
+        }
+      } else {
+        // Cell is empty, run original logic for candidate popups
+        if (isMobile && !isExperimentalMode) {
+          showCandidatePopup(selectedCell.row, selectedCell.col);
+        }
       }
       needsRenderOnly = true;
     }
