@@ -37,6 +37,8 @@ let pausedElapsedTimes = {};
 let puzzleTimers = {}; // { "dateLevel": { elapsedMs, startTime } }
 let currentPuzzleKey = null; // Track which puzzle is currently active
 let isLoadingSavedGame = false;
+let currentHintData = null;
+let hintClickCount = 0;
 
 let lampTimestamps = {};
 let previousLampColor = null;
@@ -831,10 +833,104 @@ function setupEventListeners() {
     }
     if (currentLampColor === "gray") {
       showMessage("No hint available for an invalid puzzle.", "red");
+      return;
     } else if (currentLampColor === "black") {
       showMessage("Hint unavailable: a wrong progress has been made.", "red");
-    } else if (vagueHintMessage) {
-      showMessage(`Vague Hint: ${vagueHintMessage}`, "green");
+      return;
+    }
+
+    if (vagueHintMessage) {
+      hintClickCount++; // Increment click count
+
+      let message = "";
+      let color = "green"; // Default text color
+
+      if (!currentHintData || !currentHintData.hint) {
+        message = `Vague Hint: ${vagueHintMessage}`;
+      } else {
+        const h = currentHintData.hint;
+        const { r, c, num, type } = currentHintData;
+
+        // --- 3-Tier Hint Logic ---
+        if (hintClickCount === 1) {
+          // Tier 1: Technique Name Only
+          message = `Vague Hint: ${h.name}`;
+        } else if (hintClickCount === 2) {
+          // Tier 2: Specific Info
+          message = `Hint: ${h.name} - ${h.mainInfo || ""}`;
+        } else {
+          // Tier 3: Concrete Action (Formatted)
+          let actionStr = "";
+
+          if (type === "place") {
+            actionStr = `r${r + 1}c${c + 1} = ${num}`;
+          } else {
+            const cells = currentHintData.cells || [];
+
+            // 1. Group by removal digit
+            const removalsByDigit = new Map();
+            cells.forEach((cell) => {
+              if (!removalsByDigit.has(cell.num)) {
+                removalsByDigit.set(cell.num, []);
+              }
+              removalsByDigit.get(cell.num).push({ r: cell.r, c: cell.c });
+            });
+
+            // 2. Format each group with compact notation
+            const groups = [];
+            const sortedDigits = Array.from(removalsByDigit.keys()).sort(
+              (a, b) => a - b
+            );
+
+            for (const d of sortedDigits) {
+              const cellGroup = removalsByDigit.get(d);
+
+              // Sort cells: Row first, then Column
+              cellGroup.sort((a, b) => a.r - b.r || a.c - b.c);
+
+              let locStr = "";
+              const firstR = cellGroup[0].r;
+              const isSameRow = cellGroup.every((c) => c.r === firstR);
+              const firstC = cellGroup[0].c;
+              const isSameCol = cellGroup.every((c) => c.c === firstC);
+
+              if (isSameRow) {
+                // Same Row: r1c78
+                const cols = cellGroup.map((c) => c.c + 1).join("");
+                locStr = `r${firstR + 1}c${cols}`;
+              } else if (isSameCol) {
+                // Same Column: r23c8
+                const rows = cellGroup.map((c) => c.r + 1).join("");
+                locStr = `r${rows}c${firstC + 1}`;
+              } else {
+                // Mixed: Group by Row (r1c45,r2c6)
+                const rowMap = new Map();
+                for (const c of cellGroup) {
+                  if (!rowMap.has(c.r)) rowMap.set(c.r, []);
+                  rowMap.get(c.r).push(c.c);
+                }
+                const parts = [];
+                for (const [r, cols] of rowMap) {
+                  const colStr = cols.map((c) => c + 1).join("");
+                  parts.push(`r${r + 1}c${colStr}`);
+                }
+                locStr = parts.join(",");
+              }
+
+              groups.push(`${locStr}<>${d}`);
+            }
+
+            actionStr = groups.join(", ");
+          }
+
+          message = `Concrete Hint: ${h.name} -> ${actionStr}`;
+          color = "blue";
+          hintClickCount = 0;
+        }
+      }
+
+      // Map "blue" to appropriate class or pass directly if supported
+      showMessage(message, color === "blue" ? "blue" : "green");
     } else {
       showMessage("Hint is only available until Level 8 techniques.", "orange");
     }
@@ -2023,6 +2119,7 @@ function showMessage(text, color) {
   const colorClasses = [
     "text-red-600",
     "text-green-600",
+    "text-blue-500",
     "text-gray-600",
     "text-orange-500",
   ];
@@ -2030,6 +2127,7 @@ function showMessage(text, color) {
   const colors = {
     red: "text-red-600",
     green: "text-green-600",
+    blue: "text-blue-500",
     gray: "text-gray-600",
     orange: "text-orange-500",
   };
@@ -2562,6 +2660,11 @@ async function evaluateBoardDifficulty() {
     { name: "Turbot Fish", func: techniques.turbotFish, level: 5 },
     { name: "Hidden Rectangle", func: techniques.hiddenRectangle, level: 5 },
     {
+      name: "Empty Rectangle",
+      func: techniques.emptyRectangle,
+      level: 5,
+    },
+    {
       name: "Rectangle Elimination",
       func: techniques.rectangleElimination,
       level: 5,
@@ -2594,6 +2697,7 @@ async function evaluateBoardDifficulty() {
       level: 8,
     },
   ];
+  const solveStartTime = performance.now();
   if (IS_DEBUG_MODE) {
     console.clear();
     console.log("--- Starting New Difficulty Evaluation ---");
@@ -2621,6 +2725,8 @@ async function evaluateBoardDifficulty() {
         }
         if (!vagueHintMessage) {
           vagueHintMessage = tech.name;
+          currentHintData = result; // Store the full result for advanced hints
+          hintClickCount = 0; // Reset counter on new evaluation
         }
         maxDifficulty = Math.max(maxDifficulty, tech.level);
         if (result.type === "place") {
@@ -2681,5 +2787,12 @@ async function evaluateBoardDifficulty() {
     } else {
       updateLamp("violet");
     }
+  }
+  if (IS_DEBUG_MODE) {
+    const solveEndTime = performance.now();
+    console.log(
+      `Evaluation completed in ${(solveEndTime - solveStartTime).toFixed(2)}ms`
+    );
+    console.log("----------------------------------------------");
   }
 }
