@@ -3612,7 +3612,7 @@ const techniques = {
             cells: removals,
             hint: {
               name: "Simple Coloring",
-              mainInfo: `Digit ${num}`,
+              mainInfo: `Digit ${d}`,
             },
           };
       }
