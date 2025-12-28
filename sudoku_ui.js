@@ -836,7 +836,7 @@ function setupEventListeners() {
     } else if (vagueHintMessage) {
       showMessage(`Vague Hint: ${vagueHintMessage}`, "green");
     } else {
-      showMessage("Hint is only available until Level 7 techniques.", "orange");
+      showMessage("Hint is only available until Level 8 techniques.", "orange");
     }
   });
   exptModeBtn.addEventListener("click", (e) => {
