@@ -148,7 +148,7 @@ const techniques = {
               hint: {
                 name: "Hidden Single",
                 // 3. Use 'label' and 'i' directly
-                mainInfo: `on ${label} ${i + 1}`,
+                mainInfo: `${label} ${i + 1}`,
               },
             };
           }
@@ -513,7 +513,7 @@ const techniques = {
                   name: `Naked ${
                     size === 2 ? "Pair" : size === 3 ? "Triple" : "Quad"
                   }`,
-                  mainInfo: `in ${unitName}`,
+                  mainInfo: `${unitName}`,
                 },
               };
           }
@@ -583,7 +583,7 @@ const techniques = {
                   name: `Hidden ${
                     size === 2 ? "Pair" : size === 3 ? "Triple" : "Quad"
                   }`,
-                  mainInfo: `in ${unitName}`,
+                  mainInfo: `${unitName}`,
                 },
               };
             }
@@ -5761,25 +5761,32 @@ const techniques = {
 
       const startNode = chain[0];
       const currentNode = chain[chain.length - 1];
+      const elims = [];
 
-      if (chain.length >= 4 && chain.length % 2 === 0) {
+      if (chain.length >= 6 && chain.length % 2 === 0) {
         // A. Continuous Loop
         const weakNeighborsOfEnd = weakLinks.get(currentNode.key) || [];
         if (weakNeighborsOfEnd.some((n) => n.key === startNode.key)) {
           const loopEdges = [];
+          // Collect all Weak Links in the chain (between the strong links)
           for (let i = 1; i < chain.length - 1; i += 2) {
             loopEdges.push([chain[i], chain[i + 1]]);
           }
+          // Add the closing weak link
           loopEdges.push([currentNode, startNode]);
 
-          const elims = [];
+          const elims = []; // Ensure elims is defined
+
           for (const [u, v] of loopEdges) {
             if (!u || !v) continue;
 
+            // Case 1: Same Digit (Weak Link via Visibility)
+            // Logic: Eliminate digit from any cell seen by BOTH u and v
             if (u.digit === v.digit) {
               const peers = getCommonPeers(u, v);
               peers.forEach(([r, c]) => {
                 if (pencils[r][c].has(u.digit)) {
+                  // Ensure we don't eliminate the nodes themselves
                   const isNodeU = u.cells.some(
                     (cell) => cell[0] === r && cell[1] === c
                   );
@@ -5789,6 +5796,26 @@ const techniques = {
                   if (!isNodeU && !isNodeV) elims.push({ r, c, num: u.digit });
                 }
               });
+            }
+            // Case 2: Different Digits (Weak Link inside a Cell)
+            // Logic: u and v are the same cell. Eliminate all OTHER digits from this cell.
+            else {
+              const isSameCell =
+                u.count === 1 &&
+                v.count === 1 &&
+                u.cells[0][0] === v.cells[0][0] &&
+                u.cells[0][1] === v.cells[0][1];
+
+              if (isSameCell) {
+                const [r, c] = u.cells[0];
+                // Iterate all candidates in the cell
+                for (const cand of pencils[r][c]) {
+                  // If candidate is not u's digit AND not v's digit, eliminate it
+                  if (cand !== u.digit && cand !== v.digit) {
+                    elims.push({ r, c, num: cand });
+                  }
+                }
+              }
             }
           }
 
@@ -5807,6 +5834,7 @@ const techniques = {
         }
 
         // B. Discontinuous Chain
+        // Case 1: Same Digit
         if (startNode.digit === currentNode.digit) {
           const targets = getCommonPeers(startNode, currentNode);
           const elims = targets
@@ -5835,41 +5863,37 @@ const techniques = {
             return;
           }
         }
-        // Case 2: Different Digits (Handling Type 2 Same-Cell Elimination)
+        // Case 2: Different Digits
         else {
-          const isSameCell =
-            startNode.count === 1 &&
-            currentNode.count === 1 &&
-            startNode.cells[0][0] === currentNode.cells[0][0] &&
-            startNode.cells[0][1] === currentNode.cells[0][1];
-
-          if (
-            isSameCell ||
-            _seesAll(startNode, currentNode) ||
-            _seesAll(currentNode, startNode)
-          ) {
-            if (isSameCell) {
-              const [r, c] = startNode.cells[0];
-              const elims = [];
-              for (const cand of pencils[r][c]) {
-                if (cand !== startNode.digit && cand !== currentNode.digit) {
-                  elims.push({ r, c, num: cand });
-                }
-              }
-              if (elims.length > 0) {
-                result = {
-                  change: true,
-                  type: "remove",
-                  cells: elims,
-                  hint: {
-                    name: "Grouped AIC",
-                    mainInfo: _getStartLinkInfo(chain),
-                  },
-                };
-                return;
-              }
+          // A. End Node is Single & Sees Start Node -> Eliminate StartDigit from End Node
+          if (currentNode.count === 1 && _seesAll(currentNode, startNode)) {
+            const [r, c] = currentNode.cells[0];
+            if (pencils[r][c].has(startNode.digit)) {
+              elims.push({ r, c, num: startNode.digit });
             }
           }
+
+          // B. Start Node is Single & Sees End Node -> Eliminate EndDigit from Start Node
+          // Symmetric logic.
+          if (startNode.count === 1 && _seesAll(startNode, currentNode)) {
+            const [r, c] = startNode.cells[0];
+            if (pencils[r][c].has(currentNode.digit)) {
+              elims.push({ r, c, num: currentNode.digit });
+            }
+          }
+        }
+
+        if (elims.length > 0) {
+          result = {
+            change: true,
+            type: "remove",
+            cells: elims,
+            hint: {
+              name: "Grouped AIC",
+              mainInfo: _getStartLinkInfo(chain),
+            },
+          };
+          return;
         }
       }
 
