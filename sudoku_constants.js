@@ -15,6 +15,7 @@ const difficultyWords = [
   "MASTER",
   "NEMESIS",
   "DOMINATOR",
+  // "INVADER",
   "VANQUISHER",
 ];
 
@@ -66,6 +67,8 @@ const levelTips = [
   "Lv. 7: Grouped X-Chain, 3D Medusa, Alternating Inference Chain",
   "Lv. 8: Grouped AIC, Pair Subset Exclusion, ALS-XZ",
   "Lv. 9: Triple Sub. Excl., ALS-XY/W-Wing, Finned Franken/Mutant Swordfish",
+  // "Lv. 9: Triple Sub. Excl., ALS-XY/W-Wing",
+  // "Lv. 10: ALS-Chain, Death Blossom, Finned Franken/Mutant Swordfish",
 ];
 
 // live palette variables used by updateControls()

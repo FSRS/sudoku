@@ -548,8 +548,8 @@ function updateLamp(color, { record = true } = {}) {
       green: "Medium: Level 1 - 2",
       yellow: "Hard: Level 3 - 5",
       orange: "Unfair: Level 6",
-      red: "Extreme: Level 7",
-      violet: "Insane: Level 8+",
+      red: "Extreme: Level 7 - 8",
+      violet: "Insane: Level 9+",
       gray: "Invalid: This puzzle does not have a unique solution.",
     };
     let tooltipText = tooltips[color] || "Difficulty Indicator";
@@ -616,8 +616,8 @@ function updateLamp(color, { record = true } = {}) {
     green: "Medium: Level 1 - 2",
     yellow: "Hard: Level 3 - 5",
     orange: "Unfair: Level 6",
-    red: "Extreme: Level 7",
-    violet: "Insane: Level 8+",
+    red: "Extreme: Level 7 - 8",
+    violet: "Insane: Level 9+",
     gray: "Invalid: This puzzle does not have a unique solution.",
     bug: "Bug: Report it to fsrs please!",
   };
@@ -1920,8 +1920,8 @@ function applySavedProgress(puzzleData) {
         green: "Medium: Level 1 - 2",
         yellow: "Hard: Level 3 - 5",
         orange: "Unfair: Level 6",
-        red: "Extreme: Level 7",
-        violet: "Insane: Level 8+",
+        red: "Extreme: Level 7 - 8",
+        violet: "Insane: Level 9+",
       };
       let tooltipText = tooltips[last] || "Difficulty Indicator";
       if (window.innerWidth <= 550)
@@ -2062,8 +2062,9 @@ function generateDiscordShareText() {
     { emoji: ":yellow_square:", color: "yellow" }, // 5
     { emoji: ":orange_square:", color: "orange" }, // 6
     { emoji: ":red_square:", color: "red" }, // 7
-    { emoji: ":purple_square:", color: "violet" }, // 8
+    { emoji: ":red_square:", color: "red" }, // 8
     { emoji: ":purple_square:", color: "violet" }, // 9
+    // { emoji: ":purple_square:", color: "violet" }, // 10
   ];
 
   const colorHierarchy = {
@@ -2581,6 +2582,17 @@ async function evaluateBoardDifficulty() {
       func: techniques.alternatingInferenceChain,
       level: 7,
     },
+    { name: "Grouped AIC", func: techniques.groupedAIC, level: 8 },
+    {
+      name: "Aligned Pair Exclusion",
+      func: techniques.alignedPairExclusion,
+      level: 8,
+    },
+    {
+      name: "Almost Locked Set XZ-Rule",
+      func: techniques.alsXZ,
+      level: 8,
+    },
   ];
   if (IS_DEBUG_MODE) {
     console.clear();
@@ -2649,7 +2661,7 @@ async function evaluateBoardDifficulty() {
     else if (maxDifficulty <= 2) updateLamp("green");
     else if (maxDifficulty <= 5) updateLamp("yellow");
     else if (maxDifficulty <= 6) updateLamp("orange");
-    else if (maxDifficulty <= 7) updateLamp("red");
+    else if (maxDifficulty <= 8) updateLamp("red");
   } else {
     // === Final bug detection ===
     let foundBug = false;
