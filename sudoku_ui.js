@@ -122,8 +122,13 @@ function updateButtonLabels() {
   }
 
   vagueHintBtn.textContent = isMobile ? "?" : "? (V)";
-  vagueHintBtn.dataset.tooltip =
-    "Get a vague hint for the next logical step (V).";
+  if (isMobile) {
+    vagueHintBtn.dataset.tooltip =
+      "Get increasingly concrete hints for the next step.";
+  } else {
+    vagueHintBtn.dataset.tooltip =
+      "Get increasingly concrete hints for the next step (V).";
+  }
 
   if (!isMobile) {
     attachTooltipEvents(modeToggleButton);
