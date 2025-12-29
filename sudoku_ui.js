@@ -1129,7 +1129,7 @@ function handleKeyPress(e) {
   if (!isCtrlOrCmd && key === "Shift") {
     highlightedDigit = null;
     highlightState = 0;
-    onBoardUpdated();
+    onBoardUpdated(true);
     return;
   }
   if (key === "Delete" || key === "Backspace") {
@@ -2719,12 +2719,12 @@ async function evaluateBoardDifficulty() {
           console.groupCollapsed(`Found: ${tech.name} (Level ${tech.level})`);
           if (result.type === "place") {
             console.log(
-              `Action: Place ${result.num} at (${result.r}, ${result.c})`
+              `Action: r${result.r + 1}c${result.c + 1}=${result.num}`
             );
           } else if (result.type === "remove") {
             console.log(`Action: Remove candidates:`);
             result.cells.forEach(({ r, c, num }) => {
-              console.log(`  - Remove ${num} from (${r}, ${c})`);
+              console.log(`  - r${r + 1}c${c + 1}<>${num}`);
             });
           }
         }
