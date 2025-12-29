@@ -4710,7 +4710,6 @@ const techniques = {
 
     // --- CASE 1: XY-CHAIN (Strict Separation) ---
     if (bivalueOnly) {
-      // Build fresh strictly for XY-Chain (does not touch cache)
       const graph = techniques._buildXYChainGraph(pencils);
       strongLinks = graph.strongLinks;
       weakLinks = graph.weakLinks;
@@ -4718,38 +4717,31 @@ const techniques = {
     }
     // --- CASE 2: RECYCLED GRAPH ---
     else {
-      // 1. Ensure Basic Single Graph
       techniques._ensureSingleNodesAndLinks(pencils);
 
-      // 2. Add Grouped if needed
       if (useGrouped) {
         techniques._ensureGroupedNodesAndLinks(pencils);
       }
 
-      // 3. Add In-Cell if AIC (not X-Chain)
       if (!singleDigit) {
         techniques._ensureInCellLinks(pencils);
       }
 
-      // 4. Recycle/Assemble Maps
       const cache = techniques._aicCache;
       nodeMap = cache.nodeMap;
 
-      // Select Strong Maps
       const strongMaps = [cache.strongLinksSingle];
       if (useGrouped) strongMaps.push(cache.strongLinksGrouped);
       if (!singleDigit) strongMaps.push(cache.strongLinksInCell);
       strongLinks = techniques._mergeMaps(...strongMaps);
 
-      // Select Weak Maps
       const weakMaps = [cache.weakLinksSingle];
       if (useGrouped) weakMaps.push(cache.weakLinksGrouped);
       if (!singleDigit) weakMaps.push(cache.weakLinksInCell);
       weakLinks = techniques._mergeMaps(...weakMaps);
     }
 
-    // --- DFS Traversal (Same as before) ---
-    // Helpers
+    // --- DFS Traversal ---
     const _getCommonPeers = (nA, nB) => {
       const targets = [];
       const _sees = techniques._sees;
@@ -4767,10 +4759,15 @@ const techniques = {
 
     let result = { change: false };
 
-    const dfs = (chain, visited) => {
+    // UPDATED: Added hasGrouped parameter to track if the chain uses a group
+    const dfs = (chain, visited, hasGrouped) => {
       if (result.change || chain.length > maxLength) return;
 
-      if (chain.length >= 6 && chain.length % 2 === 0) {
+      // UPDATED: Logic to gate elimination checks
+      // If useGrouped is true, we ONLY check eliminations if the chain actually contains a group.
+      const shouldCheck = !options.useGrouped || hasGrouped;
+
+      if (shouldCheck && chain.length >= 6 && chain.length % 2 === 0) {
         const start = chain[0];
         const end = chain[chain.length - 1];
         const elims = [];
@@ -4809,9 +4806,7 @@ const techniques = {
               type: "remove",
               cells: elims,
               hint: {
-                name: options.useGrouped
-                  ? "Grouped AIC (Continuous)"
-                  : "AIC (Continuous)",
+                name: options.useGrouped ? "Grouped AIC" : "AIC",
                 mainInfo: techniques._getHintInfo(chain, hintType),
               },
             };
@@ -4876,7 +4871,10 @@ const techniques = {
         if (!visited.has(nextNode.key)) {
           visited.add(nextNode.key);
           chain.push(nextNode);
-          dfs(chain, visited);
+
+          // UPDATED: Pass 'true' if we already have a group OR if nextNode is a group
+          dfs(chain, visited, hasGrouped || nextNode.count > 1);
+
           chain.pop();
           visited.delete(nextNode.key);
           if (result.change) return;
@@ -4888,7 +4886,8 @@ const techniques = {
     for (const key of strongLinks.keys()) {
       if (result.change) break;
       const startNode = nodeMap.get(key);
-      if (startNode) dfs([startNode], new Set([key]));
+      // UPDATED: Initialize hasGrouped for the start node
+      if (startNode) dfs([startNode], new Set([key]), startNode.count > 1);
     }
 
     return result;
@@ -5370,15 +5369,11 @@ const techniques = {
     const scanUnit = (unitCells) => {
       const validCells = unitCells.filter(([r, c]) => pencils[r][c].size > 0);
       const m = validCells.length;
-
-      // OPTIMIZATION: If wxyzOnly, we only need sets up to size 3.
       const searchLimit = wxyzOnly ? 3 : m;
 
       const search = (idx, count, currentCells, currentMask) => {
         if (count > 0) {
-          // OPTIMIZATION: If wxyzOnly, only collect size 1 (bivalue) and size 3.
           const shouldStore = !wxyzOnly || count === 1 || count === 3;
-
           if (shouldStore && _popcount(currentMask) === count + 1) {
             const candMap = {};
             for (const d of _maskToDigits(currentMask)) {
@@ -5398,10 +5393,7 @@ const techniques = {
             });
           }
         }
-
-        // Stop recursion if we reached the limit
         if (count >= searchLimit) return;
-
         for (let i = idx; i < m; i++) {
           const [r, c] = validCells[i];
           search(
@@ -5439,14 +5431,10 @@ const techniques = {
         const als1 = uniqueALS[i];
         const als2 = uniqueALS[j];
 
-        // Filter: Must see each other
         if (!_seesAny(als1.cells, als2.cells)) continue;
 
-        // --- WXYZ-Wing Restriction Check ---
         const size1 = als1.cells.length;
         const size2 = als2.cells.length;
-
-        // Ensure pair is specifically (1, 3) or (3, 1)
         const isWXYZ =
           (size1 === 1 && size2 === 3) || (size1 === 3 && size2 === 1);
 
@@ -5458,7 +5446,6 @@ const techniques = {
 
         if (_popcount(cands1) + _popcount(cands2) <= 5) continue;
 
-        // Find RCCs
         let rccMask = 0;
         const commonDigits = _maskToDigits(commonMask);
 
@@ -5483,13 +5470,14 @@ const techniques = {
         if (rccMask === 0) continue;
         const rccCount = _popcount(rccMask);
 
-        // --- Apply Elimination ---
-        const processElim = (zMask) => {
+        // --- UPDATED: Unified Elimination Helper ---
+        // Accepts the mask of digits to eliminate (zMask)
+        // and a callback (cellSelector) to get the source cells for a digit.
+        const executeElimination = (zMask, cellSelector) => {
           if (zMask === 0) return;
           for (const z of _maskToDigits(zMask)) {
-            const zCells1 = als1.candMap[z] || [];
-            const zCells2 = als2.candMap[z] || [];
-            const targets = _findCommonPeers([...zCells1, ...zCells2]);
+            const sourceCells = cellSelector(z) || [];
+            const targets = _findCommonPeers(sourceCells);
             for (const [tr, tc] of targets) {
               if (pencils[tr][tc].has(z)) {
                 eliminations.push({ r: tr, c: tc, num: z });
@@ -5500,22 +5488,22 @@ const techniques = {
         };
 
         if (rccCount === 1) {
-          // Singly Linked
-          processElim(commonMask & ~rccMask);
+          // Singly Linked: Eliminate Z from peers of BOTH ALS1 and ALS2
+          executeElimination(commonMask & ~rccMask, (d) => [
+            ...(als1.candMap[d] || []),
+            ...(als2.candMap[d] || []),
+          ]);
         } else if (rccCount === 2) {
-          // Doubly Linked
-          for (const rcc of _maskToDigits(rccMask)) {
-            const rccCells = [...als1.candMap[rcc], ...als2.candMap[rcc]];
-            const targets = _findCommonPeers(rccCells);
-            for (const [tr, tc] of targets) {
-              if (pencils[tr][tc].has(rcc)) {
-                eliminations.push({ r: tr, c: tc, num: rcc });
-                changed = true;
-              }
-            }
-          }
-          processElim(cands1 & ~rccMask);
-          processElim(cands2 & ~rccMask);
+          // Doubly Linked:
+          // 1. Eliminate RCCs from peers of BOTH (Mutual peers)
+          executeElimination(rccMask, (d) => [
+            ...(als1.candMap[d] || []),
+            ...(als2.candMap[d] || []),
+          ]);
+          // 2. Eliminate Non-RCCs from als1 peers
+          executeElimination(cands1 & ~rccMask, (d) => als1.candMap[d]);
+          // 3. Eliminate Non-RCCs from als2 peers
+          executeElimination(cands2 & ~rccMask, (d) => als2.candMap[d]);
         }
 
         if (changed) {
@@ -5524,7 +5512,6 @@ const techniques = {
             als2.cells
           )}`;
 
-          // Custom Hint for WXYZ-Wing
           if (isWXYZ) {
             name = "WXYZ-Wing";
             const bivalueAls = size1 === 1 ? als1 : als2;
