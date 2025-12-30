@@ -676,18 +676,20 @@ function setupEventListeners() {
   numberPad.addEventListener("click", handleNumberPadClick);
   loadBtn.addEventListener("click", () => loadPuzzle(puzzleStringInput.value));
 
+  // --- Auto-format & Auto-resize Textarea ---
   puzzleStringInput.addEventListener("input", function () {
-    const raw = this.value.replace(/\s/g, ""); // Remove existing whitespace/newlines
-
-    if (/^[0-9.]+$/.test(raw)) {
-      // Split into chunks of 9 and join with newline
+    // 1. Auto-format valid 81-char strings into 9 lines
+    const raw = this.value.replace(/\s/g, "");
+    if (raw.length === 81 && /^[0-9.]+$/.test(raw)) {
       const formatted = raw.match(/.{1,9}/g).join("\n");
-
-      // Only update if it changes the display (prevents cursor jumping loops)
       if (this.value !== formatted) {
         this.value = formatted;
       }
     }
+
+    // 2. Auto-resize height
+    this.style.height = "auto"; // Reset to shrink if needed
+    this.style.height = this.scrollHeight + "px"; // Expand to fit content
   });
 
   solveBtn.addEventListener("click", solve);
