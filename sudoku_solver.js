@@ -1,43 +1,63 @@
-// --- START: NEW DEBUG HELPER FUNCTION ---
 function logBoardState(board, pencils) {
-  let output = "\n";
-  const topBorder =
-    ".----------------------.---------------------.-------------------.\n";
-  const midBorder =
-    ":----------------------+---------------------+-------------------:\n";
-  const botBorder =
-    "'----------------------'---------------------'-------------------'\n";
+  // 1. Generate all cell strings and find max width per column
+  const cellStrings = Array(9)
+    .fill(null)
+    .map(() => Array(9).fill(""));
+  const colWidths = Array(9).fill(0);
 
-  output += topBorder;
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      let s = "";
+      if (board[r][c] !== 0) {
+        s = board[r][c].toString();
+      } else {
+        s = [...pencils[r][c]].sort().join("");
+      }
+      cellStrings[r][c] = s;
+      if (s.length > colWidths[c]) {
+        colWidths[c] = s.length;
+      }
+    }
+  }
+
+  // 2. Helper to generate separator lines
+  const makeLine = (left, mid, cross, right, fill) => {
+    let line = left;
+    for (let b = 0; b < 3; b++) {
+      let boxLen = 0;
+      for (let i = 0; i < 3; i++) {
+        const c = b * 3 + i;
+        boxLen += 1 + colWidths[c];
+      }
+      line += fill.repeat(boxLen);
+      if (b < 2) line += cross;
+    }
+    line += right + "\n";
+    return line;
+  };
+
+  let output = "\n";
+  output += makeLine(".", ".", ".", ".", "-");
 
   for (let r = 0; r < 9; r++) {
     let rowStr = "|";
     for (let c = 0; c < 9; c++) {
-      let cellContent = "";
-      if (board[r][c] !== 0) {
-        // It's a solved cell
-        cellContent = `  ${board[r][c]}  `;
-      } else {
-        // It's an unsolved cell with candidates
-        cellContent = [...pencils[r][c]].sort().join("");
-      }
-      // Pad the string to 5 characters and add a space
-      rowStr += ` ${cellContent.padEnd(5, " ")}`;
+      rowStr += " " + cellStrings[r][c].padEnd(colWidths[c], " ");
       if (c === 2 || c === 5) {
         rowStr += "|";
       }
     }
-    rowStr += " |\n";
+    rowStr += "|\n";
     output += rowStr;
 
     if (r === 2 || r === 5) {
-      output += midBorder;
+      output += makeLine(":", "+", "+", ":", "-");
     }
   }
-  output += botBorder;
+  output += makeLine("'", "'", "'", "'", "-");
+
   console.log(output);
 }
-// --- END: NEW DEBUG HELPER FUNCTION ---
 
 function isValidDate(yyyymmdd) {
   if (!/^\d{8}$/.test(yyyymmdd)) return false;

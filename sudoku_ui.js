@@ -675,6 +675,21 @@ function setupEventListeners() {
 
   numberPad.addEventListener("click", handleNumberPadClick);
   loadBtn.addEventListener("click", () => loadPuzzle(puzzleStringInput.value));
+
+  puzzleStringInput.addEventListener("input", function () {
+    const raw = this.value.replace(/\s/g, ""); // Remove existing whitespace/newlines
+
+    if (/^[0-9.]+$/.test(raw)) {
+      // Split into chunks of 9 and join with newline
+      const formatted = raw.match(/.{1,9}/g).join("\n");
+
+      // Only update if it changes the display (prevents cursor jumping loops)
+      if (this.value !== formatted) {
+        this.value = formatted;
+      }
+    }
+  });
+
   solveBtn.addEventListener("click", solve);
   clearBtn.addEventListener("click", () => {
     clearUserBoard();
@@ -717,7 +732,7 @@ function setupEventListeners() {
     }
   });
   levelSelect.addEventListener("change", findAndLoadSelectedPuzzle);
-  document.addEventListener("keydown", handleKeyPress);
+  document.addEventListener("keydown", handleKeyDown);
 
   const isMobile = window.innerWidth <= 550;
   if (!isMobile) {
@@ -995,11 +1010,32 @@ function setupEventListeners() {
   });
 }
 
-function handleKeyPress(e) {
+function handleKeyDown(e) {
   const key = e.key;
   const key_lower = e.key.toLowerCase();
   const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
+  if (isCtrlOrCmd && key_lower === "c") {
+    if (
+      (document.activeElement.tagName === "INPUT" ||
+        document.activeElement.tagName === "TEXTAREA") &&
+      window.getSelection().toString()
+    ) {
+      return;
+    }
+    e.preventDefault();
+    const asciiBoard = generateAsciiGrid();
+    navigator.clipboard
+      .writeText(asciiBoard)
+      .then(() => {
+        showMessage("Board state copied to clipboard!", "green");
+      })
+      .catch((err) => {
+        console.error("Copy failed:", err);
+        showMessage("Failed to copy to clipboard.", "red");
+      });
+    return;
+  }
   if (e.altKey && key_lower === "w") {
     e.preventDefault();
     if (!isClearStoragePending) {
@@ -1067,7 +1103,10 @@ function handleKeyPress(e) {
     }
     return;
   }
-  if (document.activeElement.tagName === "INPUT") {
+  if (
+    document.activeElement.tagName === "INPUT" ||
+    document.activeElement.tagName === "TEXTAREA"
+  ) {
     return;
   }
   if (key === "Escape" && !candidateModal.classList.contains("hidden")) {
@@ -1712,27 +1751,138 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   isCustomPuzzle = puzzleData === null;
   isLoadingSavedGame = false;
 
-  if (puzzleString.length !== 81 || !/^[0-9\.]+$/.test(puzzleString)) {
-    showMessage("Error: Invalid puzzle string.", "red");
-    addSudokuCoachLink(null);
-    return;
+  // 1. Detect if input is an ASCII grid (must have structure)
+  const isMultiLine = puzzleString.includes("|") && puzzleString.includes("\n");
+  let parsedGridCells = null;
+
+  if (isMultiLine) {
+    const lines = puzzleString.trim().split("\n");
+    // Filter rows that match the ASCII grid structure
+    const dataRows = lines.filter((line) => line.trim().startsWith("|"));
+
+    if (dataRows.length === 9) {
+      const extractedCells = [];
+      let isParseValid = true;
+
+      for (const row of dataRows) {
+        // Extract all digit sequences
+        const matches = row.match(/\d+/g);
+        if (!matches || matches.length !== 9) {
+          isParseValid = false;
+          break;
+        }
+        extractedCells.push(...matches);
+      }
+
+      if (isParseValid && extractedCells.length === 81) {
+        parsedGridCells = extractedCells;
+      }
+    }
   }
 
-  initialPuzzleString = puzzleString;
   initBoardState();
 
+  // 2. Prepare the Normalized String (81 chars of dots/digits)
+  let normalizedPuzzleString = "";
+
+  if (parsedGridCells) {
+    // --- ASCII Grid Parsing Logic ---
+    // Helper to identify peers for single-digit candidate detection
+    const getPeers = (idx) => {
+      const peers = new Set();
+      const r = Math.floor(idx / 9);
+      const c = idx % 9;
+      const boxR = Math.floor(r / 3) * 3;
+      const boxC = Math.floor(c / 3) * 3;
+      for (let i = 0; i < 9; i++) {
+        if (r * 9 + i !== idx) peers.add(r * 9 + i);
+        if (i * 9 + c !== idx) peers.add(i * 9 + c);
+      }
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          const pIdx = (boxR + i) * 9 + (boxC + j);
+          if (pIdx !== idx) peers.add(pIdx);
+        }
+      }
+      return peers;
+    };
+
+    for (let i = 0; i < 81; i++) {
+      const cellData = parsedGridCells[i];
+      const row = Math.floor(i / 9);
+      const col = i % 9;
+
+      let isCandidate = false;
+      if (cellData.length === 1) {
+        const digit = cellData;
+        const peers = getPeers(i);
+        for (const peerIdx of peers) {
+          const peerData = parsedGridCells[peerIdx];
+          if (peerData.includes(digit)) {
+            isCandidate = true;
+            break;
+          }
+        }
+      } else {
+        isCandidate = true;
+      }
+
+      if (!isCandidate) {
+        const num = parseInt(cellData, 10);
+        boardState[row][col].value = num;
+        boardState[row][col].isGiven = true;
+        normalizedPuzzleString += num;
+      } else {
+        boardState[row][col].value = 0;
+        boardState[row][col].isGiven = false;
+        const candidates = cellData.split("").map((d) => parseInt(d, 10));
+        candidates.forEach((c) => boardState[row][col].pencils.add(c));
+        normalizedPuzzleString += ".";
+      }
+    }
+    initialPuzzleString = normalizedPuzzleString;
+  } else {
+    // --- Standard String Logic (Single or Multi-line) ---
+    // 1. Remove ALL whitespace/newlines to handle the user's case
+    const cleanString = puzzleString.replace(/\s/g, "");
+
+    // 2. Validate length
+    if (cleanString.length !== 81 || !/^[0-9\.]+$/.test(cleanString)) {
+      showMessage("Error: Invalid puzzle string.", "red");
+      addSudokuCoachLink(null);
+      return;
+    }
+
+    initialPuzzleString = cleanString;
+
+    // 3. Parse Strict Digits
+    for (let i = 0; i < 81; i++) {
+      const char = cleanString[i];
+      const row = Math.floor(i / 9);
+      const col = i % 9;
+
+      // STRICT CHECK: Only parse if char is '1' through '9'
+      // This ignores '.', '0', or any accidental slip-ups
+      if (char >= "1" && char <= "9") {
+        const num = parseInt(char, 10);
+        boardState[row][col].value = num;
+        boardState[row][col].isGiven = true;
+      }
+    }
+  }
+
+  // --- Common Logic Below ---
+
+  // Build validation board from the normalized initialPuzzleString
   const boardForValidation = Array(9)
     .fill(null)
     .map(() => Array(9).fill(0));
+
   for (let i = 0; i < 81; i++) {
-    const row = Math.floor(i / 9);
-    const col = i % 9;
-    const char = puzzleString[i];
-    if (char !== "." && char !== "0") {
-      const num = parseInt(char);
-      boardState[row][col].value = num;
-      boardState[row][col].isGiven = true;
-      boardForValidation[row][col] = num;
+    const char = initialPuzzleString[i];
+    // Same strict check for validation board
+    if (char >= "1" && char <= "9") {
+      boardForValidation[Math.floor(i / 9)][i % 9] = parseInt(char, 10);
     }
   }
 
@@ -1782,7 +1932,6 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }
 
   renderBoard();
-
   savePuzzleTimer();
 
   currentPuzzleKey = isCustomPuzzle
@@ -1790,17 +1939,11 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     : `${puzzleData.date}-${puzzleData.level}`;
 
   loadPuzzleTimer(savedTime);
-
-  // Perform evaluation BEFORE saving initial state
   await evaluateBoardDifficulty();
-
-  // Reset flag after evaluation
   isLoadingSavedGame = false;
-
-  // NOW save the initial state with correct lamp color and preserved timestamps
   saveState();
 
-  addSudokuCoachLink(puzzleString);
+  addSudokuCoachLink(initialPuzzleString);
 
   if (isCustomPuzzle) {
     showMessage("Custom puzzle loaded!", "green");
@@ -2591,6 +2734,7 @@ async function evaluateBoardDifficulty() {
       name: "Eliminate Candidates",
       func: techniques.eliminateCandidates,
       level: 0,
+      score: 0,
     },
     { name: "Full House", func: techniques.fullHouse, level: 0, score: 4 },
     { name: "Naked Single", func: techniques.nakedSingle, level: 0, score: 4 },
@@ -2928,4 +3072,105 @@ async function evaluateBoardDifficulty() {
     );
     console.log("----------------------------------------------");
   }
+}
+
+// --- ASCII Grid Generation ---
+function generateAsciiGrid() {
+  const board = boardState.map((row) => row.map((cell) => cell.value));
+  const pencils = boardState.map((row) => row.map((cell) => cell.pencils));
+
+  // Helper: Check if a number exists in Row, Col, or Box
+  const isValueInvalid = (r, c, num) => {
+    // Check Row
+    for (let k = 0; k < 9; k++) {
+      if (board[r][k] === num) return true;
+    }
+    // Check Col
+    for (let k = 0; k < 9; k++) {
+      if (board[k][c] === num) return true;
+    }
+    // Check Box
+    const startR = Math.floor(r / 3) * 3;
+    const startC = Math.floor(c / 3) * 3;
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        if (board[startR + i][startC + j] === num) return true;
+      }
+    }
+    return false;
+  };
+
+  // 1. Generate all cell strings and find max width per column
+  const cellStrings = Array(9)
+    .fill(null)
+    .map(() => Array(9).fill(""));
+  const colWidths = Array(9).fill(0);
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      let s = "";
+
+      if (board[r][c] !== 0) {
+        // Case A: Concrete Value
+        s = board[r][c].toString();
+      } else if (pencils[r][c].size > 0) {
+        // Case B: User-entered Pencil Marks
+        s = [...pencils[r][c]].sort().join("");
+      } else {
+        // Case C: Empty Cell -> Calculate all valid candidates
+        const validCandidates = [];
+        for (let n = 1; n <= 9; n++) {
+          if (!isValueInvalid(r, c, n)) {
+            validCandidates.push(n);
+          }
+        }
+        s = validCandidates.join("");
+      }
+
+      cellStrings[r][c] = s;
+
+      // Update dynamic column width
+      if (s.length > colWidths[c]) {
+        colWidths[c] = s.length;
+      }
+    }
+  }
+
+  // 2. Helper to generate separator lines
+  const makeLine = (left, mid, cross, right, fill) => {
+    let line = left;
+    for (let b = 0; b < 3; b++) {
+      let boxLen = 0;
+      for (let i = 0; i < 3; i++) {
+        const c = b * 3 + i;
+        boxLen += 1 + colWidths[c];
+      }
+      line += fill.repeat(boxLen);
+      if (b < 2) line += cross;
+    }
+    line += right + "\n";
+    return line;
+  };
+
+  let output = "";
+  output += makeLine(".", ".", ".", ".", "-"); // Top
+
+  for (let r = 0; r < 9; r++) {
+    let rowStr = "|";
+    for (let c = 0; c < 9; c++) {
+      rowStr += " " + cellStrings[r][c].padEnd(colWidths[c], " ");
+      if (c === 2 || c === 5) {
+        rowStr += "|";
+      }
+    }
+    rowStr += "|\n";
+    output += rowStr;
+
+    if (r === 2 || r === 5) {
+      output += makeLine(":", "+", "+", ":", "-"); // Mid
+    }
+  }
+
+  output += makeLine("'", "'", "'", "'", "-"); // Bot
+  return output;
 }
