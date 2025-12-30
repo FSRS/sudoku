@@ -96,6 +96,19 @@ const techniques = {
     return cells;
   },
 
+  // --- UNIT CACHING ---
+  _unitCache: [],
+  _getUnitCellsCached: (unitIndex) => {
+    if (techniques._unitCache.length === 0) {
+      for (let i = 0; i < 27; i++) {
+        let type = i < 9 ? "row" : i < 18 ? "col" : "box";
+        let idx = i < 9 ? i : i < 18 ? i - 9 : i - 18;
+        techniques._unitCache.push(techniques._getUnitCells(type, idx));
+      }
+    }
+    return techniques._unitCache[unitIndex];
+  },
+
   eliminateCandidates: (board, pencils) => {
     const removals = [];
     let newpr = 0;
@@ -137,6 +150,112 @@ const techniques = {
       };
     }
     return { change: false };
+  },
+
+  fullHouse: (board, pencils) => {
+    // 1. Scan Rows
+    for (let r = 0; r < 9; r++) {
+      let emptyCnt = 0;
+      let emptyCol = -1;
+      let solvedMask = 0;
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] === 0) {
+          emptyCnt++;
+          if (emptyCnt > 1) break; // Optimization: Stop if row is too empty
+          emptyCol = c;
+        } else {
+          solvedMask |= 1 << (board[r][c] - 1);
+        }
+      }
+      if (emptyCnt === 1) {
+        return techniques._resolveFullHouse(
+          r,
+          emptyCol,
+          solvedMask,
+          `Row ${r + 1}`
+        );
+      }
+    }
+
+    // 2. Scan Columns
+    for (let c = 0; c < 9; c++) {
+      let emptyCnt = 0;
+      let emptyRow = -1;
+      let solvedMask = 0;
+      for (let r = 0; r < 9; r++) {
+        if (board[r][c] === 0) {
+          emptyCnt++;
+          if (emptyCnt > 1) break;
+          emptyRow = r;
+        } else {
+          solvedMask |= 1 << (board[r][c] - 1);
+        }
+      }
+      if (emptyCnt === 1) {
+        return techniques._resolveFullHouse(
+          emptyRow,
+          c,
+          solvedMask,
+          `Col ${c + 1}`
+        );
+      }
+    }
+
+    // 3. Scan Boxes
+    for (let b = 0; b < 9; b++) {
+      let emptyCnt = 0;
+      let emptyCell = null;
+      let solvedMask = 0;
+      const rStart = Math.floor(b / 3) * 3;
+      const cStart = (b % 3) * 3;
+
+      // Manual loop for speed (avoiding array creation overhead)
+      for (let i = 0; i < 9; i++) {
+        const r = rStart + Math.floor(i / 3);
+        const c = cStart + (i % 3);
+        if (board[r][c] === 0) {
+          emptyCnt++;
+          if (emptyCnt > 1) break;
+          emptyCell = { r, c };
+        } else {
+          solvedMask |= 1 << (board[r][c] - 1);
+        }
+      }
+
+      if (emptyCnt === 1) {
+        return techniques._resolveFullHouse(
+          emptyCell.r,
+          emptyCell.c,
+          solvedMask,
+          `Box ${b + 1}`
+        );
+      }
+    }
+
+    return { change: false };
+  },
+
+  // Helper to calculate missing digit and format the return object
+  _resolveFullHouse: (r, c, solvedMask, unitName) => {
+    let missingNum = 0;
+    // Find which bit is 0 in the mask (111111111)
+    for (let d = 1; d <= 9; d++) {
+      if (!((solvedMask >> (d - 1)) & 1)) {
+        missingNum = d;
+        break;
+      }
+    }
+    return {
+      change: true,
+      type: "place",
+      r: r,
+      c: c,
+      num: missingNum,
+      hint: {
+        name: "Full House",
+        mainInfo: unitName,
+      },
+    };
   },
 
   nakedSingle: (board, pencils) => {
@@ -4696,6 +4815,23 @@ const techniques = {
     return result;
   },
 
+  // 17-Bit ID: [Digit:4][Box:4][Mask:9]
+  _enc17: (d, b, m) => (d << 13) | (b << 9) | m,
+  _dec17: (id) => ({ d: (id >> 13) & 0xf, b: (id >> 9) & 0xf, m: id & 0x1ff }),
+
+  _cellsFrom17: (b, m) => {
+    const cells = [],
+      br = Math.floor(b / 3) * 3,
+      bc = (b % 3) * 3;
+    for (let i = 0; i < 9; i++)
+      if (m & (1 << i)) cells.push([br + Math.floor(i / 3), bc + (i % 3)]);
+    return cells;
+  },
+
+  // Intersection: Same Digit AND Same Box AND Overlapping Mask
+  _intersect17: (id1, id2) =>
+    ((id1 ^ id2) & 0x1fe00) === 0 && (id1 & id2 & 0x1ff) !== 0,
+
   // --- Main Finder ---
   _findAIC: (board, pencils, options) => {
     const {
@@ -4708,21 +4844,19 @@ const techniques = {
 
     let strongLinks, weakLinks, nodeMap;
 
-    // --- CASE 1: XY-CHAIN (Strict Separation) ---
+    // --- Graph Building ---
     if (bivalueOnly) {
       const graph = techniques._buildXYChainGraph(pencils);
       strongLinks = graph.strongLinks;
       weakLinks = graph.weakLinks;
       nodeMap = graph.nodeMap;
-    }
-    // --- CASE 2: RECYCLED GRAPH ---
-    else {
+    } else {
+      if (singleDigit & !useGrouped) techniques._resetAICCache();
       techniques._ensureSingleNodesAndLinks(pencils);
 
       if (useGrouped) {
         techniques._ensureGroupedNodesAndLinks(pencils);
       }
-
       if (!singleDigit) {
         techniques._ensureInCellLinks(pencils);
       }
@@ -4741,7 +4875,7 @@ const techniques = {
       weakLinks = techniques._mergeMaps(...weakMaps);
     }
 
-    // --- DFS Traversal ---
+    // --- Helper: Find common peers ---
     const _getCommonPeers = (nA, nB) => {
       const targets = [];
       const _sees = techniques._sees;
@@ -4759,27 +4893,39 @@ const techniques = {
 
     let result = { change: false };
 
-    // UPDATED: Added hasGrouped parameter to track if the chain uses a group
+    // --- DFS Traversal ---
     const dfs = (chain, visited, hasGrouped) => {
-      if (result.change || chain.length > maxLength) return;
+      if (result.change) return;
+      if (chain.length > maxLength) return;
 
-      // UPDATED: Logic to gate elimination checks
-      // If useGrouped is true, we ONLY check eliminations if the chain actually contains a group.
       const shouldCheck = !options.useGrouped || hasGrouped;
 
+      // ELIMINATION CHECK (Revised)
       if (shouldCheck && chain.length >= 6 && chain.length % 2 === 0) {
         const start = chain[0];
         const end = chain[chain.length - 1];
         const elims = [];
 
-        // Continuous Loop
+        // 1. Check Continuous Loop
+        // Does the chain close? (End --weak--> Start)
         const wNeighbors = weakLinks.get(end.key) || [];
-        if (wNeighbors.some((n) => n.key === start.key)) {
+        const isContinuous = wNeighbors.some((n) => n.key === start.key);
+
+        if (isContinuous) {
+          // In a continuous loop, every Weak link acts as a Strong link (inference-wise).
+          // We iterate through all weak connections in the loop.
+          // Chain: 0=S=>1-W->2=S=>3...-W->End
+          // Full loop: ...End-W->Start.
           const fullChain = [...chain, start];
+
+          // Iterate weak link pairs: (1,2), (3,4), ..., (End, Start)
           for (let i = 1; i < fullChain.length; i += 2) {
-            const u = fullChain[i],
-              v = fullChain[i + 1];
+            const u = fullChain[i];
+            const v = fullChain[i + 1];
+
             if (u.digit === v.digit) {
+              // Weak link between same digits (different cells)
+              // Elimination: Mutual peers lose this digit
               _getCommonPeers(u, v).forEach(({ r, c }) => {
                 const inU = u.cells.some(
                   (cell) => cell[0] === r && cell[1] === c
@@ -4787,62 +4933,69 @@ const techniques = {
                 const inV = v.cells.some(
                   (cell) => cell[0] === r && cell[1] === c
                 );
-                if (!inU && !inV && pencils[r][c].has(u.digit))
+                if (!inU && !inV && pencils[r][c].has(u.digit)) {
                   elims.push({ r, c, num: u.digit });
+                }
               });
             } else {
+              // Weak link within a cell (different digits)
+              // Elimination: Eliminate OTHER digits from the bivalue cell
               if (u.count === 1 && v.count === 1) {
                 const [r, c] = u.cells[0];
-                for (const cand of pencils[r][c]) {
-                  if (cand !== u.digit && cand !== v.digit)
-                    elims.push({ r, c, num: cand });
+                // Safety check: ensure v is in the same cell
+                if (v.cells[0][0] === r && v.cells[0][1] === c) {
+                  for (const cand of pencils[r][c]) {
+                    if (cand !== u.digit && cand !== v.digit) {
+                      elims.push({ r, c, num: cand });
+                    }
+                  }
                 }
               }
             }
           }
-          if (elims.length > 0) {
-            result = {
-              change: true,
-              type: "remove",
-              cells: elims,
-              hint: {
-                name: options.useGrouped ? "Grouped AIC" : "AIC",
-                mainInfo: techniques._getHintInfo(chain, hintType),
-              },
-            };
-            return;
-          }
         }
+        // 2. Discontinuous Loop
+        else {
+          if (start.digit === end.digit) {
+            // Case A: Start(d) ... End(d)
+            // Elimination: Remove 'd' from peers seeing both Start and End
+            const peers = _getCommonPeers(start, end);
+            peers.forEach(({ r, c }) => {
+              const inStart = start.cells.some(
+                (cell) => cell[0] === r && cell[1] === c
+              );
+              const inEnd = end.cells.some(
+                (cell) => cell[0] === r && cell[1] === c
+              );
+              if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
+                elims.push({ r, c, num: start.digit });
+              }
+            });
+          } else {
+            // Case B: Start(d1) ... End(d2)
+            // Start=ON implies End=ON.
 
-        // Discontinuous
-        if (start.digit === end.digit) {
-          const peers = _getCommonPeers(start, end);
-          peers.forEach(({ r, c }) => {
-            const inStart = start.cells.some(
-              (cell) => cell[0] === r && cell[1] === c
-            );
-            const inEnd = end.cells.some(
-              (cell) => cell[0] === r && cell[1] === c
-            );
-            if (!inStart && !inEnd && pencils[r][c].has(start.digit))
-              elims.push({ r, c, num: start.digit });
-          });
-        } else {
-          if (end.count === 1) {
-            const [er, ec] = end.cells[0];
-            const seesStart = start.cells.every((sc) =>
-              techniques._sees(sc, [er, ec])
-            );
-            if (seesStart && pencils[er][ec].has(start.digit))
-              elims.push({ r: er, c: ec, num: start.digit });
-          }
-          if (start.count === 1) {
-            const [sr, sc] = start.cells[0];
-            const seesEnd = end.cells.every((ec) =>
-              techniques._sees(ec, [sr, sc])
-            );
-            if (seesEnd && pencils[sr][sc].has(end.digit))
-              elims.push({ r: sr, c: sc, num: end.digit });
+            // If End is a single cell, remove Start.digit from it (if visible)
+            if (end.count === 1) {
+              const [er, ec] = end.cells[0];
+              const seesStart = start.cells.every((sc) =>
+                techniques._sees(sc, [er, ec])
+              );
+              if (seesStart && pencils[er][ec].has(start.digit)) {
+                elims.push({ r: er, c: ec, num: start.digit });
+              }
+            }
+
+            // If Start is a single cell, remove End.digit from it (if visible)
+            if (start.count === 1) {
+              const [sr, sc] = start.cells[0];
+              const seesEnd = end.cells.every((ec) =>
+                techniques._sees(ec, [sr, sc])
+              );
+              if (seesEnd && pencils[sr][sc].has(end.digit)) {
+                elims.push({ r: sr, c: sc, num: end.digit });
+              }
+            }
           }
         }
 
@@ -4854,7 +5007,7 @@ const techniques = {
             hint: {
               name:
                 options.nameOverride ||
-                (options.useGrouped ? "Grouped AIC" : "AIC"),
+                (isContinuous ? "AIC (Continuous)" : "AIC"),
               mainInfo: techniques._getHintInfo(chain, hintType),
             },
           };
@@ -4862,8 +5015,9 @@ const techniques = {
         }
       }
 
+      // --- Continue DFS ---
       const currentNode = chain[chain.length - 1];
-      const isStrongTurn = (chain.length - 1) % 2 === 0;
+      const isStrongTurn = chain.length % 2 !== 0; // Alternate Strong/Weak
       const nextMap = isStrongTurn ? strongLinks : weakLinks;
 
       const neighbors = nextMap.get(currentNode.key) || [];
@@ -4871,10 +5025,7 @@ const techniques = {
         if (!visited.has(nextNode.key)) {
           visited.add(nextNode.key);
           chain.push(nextNode);
-
-          // UPDATED: Pass 'true' if we already have a group OR if nextNode is a group
           dfs(chain, visited, hasGrouped || nextNode.count > 1);
-
           chain.pop();
           visited.delete(nextNode.key);
           if (result.change) return;
@@ -4886,88 +5037,89 @@ const techniques = {
     for (const key of strongLinks.keys()) {
       if (result.change) break;
       const startNode = nodeMap.get(key);
-      // UPDATED: Initialize hasGrouped for the start node
-      if (startNode) dfs([startNode], new Set([key]), startNode.count > 1);
+      if (startNode) {
+        dfs([startNode], new Set([key]), startNode.count > 1);
+      }
     }
 
     return result;
   },
 
-  // --- Separate XY-Chain Builder ---
+  // --- Optimized XY-Chain Graph Builder ---
   _buildXYChainGraph: (pencils) => {
-    const nodes = [];
-    const nodeMap = new Map();
     const strongLinks = new Map();
     const weakLinks = new Map();
+    const nodeMap = new Map();
+
+    // Helper to get/create node
+    const getNode = (r, c, d) => {
+      // Sort cells to ensure consistent key for the same candidate
+      const cells = [[r, c]];
+      const key = `${d}@${JSON.stringify(cells)}`;
+      if (!nodeMap.has(key)) {
+        nodeMap.set(key, { cells, digit: d, key, count: 1 });
+      }
+      return nodeMap.get(key);
+    };
 
     const addLink = (map, u, v) => {
       if (!map.has(u.key)) map.set(u.key, []);
       map.get(u.key).push(v);
     };
 
-    const registerNode = (n) => {
-      if (!nodeMap.has(n.key)) {
-        nodeMap.set(n.key, n);
-        nodes.push(n);
-      }
-    };
+    // 1. Find all Bivalue Cells & Build Strong Links (Intra-cell)
+    const nodesByDigit = Array.from({ length: 10 }, () => []);
 
-    // 1. Nodes (Bivalue only)
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         if (pencils[r][c].size === 2) {
-          for (const d of pencils[r][c]) {
-            registerNode(techniques._createAICNode([[r, c]], d));
+          const [d1, d2] = [...pencils[r][c]];
+          const n1 = getNode(r, c, d1);
+          const n2 = getNode(r, c, d2);
+
+          // Strong Link: Between d1 and d2 in the same bivalue cell
+          addLink(strongLinks, n1, n2);
+          addLink(strongLinks, n2, n1);
+
+          nodesByDigit[d1].push(n1);
+          nodesByDigit[d2].push(n2);
+        }
+      }
+    }
+
+    // 2. Build Weak Links (Visibility, Same Digit)
+    // Compare only nodes of the same digit to avoid O(N^2) over the whole board
+    for (let d = 1; d <= 9; d++) {
+      const nodes = nodesByDigit[d];
+      if (nodes.length < 2) continue;
+
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const u = nodes[i];
+          const v = nodes[j];
+          // Weak Link: If two bivalue cells containing 'd' can see each other
+          if (techniques._sees(u.cells[0], v.cells[0])) {
+            addLink(weakLinks, u, v);
+            addLink(weakLinks, v, u);
           }
         }
       }
     }
 
-    // 2. Links
-    const _sees = techniques._sees;
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const u = nodes[i];
-        const v = nodes[j];
-        const uCell = u.cells[0];
-        const vCell = v.cells[0];
-        const sameCell = uCell[0] === vCell[0] && uCell[1] === vCell[1];
-
-        let isStrong = false;
-        let isWeak = false;
-
-        if (u.digit === v.digit) {
-          if (!sameCell && _sees(uCell, vCell)) isWeak = true;
-        } else {
-          if (sameCell) isStrong = true;
-        }
-
-        if (isStrong) {
-          addLink(strongLinks, u, v);
-          addLink(strongLinks, v, u);
-        }
-        if (isWeak) {
-          addLink(weakLinks, u, v);
-          addLink(weakLinks, v, u);
-        }
-      }
-    }
     return { strongLinks, weakLinks, nodeMap };
   },
 
   // --- Technique Wrappers ---
 
-  xChain: (board, pencils) => {
-    techniques._resetAICCache(); // Reset Cache Here
-    return techniques._findAIC(board, pencils, {
+  xChain: (board, pencils) =>
+    techniques._findAIC(board, pencils, {
       singleDigit: true,
       useGrouped: false,
       bivalueOnly: false,
       maxLength: 10,
       hintType: "digit",
       nameOverride: "X-Chain",
-    });
-  },
+    }),
 
   groupedXChain: (board, pencils) =>
     techniques._findAIC(board, pencils, {
@@ -5285,259 +5437,216 @@ const techniques = {
 
     return { change: false };
   },
+  // --- REVISED ALS-XZ (With Custom Hints) ---
   alsXZ: (board, pencils, wxyzOnly = false) => {
-    const _sees = techniques._sees;
-    const _getUnitCells = techniques._getUnitCells;
-
-    // --- 1. Helpers ---
-    const _popcount = (n) => {
-      n = n - ((n >> 1) & 0x55555555);
-      n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
-      return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
-    };
-
-    const _getMask = (r, c) => {
-      let mask = 0;
-      if (pencils[r][c].size > 0) {
-        for (const d of pencils[r][c]) mask |= 1 << (d - 1);
-      }
-      return mask;
-    };
-
-    const _maskToDigits = (mask) => {
-      const digits = [];
-      for (let d = 1; d <= 9; d++) {
-        if ((mask & (1 << (d - 1))) !== 0) digits.push(d);
-      }
-      return digits;
-    };
-
-    const _seesAll = (cellsA, cellsB) => {
-      if (cellsA.length === 0 || cellsB.length === 0) return false;
-      for (const [r1, c1] of cellsA) {
-        for (const [r2, c2] of cellsB) {
-          if (!_sees([r1, c1], [r2, c2])) return false;
-        }
-      }
-      return true;
-    };
-
-    const _seesAny = (cellsA, cellsB) => {
-      for (const [r1, c1] of cellsA) {
-        for (const [r2, c2] of cellsB) {
-          if (_sees([r1, c1], [r2, c2])) return true;
-        }
-      }
-      return false;
-    };
-
-    const _findCommonPeers = (cells) => {
-      if (cells.length === 0) return [];
-      const [r0, c0] = cells[0];
-      let candidatePeers = [];
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          if (r === r0 && c === c0) continue;
-          if (_sees([r, c], [r0, c0])) candidatePeers.push([r, c]);
-        }
-      }
-      for (let i = 1; i < cells.length; i++) {
-        const [ri, ci] = cells[i];
-        candidatePeers = candidatePeers.filter(([pr, pc]) => {
-          return !(pr === ri && pc === ci) && _sees([pr, pc], [ri, ci]);
-        });
-      }
-      return candidatePeers;
-    };
-
+    // Helper to identify the unit of an ALS
+    // (Prioritizes Row > Col > Box if an ALS fits multiple)
     const _identifyUnit = (cells) => {
-      if (cells.length === 0) return "";
       const rows = new Set(cells.map((c) => c[0]));
+      if (rows.size === 1) return `Row ${rows.values().next().value + 1}`;
+
       const cols = new Set(cells.map((c) => c[1]));
+      if (cols.size === 1) return `Col ${cols.values().next().value + 1}`;
+
       const boxes = new Set(
         cells.map((c) => techniques._getBoxIndex(c[0], c[1]))
       );
-
-      if (rows.size === 1) return `Row ${rows.values().next().value + 1}`;
-      if (cols.size === 1) return `Col ${cols.values().next().value + 1}`;
       if (boxes.size === 1) return `Box ${boxes.values().next().value + 1}`;
-      return "mixed units";
+
+      return "Unknown Unit";
     };
 
-    // --- 2. Collect ALS ---
     const allALS = [];
-    const scanUnit = (unitCells) => {
-      const validCells = unitCells.filter(([r, c]) => pencils[r][c].size > 0);
-      const m = validCells.length;
-      const searchLimit = wxyzOnly ? 3 : m;
 
-      const search = (idx, count, currentCells, currentMask) => {
-        if (count > 0) {
-          const shouldStore = !wxyzOnly || count === 1 || count === 3;
-          if (shouldStore && _popcount(currentMask) === count + 1) {
-            const candMap = {};
-            for (const d of _maskToDigits(currentMask)) {
-              candMap[d] = currentCells.filter(([r, c]) =>
-                pencils[r][c].has(d)
-              );
-            }
+    // Recursive search for ALS
+    const findALSInUnit = (unitCells) => {
+      const cells = unitCells.filter(([r, c]) => board[r][c] === 0);
+      const n = cells.length;
+      // WXYZ looks for Size 1 (Bivalue) and Size 3. General looks for all.
+      const MAX_ALS_SIZE = wxyzOnly ? 3 : n - 1;
+
+      const backtrack = (startIdx, currentCells, mask, count) => {
+        const candsCount = BITS.popcount(mask);
+        if (count >= 1 && candsCount === count + 1) {
+          if (!wxyzOnly || count === 1 || count === 3) {
             allALS.push({
               cells: [...currentCells],
-              candidates: currentMask,
-              count: count,
-              candMap: candMap,
-              key: currentCells
-                .map((c) => c.join(","))
-                .sort()
-                .join("|"),
+              mask: mask,
+              size: count,
+              candMap: (() => {
+                const map = {};
+                BITS.maskToDigits(mask).forEach((d) => {
+                  map[d] = currentCells.filter(([r, c]) =>
+                    pencils[r][c].has(d)
+                  );
+                });
+                return map;
+              })(),
             });
           }
         }
-        if (count >= searchLimit) return;
-        for (let i = idx; i < m; i++) {
-          const [r, c] = validCells[i];
-          search(
-            i + 1,
-            count + 1,
-            [...currentCells, [r, c]],
-            currentMask | _getMask(r, c)
-          );
+
+        if (count >= MAX_ALS_SIZE || startIdx >= n) return;
+
+        for (let i = startIdx; i < n; i++) {
+          const [r, c] = cells[i];
+          const cellMask = BITS.setToMask(pencils[r][c]);
+          const newMask = mask | cellMask;
+
+          // Pruning: Can we theoretically finish this ALS?
+          const newCandsCount = BITS.popcount(newMask);
+          const newCellCount = count + 1;
+          const excess = newCandsCount - (newCellCount + 1);
+          const remainingInUnit = n - (i + 1);
+          const remainingAllowed = MAX_ALS_SIZE - newCellCount;
+
+          if (excess <= remainingInUnit && excess <= remainingAllowed) {
+            backtrack(i + 1, [...currentCells, [r, c]], newMask, newCellCount);
+          }
         }
       };
-      search(0, 0, [], 0);
+      backtrack(0, [], 0, 0);
     };
 
-    for (let i = 0; i < 9; i++) {
-      scanUnit(techniques._getUnitCells("row", i));
-      scanUnit(techniques._getUnitCells("col", i));
-      scanUnit(techniques._getUnitCells("box", i));
-    }
+    // 1. Gather
+    for (let i = 0; i < 27; i++)
+      findALSInUnit(techniques._getUnitCellsCached(i));
 
-    const uniqueALS = [];
-    const seenALS = new Set();
+    // 2. Deduplicate
+    const uniqueALS = new Map();
     for (const als of allALS) {
-      if (!seenALS.has(als.key)) {
-        seenALS.add(als.key);
-        uniqueALS.push(als);
-      }
+      const key = als.cells
+        .map((c) => (c[0] << 4) | c[1])
+        .sort((a, b) => a - b)
+        .join(",");
+      if (!uniqueALS.has(key)) uniqueALS.set(key, als);
     }
+    const alsList = Array.from(uniqueALS.values());
 
-    // --- 3. Evaluate Pairs ---
-    let changed = false;
-    const eliminations = [];
+    // 3. Evaluate Pairs
+    for (let i = 0; i < alsList.length; i++) {
+      for (let j = i + 1; j < alsList.length; j++) {
+        const A = alsList[i];
+        const B = alsList[j];
 
-    for (let i = 0; i < uniqueALS.length; i++) {
-      for (let j = i + 1; j < uniqueALS.length; j++) {
-        const als1 = uniqueALS[i];
-        const als2 = uniqueALS[j];
-
-        if (!_seesAny(als1.cells, als2.cells)) continue;
-
-        const size1 = als1.cells.length;
-        const size2 = als2.cells.length;
         const isWXYZ =
-          (size1 === 1 && size2 === 3) || (size1 === 3 && size2 === 1);
-
+          (A.size === 1 && B.size === 3) || (A.size === 3 && B.size === 1);
         if (wxyzOnly && !isWXYZ) continue;
 
-        const cands1 = als1.candidates;
-        const cands2 = als2.candidates;
-        const commonMask = cands1 & cands2;
-
-        if (_popcount(cands1) + _popcount(cands2) <= 5) continue;
+        // Shared Candidates Check (min 2 for valid ALS-XZ/WXYZ interaction)
+        const commonMask = A.mask & B.mask;
+        if (BITS.popcount(commonMask) < 2) continue;
 
         let rccMask = 0;
-        const commonDigits = _maskToDigits(commonMask);
+        const commonDigits = BITS.maskToDigits(commonMask);
 
         for (const d of commonDigits) {
-          const cells1 = als1.candMap[d];
-          const cells2 = als2.candMap[d];
-
-          let overlap = false;
-          const set1 = new Set(cells1.map((c) => c.join(",")));
-          for (const c of cells2)
-            if (set1.has(c.join(","))) {
-              overlap = true;
-              break;
-            }
-          if (overlap) continue;
-
-          if (_seesAll(cells1, cells2)) {
+          if (techniques._checkRestrictedCommon(A, B, d, pencils)) {
             rccMask |= 1 << (d - 1);
           }
         }
 
-        if (rccMask === 0) continue;
-        const rccCount = _popcount(rccMask);
+        const rccCount = BITS.popcount(rccMask);
+        if (rccCount === 0) continue;
 
-        // --- UPDATED: Unified Elimination Helper ---
-        // Accepts the mask of digits to eliminate (zMask)
-        // and a callback (cellSelector) to get the source cells for a digit.
-        const executeElimination = (zMask, cellSelector) => {
+        const elims = [];
+        let changed = false;
+
+        const executeElimination = (zMask, getSourceCells) => {
           if (zMask === 0) return;
-          for (const z of _maskToDigits(zMask)) {
-            const sourceCells = cellSelector(z) || [];
-            const targets = _findCommonPeers(sourceCells);
-            for (const [tr, tc] of targets) {
-              if (pencils[tr][tc].has(z)) {
-                eliminations.push({ r: tr, c: tc, num: z });
-                changed = true;
+          const zDigits = BITS.maskToDigits(zMask);
+          for (const z of zDigits) {
+            const sources = getSourceCells(z);
+            if (!sources || sources.length === 0) continue;
+            for (let r = 0; r < 9; r++) {
+              for (let c = 0; c < 9; c++) {
+                if (board[r][c] !== 0) continue;
+                if (!pencils[r][c].has(z)) continue;
+
+                const inA = A.cells.some((ca) => ca[0] === r && ca[1] === c);
+                const inB = B.cells.some((cb) => cb[0] === r && cb[1] === c);
+                if (inA || inB) continue;
+
+                if (sources.every((sc) => techniques._sees([r, c], sc))) {
+                  elims.push({ r, c, num: z });
+                  changed = true;
+                }
               }
             }
           }
         };
 
+        // Singly Linked
         if (rccCount === 1) {
-          // Singly Linked: Eliminate Z from peers of BOTH ALS1 and ALS2
           executeElimination(commonMask & ~rccMask, (d) => [
-            ...(als1.candMap[d] || []),
-            ...(als2.candMap[d] || []),
+            ...(A.candMap[d] || []),
+            ...(B.candMap[d] || []),
           ]);
-        } else if (rccCount === 2) {
-          // Doubly Linked:
-          // 1. Eliminate RCCs from peers of BOTH (Mutual peers)
+        }
+        // Doubly Linked
+        else if (rccCount === 2) {
           executeElimination(rccMask, (d) => [
-            ...(als1.candMap[d] || []),
-            ...(als2.candMap[d] || []),
+            ...(A.candMap[d] || []),
+            ...(B.candMap[d] || []),
           ]);
-          // 2. Eliminate Non-RCCs from als1 peers
-          executeElimination(cands1 & ~rccMask, (d) => als1.candMap[d]);
-          // 3. Eliminate Non-RCCs from als2 peers
-          executeElimination(cands2 & ~rccMask, (d) => als2.candMap[d]);
+          executeElimination(A.mask & ~rccMask, (d) => A.candMap[d]);
+          executeElimination(B.mask & ~rccMask, (d) => B.candMap[d]);
         }
 
         if (changed) {
-          let name = "ALS-XZ";
-          let mainInfo = `${_identifyUnit(als1.cells)} and ${_identifyUnit(
-            als2.cells
-          )}`;
-
-          if (isWXYZ) {
-            name = "WXYZ-Wing";
-            const bivalueAls = size1 === 1 ? als1 : als2;
-            const [r, c] = bivalueAls.cells[0];
-            mainInfo = `Bivalue cell at r${r + 1}c${c + 1}`;
-          }
-
           const uniqueElims = [];
           const seen = new Set();
-          for (const e of eliminations) {
-            const key = `${e.r},${e.c},${e.num}`;
-            if (!seen.has(key)) {
-              seen.add(key);
+          for (const e of elims) {
+            const k = `${e.r},${e.c},${e.num}`;
+            if (!seen.has(k)) {
+              seen.add(k);
               uniqueElims.push(e);
             }
           }
+
+          // --- HINT FORMATTING LOGIC ---
+          let name = "ALS-XZ";
+          let mainInfo = `${_identifyUnit(A.cells)} and ${_identifyUnit(
+            B.cells
+          )}`;
+
+          if (wxyzOnly || isWXYZ) {
+            name = "WXYZ-Wing";
+            // Identify the bivalue cell (Size 1 ALS)
+            const bivalueALS = A.size === 1 ? A : B;
+            const [br, bc] = bivalueALS.cells[0];
+            mainInfo = `Bivalue cell: r${br + 1}c${bc + 1}`;
+          }
+
           return {
             change: true,
             type: "remove",
             cells: uniqueElims,
-            hint: { name, mainInfo },
+            hint: {
+              name: name,
+              mainInfo: mainInfo,
+            },
           };
         }
       }
     }
     return { change: false };
+  },
+
+  // Helper must be present in techniques
+  _checkRestrictedCommon: (alsA, alsB, digit, pencils) => {
+    const cellsA = alsA.cells.filter(([r, c]) => pencils[r][c].has(digit));
+    const cellsB = alsB.cells.filter(([r, c]) => pencils[r][c].has(digit));
+    // Physical overlap check for RCC cells specifically
+    for (const [r1, c1] of cellsA) {
+      for (const [r2, c2] of cellsB) if (r1 === r2 && c1 === c2) return false;
+    }
+    // Visibility check
+    for (const [r1, c1] of cellsA) {
+      for (const [r2, c2] of cellsB)
+        if (!techniques._sees([r1, c1], [r2, c2])) return false;
+    }
+    return true;
   },
 
   wxyzWing: (board, pencils) => {

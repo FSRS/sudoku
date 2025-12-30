@@ -28,6 +28,7 @@ const difficultyLamp = document.getElementById("difficulty-lamp");
 const vagueHintBtn = document.getElementById("vague-hint-btn");
 
 let vagueHintMessage = "";
+let currentPuzzleScore = 0;
 let isClearStoragePending = false;
 let arePencilsHidden = false;
 let isSolvingViaButton = false;
@@ -1768,11 +1769,13 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   puzzleTimerEl.classList.remove("hidden");
 
   if (puzzleData) {
+    currentPuzzleScore = puzzleData.score;
     puzzleLevelEl.textContent = `Lv. ${puzzleData.level} (${
       difficultyWords[puzzleData.level]
     })`;
-    puzzleScoreEl.textContent = `Score: ${puzzleData.score}`;
+    puzzleScoreEl.textContent = `~${puzzleData.score}`;
   } else {
+    currentPuzzleScore = 0;
     puzzleLevelEl.textContent = "";
     puzzleScoreEl.textContent = "";
     dateSelect.value = "custom";
@@ -2562,7 +2565,12 @@ async function evaluateBoardDifficulty() {
   }
   if (emptyCount <= 3) {
     updateLamp("white");
-    vagueHintMessage = "Naked Single"; // Set the hint message here
+    vagueHintMessage = "Full House"; // Set the hint message here
+    if (currentPuzzleScore > 0) {
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${4 * emptyCount})`;
+    } else {
+      puzzleScoreEl.textContent = `(${emptyCount})`;
+    }
     return;
   }
   // --- Detect invalid starting state (wrong progress) ---
@@ -2584,122 +2592,226 @@ async function evaluateBoardDifficulty() {
       func: techniques.eliminateCandidates,
       level: 0,
     },
-    { name: "Naked Single", func: techniques.nakedSingle, level: 0 },
-    { name: "Hidden Single", func: techniques.hiddenSingle, level: 0 },
+    { name: "Full House", func: techniques.fullHouse, level: 0, score: 4 },
+    { name: "Naked Single", func: techniques.nakedSingle, level: 0, score: 4 },
+    {
+      name: "Hidden Single",
+      func: techniques.hiddenSingle,
+      level: 0,
+      score: 14,
+    },
     {
       name: "Locked Pair",
       func: (b, p) => techniques.lockedSubset(b, p, 2),
       level: 1,
+      score: 40,
     },
     {
       name: "Locked Triple",
       func: (b, p) => techniques.lockedSubset(b, p, 3),
       level: 1,
+      score: 60,
     },
     {
       name: "Intersection",
       func: (b, p) => techniques.intersection(b, p),
       level: 2,
+      score: 50,
     },
     {
       name: "Naked Pair",
       func: (b, p) => techniques.nakedSubset(b, p, 2),
       level: 2,
+      score: 60,
     },
     {
       name: "Hidden Pair",
       func: (b, p) => techniques.hiddenSubset(b, p, 2),
       level: 2,
+      score: 70,
     },
     {
       name: "Naked Triple",
       func: (b, p) => techniques.nakedSubset(b, p, 3),
       level: 2,
+      score: 80,
     },
     {
       name: "Hidden Triple",
       func: (b, p) => techniques.hiddenSubset(b, p, 3),
       level: 2,
+      score: 100,
     },
     {
       name: "Naked Quad",
       func: (b, p) => techniques.nakedSubset(b, p, 4),
       level: 3,
+      score: 120,
     },
     {
       name: "Hidden Quad",
       func: (b, p) => techniques.hiddenSubset(b, p, 4),
       level: 3,
+      score: 150,
     },
     {
       name: "Remote Pair",
       func: (b, p) => techniques.remotePair(b, p),
       level: 3,
+      score: 110,
     },
-    { name: "X-Wing", func: (b, p) => techniques.fish(b, p, 2), level: 3 },
-    { name: "XY-Wing", func: (b, p) => techniques.xyWing(b, p), level: 3 },
-    { name: "BUG+1", func: (b, p) => techniques.bugPlusOne(b, p), level: 4 },
+    {
+      name: "X-Wing",
+      func: (b, p) => techniques.fish(b, p, 2),
+      level: 3,
+      score: 100,
+    },
+    {
+      name: "XY-Wing",
+      func: (b, p) => techniques.xyWing(b, p),
+      level: 3,
+      score: 120,
+    },
+    {
+      name: "BUG+1",
+      func: (b, p) => techniques.bugPlusOne(b, p),
+      level: 4,
+      score: 100,
+    },
     {
       name: "Chute Remote Pair",
       func: (b, p) => techniques.chuteRemotePair(b, p),
       level: 4,
+      score: 120,
     },
     {
       name: "Unique Rectangle",
       func: (b, p) => techniques.uniqueRectangle(b, p),
       level: 4,
+      score: 100,
     },
-    { name: "XYZ-Wing", func: (b, p) => techniques.xyzWing(b, p), level: 4 },
-    { name: "W-Wing", func: (b, p) => techniques.wWing(b, p), level: 4 },
-    { name: "Swordfish", func: (b, p) => techniques.fish(b, p, 3), level: 4 },
-    { name: "Jellyfish", func: (b, p) => techniques.fish(b, p, 4), level: 4 },
-    { name: "Unique Hexagon", func: techniques.uniqueHexagon, level: 5 },
+    {
+      name: "XYZ-Wing",
+      func: (b, p) => techniques.xyzWing(b, p),
+      level: 4,
+      score: 140,
+    },
+    {
+      name: "W-Wing",
+      func: (b, p) => techniques.wWing(b, p),
+      level: 4,
+      score: 160,
+    },
+    {
+      name: "Swordfish",
+      func: (b, p) => techniques.fish(b, p, 3),
+      level: 4,
+      score: 130,
+    },
+    {
+      name: "Jellyfish",
+      func: (b, p) => techniques.fish(b, p, 4),
+      level: 4,
+      score: 160,
+    },
+    {
+      name: "Unique Hexagon",
+      func: techniques.uniqueHexagon,
+      level: 5,
+      score: 120,
+    },
     {
       name: "Extended Rectangle",
       func: techniques.extendedRectangle,
       level: 5,
+      score: 140,
     },
-    { name: "Grouped W-Wing", func: techniques.groupedWWing, level: 5 },
-    { name: "Skyscraper", func: techniques.skyscraper, level: 5 },
-    { name: "2-String Kite", func: techniques.twoStringKite, level: 5 },
-    { name: "Turbot Fish", func: techniques.turbotFish, level: 5 },
-    { name: "Hidden Rectangle", func: techniques.hiddenRectangle, level: 5 },
+    {
+      name: "Grouped W-Wing",
+      func: techniques.groupedWWing,
+      level: 5,
+      score: 170,
+    },
+    { name: "Skyscraper", func: techniques.skyscraper, level: 5, score: 110 },
+    {
+      name: "2-String Kite",
+      func: techniques.twoStringKite,
+      level: 5,
+      score: 120,
+    },
+    { name: "Turbot Fish", func: techniques.turbotFish, level: 5, score: 130 },
+    {
+      name: "Hidden Rectangle",
+      func: techniques.hiddenRectangle,
+      level: 5,
+      score: 110,
+    },
     {
       name: "Empty Rectangle",
       func: techniques.emptyRectangle,
       level: 5,
+      score: 150,
     },
     {
       name: "Rectangle Elimination",
       func: techniques.rectangleElimination,
       level: 5,
+      score: 150,
     },
-    { name: "Finned X-Wing", func: techniques.finnedXWing, level: 5 },
-    { name: "Finned Swordfish", func: techniques.finnedSwordfish, level: 6 },
-    { name: "Finned Jellyfish", func: techniques.finnedJellyfish, level: 6 },
-    { name: "Simple Coloring", func: techniques.simpleColoring, level: 6 },
-    { name: "X-Chain", func: techniques.xChain, level: 6 },
-    { name: "XY-Chain", func: techniques.xyChain, level: 6 },
-    { name: "Firework", func: techniques.firework, level: 6 },
-    { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6 },
-    { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6 },
-    { name: "Grouped X-Chain", func: techniques.groupedXChain, level: 7 },
-    { name: "3D Medusa", func: techniques.medusa3D, level: 7 },
+    {
+      name: "Finned X-Wing",
+      func: techniques.finnedXWing,
+      level: 5,
+      score: 140,
+    },
+    {
+      name: "Finned Swordfish",
+      func: techniques.finnedSwordfish,
+      level: 6,
+      score: 200,
+    },
+    {
+      name: "Finned Jellyfish",
+      func: techniques.finnedJellyfish,
+      level: 6,
+      score: 260,
+    },
+    {
+      name: "Simple Coloring",
+      func: techniques.simpleColoring,
+      level: 6,
+      score: 150,
+    },
+    { name: "X-Chain", func: techniques.xChain, level: 6, score: 200 },
+    { name: "XY-Chain", func: techniques.xyChain, level: 6, score: 240 },
+    { name: "Firework", func: techniques.firework, level: 6, score: 240 },
+    { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6, score: 200 },
+    { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6, score: 240 },
+    {
+      name: "Grouped X-Chain",
+      func: techniques.groupedXChain,
+      level: 7,
+      score: 240,
+    },
+    { name: "3D Medusa", func: techniques.medusa3D, level: 7, score: 200 },
     {
       name: "Alternating Inference Chain",
       func: techniques.alternatingInferenceChain,
       level: 7,
+      score: 280,
     },
-    { name: "Grouped AIC", func: techniques.groupedAIC, level: 8 },
+    { name: "Grouped AIC", func: techniques.groupedAIC, level: 8, score: 300 },
     {
       name: "Aligned Pair Exclusion",
       func: techniques.alignedPairExclusion,
       level: 8,
+      score: 290,
     },
     {
       name: "Almost Locked Set XZ-Rule",
       func: techniques.alsXZ,
       level: 8,
+      score: 300,
     },
   ];
   const solveStartTime = performance.now();
@@ -2709,12 +2821,14 @@ async function evaluateBoardDifficulty() {
     console.log("Initial Board State (0 = empty):");
     console.table(virtualBoard);
   }
+  let evaluatedScore = 0;
   let progressMade = true;
   while (progressMade) {
     progressMade = false;
     for (const tech of techniqueOrder) {
       const result = tech.func(virtualBoard, startingPencils);
       if (result.change) {
+        evaluatedScore += tech.score;
         if (IS_DEBUG_MODE) {
           console.groupCollapsed(`Found: ${tech.name} (Level ${tech.level})`);
           if (result.type === "place") {
@@ -2765,6 +2879,12 @@ async function evaluateBoardDifficulty() {
   const isSolved = virtualBoard.flat().every((v) => v !== 0);
 
   if (isSolved) {
+    console.log(`Estimated score: ${evaluatedScore}`);
+    if (currentPuzzleScore > 0) {
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${evaluatedScore})`;
+    } else {
+      puzzleScoreEl.textContent = `(${evaluatedScore})`;
+    }
     if (previousLampColor === "black" || previousLampColor === "bug") {
       previousLampColor = null;
     }
@@ -2774,6 +2894,12 @@ async function evaluateBoardDifficulty() {
     else if (maxDifficulty <= 6) updateLamp("orange");
     else if (maxDifficulty <= 8) updateLamp("red");
   } else {
+    evaluatedScore = -1;
+    if (currentPuzzleScore > 0) {
+      puzzleScoreEl.textContent = `~${currentPuzzleScore}`;
+    } else {
+      puzzleScoreEl.textContent = "";
+    }
     // === Final bug detection ===
     let foundBug = false;
     for (let r = 0; r < 9; r++) {

@@ -184,4 +184,27 @@ for (let r = 0; r < 9; r++) {
   }
 }
 
+const BITS = {
+  // Population Count
+  popcount: (n) => {
+    n = n - ((n >> 1) & 0x55555555);
+    n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
+    return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
+  },
+  // Set -> Bitmask
+  setToMask: (candIter) => {
+    let mask = 0;
+    for (const n of candIter) mask |= 1 << (n - 1);
+    return mask;
+  },
+  // Bitmask -> Array
+  maskToDigits: (mask) => {
+    const digits = [];
+    for (let i = 0; i < 9; i++) {
+      if (mask & (1 << i)) digits.push(i + 1);
+    }
+    return digits;
+  },
+};
+
 // --- End of Constants ---
