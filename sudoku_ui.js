@@ -2879,7 +2879,9 @@ async function evaluateBoardDifficulty() {
   const isSolved = virtualBoard.flat().every((v) => v !== 0);
 
   if (isSolved) {
-    console.log(`Estimated score: ${evaluatedScore}`);
+    if (IS_DEBUG_MODE) {
+      console.log(`Estimated score: ${evaluatedScore}`);
+    }
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (${evaluatedScore})`;
     } else {
