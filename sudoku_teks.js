@@ -4523,7 +4523,7 @@ const techniques = {
     if (hintType === "startCell") {
       // For XY-Chain: just the location of the start node
       const cell = startNode.cells[0];
-      return `Starting at r${cell[0] + 1}c${cell[1] + 1}`;
+      return `Start at r${cell[0] + 1}c${cell[1] + 1}`;
     }
 
     if (hintType === "strongLink") {
@@ -4532,10 +4532,10 @@ const techniques = {
       if (startNode.digit === nextNode.digit) {
         // Strong Link on Digit (Grouped or Single)
         const n2Str = techniques._fmtNode(nextNode);
-        return `Start Link: (${startNode.digit})${n1Str}=${n2Str}`;
+        return `Start with (${startNode.digit})${n1Str}=${n2Str}`;
       } else {
         // Strong Link on Cell (Bivalue / Intra-cell)
-        return `Start Link: (${startNode.digit}=${nextNode.digit})${n1Str}`;
+        return `Start with (${startNode.digit}=${nextNode.digit})${n1Str}`;
       }
     }
     return "";
@@ -5005,9 +5005,7 @@ const techniques = {
             type: "remove",
             cells: elims,
             hint: {
-              name:
-                options.nameOverride ||
-                (isContinuous ? "AIC (Continuous)" : "AIC"),
+              name: options.nameOverride || "AIC",
               mainInfo: techniques._getHintInfo(chain, hintType),
             },
           };
@@ -5157,6 +5155,7 @@ const techniques = {
       bivalueOnly: false,
       maxLength: 16,
       hintType: "strongLink",
+      nameOverride: "Grouped AIC",
     }),
 
   alignedPairExclusion: function (board, pencils) {

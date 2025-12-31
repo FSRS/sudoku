@@ -1515,7 +1515,7 @@ function handleNumberPadClick(e) {
 
 async function populateSelectors() {
   levelSelect.innerHTML = "";
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 11; i++) {
     const option = document.createElement("option");
     option.value = i;
     option.textContent = `${i} (${difficultyWords[i]})`;
@@ -1523,7 +1523,7 @@ async function populateSelectors() {
   }
   dateSelect.innerHTML = "";
   const today = new Date();
-  const minDateNum = 20250912;
+  const minDateNum = 20260101;
   const recentDates = [];
   for (let i = 0; i < 7; i++) {
     const now = new Date();
@@ -2315,7 +2315,7 @@ function generateDiscordShareText() {
     { emoji: ":red_square:", color: "red" }, // 7
     { emoji: ":red_square:", color: "red" }, // 8
     { emoji: ":purple_square:", color: "violet" }, // 9
-    // { emoji: ":purple_square:", color: "violet" }, // 10
+    { emoji: ":purple_square:", color: "violet" }, // 10
   ];
 
   const colorHierarchy = {
@@ -2346,11 +2346,11 @@ function generateDiscordShareText() {
     if (itemRank < startingRank && lampTimestamps[item.color]) {
       timeDetails += `\n${item.emoji} ${formatTime(
         lampTimestamps[item.color]
-      )}`;
+      ).replace(/:/g, "\\:")}`;
     }
   }
 
-  const finalTimeStr = puzzleTimerEl.textContent;
+  const finalTimeStr = puzzleTimerEl.textContent.replace(/:/g, "\\:");
   timeDetails += `\n:ballot_box_with_check: ${finalTimeStr}`;
 
   const header = `${title} | ${puzzleDateStr}\n${levelStr}${timeDetails}\n`;
