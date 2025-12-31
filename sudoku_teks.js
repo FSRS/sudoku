@@ -4900,32 +4900,25 @@ const techniques = {
 
       const shouldCheck = !options.useGrouped || hasGrouped;
 
-      // ELIMINATION CHECK (Revised)
-      if (shouldCheck && chain.length >= 6 && chain.length % 2 === 0) {
+      // --- Check for Continuous Loop (Length >= 4) ---
+      if (shouldCheck && chain.length >= 4 && chain.length % 2 === 0) {
         const start = chain[0];
         const end = chain[chain.length - 1];
-        const elims = [];
 
-        // 1. Check Continuous Loop
-        // Does the chain close? (End --weak--> Start)
         const wNeighbors = weakLinks.get(end.key) || [];
         const isContinuous = wNeighbors.some((n) => n.key === start.key);
 
         if (isContinuous) {
-          // In a continuous loop, every Weak link acts as a Strong link (inference-wise).
-          // We iterate through all weak connections in the loop.
-          // Chain: 0=S=>1-W->2=S=>3...-W->End
-          // Full loop: ...End-W->Start.
+          if (chain.legnth === 4) return;
+          const elims = [];
           const fullChain = [...chain, start];
 
-          // Iterate weak link pairs: (1,2), (3,4), ..., (End, Start)
           for (let i = 1; i < fullChain.length; i += 2) {
             const u = fullChain[i];
             const v = fullChain[i + 1];
 
             if (u.digit === v.digit) {
               // Weak link between same digits (different cells)
-              // Elimination: Mutual peers lose this digit
               _getCommonPeers(u, v).forEach(({ r, c }) => {
                 const inU = u.cells.some(
                   (cell) => cell[0] === r && cell[1] === c
@@ -4939,10 +4932,8 @@ const techniques = {
               });
             } else {
               // Weak link within a cell (different digits)
-              // Elimination: Eliminate OTHER digits from the bivalue cell
               if (u.count === 1 && v.count === 1) {
                 const [r, c] = u.cells[0];
-                // Safety check: ensure v is in the same cell
                 if (v.cells[0][0] === r && v.cells[0][1] === c) {
                   for (const cand of pencils[r][c]) {
                     if (cand !== u.digit && cand !== v.digit) {
@@ -4953,48 +4944,65 @@ const techniques = {
               }
             }
           }
-        }
-        // 2. Discontinuous Loop
-        else {
-          if (start.digit === end.digit) {
-            // Case A: Start(d) ... End(d)
-            // Elimination: Remove 'd' from peers seeing both Start and End
-            const peers = _getCommonPeers(start, end);
-            peers.forEach(({ r, c }) => {
-              const inStart = start.cells.some(
-                (cell) => cell[0] === r && cell[1] === c
-              );
-              const inEnd = end.cells.some(
-                (cell) => cell[0] === r && cell[1] === c
-              );
-              if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
-                elims.push({ r, c, num: start.digit });
-              }
-            });
+
+          if (elims.length > 0) {
+            result = {
+              change: true,
+              type: "remove",
+              cells: elims,
+              hint: {
+                name: options.nameOverride || "Continuous AIC Loop",
+                mainInfo: techniques._getHintInfo(chain, hintType),
+              },
+            };
+            return;
           } else {
-            // Case B: Start(d1) ... End(d2)
-            // Start=ON implies End=ON.
+            // Optimization: Chain is continuous but useless. Stop extending.
+            return;
+          }
+        }
+      }
 
-            // If End is a single cell, remove Start.digit from it (if visible)
-            if (end.count === 1) {
-              const [er, ec] = end.cells[0];
-              const seesStart = start.cells.every((sc) =>
-                techniques._sees(sc, [er, ec])
-              );
-              if (seesStart && pencils[er][ec].has(start.digit)) {
-                elims.push({ r: er, c: ec, num: start.digit });
-              }
+      // --- Standard Check: Discontinuous Chain (Length >= 6) ---
+      if (shouldCheck && chain.length >= 6 && chain.length % 2 === 0) {
+        const start = chain[0];
+        const end = chain[chain.length - 1];
+        const elims = [];
+
+        // Note: If it was continuous, we returned above. So this is strictly discontinuous.
+
+        if (start.digit === end.digit) {
+          // Type 1: Start(d) ... End(d) => mutual peers != d
+          const peers = _getCommonPeers(start, end);
+          peers.forEach(({ r, c }) => {
+            const inStart = start.cells.some(
+              (cell) => cell[0] === r && cell[1] === c
+            );
+            const inEnd = end.cells.some(
+              (cell) => cell[0] === r && cell[1] === c
+            );
+            if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
+              elims.push({ r, c, num: start.digit });
             }
-
-            // If Start is a single cell, remove End.digit from it (if visible)
-            if (start.count === 1) {
-              const [sr, sc] = start.cells[0];
-              const seesEnd = end.cells.every((ec) =>
-                techniques._sees(ec, [sr, sc])
-              );
-              if (seesEnd && pencils[sr][sc].has(end.digit)) {
-                elims.push({ r: sr, c: sc, num: end.digit });
-              }
+          });
+        } else {
+          // Type 2: Start(d1) ... End(d2) => Start sees End
+          if (end.count === 1) {
+            const [er, ec] = end.cells[0];
+            const seesStart = start.cells.every((sc) =>
+              techniques._sees(sc, [er, ec])
+            );
+            if (seesStart && pencils[er][ec].has(start.digit)) {
+              elims.push({ r: er, c: ec, num: start.digit });
+            }
+          }
+          if (start.count === 1) {
+            const [sr, sc] = start.cells[0];
+            const seesEnd = end.cells.every((ec) =>
+              techniques._sees(ec, [sr, sc])
+            );
+            if (seesEnd && pencils[sr][sc].has(end.digit)) {
+              elims.push({ r: sr, c: sc, num: end.digit });
             }
           }
         }
