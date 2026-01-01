@@ -130,21 +130,24 @@ const ALL_UNITS = (() => {
   return units;
 })();
 
-// A map from each cell's ID (0-80) to its set of 20 peers.
+// Pre-calculate single bitmasks for every cell index (0-80) for fast access
+const CELL_MASK = Array.from({ length: 81 }, (_, i) => 1n << BigInt(i));
+
+// A fixed array of 81 BigInts, each representing the 20 peers of a cell
 const PEER_MAP = (() => {
-  const peers = Array(81)
-    .fill(0)
-    .map(() => new Set());
-  const getBoxIndex = (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3);
+  const peers = Array(81).fill(0n);
 
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       const id = r * 9 + c;
+      let mask = 0n;
+
       // Add row and column peers
       for (let i = 0; i < 9; i++) {
-        if (i !== c) peers[id].add(r * 9 + i);
-        if (i !== r) peers[id].add(i * 9 + c);
+        if (i !== c) mask |= CELL_MASK[r * 9 + i];
+        if (i !== r) mask |= CELL_MASK[i * 9 + c];
       }
+
       // Add box peers
       const boxStartR = Math.floor(r / 3) * 3;
       const boxStartC = Math.floor(c / 3) * 3;
@@ -153,35 +156,15 @@ const PEER_MAP = (() => {
           const peerR = boxStartR + i;
           const peerC = boxStartC + j;
           if (peerR !== r || peerC !== c) {
-            peers[id].add(peerR * 9 + peerC);
+            mask |= CELL_MASK[peerR * 9 + peerC];
           }
         }
       }
+      peers[id] = mask;
     }
   }
   return peers;
 })();
-
-// Build CELL_MASK, PEER_MASK, UNIT_MASKS globally
-const CELL_MASK = Array.from({ length: 81 }, (_, i) => 1n << BigInt(i));
-const PEER_MASK = Array(81).fill(0n);
-for (let r = 0; r < 9; r++) {
-  for (let c = 0; c < 9; c++) {
-    let mask = 0n;
-    for (let cc = 0; cc < 9; cc++) if (cc !== c) mask |= CELL_MASK[r * 9 + cc];
-    for (let rr = 0; rr < 9; rr++) if (rr !== r) mask |= CELL_MASK[rr * 9 + c];
-    const br = Math.floor(r / 3) * 3;
-    const bc = Math.floor(c / 3) * 3;
-    for (let i = 0; i < 3; i++)
-      for (let j = 0; j < 3; j++) {
-        const rr = br + i,
-          cc = bc + j;
-        if (rr === r && cc === c) continue;
-        mask |= CELL_MASK[rr * 9 + cc];
-      }
-    PEER_MASK[r * 9 + c] = mask;
-  }
-}
 
 const BITS = {
   // Population Count

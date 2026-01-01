@@ -4253,6 +4253,8 @@ const techniques = {
 
     // 1. Populate Maps & Check Intrinsic Contradictions (Rules 1 & 2)
     for (const id of componentNodes) {
+      const killedMasks = [null, new Int32Array(81), new Int32Array(81)];
+      const bitFor = (d) => 1 << (d - 1);
       const color = coloring[id];
       const { r, c, n } = parseCandId(id);
       const digitBit = bitFor(n);
@@ -4298,6 +4300,8 @@ const techniques = {
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           if (board[r][c] !== 0) continue;
+          const killedMasks = [null, new Int32Array(81), new Int32Array(81)];
+          const bitFor = (d) => 1 << (d - 1);
           const cellIdx = r * 9 + c;
 
           // Construct mask of current candidates in the cell
