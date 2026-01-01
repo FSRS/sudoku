@@ -5,11 +5,9 @@ const techniques = {
   _idToCell: (id) => [Math.floor(id / 9), id % 9],
 
   _sees: (cell1, cell2) => {
-    const [r1, c1] = cell1;
-    const [r2, c2] = cell2;
-    if (r1 === r2 && c1 === c2) return false;
-    if (r1 === r2 || c1 === c2) return true;
-    return techniques._getBoxIndex(r1, c1) === techniques._getBoxIndex(r2, c2);
+    const id1 = cell1[0] * 9 + cell1[1];
+    const id2 = cell2[0] * 9 + cell2[1];
+    return PEER_MAP[id1].has(id2);
   },
 
   _commonVisibleCells: (cell1, cell2) => {
