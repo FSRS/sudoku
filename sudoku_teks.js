@@ -4738,7 +4738,7 @@ const techniques = {
     // We can iterate the existing singleNodes, grouped by cell
     const nodesByCell = new Map();
     for (const node of cache.singleNodes) {
-      const cellKey = node.cells[0].join(",");
+      const cellKey = node.cells[0][0] * 9 + node.cells[0][1];
       if (!nodesByCell.has(cellKey)) nodesByCell.set(cellKey, []);
       nodesByCell.get(cellKey).push(node);
     }
