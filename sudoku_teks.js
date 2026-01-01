@@ -4475,6 +4475,31 @@ const techniques = {
   },
 
   // --- Unified AIC Helpers ---
+  // --- 17-Bit ID Helpers ---
+  // ID Format: [Digit:4] [Box:4] [Mask:9]
+  // Range: 0 to ~82,000. Fits efficiently in flat arrays.
+  _enc17: (d, b, m) => (d << 13) | (b << 9) | m,
+  _dec17: (id) => ({ d: (id >> 13) & 0xf, b: (id >> 9) & 0xf, m: id & 0x1ff }),
+
+  _cellsFrom17: (b, m) => {
+    const cells = [],
+      br = Math.floor(b / 3) * 3,
+      bc = (b % 3) * 3;
+    for (let i = 0; i < 9; i++)
+      if (m & (1 << i)) cells.push([br + Math.floor(i / 3), bc + (i % 3)]);
+    return cells;
+  },
+
+  // Check if two nodes overlap (Same Digit + Same Box + Overlapping Mask)
+  _intersect17: (a, b) => {
+    // must be same digit AND same box AND share cells
+    return (
+      (a & 0x1e000) === (b & 0x1e000) &&
+      (a & 0x1e00) === (b & 0x1e00) &&
+      a & b & 0x1ff
+    );
+  },
+
   // --- Node Formatter for Hints ---
   _fmtNode: (node) => {
     const cells = node.cells;
@@ -4542,10 +4567,28 @@ const techniques = {
   },
 
   _createAICNode: (cells, digit) => {
-    // Sort cells for unique key generation (r, c)
-    cells.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    const key = `${digit}@${JSON.stringify(cells)}`;
-    return { cells, digit, key, count: cells.length };
+    // assume at least one cell exists
+    const [r0, c0] = cells[0];
+
+    // fixed box index for all cells
+    const b = Math.floor(r0 / 3) * 3 + Math.floor(c0 / 3);
+
+    let cellMask = 0;
+
+    for (const [r, c] of cells) {
+      // position inside the 3×3 box (0–8)
+      const bit = (r % 3) * 3 + (c % 3);
+      cellMask |= 1 << bit;
+    }
+
+    const key = techniques._enc17(digit, b, cellMask);
+
+    return {
+      cells,
+      digit,
+      key,
+      count: cells.length,
+    };
   },
 
   _generateGroupedNodes: (pencils, d) => {
@@ -4650,10 +4693,6 @@ const techniques = {
 
     // 2. Build Same-Digit Links (Strong & Weak)
     const _sees = techniques._sees;
-    const _areDisjoint = (nA, nB) => {
-      const sA = new Set(nA.cells.map((c) => c.join(",")));
-      return !nB.cells.some((c) => sA.has(c.join(",")));
-    };
     const _seesAll = (nA, nB) => {
       for (const cA of nA.cells)
         for (const cB of nB.cells) if (!_sees(cA, cB)) return false;
@@ -4667,7 +4706,7 @@ const techniques = {
         const v = nodes[j];
         if (u.digit !== v.digit) continue;
 
-        if (_areDisjoint(u, v) && _seesAll(u, v)) {
+        if (!techniques._intersect17(u.key, v.key) && _seesAll(u, v)) {
           // Weak Link: Visibility
           techniques._addLink(cache.weakLinksSingle, u, v);
           techniques._addLink(cache.weakLinksSingle, v, u);
@@ -4755,11 +4794,6 @@ const techniques = {
         for (const cB of nB.cells) if (!_sees(cA, cB)) return false;
       return true;
     };
-    const _areDisjoint = (nA, nB) => {
-      const sA = new Set(nA.cells.map((c) => c.join(",")));
-      return !nB.cells.some((c) => sA.has(c.join(",")));
-    };
-
     // Only iterate pairs involving at least one group
     for (let i = 0; i < all.length; i++) {
       const u = all[i];
@@ -4773,7 +4807,7 @@ const techniques = {
         // Skip Single <-> Single (already done)
         if (u.count === 1 && v.count === 1) continue;
 
-        if (_areDisjoint(u, v) && _seesAll(u, v)) {
+        if (!techniques._intersect17(u.key, v.key) && _seesAll(u, v)) {
           // Weak Link
           techniques._addLink(cache.weakLinksGrouped, u, v);
           techniques._addLink(cache.weakLinksGrouped, v, u);
@@ -4814,23 +4848,6 @@ const techniques = {
     }
     return result;
   },
-
-  // 17-Bit ID: [Digit:4][Box:4][Mask:9]
-  _enc17: (d, b, m) => (d << 13) | (b << 9) | m,
-  _dec17: (id) => ({ d: (id >> 13) & 0xf, b: (id >> 9) & 0xf, m: id & 0x1ff }),
-
-  _cellsFrom17: (b, m) => {
-    const cells = [],
-      br = Math.floor(b / 3) * 3,
-      bc = (b % 3) * 3;
-    for (let i = 0; i < 9; i++)
-      if (m & (1 << i)) cells.push([br + Math.floor(i / 3), bc + (i % 3)]);
-    return cells;
-  },
-
-  // Intersection: Same Digit AND Same Box AND Overlapping Mask
-  _intersect17: (id1, id2) =>
-    ((id1 ^ id2) & 0x1fe00) === 0 && (id1 & id2 & 0x1ff) !== 0,
 
   // --- Main Finder ---
   _findAIC: (board, pencils, options) => {
@@ -4899,125 +4916,122 @@ const techniques = {
       if (chain.length > maxLength) return;
 
       const shouldCheck = !options.useGrouped || hasGrouped;
-
-      // --- Check for Continuous Loop (Length >= 4) ---
-      if (shouldCheck && chain.length >= 4 && chain.length % 2 === 0) {
+      if (shouldCheck && chain.length % 2 === 0 && chain.length >= 4) {
         const start = chain[0];
         const end = chain[chain.length - 1];
 
-        const wNeighbors = weakLinks.get(end.key) || [];
-        const isContinuous = wNeighbors.some((n) => n.key === start.key);
-
-        if (isContinuous) {
-          if (chain.legnth === 4) return;
+        // --- Check for Continuous Loop (Length >= 4) ---
+        if (true) {
           const elims = [];
-          const fullChain = [...chain, start];
+          const wNeighbors = weakLinks.get(end.key) || [];
+          const isContinuous = wNeighbors.some((n) => n.key === start.key);
 
-          for (let i = 1; i < fullChain.length; i += 2) {
-            const u = fullChain[i];
-            const v = fullChain[i + 1];
+          if (isContinuous) {
+            if ((start.key < end.key) | (chain.legnth === 4)) return;
+            const fullChain = [...chain, start];
 
-            if (u.digit === v.digit) {
-              // Weak link between same digits (different cells)
-              _getCommonPeers(u, v).forEach(({ r, c }) => {
-                const inU = u.cells.some(
-                  (cell) => cell[0] === r && cell[1] === c
-                );
-                const inV = v.cells.some(
-                  (cell) => cell[0] === r && cell[1] === c
-                );
-                if (!inU && !inV && pencils[r][c].has(u.digit)) {
-                  elims.push({ r, c, num: u.digit });
-                }
-              });
-            } else {
-              // Weak link within a cell (different digits)
-              if (u.count === 1 && v.count === 1) {
-                const [r, c] = u.cells[0];
-                if (v.cells[0][0] === r && v.cells[0][1] === c) {
-                  for (const cand of pencils[r][c]) {
-                    if (cand !== u.digit && cand !== v.digit) {
-                      elims.push({ r, c, num: cand });
+            for (let i = 1; i < fullChain.length - 1; i += 2) {
+              const u = fullChain[i];
+              const v = fullChain[i + 1];
+
+              if (u.digit === v.digit) {
+                // Weak link between same digits (different cells)
+                _getCommonPeers(u, v).forEach(({ r, c }) => {
+                  const inU = u.cells.some(
+                    (cell) => cell[0] === r && cell[1] === c
+                  );
+                  const inV = v.cells.some(
+                    (cell) => cell[0] === r && cell[1] === c
+                  );
+                  if (!inU && !inV && pencils[r][c].has(u.digit)) {
+                    elims.push({ r, c, num: u.digit });
+                  }
+                });
+              } else {
+                // Weak link within a cell (different digits)
+                if (u.count === 1 && v.count === 1) {
+                  const [r, c] = u.cells[0];
+                  if (v.cells[0][0] === r && v.cells[0][1] === c) {
+                    for (const cand of pencils[r][c]) {
+                      if (cand !== u.digit && cand !== v.digit) {
+                        elims.push({ r, c, num: cand });
+                      }
                     }
                   }
                 }
               }
             }
-          }
 
-          if (elims.length > 0) {
-            result = {
-              change: true,
-              type: "remove",
-              cells: elims,
-              hint: {
-                name: options.nameOverride || "Continuous AIC Loop",
-                mainInfo: techniques._getHintInfo(chain, hintType),
-              },
-            };
-            return;
-          } else {
-            // Optimization: Chain is continuous but useless. Stop extending.
-            return;
-          }
-        }
-      }
-
-      // --- Standard Check: Discontinuous Chain (Length >= 6) ---
-      if (shouldCheck && chain.length >= 6 && chain.length % 2 === 0) {
-        const start = chain[0];
-        const end = chain[chain.length - 1];
-        const elims = [];
-
-        // Note: If it was continuous, we returned above. So this is strictly discontinuous.
-
-        if (start.digit === end.digit) {
-          // Type 1: Start(d) ... End(d) => mutual peers != d
-          const peers = _getCommonPeers(start, end);
-          peers.forEach(({ r, c }) => {
-            const inStart = start.cells.some(
-              (cell) => cell[0] === r && cell[1] === c
-            );
-            const inEnd = end.cells.some(
-              (cell) => cell[0] === r && cell[1] === c
-            );
-            if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
-              elims.push({ r, c, num: start.digit });
-            }
-          });
-        } else {
-          // Type 2: Start(d1) ... End(d2) => Start sees End
-          if (end.count === 1) {
-            const [er, ec] = end.cells[0];
-            const seesStart = start.cells.every((sc) =>
-              techniques._sees(sc, [er, ec])
-            );
-            if (seesStart && pencils[er][ec].has(start.digit)) {
-              elims.push({ r: er, c: ec, num: start.digit });
+            if (elims.length > 0) {
+              result = {
+                change: true,
+                type: "remove",
+                cells: elims,
+                hint: {
+                  name: options.nameOverride || "Continuous AIC Loop",
+                  mainInfo: techniques._getHintInfo(chain, hintType),
+                },
+              };
+              return;
+            } else {
+              // Optimization: Chain is continuous but useless. Stop extending.
+              return;
             }
           }
-          if (start.count === 1) {
-            const [sr, sc] = start.cells[0];
-            const seesEnd = end.cells.every((ec) =>
-              techniques._sees(ec, [sr, sc])
-            );
-            if (seesEnd && pencils[sr][sc].has(end.digit)) {
-              elims.push({ r: sr, c: sc, num: end.digit });
+
+          // --- Standard Check: Discontinuous Chain (Length >= 6) ---
+          if (!isContinuous && chain.length >= 6 && start.key > end.key) {
+            // Note: If it was continuous, we returned above. So this is strictly discontinuous.
+
+            if (start.digit === end.digit) {
+              // Type 1: Start(d) ... End(d) => mutual peers != d
+              const peers = _getCommonPeers(start, end);
+              peers.forEach(({ r, c }) => {
+                const inStart = start.cells.some(
+                  (cell) => cell[0] === r && cell[1] === c
+                );
+                const inEnd = end.cells.some(
+                  (cell) => cell[0] === r && cell[1] === c
+                );
+                if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
+                  elims.push({ r, c, num: start.digit });
+                }
+              });
+            } else {
+              // Type 2: Start(d1) ... End(d2) => Start sees End
+              if (end.count === 1) {
+                const [er, ec] = end.cells[0];
+                const seesStart = start.cells.every((sc) =>
+                  techniques._sees(sc, [er, ec])
+                );
+                if (seesStart && pencils[er][ec].has(start.digit)) {
+                  elims.push({ r: er, c: ec, num: start.digit });
+                }
+              }
+              if (start.count === 1) {
+                const [sr, sc] = start.cells[0];
+                const seesEnd = end.cells.every((ec) =>
+                  techniques._sees(ec, [sr, sc])
+                );
+                if (seesEnd && pencils[sr][sc].has(end.digit)) {
+                  elims.push({ r: sr, c: sc, num: end.digit });
+                }
+              }
+            }
+
+            if (elims.length > 0) {
+              result = {
+                change: true,
+                type: "remove",
+                cells: elims,
+                hint: {
+                  name: options.nameOverride || "AIC",
+                  mainInfo: techniques._getHintInfo(chain, hintType),
+                },
+              };
+              return;
             }
           }
-        }
-
-        if (elims.length > 0) {
-          result = {
-            change: true,
-            type: "remove",
-            cells: elims,
-            hint: {
-              name: options.nameOverride || "AIC",
-              mainInfo: techniques._getHintInfo(chain, hintType),
-            },
-          };
-          return;
         }
       }
 
@@ -5061,7 +5075,9 @@ const techniques = {
     const getNode = (r, c, d) => {
       // Sort cells to ensure consistent key for the same candidate
       const cells = [[r, c]];
-      const key = `${d}@${JSON.stringify(cells)}`;
+      const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+      const cellMask = 1 << ((r % 3) * 3 + (c % 3));
+      const key = techniques._enc17(d, b, cellMask);
       if (!nodeMap.has(key)) {
         nodeMap.set(key, { cells, digit: d, key, count: 1 });
       }
