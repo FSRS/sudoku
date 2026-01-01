@@ -823,8 +823,8 @@ function setupEventListeners() {
     const dd = String(today.getDate()).padStart(2, "0");
     const todayNum = parseInt(`${yyyy}${mm}${dd}`);
     const todayStr = `${yyyy}-${mm}-${dd}`;
-    if (dateNum < 20250912 || dateNum > todayNum) {
-      dateError.textContent = `Date must be between 2025-09-12 and ${todayStr}.`;
+    if (dateNum < 20260101 || dateNum > todayNum) {
+      dateError.textContent = `Date must be between 2026-01-01 and ${todayStr}.`;
       return;
     }
     let customOption = [...dateSelect.options].find(

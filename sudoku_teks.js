@@ -7,18 +7,24 @@ const techniques = {
   _sees: (cell1, cell2) => {
     const id1 = cell1[0] * 9 + cell1[1];
     const id2 = cell2[0] * 9 + cell2[1];
-    return PEER_MAP[id1].has(id2);
+    // Check if the bit for id2 is enabled in id1's peer mask using Bitwise AND
+    return (PEER_MAP[id1] & CELL_MASK[id2]) !== 0n;
   },
 
   _commonVisibleCells: (cell1, cell2) => {
-    const id1 = techniques._cellToId(cell1[0], cell1[1]);
-    const id2 = techniques._cellToId(cell2[0], cell2[1]);
-    const peers1 = PEER_MAP[id1];
-    const peers2 = PEER_MAP[id2];
+    const id1 = cell1[0] * 9 + cell1[1];
+    const id2 = cell2[0] * 9 + cell2[1];
+
+    // Intersection of two peer sets is just a fast bitwise AND
+    const commonMask = PEER_MAP[id1] & PEER_MAP[id2];
+
     const common = [];
-    for (const peerId of peers1) {
-      if (peers2.has(peerId)) {
-        common.push(techniques._idToCell(peerId));
+    if (commonMask === 0n) return common;
+
+    // Iterate bits to find enabled cells (0-80)
+    for (let i = 0; i < 81; i++) {
+      if ((commonMask & CELL_MASK[i]) !== 0n) {
+        common.push(techniques._idToCell(i));
       }
     }
     return common;
@@ -4247,25 +4253,20 @@ const techniques = {
 
     // 1. Populate Maps & Check Intrinsic Contradictions (Rules 1 & 2)
     for (const id of componentNodes) {
-      const color = coloring[id]; // 1 or 2
+      const color = coloring[id];
       const { r, c, n } = parseCandId(id);
-      const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-      const cellIdx = r * 9 + c;
-      const mask = 1 << (color - 1);
+      const digitBit = bitFor(n);
+      const cellId = r * 9 + c;
 
-      // Rule 1: Two candidates of same color in same cell (3D Medusa only)
-      if (!isSimpleColoring) {
-        if (cellHas[cellIdx] & mask) return eliminateColor(color);
-        cellHas[cellIdx] |= mask;
-      }
+      // Ensure PEER_MAP is accessible
+      const peerMask = PEER_MAP[cellId];
 
-      // Rule 2: Two candidates of same color, same digit, same unit
-      if (rowHas[n][r] & mask || colHas[n][c] & mask || boxHas[n][b] & mask) {
-        return eliminateColor(color);
+      // Iterate 0-80 and check mask
+      for (let peerIdx = 0; peerIdx < 81; peerIdx++) {
+        if ((peerMask & CELL_MASK[peerIdx]) !== 0n) {
+          killedMasks[color][peerIdx] |= digitBit;
+        }
       }
-      rowHas[n][r] |= mask;
-      colHas[n][c] |= mask;
-      boxHas[n][b] |= mask;
     }
 
     // --- Rule 6: Cell Emptiness (3D Medusa Only) ---
@@ -4282,13 +4283,15 @@ const techniques = {
         const cellId = r * 9 + c;
 
         // Ensure PEER_MAP is accessible
+        const peerMask = PEER_MAP[cellId];
 
-        const peers = PEER_MAP[cellId]; // This is a Set
-
-        // FIX: Iterate using for...of because 'peers' is a Set
-        for (const peerIdx of peers) {
-          killedMasks[color][peerIdx] |= digitBit;
+        // NEW CODE: Iterate 0-80 and check mask
+        for (let peerIdx = 0; peerIdx < 81; peerIdx++) {
+          if ((peerMask & CELL_MASK[peerIdx]) !== 0n) {
+            killedMasks[color][peerIdx] |= digitBit;
+          }
         }
+        // --- CHANGED SECTION END ---
       }
 
       // Check all cells for emptiness
