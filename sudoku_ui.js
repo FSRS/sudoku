@@ -1021,15 +1021,11 @@ function setupEventListeners() {
       // Add the falling class to trigger CSS animation
       sticker.classList.add("sticker-falling");
 
-      // Optional: Completely remove it from the DOM after animation ends (1.5s)
       setTimeout(() => {
-        // 1. Hide it, but keep its "ghost" in the layout so the title doesn't move
-        sticker.style.visibility = "hidden";
-
-        // 2. Optional: Remove the animation class to prevent a long scrollbar
-        // (Since opacity is 0, the user won't see it snap back to the top)
-        sticker.classList.remove("sticker-falling");
-      }, 1500);
+        // This triggers the CSS transition we just added.
+        // The width shrinks to 0 over 0.8 seconds, causing the title to slide center.
+        sticker.classList.add("sticker-collapsed");
+      }, 1200); // Start sliding slightly before the drop finishes (1.5s) for a smoother feel
     });
   }
 }

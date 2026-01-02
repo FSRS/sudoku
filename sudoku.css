@@ -898,9 +898,14 @@ button:disabled:hover {
   padding: 0.2rem 0.5rem;
   border-radius: 2px;
 
+  /* smooth slide animation */
+  max-width: 100px; /* Needed for CSS transition to work */
+  overflow: hidden; /* Hides the text as the box shrinks */
+  transition: max-width 0.8s ease, margin 0.8s ease, padding 0.8s ease,
+    border 0.8s ease;
+
   cursor: help;
   user-select: none;
-
   /* --- CHANGE: Violet Theme for Light Mode --- */
   background-color: #e9d5ff; /* Soft Lavender (purple-200) */
   color: #581c87; /* Deep Purple Text (purple-900) */
@@ -950,6 +955,14 @@ button:disabled:hover {
   animation: sticker-drop-anim 1.5s ease-in forwards;
   pointer-events: none;
   cursor: default;
+}
+
+#year-sticker.sticker-collapsed {
+  max-width: 0;
+  margin-left: 0;
+  padding: 0;
+  border-width: 0;
+  box-shadow: none; /* Remove shadow so no "ghost" remains */
 }
 
 /*
