@@ -1385,7 +1385,7 @@ button:disabled:hover {
   /* --- Sudoku Grid (Gray Theme) --- */
   .sudoku-cell {
     border-color: #4b5563 !important; /* gray-600 */
-    background-color: #1f2937; /* gray-800 */
+    /* background-color: #1f2937; gray-800 */
     position: relative;
   }
 
