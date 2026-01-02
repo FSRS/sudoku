@@ -911,7 +911,31 @@ button:disabled:hover {
   user-select: none;
 }
 
-/* 3. The "Scotch Tape" Effect */
+/* --- Component: Humorous Year Sticker (Violet Theme) --- */
+#year-sticker {
+  display: inline-block;
+  position: relative;
+
+  font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", sans-serif;
+  font-size: 0.6em;
+  font-weight: bold;
+
+  transform: rotate(-12deg) translateY(-2px);
+  margin-left: -0.4rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 2px;
+
+  cursor: help;
+  user-select: none;
+
+  /* --- CHANGE: Violet Theme for Light Mode --- */
+  background-color: #e9d5ff; /* Soft Lavender (purple-200) */
+  color: #581c87; /* Deep Purple Text (purple-900) */
+  border: 1px dashed #9333ea; /* Medium Purple Border (purple-600) */
+  box-shadow: 2px 3px 0px rgba(88, 28, 135, 0.2); /* Purple-tinted shadow */
+}
+
+/* --- Tape Effect (Unchanged) --- */
 #year-sticker::before {
   content: "";
   position: absolute;
@@ -920,14 +944,13 @@ button:disabled:hover {
   transform: translateX(-50%) rotate(-5deg);
   width: 1rem;
   height: 2rem;
-  background-color: rgba(255, 255, 255, 0.4); /* See-through tape */
+  background-color: rgba(255, 255, 255, 0.4);
   border-left: 1px solid rgba(255, 255, 255, 0.3);
   border-right: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   z-index: 10;
 }
 
-/* 4. Interaction: Wiggle on Hover */
 #year-sticker:hover {
   animation: sticker-wiggle 0.4s ease-in-out;
 }
@@ -949,11 +972,10 @@ button:disabled:hover {
   }
 }
 
-/* The class we will add via JavaScript */
-/* We use the ID (#year-sticker) attached to the class to boost priority */
+/* The falling animation class (Make sure you updated the ID selector as discussed before) */
 #year-sticker.sticker-falling {
   animation: sticker-drop-anim 1.5s ease-in forwards;
-  pointer-events: none; /* Instantly kills the 'hover' state logic */
+  pointer-events: none;
   cursor: default;
 }
 
@@ -1298,13 +1320,13 @@ button:disabled:hover {
   /* Dark Mode Overrides */
 
   #year-sticker {
-    background-color: #4c1d95;
-    color: #fcd34d; /* Bright yellow text on purple */
-    border-color: #fcd34d;
+    background-color: #581c87; /* Deep Purple (purple-900) */
+    color: #f3e8ff; /* Light Lavender Text (purple-100) */
+    border-color: #c084fc; /* Bright Violet Border (purple-400) */
     box-shadow: 2px 3px 0px rgba(0, 0, 0, 0.5);
   }
   #year-sticker::before {
-    background-color: rgba(255, 255, 255, 0.15); /* Tape is visible on dark */
+    background-color: rgba(255, 255, 255, 0.15);
   }
 
   /*
