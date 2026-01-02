@@ -888,35 +888,8 @@ button:disabled:hover {
 /* --- Component: Humorous Year Sticker --- */
 #year-sticker {
   display: inline-block;
-  position: relative; /* Needed for the tape positioning */
-
-  /* 1. The "Humorous" Font Choice */
-  /* font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", sans-serif; */
-  font-size: 0.6em;
-  font-weight: bold;
-
-  /* 2. Haphazard Placement */
-  transform: rotate(-12deg) translateY(-2px);
-  margin-left: -0.4rem; /* Negative margin to overlap/shorten distance */
-  padding: 0.2rem 0.5rem;
-  border-radius: 2px; /* Slightly rougher edges */
-
-  /* Light Mode "Scrap Paper" Look */
-  background-color: #fef9c3; /* A paler yellow */
-  color: #d97706;
-  border: 1px dashed #b45309; /* Dashed border looks like a cut coupon */
-  box-shadow: 2px 3px 0px rgba(0, 0, 0, 0.1); /* Hard shadow, cartoonish */
-
-  cursor: help; /* change cursor to question mark for fun */
-  user-select: none;
-}
-
-/* --- Component: Humorous Year Sticker (Violet Theme) --- */
-#year-sticker {
-  display: inline-block;
   position: relative;
 
-  font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", sans-serif;
   font-size: 0.6em;
   font-weight: bold;
 
