@@ -932,6 +932,31 @@ button:disabled:hover {
   animation: sticker-wiggle 0.4s ease-in-out;
 }
 
+/* --- Animation: Sticker Fall --- */
+@keyframes sticker-drop-anim {
+  0% {
+    transform: rotate(-12deg) translateY(-2px);
+    opacity: 1;
+  }
+  20% {
+    /* The "snap" moment - it peels away slightly */
+    transform: rotate(5deg) translateY(10px) scale(1.1);
+  }
+  100% {
+    /* The drop - falls way off screen and fades out */
+    transform: rotate(45deg) translateY(120vh);
+    opacity: 0;
+  }
+}
+
+/* The class we will add via JavaScript */
+/* We use the ID (#year-sticker) attached to the class to boost priority */
+#year-sticker.sticker-falling {
+  animation: sticker-drop-anim 1.5s ease-in forwards;
+  pointer-events: none; /* Instantly kills the 'hover' state logic */
+  cursor: default;
+}
+
 /*
 ================================================================================
 |   4. LAYOUT                                                                  |

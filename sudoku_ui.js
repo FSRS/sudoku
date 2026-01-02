@@ -1010,6 +1010,28 @@ function setupEventListeners() {
       activeTooltipElement = null;
     }
   });
+  // --- Year Sticker Interaction ---
+  const sticker = document.getElementById("year-sticker");
+  if (sticker) {
+    sticker.addEventListener("click", (e) => {
+      // Prevent any other click actions (just in case)
+      e.stopPropagation();
+      e.preventDefault();
+
+      // Add the falling class to trigger CSS animation
+      sticker.classList.add("sticker-falling");
+
+      // Optional: Completely remove it from the DOM after animation ends (1.5s)
+      setTimeout(() => {
+        // 1. Hide it, but keep its "ghost" in the layout so the title doesn't move
+        sticker.style.visibility = "hidden";
+
+        // 2. Optional: Remove the animation class to prevent a long scrollbar
+        // (Since opacity is 0, the user won't see it snap back to the top)
+        sticker.classList.remove("sticker-falling");
+      }, 1500);
+    });
+  }
 }
 
 function handleKeyDown(e) {
