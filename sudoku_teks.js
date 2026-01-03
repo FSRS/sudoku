@@ -165,13 +165,14 @@ const techniques = {
       for (let c = 0; c < 9; c++) {
         if (board[r][c] === 0) {
           emptyCnt++;
-          if (emptyCnt > 1) break; // Optimization: Stop if row is too empty
+          if (emptyCnt > 1) break; // Optimization
           emptyCol = c;
         } else {
           solvedMask |= 1 << (board[r][c] - 1);
         }
       }
-      if (emptyCnt === 1) {
+      // CHECK ADDED: && pencils[r][emptyCol].size === 1
+      if (emptyCnt === 1 && pencils[r][emptyCol].size === 1) {
         return techniques._resolveFullHouse(
           r,
           emptyCol,
@@ -195,7 +196,8 @@ const techniques = {
           solvedMask |= 1 << (board[r][c] - 1);
         }
       }
-      if (emptyCnt === 1) {
+      // CHECK ADDED: && pencils[emptyRow][c].size === 1
+      if (emptyCnt === 1 && pencils[emptyRow][c].size === 1) {
         return techniques._resolveFullHouse(
           emptyRow,
           c,
@@ -213,7 +215,6 @@ const techniques = {
       const rStart = Math.floor(b / 3) * 3;
       const cStart = (b % 3) * 3;
 
-      // Manual loop for speed (avoiding array creation overhead)
       for (let i = 0; i < 9; i++) {
         const r = rStart + Math.floor(i / 3);
         const c = cStart + (i % 3);
@@ -226,7 +227,8 @@ const techniques = {
         }
       }
 
-      if (emptyCnt === 1) {
+      // CHECK ADDED: && pencils[emptyCell.r][emptyCell.c].size === 1
+      if (emptyCnt === 1 && pencils[emptyCell.r][emptyCell.c].size === 1) {
         return techniques._resolveFullHouse(
           emptyCell.r,
           emptyCell.c,

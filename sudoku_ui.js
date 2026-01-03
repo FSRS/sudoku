@@ -29,6 +29,7 @@ const vagueHintBtn = document.getElementById("vague-hint-btn");
 
 let vagueHintMessage = "";
 let currentPuzzleScore = 0;
+let lastValidScore = 0;
 let isClearStoragePending = false;
 let arePencilsHidden = false;
 let isSolvingViaButton = false;
@@ -514,9 +515,10 @@ function attachTooltipEvents(element) {
  * Update lamp UI and optionally record timestamp progression.
  * @param {string} color - lamp color
  * @param {object} opts - options
- *   opts.record (boolean) - whether to run timestamp bookkeeping (default true).
+ * opts.record (boolean) - whether to run timestamp bookkeeping (default true).
+ * opts.level (number|null) - the exact difficulty level evaluated (optional).
  */
-function updateLamp(color, { record = true } = {}) {
+function updateLamp(color, { record = true, level = null } = {}) {
   if (!difficultyLamp) return;
 
   const allColors = [
@@ -544,34 +546,58 @@ function updateLamp(color, { record = true } = {}) {
   }
   if (color === "bug") {
     difficultyLamp.dataset.tooltip =
-      "Bug detected: Please report if reproducible.";
+      "Bug: Report it to fsrs please!"; /* Currently not used*/
     return;
   }
 
-  // If caller asked to skip timestamp bookkeeping (undo/redo / restore / loading),
-  // update tooltip text but leave lampTimestamps / previousLampColor untouched.
-  if (!record || isLoadingSavedGame) {
-    const tooltips = {
-      white: "Easy: Level 0",
-      green: "Medium: Level 1 - 2",
-      yellow: "Hard: Level 3 - 5",
-      orange: "Unfair: Level 6",
-      red: "Extreme: Level 7 - 8",
-      violet: "Insane: Level 9+",
-      gray: "Invalid: This puzzle does not have a unique solution.",
-    };
-    let tooltipText = tooltips[color] || "Difficulty Indicator";
-    if (window.innerWidth <= 550)
-      tooltipText = tooltipText.replace("Level", "Lv.");
-    difficultyLamp.dataset.tooltip = tooltipText;
+  // --- Tooltip Generation Logic ---
+  const baseLabels = {
+    white: "Easy",
+    green: "Medium",
+    yellow: "Hard",
+    orange: "Unfair",
+    red: "Extreme",
+    violet: "Insane",
+    gray: "Invalid",
+  };
 
+  const defaultRanges = {
+    white: "Level 0",
+    green: "Level 1 - 2",
+    yellow: "Level 3 - 5",
+    orange: "Level 6",
+    red: "Level 7 - 8",
+    violet: "Level 9+",
+    gray: "This puzzle does not have a unique solution.",
+  };
+
+  let tooltipText = "Difficulty Indicator";
+
+  if (baseLabels[color]) {
+    const label = baseLabels[color];
+    let desc = defaultRanges[color] || "";
+
+    // If a specific level is provided (and it's a solved state color), use it
+    if (level !== null && color !== "violet" && color !== "gray") {
+      desc = `Level ${level}`;
+    }
+
+    tooltipText = `${label}: ${desc}`;
+  }
+
+  if (window.innerWidth <= 550) {
+    tooltipText = tooltipText.replace("Level", "Lv.");
+  }
+
+  difficultyLamp.dataset.tooltip = tooltipText;
+
+  // If caller asked to skip timestamp bookkeeping (undo/redo / restore / loading), return now
+  if (!record || isLoadingSavedGame) {
     // CRITICAL FIX: When loading a saved game, we still need to update previousLampColor
-    // so future updates work correctly, but we DON'T modify lampTimestamps
     if (isLoadingSavedGame && !["black", "bug", "gray"].includes(color)) {
       lastValidLampColor = color;
       previousLampColor = color;
     }
-
     return;
   }
 
@@ -593,9 +619,6 @@ function updateLamp(color, { record = true } = {}) {
   const currentRank = colorHierarchy[color] || 9;
 
   // If difficulty *decreased* (e.g., red -> orange -> ... -> white)
-  // we want to record the time we reached those colors.
-  // IMPORTANT: overwrite any existing timestamps for those colors so a
-  // later "correct" solving run replaces earlier mistaken timestamps.
   if (currentRank < previousRank) {
     const colorsToSet = Object.keys(colorHierarchy).filter(
       (key) =>
@@ -618,24 +641,7 @@ function updateLamp(color, { record = true } = {}) {
     });
   }
 
-  // Update tooltip text
-  const tooltips = {
-    white: "Easy: Level 0",
-    green: "Medium: Level 1 - 2",
-    yellow: "Hard: Level 3 - 5",
-    orange: "Unfair: Level 6",
-    red: "Extreme: Level 7 - 8",
-    violet: "Insane: Level 9+",
-    gray: "Invalid: This puzzle does not have a unique solution.",
-    bug: "Bug: Report it to fsrs please!",
-  };
-  let tooltipText = tooltips[color] || "Difficulty Indicator";
-  if (window.innerWidth <= 550)
-    tooltipText = tooltipText.replace("Level", "Lv.");
-  difficultyLamp.dataset.tooltip = tooltipText;
-
   // commit previous color after bookkeeping
-  // Track last valid difficulty color (for restoration after black)
   if (!["black", "bug", "gray"].includes(color)) {
     lastValidLampColor = color;
   }
@@ -1481,12 +1487,10 @@ function handleNumberPadClick(e) {
     btn.classList.add("selected");
     if (currentlyHoveredElement) {
       if (coloringSubMode === "cell") {
-        // FIX: Only apply background color if hovering a cell, not a pencil mark
         if (currentlyHoveredElement.classList.contains("sudoku-cell")) {
           currentlyHoveredElement.style.backgroundColor = selectedColor;
         }
       } else if (coloringSubMode === "candidate") {
-        // This is intended: it colors the text of the pencil mark
         currentlyHoveredElement.style.color = selectedColor;
       }
     }
@@ -1496,7 +1500,22 @@ function handleNumberPadClick(e) {
   if (selectedCell.row !== null) {
     const { row, col } = selectedCell;
     const cellState = boardState[row][col];
-    if (cellState.isGiven) return;
+
+    if (cellState.isGiven) {
+      if (currentMode === "concrete" || currentMode === "pencil") {
+        if (highlightedDigit !== num) {
+          highlightedDigit = num;
+          highlightState = 1;
+        } else {
+          highlightedDigit = null;
+          highlightState = 0;
+        }
+        // CHANGE: Call saveState() instead of just renderBoard()
+        renderBoard();
+      }
+      return;
+    }
+
     let changeMade = false;
     if (currentMode === "concrete") {
       const oldValue = cellState.value;
@@ -1770,6 +1789,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   previousLampColor = null;
   isCustomPuzzle = puzzleData === null;
   isLoadingSavedGame = false;
+  lastValidScore = 0;
 
   // 1. Detect if input is an ASCII grid (must have structure)
   const isMultiLine = puzzleString.includes("|") && puzzleString.includes("\n");
@@ -2441,11 +2461,8 @@ function saveState() {
     boardState: cloneBoardState(boardState),
     lampColor: currentLampColor,
     vagueHint: vagueHintMessage,
-    // --- MODIFICATION START ---
     previousLampColor: previousLampColor,
-    // Add a deep copy of the timestamps to prevent reference issues
     lampTimestamps: JSON.parse(JSON.stringify(lampTimestamps)),
-    // --- MODIFICATION END ---
   });
   historyIndex++;
   updateUndoRedoButtons();
@@ -2459,8 +2476,6 @@ function onBoardUpdated(skipEvaluation = false) {
   if (!isBoardValid) {
     updateLamp("black", { record: false });
   } else if (currentLampColor === "black") {
-    // Restore previous evaluated difficulty color
-    updateLamp(lastValidLampColor, { record: false });
   }
 
   if (skipEvaluation) return;
@@ -2561,8 +2576,32 @@ function loadPuzzleTimer(savedTimeFromStorage) {
   startTimer(timeToStart > 0 ? timeToStart : 0);
 }
 
+function hasLogicChanged(stateA, stateB) {
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cellA = stateA[r][c];
+      const cellB = stateB[r][c];
+      // 1. Check Concrete Values
+      if (cellA.value !== cellB.value) return true;
+      // 2. Check Pencil Marks (Size and Content)
+      if (cellA.pencils.size !== cellB.pencils.size) return true;
+      for (const p of cellA.pencils) {
+        if (!cellB.pencils.has(p)) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function undo() {
   if (historyIndex > 0) {
+    const currentLogic = boardState;
+    const prevLogic = history[historyIndex - 1].boardState;
+    const logicChanged = hasLogicChanged(currentLogic, prevLogic);
+
+    // Standard diff description only
+    const actionDesc = getDiffDescription(prevLogic, currentLogic);
+
     historyIndex--;
     const historyEntry = history[historyIndex];
     boardState = cloneBoardState(historyEntry.boardState);
@@ -2573,17 +2612,27 @@ function undo() {
     );
     previousLampColor = historyEntry.previousLampColor;
 
-    // updateLamp(historyEntry.lampColor, { record: false });
+    // REMOVED: Restoring highlightState/highlightedDigit
+
+    updateLamp(historyEntry.lampColor, { record: false });
 
     renderBoard();
-    onBoardUpdated();
+    onBoardUpdated(!logicChanged);
     updateUndoRedoButtons();
-    savePuzzleProgress(); // Save the state after undoing
+    savePuzzleProgress();
+
+    showMessage(`Undid: ${actionDesc}`, "gray");
   }
 }
 
 function redo() {
   if (historyIndex < history.length - 1) {
+    const currentLogic = boardState;
+    const nextLogic = history[historyIndex + 1].boardState;
+    const logicChanged = hasLogicChanged(currentLogic, nextLogic);
+
+    const actionDesc = getDiffDescription(currentLogic, nextLogic);
+
     historyIndex++;
     const historyEntry = history[historyIndex];
     boardState = cloneBoardState(historyEntry.boardState);
@@ -2594,12 +2643,16 @@ function redo() {
     );
     previousLampColor = historyEntry.previousLampColor;
 
-    // updateLamp(historyEntry.lampColor, { record: false });
+    // REMOVED: Restoring highlightState/highlightedDigit
+
+    updateLamp(historyEntry.lampColor, { record: false });
 
     renderBoard();
-    onBoardUpdated();
+    onBoardUpdated(!logicChanged);
     updateUndoRedoButtons();
-    savePuzzleProgress(); // Save the state after redoing
+    savePuzzleProgress();
+
+    showMessage(`Redid: ${actionDesc}`, "gray");
   }
 }
 
@@ -2727,20 +2780,22 @@ async function evaluateBoardDifficulty() {
     }
   }
   if (emptyCount <= 3) {
-    updateLamp("white");
-    vagueHintMessage = "Full House"; // Set the hint message here
+    updateLamp("white", { level: 0 });
+    vagueHintMessage = "Full House";
+
+    lastValidScore = 4 * emptyCount;
+
     if (currentPuzzleScore > 0) {
-      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${4 * emptyCount})`;
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore})`;
     } else {
-      puzzleScoreEl.textContent = `(${emptyCount})`;
+      puzzleScoreEl.textContent = `(${lastValidScore})`;
     }
     return;
   }
-  // --- Detect invalid starting state (wrong progress) ---
+
   let initialHasEmptyNoCand = false;
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
-      // if using virtual pencils as initial state
       if (virtualBoard[r][c] === 0 && startingPencils[r][c].size === 0) {
         initialHasEmptyNoCand = true;
         break;
@@ -2748,6 +2803,7 @@ async function evaluateBoardDifficulty() {
     }
     if (initialHasEmptyNoCand) break;
   }
+
   let maxDifficulty = 0;
   const techniqueOrder = [
     {
@@ -3008,8 +3064,8 @@ async function evaluateBoardDifficulty() {
         }
         if (!vagueHintMessage) {
           vagueHintMessage = tech.name;
-          currentHintData = result; // Store the full result for advanced hints
-          hintClickCount = 0; // Reset counter on new evaluation
+          currentHintData = result;
+          hintClickCount = 0;
         }
         maxDifficulty = Math.max(maxDifficulty, tech.level);
         if (result.type === "place") {
@@ -3043,6 +3099,7 @@ async function evaluateBoardDifficulty() {
   const isSolved = virtualBoard.flat().every((v) => v !== 0);
 
   if (isSolved) {
+    lastValidScore = evaluatedScore;
     if (IS_DEBUG_MODE) {
       console.log(`Estimated score: ${evaluatedScore}`);
     }
@@ -3054,11 +3111,12 @@ async function evaluateBoardDifficulty() {
     if (previousLampColor === "black" || previousLampColor === "bug") {
       previousLampColor = null;
     }
-    if (maxDifficulty === 0) updateLamp("white");
-    else if (maxDifficulty <= 2) updateLamp("green");
-    else if (maxDifficulty <= 5) updateLamp("yellow");
-    else if (maxDifficulty <= 6) updateLamp("orange");
-    else if (maxDifficulty <= 8) updateLamp("red");
+    // Pass exact level to updateLamp
+    if (maxDifficulty === 0) updateLamp("white", { level: 0 });
+    else if (maxDifficulty <= 2) updateLamp("green", { level: maxDifficulty });
+    else if (maxDifficulty <= 5) updateLamp("yellow", { level: maxDifficulty });
+    else if (maxDifficulty <= 6) updateLamp("orange", { level: maxDifficulty });
+    else if (maxDifficulty <= 8) updateLamp("red", { level: maxDifficulty });
   } else {
     evaluatedScore = -1;
     if (currentPuzzleScore > 0) {
@@ -3066,21 +3124,33 @@ async function evaluateBoardDifficulty() {
     } else {
       puzzleScoreEl.textContent = "";
     }
+
     // === Final bug detection ===
     let foundBug = false;
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
-        if (virtualBoard[r][c] === 0 && startingPencils[r][c].size === 0) {
-          foundBug = true;
-          break;
+        // If the cell is unsolved in virtualBoard
+        if (virtualBoard[r][c] === 0) {
+          // Check if the solution candidate was removed from the pencils
+          if (!startingPencils[r][c].has(solutionBoard[r][c])) {
+            foundBug = true;
+            break;
+          }
         }
       }
       if (foundBug) break;
     }
 
     if (foundBug) {
-      updateLamp("bug");
+      updateLamp("black");
       vagueHintMessage = "";
+      const scoreSuffix = lastValidScore > 0 ? ` (${lastValidScore})` : "";
+
+      if (currentPuzzleScore > 0) {
+        puzzleScoreEl.textContent = `~${currentPuzzleScore}${scoreSuffix}`;
+      } else if (lastValidScore > 0) {
+        puzzleScoreEl.textContent = `(${lastValidScore})`;
+      }
     } else {
       updateLamp("violet");
     }
@@ -3193,4 +3263,136 @@ function generateAsciiGrid() {
 
   output += makeLine("'", "'", "'", "'", "-"); // Bot
   return output;
+}
+/**
+ * specific helper to map hex codes to "[Color N]" format
+ */
+function getColorName(hex) {
+  if (!hex) return "Color";
+
+  // Try to find the index in any of the palettes
+  let idx = colorPaletteLight.indexOf(hex);
+  if (idx === -1) idx = colorPaletteMid.indexOf(hex);
+  if (idx === -1) idx = colorPaletteDark.indexOf(hex);
+
+  if (idx !== -1) {
+    return `[Color ${idx + 1}]`;
+  }
+  return "Custom Color"; // Fallback
+}
+
+/**
+ * Compares two board states and returns a detailed string description.
+ */
+function getDiffDescription(before, after) {
+  let placements = [];
+  let valueRemovals = [];
+  let otherChanges = [];
+  let totalChangedCells = 0;
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const b = before[r][c];
+      const a = after[r][c];
+      let isCellChanged = false;
+      let cellDesc = null;
+
+      // 1. Value Logic (Concrete Numbers)
+      if (b.value !== a.value) {
+        isCellChanged = true;
+        if (a.value !== 0) {
+          placements.push(`Placed r${r + 1}c${c + 1} = ${a.value}`);
+        } else {
+          valueRemovals.push(`Removed ${b.value} from r${r + 1}c${c + 1}`);
+        }
+      }
+      // 2. Pencil Marks (Candidates)
+      else if (b.value === a.value) {
+        const added = [];
+        const removed = [];
+
+        a.pencils.forEach((p) => {
+          if (!b.pencils.has(p)) added.push(p);
+        });
+        b.pencils.forEach((p) => {
+          if (!a.pencils.has(p)) removed.push(p);
+        });
+
+        if (added.length > 0) {
+          isCellChanged = true;
+          cellDesc = `Marked (${added.join("")})r${r + 1}c${c + 1}`;
+        } else if (removed.length > 0) {
+          isCellChanged = true;
+          cellDesc = `Unmarked (${removed.join("")})r${r + 1}c${c + 1}`;
+        }
+
+        // 3. Colors (Cell & Candidate)
+        if (!isCellChanged) {
+          // Cell Color
+          if (b.cellColor !== a.cellColor) {
+            isCellChanged = true;
+            if (a.cellColor) {
+              const cName = getColorName(a.cellColor);
+              cellDesc = `${cName} in r${r + 1}c${c + 1}`;
+            } else {
+              cellDesc = `Cleared color in r${r + 1}c${c + 1}`;
+            }
+          }
+          // Candidate Colors
+          else {
+            for (let n = 1; n <= 9; n++) {
+              const cB = b.pencilColors.get(n);
+              const cA = a.pencilColors.get(n);
+              if (cB !== cA) {
+                isCellChanged = true;
+                if (cA) {
+                  const cName = getColorName(cA);
+                  cellDesc = `${cName} in (${n})r${r + 1}c${c + 1}`;
+                } else {
+                  cellDesc = `Cleared color in (${n})r${r + 1}c${c + 1}`;
+                }
+                break; // Stop after finding one change per cell
+              }
+            }
+          }
+        }
+
+        if (cellDesc) otherChanges.push(cellDesc);
+      }
+
+      if (isCellChanged) {
+        totalChangedCells++;
+      }
+    }
+  }
+
+  // --- PRIORITIZATION ---
+  if (placements.length === 1) return placements[0];
+  if (valueRemovals.length === 1 && placements.length === 0)
+    return valueRemovals[0];
+  if (totalChangedCells === 1 && otherChanges.length > 0)
+    return otherChanges[0];
+  if (totalChangedCells === 0) return "No visible changes";
+  return "Multiple cells updated (Highlight/Wipe/Reset/Solve)";
+}
+function getHighlightDiff(before, after) {
+  // Check if highlight state or digit changed
+  if (
+    before.highlightState !== after.highlightState ||
+    before.highlightedDigit !== after.highlightedDigit
+  ) {
+    // Case 1: Highlight Turned Off
+    if (after.highlightState === 0) {
+      return "Unhighlighted all";
+    }
+    // Case 2: Digit Highlighted
+    if (after.highlightState === 1) {
+      return `Highlighted Digit ${after.highlightedDigit}`;
+    }
+    // Case 3: Bi-value Highlighted
+    if (after.highlightState === 2) {
+      return "Highlighted Bi-value cells";
+    }
+  }
+  return null;
 }
