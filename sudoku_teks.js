@@ -1,3 +1,9 @@
+// --- ALS Cache Structure ---
+let _alsCache = [];
+let _alsDigitCommonPeers = {};
+let _alsRccMap = {};
+let _alsLookup = {};
+
 const techniques = {
   _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
 
@@ -4927,14 +4933,14 @@ const techniques = {
         const start = chain[0];
         const end = chain[chain.length - 1];
 
-        // --- Check for Continuous Loop (Length >= 4) ---
+        // --- Check for Continuous Loop ---
         if (true) {
           const elims = [];
           const wNeighbors = weakLinks.get(end.key) || [];
           const isContinuous = wNeighbors.some((n) => n.key === start.key);
 
           if (isContinuous) {
-            if ((start.key < end.key) | (chain.legnth === 4)) return;
+            if ((start.key < end.key) | (chain.length === 4)) return;
             const fullChain = [...chain, start];
 
             for (let i = 1; i < fullChain.length - 1; i += 2) {
@@ -5033,7 +5039,9 @@ const techniques = {
                 cells: elims,
                 hint: {
                   name: options.nameOverride || "AIC",
-                  mainInfo: techniques._getHintInfo(chain, hintType),
+                  mainInfo:
+                    techniques._getHintInfo(chain, hintType) +
+                    `${isContinuous ? " (Ring)" : ""}`,
                 },
               };
               return;
@@ -5467,195 +5475,349 @@ const techniques = {
 
     return { change: false };
   },
-  // --- REVISED ALS-XZ (With Custom Hints) ---
-  alsXZ: (board, pencils, wxyzOnly = false) => {
-    // Helper to identify the unit of an ALS
-    // (Prioritizes Row > Col > Box if an ALS fits multiple)
-    const _identifyUnit = (cells) => {
-      const rows = new Set(cells.map((c) => c[0]));
-      if (rows.size === 1) return `Row ${rows.values().next().value + 1}`;
+  // --- BITWISE HELPERS ---
+  _bits: {
+    popcount: (n) => {
+      n = n - ((n >> 1) & 0x55555555);
+      n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
+      return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
+    },
+    maskToDigits: (n) => {
+      const res = [];
+      for (let i = 1; i <= 9; i++) if ((n >> (i - 1)) & 1) res.push(i);
+      return res;
+    },
+    maskFromSet: (set) => {
+      let m = 0;
+      for (const d of set) m |= 1 << (d - 1);
+      return m;
+    },
+  },
 
-      const cols = new Set(cells.map((c) => c[1]));
-      if (cols.size === 1) return `Col ${cols.values().next().value + 1}`;
+  // --- ALS COLLECTION ENGINE ---
+  _calculateALSHash: (cells) => {
+    if (cells.length === 0) return 0;
 
-      const boxes = new Set(
-        cells.map((c) => techniques._getBoxIndex(c[0], c[1]))
-      );
-      if (boxes.size === 1) return `Box ${boxes.values().next().value + 1}`;
+    // Sort to ensure consistency, though inputs are usually sorted by unit generation
+    // We strictly follow the C++ priority: Row > Col > Box
 
-      return "Unknown Unit";
-    };
+    // Check Row
+    const r0 = cells[0][0];
+    const isRow = cells.every((c) => c[0] === r0);
+    if (isRow) {
+      let mask = 0;
+      for (const [r, c] of cells) mask |= 1 << c;
+      // Type 00 (Row) | Unit Index | Cell Mask
+      return (0 << 13) | (r0 << 9) | mask;
+    }
 
-    const allALS = [];
+    // Check Col
+    const c0 = cells[0][1];
+    const isCol = cells.every((c) => c[1] === c0);
+    if (isCol) {
+      let mask = 0;
+      for (const [r, c] of cells) mask |= 1 << r;
+      // Type 01 (Col) | Unit Index | Cell Mask
+      return (1 << 13) | (c0 << 9) | mask;
+    }
 
-    // Recursive search for ALS
-    const findALSInUnit = (unitCells) => {
+    // Assume Box (valid ALSs must belong to *some* unit)
+    const b0 = techniques._getBoxIndex(cells[0][0], cells[0][1]);
+    let mask = 0;
+    for (const [r, c] of cells) {
+      const boxCellIdx = (r % 3) * 3 + (c % 3);
+      mask |= 1 << boxCellIdx;
+    }
+    // Type 10 (Box) | Unit Index | Cell Mask
+    return (2 << 13) | (b0 << 9) | mask;
+  },
+
+  _collectAllALS: (board, pencils, minSize = 1, maxSize = 8) => {
+    // If cache is valid, return it directly
+    if (_alsCache && _alsCache.length > 0) {
+      return _alsCache;
+    }
+
+    const alses = [];
+
+    const findInCells = (unitCells, unitName) => {
+      // Filter open cells BEFORE starting recursion
       const cells = unitCells.filter(([r, c]) => board[r][c] === 0);
       const n = cells.length;
-      // WXYZ looks for Size 1 (Bivalue) and Size 3. General looks for all.
-      const MAX_ALS_SIZE = wxyzOnly ? 3 : n - 1;
 
-      const backtrack = (startIdx, currentCells, mask, count) => {
-        const candsCount = BITS.popcount(mask);
-        if (count >= 1 && candsCount === count + 1) {
-          if (!wxyzOnly || count === 1 || count === 3) {
-            allALS.push({
+      const backtrack = (start, currentCells, currentMask) => {
+        const k = currentCells.length;
+        if (k > maxSize) return;
+
+        // Check for valid ALS
+        if (k >= minSize) {
+          const cCount = techniques._bits.popcount(currentMask);
+          if (cCount === k + 1) {
+            // --- DEFINING POSITIONS & CANDIDATE POSITIONS ---
+            let positions = 0n;
+            const candidatePositions = Array(9).fill(0n);
+            const candMap = {};
+
+            for (const [r, c] of currentCells) {
+              const cellIndex = BigInt(r * 9 + c);
+              const bit = 1n << cellIndex;
+
+              // 1. Update total position mask
+              positions |= bit;
+
+              // 2. Update per-digit position masks
+              for (const d of pencils[r][c]) {
+                candidatePositions[d - 1] |= bit;
+
+                // Build legacy candMap for UI/Logging
+                if (!candMap[d]) candMap[d] = [];
+                candMap[d].push([r, c]);
+              }
+            }
+            // ------------------------------------------------
+
+            const hash = techniques._calculateALSHash(currentCells);
+
+            alses.push({
               cells: [...currentCells],
-              mask: mask,
-              size: count,
-              candMap: (() => {
-                const map = {};
-                BITS.maskToDigits(mask).forEach((d) => {
-                  map[d] = currentCells.filter(([r, c]) =>
-                    pencils[r][c].has(d)
-                  );
-                });
-                return map;
-              })(),
+              candidates: currentMask, // Integer mask (used by bitwise logic)
+              mask: currentMask, // Alias for compatibility
+              size: k,
+              candMap: candMap, // Map<Digit, Coords[]>
+              unitName: unitName,
+              hash: hash,
+              positions: positions, // BigInt (81 bits)
+              candidatePositions: candidatePositions, // Array[9] of BigInts
             });
           }
         }
 
-        if (count >= MAX_ALS_SIZE || startIdx >= n) return;
-
-        for (let i = startIdx; i < n; i++) {
+        // Iterate through remaining OPEN cells
+        for (let i = start; i < n; i++) {
           const [r, c] = cells[i];
-          const cellMask = BITS.setToMask(pencils[r][c]);
-          const newMask = mask | cellMask;
+          const cellMask = techniques._bits.maskFromSet(pencils[r][c]);
+          const newMask = currentMask | cellMask;
 
-          // Pruning: Can we theoretically finish this ALS?
-          const newCandsCount = BITS.popcount(newMask);
-          const newCellCount = count + 1;
-          const excess = newCandsCount - (newCellCount + 1);
-          const remainingInUnit = n - (i + 1);
-          const remainingAllowed = MAX_ALS_SIZE - newCellCount;
+          const newK = k + 1;
+          const newPop = techniques._bits.popcount(newMask);
+          const excess = newPop - newK;
+          const remainingCells = n - 1 - i;
 
-          if (excess <= remainingInUnit && excess <= remainingAllowed) {
-            backtrack(i + 1, [...currentCells, [r, c]], newMask, newCellCount);
+          // Pruning: excess candidates vs remaining cells
+          if (excess <= remainingCells + 1) {
+            backtrack(i + 1, [...currentCells, [r, c]], newMask);
           }
         }
       };
-      backtrack(0, [], 0, 0);
+
+      backtrack(0, [], 0);
     };
 
-    // 1. Gather
-    for (let i = 0; i < 27; i++)
-      findALSInUnit(techniques._getUnitCellsCached(i));
+    // Iterate over all 27 units
+    const unitTypes = [
+      { name: "row", label: "Row" },
+      { name: "col", label: "Col" },
+      { name: "box", label: "Box" },
+    ];
 
-    // 2. Deduplicate
-    const uniqueALS = new Map();
-    for (const als of allALS) {
-      const key = als.cells
-        .map((c) => (c[0] << 4) | c[1])
-        .sort((a, b) => a - b)
-        .join(",");
-      if (!uniqueALS.has(key)) uniqueALS.set(key, als);
+    for (const { name, label } of unitTypes) {
+      for (let i = 0; i < 9; i++) {
+        findInCells(techniques._getUnitCells(name, i), `${label} ${i + 1}`);
+      }
     }
-    const alsList = Array.from(uniqueALS.values());
 
-    // 3. Evaluate Pairs
-    for (let i = 0; i < alsList.length; i++) {
-      for (let j = i + 1; j < alsList.length; j++) {
-        const A = alsList[i];
-        const B = alsList[j];
+    // Deduplicate using the 15-bit integer hash
+    const uniqueALS = new Map();
+    for (const als of alses) {
+      if (!uniqueALS.has(als.hash)) {
+        uniqueALS.set(als.hash, als);
+      }
+    }
 
-        const isWXYZ =
-          (A.size === 1 && B.size === 3) || (A.size === 3 && B.size === 1);
-        if (wxyzOnly && !isWXYZ) continue;
+    return Array.from(uniqueALS.values()).sort((a, b) => a.hash - b.hash);
+  },
 
-        // Shared Candidates Check (min 2 for valid ALS-XZ/WXYZ interaction)
+  _processElims: (peerMask, digit, pencils, elims) => {
+    let m = peerMask;
+    let idx = 0;
+    while (m !== 0n) {
+      if (m & 1n) {
+        const r = Math.floor(idx / 9);
+        const c = idx % 9;
+        if (pencils[r][c].has(digit)) {
+          elims.push({ r, c, num: digit });
+        }
+      }
+      m >>= 1n;
+      idx++;
+    }
+  },
+
+  _applySinglyLinked: (A, B, rccMask, commonMask, pencils) => {
+    const elims = [];
+    const zMask = commonMask & ~rccMask;
+    const zDigits = techniques._bits.maskToDigits(zMask);
+
+    for (const z of zDigits) {
+      // Eliminate z from common peers of ALL z-candidates in BOTH A and B
+      const allZ = A.candidatePositions[z - 1] | B.candidatePositions[z - 1];
+      const pm = techniques._findCommonPeersBS(allZ);
+      techniques._processElims(pm, z, pencils, elims);
+    }
+    return elims;
+  },
+
+  _applyDoublyLinked: (A, B, rccMask, commonMask, pencils) => {
+    const elims = [];
+
+    // 1. Non-RCC eliminations for A
+    const zMaskA = A.mask & ~rccMask;
+    const zDigitsA = techniques._bits.maskToDigits(zMaskA);
+    for (const z of zDigitsA) {
+      const pm = techniques._findCommonPeersBS(A.candidatePositions[z - 1]);
+      techniques._processElims(pm, z, pencils, elims);
+    }
+
+    // 2. Non-RCC eliminations for B
+    const zMaskB = B.mask & ~rccMask;
+    const zDigitsB = techniques._bits.maskToDigits(zMaskB);
+    for (const z of zDigitsB) {
+      const pm = techniques._findCommonPeersBS(B.candidatePositions[z - 1]);
+      techniques._processElims(pm, z, pencils, elims);
+    }
+
+    // 3. RCC eliminations (common peers of RCC digits)
+    const rccDigits = techniques._bits.maskToDigits(rccMask);
+    for (const x of rccDigits) {
+      const allX = A.candidatePositions[x - 1] | B.candidatePositions[x - 1];
+      const pm = techniques._findCommonPeersBS(allX);
+      techniques._processElims(pm, x, pencils, elims);
+    }
+    return elims;
+  },
+
+  // --- ALS-XZ & WXYZ-WING ---
+  alsXZ: (board, pencils, wxyzOnly = false) => {
+    // Reset cache at the start
+    _alsCache = [];
+
+    let alses = [];
+    let outerLoopLimit = 0; // Controls 'i' loop
+    let innerLoopStartBase = 0; // Controls 'j' loop
+
+    if (wxyzOnly) {
+      // Optimization for WXYZ: Compare Size 1 (XY) only against Size 3 (WXYZ)
+      const alsesXY = techniques._collectAllALS(board, pencils, 1, 1);
+      const alsesWXYZ = techniques._collectAllALS(board, pencils, 3, 3);
+
+      // Merge into one array: [ ...XYs, ...WXYZs ]
+      alses = [...alsesXY, ...alsesWXYZ];
+
+      // We only want 'i' to iterate over the XY part
+      outerLoopLimit = alsesXY.length;
+      // We want 'j' to iterate over the WXYZ part (starting where XY ends)
+      innerLoopStartBase = alsesXY.length;
+    } else {
+      // Standard ALS-XZ: Compare everything (Size 1 to 8) against everything
+      alses = techniques._collectAllALS(board, pencils, 1, 8);
+      _alsCache = alses;
+      outerLoopLimit = alses.length;
+    }
+
+    for (let i = 0; i < outerLoopLimit; i++) {
+      // For WXYZ, j starts at the WXYZ section. For normal, j starts at i + 1.
+      let j = wxyzOnly ? innerLoopStartBase : i + 1;
+
+      for (; j < alses.length; j++) {
+        const A = alses[i];
+        const B = alses[j];
+
+        // --- OVERLAP LOGIC (Bitwise Optimization) ---
+        // 1. Check intersection of all cells using BigInt masks
+        if (wxyzOnly && (A.positions & B.positions) !== 0n) continue;
+
         const commonMask = A.mask & B.mask;
-        if (BITS.popcount(commonMask) < 2) continue;
+        if (techniques._bits.popcount(commonMask) < 2) continue;
 
         let rccMask = 0;
-        const commonDigits = BITS.maskToDigits(commonMask);
+        const commonDigits = techniques._bits.maskToDigits(commonMask);
 
         for (const d of commonDigits) {
-          if (techniques._checkRestrictedCommon(A, B, d, pencils)) {
-            rccMask |= 1 << (d - 1);
+          // RCC VALIDATION: Digit d cannot be an RCC if it exists in an overlapping cell.
+          // Bitwise check: If d exists in both A and B at the same position
+          if (!wxyzOnly) {
+            if (
+              (A.candidatePositions[d - 1] & B.candidatePositions[d - 1]) !==
+              0n
+            ) {
+              continue;
+            }
           }
-        }
 
-        const rccCount = BITS.popcount(rccMask);
-        if (rccCount === 0) continue;
-
-        const elims = [];
-        let changed = false;
-
-        const executeElimination = (zMask, getSourceCells) => {
-          if (zMask === 0) return;
-          const zDigits = BITS.maskToDigits(zMask);
-          for (const z of zDigits) {
-            const sources = getSourceCells(z);
-            if (!sources || sources.length === 0) continue;
-            for (let r = 0; r < 9; r++) {
-              for (let c = 0; c < 9; c++) {
-                if (board[r][c] !== 0) continue;
-                if (!pencils[r][c].has(z)) continue;
-
-                const inA = A.cells.some((ca) => ca[0] === r && ca[1] === c);
-                const inB = B.cells.some((cb) => cb[0] === r && cb[1] === c);
-                if (inA || inB) continue;
-
-                if (sources.every((sc) => techniques._sees([r, c], sc))) {
-                  elims.push({ r, c, num: z });
-                  changed = true;
-                }
+          // Standard RCC visibility check
+          // (Keeping candMap loop to strictly preserve logic as requested,
+          // though this could also be optimized if peer masks were pre-built)
+          const dCellsA = A.candMap[d];
+          const dCellsB = B.candMap[d];
+          let seesAll = true;
+          for (const cA of dCellsA) {
+            for (const cB of dCellsB) {
+              if (!techniques._sees(cA, cB)) {
+                seesAll = false;
+                break;
               }
             }
+            if (!seesAll) break;
           }
-        };
+          if (seesAll) rccMask |= 1 << (d - 1);
+        }
 
-        // Singly Linked
+        // If no valid RCCs remain, this pair is invalid
+        if (rccMask === 0) continue;
+
+        const rccCount = techniques._bits.popcount(rccMask);
+        let elims = [];
+
         if (rccCount === 1) {
-          executeElimination(commonMask & ~rccMask, (d) => [
-            ...(A.candMap[d] || []),
-            ...(B.candMap[d] || []),
-          ]);
-        }
-        // Doubly Linked
-        else if (rccCount === 2) {
-          executeElimination(rccMask, (d) => [
-            ...(A.candMap[d] || []),
-            ...(B.candMap[d] || []),
-          ]);
-          executeElimination(A.mask & ~rccMask, (d) => A.candMap[d]);
-          executeElimination(B.mask & ~rccMask, (d) => B.candMap[d]);
+          elims = techniques._applySinglyLinked(
+            A,
+            B,
+            rccMask,
+            commonMask,
+            pencils
+          );
+        } else if (rccCount >= 2) {
+          elims = techniques._applyDoublyLinked(
+            A,
+            B,
+            rccMask,
+            commonMask,
+            pencils
+          );
         }
 
-        if (changed) {
-          const uniqueElims = [];
-          const seen = new Set();
-          for (const e of elims) {
-            const k = `${e.r},${e.c},${e.num}`;
-            if (!seen.has(k)) {
-              seen.add(k);
-              uniqueElims.push(e);
-            }
-          }
+        if (elims.length > 0) {
+          const uniqueElims = Array.from(
+            new Set(elims.map(JSON.stringify))
+          ).map(JSON.parse);
 
-          // --- HINT FORMATTING LOGIC ---
           let name = "ALS-XZ";
-          let mainInfo = `${_identifyUnit(A.cells)} and ${_identifyUnit(
-            B.cells
-          )}`;
+          let mainInfo = `ALSes on ${A.unitName} and ${B.unitName} (${
+            rccCount === 1 ? "Singly" : "Doubly"
+          } linked)`;
 
-          if (wxyzOnly || isWXYZ) {
+          if (wxyzOnly) {
             name = "WXYZ-Wing";
-            // Identify the bivalue cell (Size 1 ALS)
-            const bivalueALS = A.size === 1 ? A : B;
-            const [br, bc] = bivalueALS.cells[0];
-            mainInfo = `Bivalue cell: r${br + 1}c${bc + 1}`;
+            const pivot = A.size === 1 ? A : B;
+            const [pr, pc] = pivot.cells[0];
+            mainInfo = `Bivalue cell at r${pr + 1}c${pc + 1}`;
           }
 
           return {
             change: true,
             type: "remove",
             cells: uniqueElims,
-            hint: {
-              name: name,
-              mainInfo: mainInfo,
-            },
+            hint: { name, mainInfo },
           };
         }
       }
@@ -5663,23 +5825,893 @@ const techniques = {
     return { change: false };
   },
 
-  // Helper must be present in techniques
-  _checkRestrictedCommon: (alsA, alsB, digit, pencils) => {
-    const cellsA = alsA.cells.filter(([r, c]) => pencils[r][c].has(digit));
-    const cellsB = alsB.cells.filter(([r, c]) => pencils[r][c].has(digit));
-    // Physical overlap check for RCC cells specifically
-    for (const [r1, c1] of cellsA) {
-      for (const [r2, c2] of cellsB) if (r1 === r2 && c1 === c2) return false;
-    }
-    // Visibility check
-    for (const [r1, c1] of cellsA) {
-      for (const [r2, c2] of cellsB)
-        if (!techniques._sees([r1, c1], [r2, c2])) return false;
-    }
-    return true;
-  },
-
   wxyzWing: (board, pencils) => {
     return techniques.alsXZ(board, pencils, true);
+  },
+
+  alignedTripleExclusion: (board, pencils) => {
+    // --- Helpers ---
+
+    const _popcount = (n) => {
+      n = n - ((n >> 1) & 0x55555555);
+      n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
+      return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
+    };
+
+    const _getMask = (r, c) => {
+      let mask = 0;
+      if (pencils[r][c].size > 0) {
+        for (const d of pencils[r][c]) mask |= 1 << (d - 1);
+      }
+      return mask;
+    };
+
+    // Finds ALS of specific 'degree' (excess candidates)
+    // Degree 1: N cells, N+1 candidates (Standard ALS)
+    // Degree 2: N cells, N+2 candidates (Almost Almost Locked Set)
+    const _findALS_ATE = (cells, degree, max_size = 6) => {
+      const alses = [];
+      const n = cells.length;
+      if (n === 0) return alses;
+
+      // Iterate through all possible subset sizes
+      for (let size = 1; size <= Math.min(n, max_size); size++) {
+        // Defined INSIDE the loop to capture 'size'
+        const combinations = (start, k, currentMask) => {
+          if (k === 0) {
+            // Check if the union of candidates equals size + degree
+            if (_popcount(currentMask) === size + degree) {
+              alses.push(currentMask);
+            }
+            return;
+          }
+          for (let i = start; i <= n - k; i++) {
+            const [r, c] = cells[i];
+            combinations(i + 1, k - 1, currentMask | _getMask(r, c));
+          }
+        };
+
+        combinations(0, size, 0);
+      }
+      return alses;
+    };
+
+    const _alsCoversAtLeast = (alsMask, tripleMask, required) => {
+      return _popcount(alsMask & tripleMask) >= required;
+    };
+
+    // Checks if the triple {d1, d2, d3} is covered by any ALS/AALS
+    // Returns TRUE if the combination is invalid (covered/blocked)
+    const _ateCheckTriple = (d1, d2, d3, alses1, alses2) => {
+      const tripleMask = (1 << (d1 - 1)) | (1 << (d2 - 1)) | (1 << (d3 - 1));
+
+      // Degree 1 ALS needs to cover at least 2 candidates
+      for (const mask of alses1) {
+        if (_alsCoversAtLeast(mask, tripleMask, 2)) return true;
+      }
+      // Degree 2 ALS needs to cover at least 3 candidates
+      for (const mask of alses2) {
+        if (_alsCoversAtLeast(mask, tripleMask, 3)) return true;
+      }
+      return false;
+    };
+
+    const eliminations = [];
+
+    const _ateTryElim = (
+      cell,
+      selfMask,
+      other1Mask,
+      other2Mask,
+      alses1,
+      alses2,
+      restriction
+    ) => {
+      let changed = false;
+
+      // For every candidate in the target cell
+      for (let d = 1; d <= 9; d++) {
+        if (!((selfMask >> (d - 1)) & 1)) continue;
+
+        let isInvalid = true;
+
+        // Try to find ANY valid combination of d, dA, dB
+        // Loop dA (Other 1)
+        for (let dA = 1; dA <= 9; dA++) {
+          if (!((other1Mask >> (dA - 1)) & 1)) continue;
+          if (restriction & 4 && dA === d) continue; // Constraint: Self != Other1
+
+          let possibleWithDA = false;
+
+          // Loop dB (Other 2)
+          for (let dB = 1; dB <= 9; dB++) {
+            if (!((other2Mask >> (dB - 1)) & 1)) continue;
+            if (restriction & 2 && dB === d) continue; // Constraint: Self != Other2
+            if (restriction & 1 && dB === dA) continue; // Constraint: Other1 != Other2
+
+            // If checkTriple returns false, it means NO conflict, so this combo is valid
+            if (!_ateCheckTriple(d, dA, dB, alses1, alses2)) {
+              possibleWithDA = true;
+              break; // Found a valid dB for this dA
+            }
+          }
+
+          if (possibleWithDA) {
+            isInvalid = false;
+            break; // Found a valid dA (and dB), so d is safe
+          }
+        }
+
+        if (isInvalid) {
+          eliminations.push({ r: cell[0], c: cell[1], num: d });
+          changed = true;
+        }
+      }
+      return changed;
+    };
+
+    // --- ATE Type 1 Logic ---
+    const _runType1 = (isRow) => {
+      for (let i = 0; i < 9; i++) {
+        // Line index
+        for (let bSec = 0; bSec < 3; bSec++) {
+          // Secondary box index
+          const boxIdx = isRow
+            ? Math.floor(i / 3) * 3 + bSec
+            : bSec * 3 + Math.floor(i / 3);
+
+          // 1. Find Intersection (must be exactly size 3)
+          const intersection = [];
+          for (let j = 0; j < 9; j++) {
+            const r = isRow ? i : j;
+            const c = isRow ? j : i;
+            if (board[r][c] === 0 && techniques._getBoxIndex(r, c) === boxIdx) {
+              intersection.push([r, c]);
+            }
+          }
+          if (intersection.length !== 3) continue;
+
+          const [p1, p2, p3] = intersection;
+
+          // 2. Find Rest Cells
+          const lineRest = [];
+          for (let j = 0; j < 9; j++) {
+            const r = isRow ? i : j;
+            const c = isRow ? j : i;
+            if (
+              board[r][c] === 0 &&
+              !intersection.some(([pr, pc]) => pr === r && pc === c)
+            ) {
+              lineRest.push([r, c]);
+            }
+          }
+          if (lineRest.length === 0) continue;
+
+          const boxRest = [];
+          const boxCells = techniques._getUnitCells("box", boxIdx);
+          for (const [r, c] of boxCells) {
+            if (
+              board[r][c] === 0 &&
+              !intersection.some(([pr, pc]) => pr === r && pc === c)
+            ) {
+              boxRest.push([r, c]);
+            }
+          }
+          if (boxRest.length === 0) continue;
+
+          // 3. Find ALSs
+          // Degree 1 (Standard) and Degree 2 (AALS)
+          const lineALS1 = _findALS_ATE(lineRest, 1);
+          const boxALS1 = _findALS_ATE(boxRest, 1);
+          const lineALS2 = _findALS_ATE(lineRest, 2);
+          const boxALS2 = _findALS_ATE(boxRest, 2);
+
+          if (
+            (lineALS1.length === 0 && lineALS2.length === 0) ||
+            (boxALS1.length === 0 && boxALS2.length === 0)
+          )
+            continue;
+
+          const alses1 = [...lineALS1, ...boxALS1];
+          const alses2 = [...lineALS2, ...boxALS2];
+
+          const m1 = _getMask(p1[0], p1[1]);
+          const m2 = _getMask(p2[0], p2[1]);
+          const m3 = _getMask(p3[0], p3[1]);
+
+          // Restriction 0b111: All cells see each other (same row/box intersection)
+          if (_ateTryElim(p1, m1, m2, m3, alses1, alses2, 0b111))
+            return {
+              found: true,
+              info: `${isRow ? "Row" : "Col"} ${i + 1}, Box ${boxIdx + 1}`,
+            };
+          if (_ateTryElim(p2, m2, m1, m3, alses1, alses2, 0b111))
+            return {
+              found: true,
+              info: `${isRow ? "Row" : "Col"} ${i + 1}, Box ${boxIdx + 1}`,
+            };
+          if (_ateTryElim(p3, m3, m1, m2, alses1, alses2, 0b111))
+            return {
+              found: true,
+              info: `${isRow ? "Row" : "Col"} ${i + 1}, Box ${boxIdx + 1}`,
+            };
+        }
+      }
+      return { found: false };
+    };
+
+    // --- ATE Type 2 Logic ---
+    const _runType2 = (isRow) => {
+      const tempPairs = [
+        [0, 1],
+        [0, 2],
+        [1, 0],
+        [1, 2],
+        [2, 0],
+        [2, 1],
+      ];
+
+      for (let chute = 0; chute < 3; chute++) {
+        // Define Units and Boxes for this chute
+        const units = [chute * 3, chute * 3 + 1, chute * 3 + 2];
+        const boxes = isRow
+          ? [chute * 3, chute * 3 + 1, chute * 3 + 2]
+          : [chute, chute + 3, chute + 6];
+
+        for (const [uIdxA, uIdxB] of tempPairs) {
+          const uA = units[uIdxA];
+          const uB = units[uIdxB];
+
+          for (const [bIdxA, bIdxB] of tempPairs) {
+            const bA = boxes[bIdxA];
+            const bB = boxes[bIdxB];
+
+            // 1. Find Intersections (ALS areas)
+            const getInter = (lineIdx, boxIdx) => {
+              const res = [];
+              const bCells = techniques._getUnitCells("box", boxIdx);
+              for (const [r, c] of bCells) {
+                if (board[r][c] === 0) {
+                  const lineMatch = isRow ? r === lineIdx : c === lineIdx;
+                  if (lineMatch) res.push([r, c]);
+                }
+              }
+              return res;
+            };
+
+            const inter_uA_bB = getInter(uA, bB);
+            const inter_uB_bA = getInter(uB, bA);
+
+            if (inter_uA_bB.length === 0 || inter_uB_bA.length === 0) continue;
+
+            // 2. Find ALSs
+            const als1_A = _findALS_ATE(inter_uA_bB, 1, 3);
+            const als1_B = _findALS_ATE(inter_uB_bA, 1, 3);
+            const als2_A = _findALS_ATE(inter_uA_bB, 2, 3);
+            const als2_B = _findALS_ATE(inter_uB_bA, 2, 3);
+
+            if (
+              (als1_A.length === 0 && als2_A.length === 0) ||
+              (als1_B.length === 0 && als2_B.length === 0)
+            )
+              continue;
+
+            const alses1 = [...als1_A, ...als1_B];
+            const alses2 = [...als2_A, ...als2_B];
+
+            // 3. Define Pivot Groups
+            // P1 group from uA n bA
+            // P3 group from uB n bB
+            const P1_unit = getInter(uA, bA);
+            const P3_unit = getInter(uB, bB);
+
+            if (P1_unit.length < 2 || P3_unit.length === 0) continue;
+
+            // 4. Check combinations
+            for (let a = 0; a < P1_unit.length; a++) {
+              for (let b = a + 1; b < P1_unit.length; b++) {
+                const p1 = P1_unit[a];
+                const p2 = P1_unit[b];
+
+                for (const p3 of P3_unit) {
+                  const m1 = _getMask(p1[0], p1[1]);
+                  const m2 = _getMask(p2[0], p2[1]);
+                  const m3 = _getMask(p3[0], p3[1]);
+
+                  // Try Elim with Restrictions:
+                  // Target p1: p1!=p2 (0b100)
+                  if (_ateTryElim(p1, m1, m2, m3, alses1, alses2, 0b100))
+                    return {
+                      found: true,
+                      info: `Chute ${isRow ? "Row" : "Col"} ${chute * 3 + 1}-${
+                        chute * 3 + 3
+                      }`,
+                    };
+
+                  // Target p2: p2!=p1 (0b100) -> swapped other1/other2 semantics in helper call relative to logic
+                  // helper: (self, other1, other2). restriction & 4 is self!=other1
+                  if (_ateTryElim(p2, m2, m1, m3, alses1, alses2, 0b100))
+                    return {
+                      found: true,
+                      info: `Chute ${isRow ? "Row" : "Col"} ${chute * 3 + 1}-${
+                        chute * 3 + 3
+                      }`,
+                    };
+
+                  // Target p3: p1!=p2 (0b001) -> other1!=other2
+                  if (_ateTryElim(p3, m3, m1, m2, alses1, alses2, 0b001))
+                    return {
+                      found: true,
+                      info: `Chute ${isRow ? "Row" : "Col"} ${chute * 3 + 1}-${
+                        chute * 3 + 3
+                      }`,
+                    };
+                }
+              }
+            }
+          }
+        }
+      }
+      return { found: false };
+    };
+
+    // --- Execution ---
+    let res = _runType1(true);
+    if (!res.found) res = _runType1(false);
+
+    let typeName = "ATE Type 1";
+    if (!res.found) {
+      res = _runType2(true);
+      if (!res.found) res = _runType2(false);
+      typeName = "ATE Type 2";
+    }
+
+    if (res.found && eliminations.length > 0) {
+      // Deduplicate eliminations
+      const uniqueElims = [];
+      const seen = new Set();
+      for (const e of eliminations) {
+        const k = `${e.r},${e.c},${e.num}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          uniqueElims.push(e);
+        }
+      }
+
+      return {
+        change: true,
+        type: "remove",
+        cells: uniqueElims,
+        hint: {
+          name: typeName,
+          mainInfo: res.info,
+        },
+      };
+    }
+
+    return { change: false };
+  },
+  // --- ALS CHAIN SUPPORT STRUCTURES ---
+
+  /**
+   * Helper: Calculates the bitwise intersection of peers for a set of cells (given as a BigInt mask).
+   * Returns a BigInt mask of common peers.
+   */
+  _findCommonPeersBS: (cellMask) => {
+    let commonPeers = ~0n; // All ones (conceptually, practically handling 81 bits)
+    // We mask it down to 81 bits at the end or implicitly via ANDing with PEER_MAP
+
+    // Iterate set bits in cellMask
+    let m = cellMask;
+    let idx = 0;
+    while (m !== 0n) {
+      if (m & 1n) {
+        // Intersect current common peers with the peer map of this cell
+        if (commonPeers === ~0n) {
+          commonPeers = PEER_MAP[idx];
+        } else {
+          commonPeers &= PEER_MAP[idx];
+        }
+      }
+      m >>= 1n;
+      idx++;
+    }
+    return commonPeers === ~0n ? 0n : commonPeers;
+  },
+
+  /**
+   * Precomputes common peers for every digit of every ALS in the cache.
+   * Corresponds to C++: build_als_digit_common_peers()
+   */
+  _buildAlsDigitCommonPeers: () => {
+    _alsDigitCommonPeers = {};
+
+    for (const als of _alsCache) {
+      const peersArray = Array(9).fill(0n);
+      for (let d = 1; d <= 9; d++) {
+        const dCells = als.candidatePositions[d - 1];
+        if (dCells === 0n) continue;
+        peersArray[d - 1] = techniques._findCommonPeersBS(dCells);
+      }
+      _alsDigitCommonPeers[als.hash] = peersArray;
+    }
+  },
+
+  /**
+   * Builds the Restricted Common Candidate (RCC) graph between ALSs.
+   * Corresponds to C++: build_als_rcc_map()
+   */
+  _buildAlsRccMap: () => {
+    _alsRccMap = {};
+    _alsLookup = {};
+
+    // Build lookup for easy access by hash
+
+    for (const als of _alsCache) {
+      _alsLookup[als.hash] = als;
+      _alsRccMap[als.hash] = [];
+    }
+
+    for (let i = 0; i < _alsCache.length; i++) {
+      for (let j = i + 1; j < _alsCache.length; j++) {
+        const als1 = _alsCache[i];
+        const als2 = _alsCache[j];
+
+        const commonMask = als1.candidates & als2.candidates;
+        if (commonMask === 0) continue;
+
+        // Iterate bits in commonMask
+        for (let d = 1; d <= 9; d++) {
+          if ((commonMask >> (d - 1)) & 1) {
+            const d1Pos = als1.candidatePositions[d - 1];
+            const d2Pos = als2.candidatePositions[d - 1];
+
+            // 1. Check for overlap in candidate positions (Invalid for RCC)
+            if ((d1Pos & d2Pos) !== 0n) continue;
+
+            // 2. Check visibility: All d-cells in ALS1 must see all d-cells in ALS2
+            // We use the precomputed common peers:
+            // If ALS1's common peers for 'd' cover all of ALS2's 'd' cells, it's a valid link.
+            const p1 = _alsDigitCommonPeers[als1.hash][d - 1];
+
+            // (p1 & d2Pos) === d2Pos checks if d2Pos is a subset of p1
+            if ((p1 & d2Pos) === d2Pos) {
+              _alsRccMap[als1.hash].push({
+                hash: als2.hash,
+                digit: d,
+              });
+              _alsRccMap[als2.hash].push({
+                hash: als1.hash,
+                digit: d,
+              });
+            }
+          }
+        }
+      }
+    }
+  },
+
+  /**
+   * Core DFS logic for ALS Chains.
+   * Supports both Ring (Continuous Loop) and Linear Chain eliminations.
+   * Corresponds to C++: als_chain_core
+   */
+  _alsChainCore: (
+    board,
+    pencils,
+    minLen,
+    maxLen,
+    nameOverride = "ALS Chain"
+  ) => {
+    let eliminations = [];
+    let found = false;
+    let successPath = null; // To store the path that triggered the elimination
+
+    // Helper: Eliminate RCC from common peers of the link (Used for Rings)
+    const eliminateRccPeers = (alsA, alsB, rccDigit) => {
+      let changed = false;
+      const allCells =
+        alsA.candidatePositions[rccDigit - 1] |
+        alsB.candidatePositions[rccDigit - 1];
+      const peerMask = techniques._findCommonPeersBS(allCells);
+      techniques._processElims(peerMask, rccDigit, pencils, eliminations);
+      if (eliminations.length > 0) changed = true; // Optimization: _processElims pushes to array
+      return changed;
+    };
+
+    // DFS Function
+    const dfs = (path, visited) => {
+      if (found) return;
+
+      const lastStep = path[path.length - 1];
+      const neighbors = _alsRccMap[lastStep.hash];
+      if (!neighbors) return;
+
+      for (const { hash: nbrHash, digit: d } of neighbors) {
+        if (found) return;
+
+        // Cannot use the same digit to enter and exit an ALS
+        if (d === lastStep.viaDigit) continue;
+        if (visited.has(nbrHash)) continue;
+
+        // Prepare next step
+        path.push({ hash: nbrHash, viaDigit: d });
+        visited.add(nbrHash);
+
+        const len = path.length;
+
+        // Check Constraints
+        if (len >= minLen && len <= maxLen) {
+          const alsStart = _alsLookup[path[0].hash];
+          const alsEnd = _alsLookup[nbrHash];
+          let isRing = false;
+
+          // --- 1. PRIORITY: Check for Ring (Continuous Loop) ---
+          const endNeighbors = _alsRccMap[alsEnd.hash];
+          if (endNeighbors) {
+            for (const {
+              hash: closingHash,
+              digit: closingRcc,
+            } of endNeighbors) {
+              if (closingHash === alsStart.hash) {
+                const startExitDigit = path[1].viaDigit;
+                const endEntryDigit = d;
+
+                if (
+                  closingRcc !== startExitDigit &&
+                  closingRcc !== endEntryDigit
+                ) {
+                  isRing = true;
+
+                  let ringChange = false;
+                  // A. Internal links
+                  for (let i = 0; i < path.length - 1; i++) {
+                    const a = _alsLookup[path[i].hash];
+                    const b = _alsLookup[path[i + 1].hash];
+                    const rcc = path[i + 1].viaDigit;
+                    if (eliminateRccPeers(a, b, rcc)) ringChange = true;
+                  }
+                  // B. Closing link
+                  if (eliminateRccPeers(alsEnd, alsStart, closingRcc))
+                    ringChange = true;
+
+                  if (ringChange) {
+                    found = true;
+                    successPath = [...path]; // Capture path
+                    return;
+                  }
+                }
+              }
+            }
+          }
+
+          // --- 2. If not a Ring, Check Linear Chain Elimination ---
+          if (!found && !isRing) {
+            const commonMask = alsStart.candidates & alsEnd.candidates;
+            if (commonMask !== 0) {
+              const disallow1 = path[1].viaDigit; // Exit from start
+              const disallow2 = d; // Entry to end
+
+              let localChange = false;
+              // Iterate bits in commonMask
+              const zDigits = techniques._bits.maskToDigits(commonMask);
+              for (const z of zDigits) {
+                if (z === disallow1 || z === disallow2) continue;
+
+                // Check common peers of 'z' in Start and End
+                const zPosStart = alsStart.candidatePositions[z - 1];
+                const zPosEnd = alsEnd.candidatePositions[z - 1];
+                const allZPos = zPosStart | zPosEnd;
+
+                const peerMask = techniques._findCommonPeersBS(allZPos);
+
+                // Capture length before processing to check if new elims added
+                const prevLen = eliminations.length;
+                techniques._processElims(peerMask, z, pencils, eliminations);
+                if (eliminations.length > prevLen) localChange = true;
+              }
+
+              if (localChange) {
+                found = true;
+                successPath = [...path]; // Capture path
+              }
+            }
+          }
+        }
+
+        if (!found && len < maxLen) {
+          dfs(path, visited);
+        }
+
+        // Backtrack
+        path.pop();
+        visited.delete(nbrHash);
+      }
+    };
+
+    // Start DFS from every ALS
+    for (const als of _alsCache) {
+      if (found) break;
+      dfs([{ hash: als.hash, viaDigit: 0 }], new Set([als.hash]));
+    }
+
+    if (found && eliminations.length > 0) {
+      const uniqueElims = Array.from(
+        new Set(eliminations.map(JSON.stringify))
+      ).map(JSON.parse);
+
+      // --- Hint Construction ---
+      let info = `Length ${minLen} Chain found`;
+
+      // Specific Format for ALS XY-Wing (Length 3 Linear Chain)
+      // Structure: Start(A) -[rcc1]- Pivot(B) -[rcc2]- End(C)
+      if (
+        nameOverride === "ALS XY-Wing" &&
+        successPath &&
+        successPath.length === 3
+      ) {
+        const pivotNode = _alsLookup[successPath[1].hash];
+        const pivotLoc = techniques._fmtNode(pivotNode);
+        const pivotCands = techniques._bits
+          .maskToDigits(pivotNode.candidates)
+          .join("");
+
+        info = `Pivot ALS: ${pivotLoc} {${pivotCands}}`;
+      } else if (successPath) {
+        // Generic Chain Info (Optional expansion)
+        info = `Chain length ${successPath.length}`;
+      }
+
+      return {
+        change: true,
+        type: "remove",
+        cells: uniqueElims,
+        hint: {
+          name: nameOverride,
+          mainInfo: info,
+        },
+      };
+    }
+
+    return { change: false };
+  },
+  /**
+   * ALS XY-Wing Wrapper
+   * Length 3 chain (ALS A - ALS B - ALS C)
+   * Corresponds to C++: als_xy_wing()
+   */
+  alsXYWing: (board, pencils) => {
+    techniques._buildAlsDigitCommonPeers();
+    techniques._buildAlsRccMap();
+
+    return techniques._alsChainCore(board, pencils, 3, 3, "ALS XY-Wing");
+  },
+
+  // --- ALS W-WING & HELPERS ---
+
+  _digitRowMasks: [],
+  _digitColMasks: [],
+  _digitBoxMasks: [],
+
+  /**
+   * Precomputes bitmasks for candidate locations for every digit in every unit.
+   * Corresponds to C++: precompute_digit_locations()
+   */
+  _precomputeDigitLocations: (board, pencils) => {
+    // Initialize 9x9 arrays with 0 (for digits 1-9)
+    techniques._digitRowMasks = Array.from({ length: 9 }, () =>
+      new Int32Array(9).fill(0)
+    );
+    techniques._digitColMasks = Array.from({ length: 9 }, () =>
+      new Int32Array(9).fill(0)
+    );
+    techniques._digitBoxMasks = Array.from({ length: 9 }, () =>
+      new Int32Array(9).fill(0)
+    );
+
+    for (let d = 1; d <= 9; d++) {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (board[r][c] === 0 && pencils[r][c].has(d)) {
+            // Row mask: set bit 'c' for row 'r'
+            techniques._digitRowMasks[d - 1][r] |= 1 << c;
+            // Col mask: set bit 'r' for col 'c'
+            techniques._digitColMasks[d - 1][c] |= 1 << r;
+            // Box mask: set bit 'indexInBox' for 'boxIndex'
+            const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+            const idxInBox = (r % 3) * 3 + (c % 3);
+            techniques._digitBoxMasks[d - 1][b] |= 1 << idxInBox;
+          }
+        }
+      }
+    }
+  },
+
+  // Helpers to convert BigInt 81-bit position masks to 9-bit unit masks
+  _bigIntToRowMask: (bigInt, r) => Number((bigInt >> BigInt(r * 9)) & 511n),
+
+  _bigIntToColMask: (bigInt, c) => {
+    let mask = 0;
+    for (let r = 0; r < 9; r++) {
+      if ((bigInt >> BigInt(r * 9 + c)) & 1n) mask |= 1 << r;
+    }
+    return mask;
+  },
+
+  _bigIntToBoxMask: (bigInt, b) => {
+    let mask = 0;
+    const br = Math.floor(b / 3) * 3;
+    const bc = (b % 3) * 3;
+    for (let i = 0; i < 9; i++) {
+      const r = br + Math.floor(i / 3);
+      const c = bc + (i % 3);
+      if ((bigInt >> BigInt(r * 9 + c)) & 1n) mask |= 1 << i;
+    }
+    return mask;
+  },
+
+  /**
+   * Checks if a specific unit acts as a bridge for digit 'd' between two ALSs.
+   * C++ Logic: unit_covered_by_pair
+   */
+  _unitCoveredByPair: (als1, als2, d, unitType, idx) => {
+    let unitMask = 0;
+    // Retrieve precomputed mask of ALL candidates for d in this unit
+    if (unitType === 0) unitMask = techniques._digitRowMasks[d - 1][idx];
+    else if (unitType === 1) unitMask = techniques._digitColMasks[d - 1][idx];
+    else unitMask = techniques._digitBoxMasks[d - 1][idx];
+
+    // Need at least 2 cells to be a valid bridge/RCC relevance
+    let cnt = 0;
+    let m = unitMask;
+    while (m) {
+      m &= m - 1;
+      cnt++;
+    }
+    if (cnt < 2) return false;
+
+    // Calculate masks of d-cells belonging to ALS1 and ALS2 within this unit
+    let aMask = 0,
+      bMask = 0;
+    const p1 = als1.candidatePositions[d - 1];
+    const p2 = als2.candidatePositions[d - 1];
+
+    if (unitType === 0) {
+      aMask = techniques._bigIntToRowMask(p1, idx);
+      bMask = techniques._bigIntToRowMask(p2, idx);
+    } else if (unitType === 1) {
+      aMask = techniques._bigIntToColMask(p1, idx);
+      bMask = techniques._bigIntToColMask(p2, idx);
+    } else {
+      aMask = techniques._bigIntToBoxMask(p1, idx);
+      bMask = techniques._bigIntToBoxMask(p2, idx);
+    }
+
+    // Reject if any ALS's d-cells overlap with the unit's d-cells.
+    // (The bridge unit must be external to the ALS cells themselves)
+    if (((aMask | bMask) & unitMask) !== 0) return false;
+
+    // Check peer coverage:
+    // The union of common peers of ALS1 and ALS2 must cover all d-candidates in the unit.
+    const aPeers = _alsDigitCommonPeers[als1.hash][d - 1];
+    const bPeers = _alsDigitCommonPeers[als2.hash][d - 1];
+
+    if (aPeers === 0n || bPeers === 0n) return false;
+
+    let aPeerMask = 0,
+      bPeerMask = 0;
+    if (unitType === 0) {
+      aPeerMask = techniques._bigIntToRowMask(aPeers, idx);
+      bPeerMask = techniques._bigIntToRowMask(bPeers, idx);
+    } else if (unitType === 1) {
+      aPeerMask = techniques._bigIntToColMask(aPeers, idx);
+      bPeerMask = techniques._bigIntToColMask(bPeers, idx);
+    } else {
+      aPeerMask = techniques._bigIntToBoxMask(aPeers, idx);
+      bPeerMask = techniques._bigIntToBoxMask(bPeers, idx);
+    }
+
+    const combined = aPeerMask | bPeerMask;
+    // Check if 'combined' peers cover all bits in 'unitMask'
+    return (unitMask & ~combined) === 0;
+  },
+
+  alsWWing: (board, pencils) => {
+    techniques._precomputeDigitLocations(board, pencils);
+
+    const alses = _alsCache;
+
+    for (let i = 0; i < alses.length; i++) {
+      for (let j = i + 1; j < alses.length; j++) {
+        const A = alses[i];
+        const B = alses[j];
+
+        // Basic filters matching C++ logic
+        const popA = techniques._bits.popcount(A.mask);
+        const popB = techniques._bits.popcount(B.mask);
+
+        // Skip standard W-Wings (2x2 bivalue cells) or specific size combos excluded in C++
+        if (popA + popB === 4) continue;
+
+        const commonMask = A.mask & B.mask;
+        if (techniques._bits.popcount(commonMask) < 2) continue;
+
+        let rccMask = 0;
+        const commonDigits = techniques._bits.maskToDigits(commonMask);
+
+        for (const d of commonDigits) {
+          // Disallow direct overlap of d-cells between A and B
+          if (
+            (A.candidatePositions[d - 1] & B.candidatePositions[d - 1]) !==
+            0n
+          )
+            continue;
+
+          // 1. Detect "Virtual RCCs" (Bridge via Row/Col/Box)
+          let foundVirtual = false;
+          // Unit types: 0=Row, 1=Col, 2=Box
+          for (let ut = 0; ut < 3 && !foundVirtual; ut++) {
+            for (let idx = 0; idx < 9 && !foundVirtual; idx++) {
+              if (techniques._unitCoveredByPair(A, B, d, ut, idx)) {
+                rccMask |= 1 << (d - 1);
+                foundVirtual = true;
+              }
+            }
+          }
+          if (foundVirtual) continue;
+
+          // 2. Include Cached RCCs (Standard RCCs)
+          const neighbors = _alsRccMap[A.hash];
+          if (neighbors) {
+            for (const n of neighbors) {
+              if (n.hash === B.hash && n.digit === d) {
+                rccMask |= 1 << (d - 1);
+              }
+            }
+          }
+        }
+
+        if (rccMask === 0) continue;
+
+        // --- ELIMINATIONS ---
+        const rccCount = techniques._bits.popcount(rccMask);
+        let elims = [];
+
+        if (rccCount === 1) {
+          elims = techniques._applySinglyLinked(
+            A,
+            B,
+            rccMask,
+            commonMask,
+            pencils
+          );
+        } else {
+          elims = techniques._applyDoublyLinked(
+            A,
+            B,
+            rccMask,
+            commonMask,
+            pencils
+          );
+        }
+
+        if (elims.length > 0) {
+          const uniqueElims = Array.from(
+            new Set(elims.map(JSON.stringify))
+          ).map(JSON.parse);
+
+          return {
+            change: true,
+            type: "remove",
+            cells: uniqueElims,
+            hint: {
+              name: "ALS W-Wing",
+              mainInfo: `${A.unitName} and ${B.unitName}`,
+            },
+          };
+        }
+      }
+    }
+    return { change: false };
   },
 };

@@ -567,7 +567,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     yellow: "Level 3 - 5",
     orange: "Level 6",
     red: "Level 7 - 8",
-    violet: "Level 9+",
+    violet: "Level 10 -",
     gray: "This puzzle does not have a unique solution.",
   };
 
@@ -578,7 +578,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     let desc = defaultRanges[color] || "";
 
     // If a specific level is provided (and it's a solved state color), use it
-    if (level !== null && color !== "violet" && color !== "gray") {
+    if (level !== null && color !== "gray") {
       desc = `Level ${level}`;
     }
 
@@ -961,7 +961,7 @@ function setupEventListeners() {
       // Map "blue" to appropriate class or pass directly if supported
       showMessage(message, color === "blue" ? "blue" : "green");
     } else {
-      showMessage("Hint is only available until Level 8 techniques.", "orange");
+      showMessage("Hint is only available until Level 9 techniques.", "orange");
     }
   });
   exptModeBtn.addEventListener("click", (e) => {
@@ -3059,6 +3059,24 @@ async function evaluateBoardDifficulty() {
       level: 8,
       score: 300,
     },
+    {
+      name: "Aligned Triple Exclusion",
+      func: techniques.alignedTripleExclusion,
+      level: 9,
+      score: 310,
+    },
+    {
+      name: "Almost Locked Set XY-Wing",
+      func: techniques.alsXYWing,
+      level: 9,
+      score: 320,
+    },
+    {
+      name: "Almost Locked Set W-Wing",
+      func: techniques.alsWWing,
+      level: 9,
+      score: 340,
+    },
   ];
   const solveStartTime = performance.now();
   if (IS_DEBUG_MODE) {
@@ -3070,6 +3088,8 @@ async function evaluateBoardDifficulty() {
   let evaluatedScore = 0;
   let progressMade = true;
   while (progressMade) {
+    const isSolved = virtualBoard.flat().every((v) => v !== 0);
+    if (isSolved) break;
     progressMade = false;
     for (const tech of techniqueOrder) {
       const result = tech.func(virtualBoard, startingPencils);
@@ -3122,8 +3142,7 @@ async function evaluateBoardDifficulty() {
       }
     }
   }
-  const isSolved = virtualBoard.flat().every((v) => v !== 0);
-
+  isSolved = virtualBoard.flat().every((v) => v !== 0);
   if (isSolved) {
     lastValidScore = evaluatedScore;
     if (IS_DEBUG_MODE) {
@@ -3143,6 +3162,7 @@ async function evaluateBoardDifficulty() {
     else if (maxDifficulty <= 5) updateLamp("yellow", { level: maxDifficulty });
     else if (maxDifficulty <= 6) updateLamp("orange", { level: maxDifficulty });
     else if (maxDifficulty <= 8) updateLamp("red", { level: maxDifficulty });
+    else if (maxDifficulty <= 9) updateLamp("violet", { level: maxDifficulty });
   } else {
     evaluatedScore = -1;
     if (currentPuzzleScore > 0) {
