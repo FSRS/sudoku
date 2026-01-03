@@ -26,6 +26,7 @@ const modeToggleButton = document.getElementById("mode-toggle-btn");
 const colorButton = modeSelector.querySelector('[data-mode="color"]');
 const difficultyLamp = document.getElementById("difficulty-lamp");
 const vagueHintBtn = document.getElementById("vague-hint-btn");
+const techniqueResultCache = new Map();
 
 let vagueHintMessage = "";
 let currentPuzzleScore = 0;
@@ -1790,6 +1791,7 @@ function autoPencil() {
 
 async function loadPuzzle(puzzleString, puzzleData = null) {
   if (autoPencilTipTimer) clearTimeout(autoPencilTipTimer);
+  techniqueResultCache.clear();
   vagueHintMessage = "";
   lampTimestamps = {};
   previousLampColor = null;
@@ -2745,6 +2747,35 @@ function removeCurrentPuzzleSave() {
 
 // --- Difficulty Evaluation Logic ---
 
+/**
+ * Generates a fast 32-bit hash of the current board state.
+ * Inputs: Concrete values and candidate bitmasks.
+ */
+function getBoardStateHash(board, pencils) {
+  let h = 0x811c9dc5 | 0;
+  for (let i = 0; i < 81; i++) {
+    const r = (i / 9) | 0;
+    const c = i % 9;
+    const val = board[r][c];
+    let mask = 0;
+
+    if (val === 0) {
+      // Encode candidates as a bitmask
+      const p = pencils[r][c];
+      if (p.size > 0) {
+        for (const n of p) mask |= 1 << n;
+      }
+    } else {
+      // Concrete value: Shift to separate from masks and set high bit
+      mask = (val << 12) | 0x80000000;
+    }
+
+    // FNV-1a mixing
+    h = Math.imul(h ^ mask, 0x01000193);
+  }
+  return h;
+}
+
 async function evaluateBoardDifficulty() {
   // 1. Capture the ID of this specific run
   const myEvaluationId = currentEvaluationId;
@@ -3141,8 +3172,50 @@ async function evaluateBoardDifficulty() {
     if (isSolved) break;
 
     progressMade = false;
+
+    alsCacheBuilt = false;
+    alsRccMapBuilt = false;
+
     for (const tech of techniqueOrder) {
-      const result = tech.func(virtualBoard, startingPencils);
+      // [OPTIMIZATION] Compute hash for the current board state
+      const currentHash = getBoardStateHash(virtualBoard, startingPencils);
+      // console.log(currentHash);
+      const cacheKey = `${currentHash}_${tech.name}`;
+
+      let result;
+
+      // Check Cache
+      if (cacheKey && techniqueResultCache.has(cacheKey)) {
+        result = techniqueResultCache.get(cacheKey);
+        // console.log(`Used cache ${tech.name}`);
+      } else {
+        if (tech.name === "Almost Locked Set XZ-Rule") {
+          alsCacheBuilt = true;
+        } else if (tech.name === "Almost Locked Set XY-Wing") {
+          if (!alsCacheBuilt) _alsCache = [];
+          alsCacheBuilt = true;
+          alsRccMapBuilt = true;
+        } else if (
+          (tech.name === "Almost Locked Set W-Wing") |
+          (tech.name === "Almost Locked Set Chain")
+        ) {
+          if (!alsCacheBuilt) _alsCache = [];
+          alsCacheBuilt = true;
+          if (!alsRccMapBuilt) {
+            _alsDigitCommonPeers = {};
+            _alsRccMap = {};
+            _alsLookup = {};
+          }
+          alsRccMapBuilt = true;
+        } else if (tech.name === "Death Blossom") {
+          if (!alsCacheBuilt) _alsCache = [];
+          alsCacheBuilt = true;
+        }
+        // Run Technique
+        result = tech.func(virtualBoard, startingPencils);
+        // Store in Cache (if safe)
+        if (cacheKey) techniqueResultCache.set(cacheKey, result);
+      }
       if (result.change) {
         evaluatedScore += tech.score;
         if (IS_DEBUG_MODE) {

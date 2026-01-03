@@ -6506,6 +6506,8 @@ const techniques = {
    * Corresponds to C++: als_xy_wing()
    */
   alsXYWing: (board, pencils) => {
+    if (_alsCache.legnth === 0)
+      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
     techniques._buildAlsDigitCommonPeers();
     techniques._buildAlsRccMap();
 
@@ -6513,6 +6515,12 @@ const techniques = {
   },
 
   alsChain: (board, pencils) => {
+    if (_alsCache.legnth === 0)
+      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
+    if (_alsDigitCommonPeers.length === 0) {
+      techniques._buildAlsDigitCommonPeers();
+      techniques._buildAlsRccMap();
+    }
     return techniques._alsChainCore(board, pencils, 4, 5, "ALS Chain");
   },
 
@@ -6646,6 +6654,11 @@ const techniques = {
   },
 
   alsWWing: (board, pencils) => {
+    if (_alsCache.legnth === 0)
+      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
+
+    techniques._buildAlsDigitCommonPeers();
+    techniques._buildAlsRccMap();
     techniques._precomputeDigitLocations(board, pencils);
 
     const alses = _alsCache;
@@ -6745,6 +6758,9 @@ const techniques = {
   },
   // --- DEATH BLOSSOM ---
   deathBlossom: (board, pencils) => {
+    if (_alsCache.legnth === 0)
+      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
+
     // 1. Call Cache
     const alses = _alsCache;
 
