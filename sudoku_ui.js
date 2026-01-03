@@ -1780,6 +1780,13 @@ function autoPencil() {
   showMessage("Auto-Pencil complete!", "green");
   hasUsedAutoPencil = true;
   isAutoPencilPending = false;
+
+  setTimeout(() => {
+    showMessage(
+      "Tip: To highlight all bivalue cells, click a cell with exactly two candidates when highlighting is off.",
+      "gray"
+    );
+  }, 2000);
 }
 
 async function loadPuzzle(puzzleString, puzzleData = null) {
@@ -2014,6 +2021,25 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       showMessage(tip, "gray");
     }
   }, 5000);
+
+  setTimeout(() => {
+    // 1. Identify which digits exist in the initial puzzle
+    const presentDigits = new Set();
+    // initialPuzzleString is the normalized 81-char string of the starting grid
+    for (const char of initialPuzzleString) {
+      if (char >= "1" && char <= "9") {
+        presentDigits.add(char);
+      }
+    }
+
+    // 2. If we have fewer than 9 unique digits, at least one is missing.
+    // Only show the tip in this specific case.
+    if (presentDigits.size < 9) {
+      const highlightTip =
+        "Tip: Select a clue cell and press a number to toggle highlighting.";
+      showMessage(highlightTip, "gray");
+    }
+  }, 8000);
   checkCompletion();
 }
 
