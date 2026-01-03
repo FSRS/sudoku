@@ -955,6 +955,7 @@ button:disabled:hover {
   animation: sticker-drop-anim 1.5s ease-in forwards;
   pointer-events: none;
   cursor: default;
+  z-index: 100;
 }
 
 #year-sticker.sticker-collapsed {
