@@ -1171,7 +1171,7 @@ function handleKeyDown(e) {
         selectedCell.col = (col + 1) % 9;
       }
     }
-    onBoardUpdated();
+    renderBoard();
     return;
   }
   if (key === "Enter") {
