@@ -46,6 +46,7 @@ let customScoreEvaluated = -1;
 let lampTimestamps = {};
 let previousLampColor = null;
 let lastValidLampColor = "white";
+let currentEvaluationId = 0;
 
 // --- UI Update Functions ---
 
@@ -531,7 +532,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     "violet",
     "gray",
     "black",
-    "bug",
+    "magenta",
   ];
 
   // Always update visual state so undos/redos show correct lamp
@@ -545,11 +546,6 @@ function updateLamp(color, { record = true, level = null } = {}) {
       "Error: An incorrect progress has been made.";
     return;
   }
-  if (color === "bug") {
-    difficultyLamp.dataset.tooltip =
-      "Bug: Report it to fsrs please!"; /* Currently not used*/
-    return;
-  }
 
   // --- Tooltip Generation Logic ---
   const baseLabels = {
@@ -559,6 +555,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     orange: "Unfair",
     red: "Extreme",
     violet: "Insane",
+    magenta: "Unmeasured",
     gray: "Invalid",
   };
 
@@ -568,7 +565,8 @@ function updateLamp(color, { record = true, level = null } = {}) {
     yellow: "Level 3 - 5",
     orange: "Level 6",
     red: "Level 7 - 8",
-    violet: "Level 10+",
+    violet: "Level 9-10",
+    magenta: "Level 11",
     gray: "This puzzle does not have a unique solution.",
   };
 
@@ -595,7 +593,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
   // If caller asked to skip timestamp bookkeeping (undo/redo / restore / loading), return now
   if (!record || isLoadingSavedGame) {
     // CRITICAL FIX: When loading a saved game, we still need to update previousLampColor
-    if (isLoadingSavedGame && !["black", "bug", "gray"].includes(color)) {
+    if (isLoadingSavedGame && !["black", "gray"].includes(color)) {
       lastValidLampColor = color;
       previousLampColor = color;
     }
@@ -606,8 +604,8 @@ function updateLamp(color, { record = true, level = null } = {}) {
   // Timestamp bookkeeping (record === true AND not loading)
   // -------------------------
   const colorHierarchy = {
-    bug: 8,
-    gray: 8,
+    gray: 9,
+    magenta: 8,
     violet: 7,
     red: 6,
     orange: 5,
@@ -643,7 +641,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
   }
 
   // commit previous color after bookkeeping
-  if (!["black", "bug", "gray"].includes(color)) {
+  if (!["black", "gray"].includes(color)) {
     lastValidLampColor = color;
   }
   previousLampColor = color;
@@ -962,7 +960,7 @@ function setupEventListeners() {
       // Map "blue" to appropriate class or pass directly if supported
       showMessage(message, color === "blue" ? "blue" : "green");
     } else {
-      showMessage("Hint is only available until Level 9 techniques.", "orange");
+      showMessage("Hint not found!", "orange");
     }
   });
   exptModeBtn.addEventListener("click", (e) => {
@@ -2227,7 +2225,7 @@ function applySavedProgress(puzzleData) {
         "lamp-violet",
         "lamp-gray",
         "lamp-black",
-        "lamp-bug"
+        "lamp-magenta"
       );
       difficultyLamp.classList.add(`lamp-${last}`);
 
@@ -2237,7 +2235,8 @@ function applySavedProgress(puzzleData) {
         yellow: "Hard: Level 3 - 5",
         orange: "Unfair: Level 6",
         red: "Extreme: Level 7 - 8",
-        violet: "Insane: Level 9+",
+        violet: "Insane: Level 9-10",
+        magenta: "Unmeasured: Level 11",
       };
       let tooltipText = tooltips[last] || "Difficulty Indicator";
       if (window.innerWidth <= 550)
@@ -2498,6 +2497,7 @@ function saveState() {
   savePuzzleProgress();
 }
 function onBoardUpdated(skipEvaluation = false) {
+  currentEvaluationId++; // Increment this to cancel any running evaluations
   renderBoard();
 
   const isBoardValid = validateBoard();
@@ -2746,12 +2746,21 @@ function removeCurrentPuzzleSave() {
 // --- Difficulty Evaluation Logic ---
 
 async function evaluateBoardDifficulty() {
+  // 1. Capture the ID of this specific run
+  const myEvaluationId = currentEvaluationId;
+
+  // Yield immediately to let UI render any pending changes
   await new Promise(requestAnimationFrame);
+
+  // Abort if a new update happened while we were waiting
+  if (myEvaluationId !== currentEvaluationId) return;
+
   vagueHintMessage = "";
   if (!initialPuzzleString || !solutionBoard) {
     updateLamp("gray");
     return;
   }
+
   const initialBoardForValidation = Array(9)
     .fill(null)
     .map(() => Array(9).fill(0));
@@ -3080,6 +3089,30 @@ async function evaluateBoardDifficulty() {
       level: 9,
       score: 340,
     },
+    {
+      name: "Almost Locked Set Chain",
+      func: techniques.alsChain,
+      level: 10,
+      score: 360,
+    },
+    {
+      name: "Death Blossom",
+      func: techniques.deathBlossom,
+      level: 10,
+      score: 380,
+    },
+    {
+      name: "Finned Franken Swordfish",
+      func: techniques.finnedFrankenSwordfish,
+      level: 10,
+      score: 410,
+    },
+    {
+      name: "Finned Mutant Swordfish",
+      func: techniques.finnedMutantSwordfish,
+      level: 10,
+      score: 490,
+    },
   ];
   const solveStartTime = performance.now();
   if (IS_DEBUG_MODE) {
@@ -3088,11 +3121,25 @@ async function evaluateBoardDifficulty() {
     console.log("Initial Board State (0 = empty):");
     console.table(virtualBoard);
   }
+  // --- ASYNC SOLVING LOOP ---
   let evaluatedScore = 0;
   let progressMade = true;
+  let lastYieldTime = performance.now();
   while (progressMade) {
+    // A. NON-BLOCKING CHECK
+    // If more than 12ms have passed since the last frame, yield to the browser
+    if (performance.now() - lastYieldTime > 12) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      lastYieldTime = performance.now();
+
+      // B. CANCELLATION CHECK
+      // If the user changed the board during the pause, stop this calculation
+      if (myEvaluationId !== currentEvaluationId) return;
+    }
+
     const isSolved = virtualBoard.flat().every((v) => v !== 0);
     if (isSolved) break;
+
     progressMade = false;
     for (const tech of techniqueOrder) {
       const result = tech.func(virtualBoard, startingPencils);
@@ -3145,6 +3192,7 @@ async function evaluateBoardDifficulty() {
       }
     }
   }
+  if (myEvaluationId !== currentEvaluationId) return;
   isSolved = virtualBoard.flat().every((v) => v !== 0);
   if (isSolved) {
     lastValidScore = evaluatedScore;
@@ -3168,7 +3216,7 @@ async function evaluateBoardDifficulty() {
       }
     }
 
-    if (previousLampColor === "black" || previousLampColor === "bug") {
+    if (previousLampColor === "black") {
       previousLampColor = null;
     }
     // Pass exact level to updateLamp
@@ -3177,7 +3225,8 @@ async function evaluateBoardDifficulty() {
     else if (maxDifficulty <= 5) updateLamp("yellow", { level: maxDifficulty });
     else if (maxDifficulty <= 6) updateLamp("orange", { level: maxDifficulty });
     else if (maxDifficulty <= 8) updateLamp("red", { level: maxDifficulty });
-    else if (maxDifficulty <= 9) updateLamp("violet", { level: maxDifficulty });
+    else if (maxDifficulty <= 10)
+      updateLamp("violet", { level: maxDifficulty });
   } else {
     evaluatedScore = -1;
     if (currentPuzzleScore > 0) {
@@ -3187,11 +3236,11 @@ async function evaluateBoardDifficulty() {
     }
 
     if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
-      puzzleLevelEl.textContent = `Lv. 10+ (UNMEASURED)`;
+      puzzleLevelEl.textContent = `Lv. 11 (NULL)`;
       isCustomDifficultyEvaluated = true;
     }
 
-    // === Final bug detection ===
+    // === Final magenta detection ===
     let foundBug = false;
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -3218,7 +3267,7 @@ async function evaluateBoardDifficulty() {
         puzzleScoreEl.textContent = `(${lastValidScore})`;
       }
     } else {
-      updateLamp("violet");
+      updateLamp("magenta");
     }
   }
   if (IS_DEBUG_MODE) {

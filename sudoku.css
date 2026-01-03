@@ -1047,7 +1047,7 @@ button:disabled:hover {
 .lamp-black {
   background-color: #111827;
 }
-.lamp-bug {
+.lamp-magenta {
   background-color: #d946ef; /* Switched to fuchsia-500 */
 }
 /* --- Component: Sudoku Grid & Cells --- */
@@ -1379,7 +1379,7 @@ button:disabled:hover {
   .lamp-gray {
     background-color: #6b7280;
   } /* gray-500 */
-  .lamp-bug {
+  .lamp-magenta {
     background-color: #c026d3; /* A stronger fuchsia-600 for dark mode */
   }
 

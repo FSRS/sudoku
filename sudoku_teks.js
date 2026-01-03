@@ -3,6 +3,10 @@ let _alsCache = [];
 let _alsDigitCommonPeers = {};
 let _alsRccMap = {};
 let _alsLookup = {};
+let _memoComplexFish = {
+  franken: new Set(),
+  mutant: new Set(),
+};
 
 const techniques = {
   _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
@@ -5478,12 +5482,25 @@ const techniques = {
   // --- BITWISE HELPERS ---
   _bits: {
     popcount: (n) => {
+      // Handle BigInt (used for 81-cell position masks)
+      if (typeof n === "bigint") {
+        let count = 0;
+        while (n !== 0n) {
+          n &= n - 1n; // Brian Kernighan's algorithm: clears the least significant bit set
+          count++;
+        }
+        return count;
+      }
+
+      // Handle Number (used for 9-digit candidate masks)
+      // SWAR algorithm for 32-bit integers
       n = n - ((n >> 1) & 0x55555555);
       n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
       return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
     },
     maskToDigits: (n) => {
       const res = [];
+      // Assumes n is a Number (candidate mask)
       for (let i = 1; i <= 9; i++) if ((n >> (i - 1)) & 1) res.push(i);
       return res;
     },
@@ -6452,14 +6469,22 @@ const techniques = {
       ) {
         const pivotNode = _alsLookup[successPath[1].hash];
         const pivotLoc = techniques._fmtNode(pivotNode);
-        const pivotCands = techniques._bits
-          .maskToDigits(pivotNode.candidates)
-          .join("");
 
-        info = `Pivot ALS: ${pivotLoc} {${pivotCands}}`;
+        const rcc1 = successPath[1].viaDigit; // Digit entering Pivot
+        const rcc2 = successPath[2].viaDigit; // Digit leaving Pivot
+
+        info = `Pivot ALS: -(${rcc1}=${rcc2})${pivotLoc}-`;
       } else if (successPath) {
-        // Generic Chain Info (Optional expansion)
-        info = `Chain length ${successPath.length}`;
+        const startNode = _alsLookup[successPath[0].hash];
+        // The digit used to exit the start node is stored in the *next* step's viaDigit
+        const firstRcc = successPath[1].viaDigit;
+
+        // Remaining digits = All Candidates & ~RCC
+        const remMask = startNode.candidates & ~(1 << (firstRcc - 1));
+        const remStr = techniques._bits.maskToDigits(remMask).join("");
+        const loc = techniques._fmtNode(startNode);
+
+        info = `Start with (${remStr}=${firstRcc})${loc}`;
       }
 
       return {
@@ -6485,6 +6510,10 @@ const techniques = {
     techniques._buildAlsRccMap();
 
     return techniques._alsChainCore(board, pencils, 3, 3, "ALS XY-Wing");
+  },
+
+  alsChain: (board, pencils) => {
+    return techniques._alsChainCore(board, pencils, 4, 5, "ALS Chain");
   },
 
   // --- ALS W-WING & HELPERS ---
@@ -6713,5 +6742,677 @@ const techniques = {
       }
     }
     return { change: false };
+  },
+  // --- DEATH BLOSSOM ---
+  deathBlossom: (board, pencils) => {
+    // 1. Call Cache
+    const alses = _alsCache;
+
+    // 2. Precompute per-ALS per-digit peer masks
+    // Corresponds to C++: als_digit_peer_mask[ai][d]
+    // Stores the intersection of peers for all cells in ALS[i] that contain digit d
+    const alsDigitPeerMask = new Array(alses.length);
+    for (let i = 0; i < alses.length; i++) {
+      alsDigitPeerMask[i] = new Array(9).fill(0n); // 0n for empty/none
+      for (let d = 1; d <= 9; d++) {
+        const dCells = alses[i].candidatePositions[d - 1];
+        if (dCells !== 0n) {
+          alsDigitPeerMask[i][d - 1] = techniques._findCommonPeersBS(dCells);
+        }
+      }
+    }
+
+    // 3. Collect Stem Cells (Cells with 3 to 6 candidates)
+    const stems = [];
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const mask = techniques._bits.maskFromSet(pencils[r][c]);
+        const count = techniques._bits.popcount(mask);
+        if (count >= 3 && count <= 6) {
+          stems.push({ r, c, mask, count, id: r * 9 + c });
+        }
+      }
+    }
+    // Sort stems by candidate count (ascending) to process simpler cases first
+    stems.sort((a, b) => a.count - b.count);
+
+    // 4. Process each Stem
+    for (const stem of stems) {
+      const { r, c, mask: stemMask, count: stemCount, id: stemId } = stem;
+      const stemIdBn = BigInt(stemId);
+
+      // Build Pool of valid Petals (ALSs) for this stem
+      // A valid petal must:
+      // 1. Not contain the stem cell itself.
+      // 2. "Cover" at least one digit of the stem (see the stem cell via common peers).
+      // 3. Have "Z" candidates (candidates NOT in the stem).
+      const pool = []; // Array of { alsIdx, covers, z }
+
+      for (let i = 0; i < alses.length; i++) {
+        const als = alses[i];
+
+        // 1. Check overlap with stem cell
+        if ((als.positions & (1n << stemIdBn)) !== 0n) continue;
+
+        let covers = 0;
+        // 2. Check coverage: An ALS covers digit d if its d-peers include the stem cell
+        const digits = techniques._bits.maskToDigits(stemMask);
+        for (const d of digits) {
+          const peerMask = alsDigitPeerMask[i][d - 1];
+          // Check if stemId bit is set in peerMask
+          if ((peerMask & (1n << stemIdBn)) !== 0n) {
+            covers |= 1 << (d - 1);
+          }
+        }
+
+        if (covers === 0) continue;
+
+        // 3. Check Z candidates (ALS candidates excluding Stem candidates)
+        const z = als.candidates & ~stemMask;
+        if (z === 0) continue;
+
+        pool.push({ alsIdx: i, covers, z });
+      }
+
+      if (pool.length < 2) continue;
+
+      // DFS State
+      const chosen = []; // Stack of currently selected petals
+      const seenCombos = new Set(); // For deduplication (String key)
+      let foundAny = false;
+      const eliminations = [];
+
+      // Recursive Search
+      const dfs = (startIndex, coveredMask, possibleElimMask, depth) => {
+        // --- CHECK FOR ELIMINATION ---
+        // Condition: All stem candidates are covered by the chosen petals
+        if (coveredMask === stemMask && depth >= 2 && depth <= stemCount) {
+          if (possibleElimMask !== 0) {
+            const elimDigits = techniques._bits.maskToDigits(possibleElimMask);
+
+            for (const d of elimDigits) {
+              // Find intersection of peer masks for digit d across ALL chosen petals
+              let intersectPeers = ~0n; // Start with all ones
+              let first = true;
+              let empty = false;
+
+              for (const petal of chosen) {
+                const pm = alsDigitPeerMask[petal.alsIdx][d - 1];
+                if (pm === 0n) {
+                  empty = true;
+                  break;
+                }
+
+                if (first) {
+                  intersectPeers = pm;
+                  first = false;
+                } else {
+                  intersectPeers &= pm;
+                }
+
+                if (intersectPeers === 0n) {
+                  empty = true;
+                  break;
+                }
+              }
+
+              if (empty) continue;
+
+              // Eliminate d from any cell in intersectPeers that currently has it
+              let m = intersectPeers;
+              let idx = 0;
+              while (m !== 0n) {
+                if (m & 1n) {
+                  const rr = Math.floor(idx / 9);
+                  const cc = idx % 9;
+                  if (pencils[rr][cc].has(d)) {
+                    eliminations.push({ r: rr, c: cc, num: d });
+                    foundAny = true;
+                  }
+                }
+                m >>= 1n;
+                idx++;
+              }
+            }
+          }
+          // Do not return; continue searching for other valid combinations using this base
+        }
+
+        // Pruning
+        if (depth >= stemCount) return;
+
+        // --- RECURSIVE STEP ---
+        for (let i = startIndex; i < pool.length; i++) {
+          const p = pool[i];
+
+          // Deduplicate: Create a unique key for this set of ALS indices
+          // (Simpler than FNV hash, uses sorted string key)
+          const indices = chosen.map((c) => c.alsIdx);
+          indices.push(p.alsIdx);
+          indices.sort((a, b) => a - b);
+          const key = indices.join(",");
+
+          if (seenCombos.has(key)) continue;
+
+          const newCovered = coveredMask | p.covers;
+
+          // Update possible elim mask: Must be in Z of PREVIOUS petals AND NEW petal
+          // (Intersection of all Zs)
+          const newPossibleElim = possibleElimMask & p.z;
+
+          if (newPossibleElim === 0) {
+            seenCombos.add(key);
+            continue;
+          }
+
+          // --- VALIDATION (Forward Checking) ---
+          // Ensure that for every digit in newPossibleElim, the intersection of peers
+          // (current chosen + new petal) is non-empty AND contains at least one target cell.
+          let validatedMask = 0;
+          const checkDigits = techniques._bits.maskToDigits(newPossibleElim);
+
+          for (const d of checkDigits) {
+            let inter = ~0n;
+            let first = true;
+            let invalid = false;
+
+            // 1. Intersection with existing chosen petals
+            for (const c of chosen) {
+              const pm = alsDigitPeerMask[c.alsIdx][d - 1];
+              if (pm === 0n) {
+                invalid = true;
+                break;
+              }
+              if (first) {
+                inter = pm;
+                first = false;
+              } else {
+                inter &= pm;
+              }
+              if (inter === 0n) {
+                invalid = true;
+                break;
+              }
+            }
+            if (invalid) continue;
+
+            // 2. Intersection with new petal
+            const pm = alsDigitPeerMask[p.alsIdx][d - 1];
+            if (pm === 0n) continue;
+            if (first) inter = pm;
+            else inter &= pm;
+            if (inter === 0n) continue;
+
+            // 3. Ensure candidate exists in at least one cell in the intersection
+            let exists = false;
+            let m = inter;
+            let idx = 0;
+            while (m !== 0n) {
+              if (m & 1n) {
+                const rr = Math.floor(idx / 9);
+                const cc = idx % 9;
+                if (pencils[rr][cc].has(d)) {
+                  exists = true;
+                  break;
+                }
+              }
+              m >>= 1n;
+              idx++;
+            }
+
+            if (exists) validatedMask |= 1 << (d - 1);
+          }
+
+          if (validatedMask === 0) {
+            seenCombos.add(key);
+            continue;
+          }
+
+          // Recurse
+          chosen.push(p);
+          dfs(i + 1, newCovered, validatedMask, depth + 1);
+          chosen.pop();
+
+          // Mark as seen after exploring
+          seenCombos.add(key);
+        }
+      };
+
+      // Start DFS for this stem
+      // possibleElimMask starts as 0x1FF (all 9 digits candidates)
+      dfs(0, 0, 0x1ff, 0);
+
+      // If eliminations found for this stem, return immediately
+      if (foundAny && eliminations.length > 0) {
+        const uniqueElims = Array.from(
+          new Set(eliminations.map(JSON.stringify))
+        ).map(JSON.parse);
+        return {
+          change: true,
+          type: "remove",
+          cells: uniqueElims,
+          hint: {
+            name: "Death Blossom",
+            mainInfo: `Stem cell r${r + 1}c${c + 1}`,
+          },
+        };
+      }
+    }
+
+    return { change: false };
+  },
+  _complexFishCore: (board, pencils, fishSize, isMutant) => {
+    // Constants for Unit Types
+    const U_ROW = 0,
+      U_COL = 1,
+      U_BOX = 2;
+
+    // Helper to build a BigInt mask for a specific unit
+    const getUnitMask = (type, index) => {
+      let mask = 0n;
+      if (type === U_ROW) {
+        for (let c = 0; c < 9; c++) mask |= 1n << BigInt(index * 9 + c);
+      } else if (type === U_COL) {
+        for (let r = 0; r < 9; r++) mask |= 1n << BigInt(r * 9 + index);
+      } else {
+        // U_BOX
+        const br = Math.floor(index / 3) * 3;
+        const bc = (index % 3) * 3;
+        for (let r = 0; r < 3; r++) {
+          for (let c = 0; c < 9; c++) {
+            // Fix: Inner loop should be 3, logic below is safer
+            const cellId = (br + r) * 9 + (bc + (c % 3));
+            if (c < 3) mask |= 1n << BigInt(cellId);
+          }
+        }
+        // Safer explicit loop for box
+        mask = 0n;
+        const cellIds = techniques
+          ._getUnitCells("box", index)
+          .map((c) => c[0] * 9 + c[1]);
+        for (const id of cellIds) mask |= 1n << BigInt(id);
+      }
+      return mask;
+    };
+
+    // Helper: Unsolved unit count (heuristic pruning)
+    const getUnsolvedUnitCount = (d) => {
+      let needed = 0;
+      for (let r = 0; r < 9; r++) {
+        let solvedOrGiven = false;
+        for (let c = 0; c < 9; c++) {
+          if (board[r][c] === d) {
+            solvedOrGiven = true;
+            break;
+          }
+        }
+        if (!solvedOrGiven) needed++;
+      }
+      return needed;
+    };
+
+    // Define search configurations
+    const toCheck = [];
+    if (isMutant) {
+      toCheck.push({
+        base: [U_ROW, U_COL, U_BOX],
+        cover: [U_ROW, U_COL, U_BOX],
+      });
+    } else {
+      toCheck.push({ base: [U_ROW, U_BOX], cover: [U_COL, U_BOX] });
+      toCheck.push({ base: [U_COL, U_BOX], cover: [U_ROW, U_BOX] });
+    }
+
+    // Iterate digits 1-9
+    for (let num = 1; num <= 9; num++) {
+      // 1. Build Candidate Bitset for this digit
+      let cb = 0n;
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (pencils[r][c].has(num)) {
+            cb |= 1n << BigInt(r * 9 + c);
+          }
+        }
+      }
+
+      if (cb === 0n) continue;
+
+      // Memoization check (using string representation of BigInt)
+      const memoKey = cb.toString();
+      const memoSet = isMutant
+        ? _memoComplexFish.mutant
+        : _memoComplexFish.franken;
+      if (memoSet.has(memoKey)) continue;
+
+      if (getUnsolvedUnitCount(num) < fishSize * 2) continue;
+
+      // --- TEMPLATING STEP (Optimization) ---
+      // Determine which cells are "impossible" based on row distribution patterns
+      // This prunes the search space significantly.
+
+      const rowToInds = Array.from({ length: 9 }, () => []);
+      const rowsWith = [];
+      const rowMasks = Array.from({ length: 9 }, (_, r) =>
+        getUnitMask(U_ROW, r)
+      );
+
+      for (let r = 0; r < 9; r++) {
+        const inter = cb & rowMasks[r];
+        if (inter !== 0n) {
+          // Extract indices from BigInt
+          let m = inter;
+          let idx = 0;
+          while (m !== 0n) {
+            if (m & 1n) rowToInds[r].push(idx);
+            m >>= 1n;
+            idx++;
+          }
+          rowsWith.push(r);
+        }
+      }
+
+      if (rowsWith.length === 0) {
+        memoSet.add(memoKey);
+        continue;
+      }
+
+      const orderRows = (firstRow) => {
+        return rowsWith
+          .filter((r) => r !== firstRow)
+          .sort((a, b) => rowToInds[a].length - rowToInds[b].length);
+      };
+
+      // DFS to find valid patterns including a starting cell index (i0)
+      const findPatternIncluding = (i0) => {
+        const r0 = Math.floor(i0 / 9);
+        if (!rowToInds[r0].includes(i0)) return [];
+
+        const rowsSeq = [r0, ...orderRows(r0)];
+        const out = [i0];
+
+        const dfs = (pos, usedCols, usedBoxes) => {
+          if (pos === rowsSeq.length) return true;
+          const r = rowsSeq[pos];
+          for (const idx of rowToInds[r]) {
+            const c = idx % 9;
+            const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+            if ((usedCols >> c) & 1 || (usedBoxes >> b) & 1) continue;
+
+            out.push(idx);
+            if (dfs(pos + 1, usedCols | (1 << c), usedBoxes | (1 << b)))
+              return true;
+            out.pop();
+          }
+          return false;
+        };
+
+        const initCol = i0 % 9;
+        const initBox = Math.floor(i0 / 9 / 3) * 3 + Math.floor((i0 % 9) / 3);
+        if (!dfs(1, 1 << initCol, 1 << initBox)) return [];
+        return out;
+      };
+
+      let possibleCellsMask = 0n;
+      let impossibleCellsMask = 0n;
+
+      // Scan all set bits in cb
+      let m = cb;
+      let idx = 0;
+      while (m !== 0n) {
+        if (m & 1n) {
+          if (!((possibleCellsMask >> BigInt(idx)) & 1n)) {
+            const sel = findPatternIncluding(idx);
+            if (sel.length === 0) {
+              impossibleCellsMask |= 1n << BigInt(idx);
+            } else {
+              for (const j of sel) possibleCellsMask |= 1n << BigInt(j);
+            }
+          }
+        }
+        m >>= 1n;
+        idx++;
+      }
+
+      if (impossibleCellsMask === 0n) {
+        memoSet.add(memoKey);
+        continue; // No constraints found, skip
+      }
+
+      // --- FISH CORE (Optimized for Triples) ---
+      let changed = false;
+
+      // 1. Gather and Sort all valid units for this digit
+      let allUnits = [];
+      for (let r = 0; r < 9; r++) {
+        const mask = getUnitMask(U_ROW, r) & cb;
+        if (mask !== 0n)
+          allUnits.push({
+            type: U_ROW,
+            index: r,
+            mask,
+            count: techniques._bits.popcount(mask),
+          });
+      }
+      for (let c = 0; c < 9; c++) {
+        const mask = getUnitMask(U_COL, c) & cb;
+        if (mask !== 0n)
+          allUnits.push({
+            type: U_COL,
+            index: c,
+            mask,
+            count: techniques._bits.popcount(mask),
+          });
+      }
+      for (let b = 0; b < 9; b++) {
+        const mask = getUnitMask(U_BOX, b) & cb;
+        if (mask !== 0n)
+          allUnits.push({
+            type: U_BOX,
+            index: b,
+            mask,
+            count: techniques._bits.popcount(mask),
+          });
+      }
+
+      // Sort by size (count) to check more constrained units first
+      allUnits.sort((a, b) => a.count - b.count);
+
+      // 2. Iterate Search Configurations
+      for (const { base: baseTypes, cover: coverTypes } of toCheck) {
+        if (changed) break;
+
+        // Filter units for Base and Cover
+        const baseUnits = allUnits.filter((u) => baseTypes.includes(u.type));
+        const coverUnits = allUnits.filter((u) => coverTypes.includes(u.type));
+
+        const B = baseUnits.length;
+        if (B < 3) continue;
+
+        // Base Triple Loop
+        for (let ia = 0; ia < B - 2 && !changed; ia++) {
+          for (let ib = ia + 1; ib < B - 1 && !changed; ib++) {
+            for (let ic = ib + 1; ic < B && !changed; ic++) {
+              const baseMask =
+                baseUnits[ia].mask | baseUnits[ib].mask | baseUnits[ic].mask;
+
+              // Optimization: Check if impossible cells are fully covered by base
+              // "impossible_outside_base" means cells that MUST be part of a pattern but aren't in our base.
+              // If there are impossible cells *outside* our base, this base is invalid.
+              const impossibleOutsideBase = impossibleCellsMask & ~baseMask;
+              if (impossibleOutsideBase === 0n) continue;
+
+              // Filter Cover Units (must overlap with base)
+              const finalCoverUnits = coverUnits.filter(
+                (cu) => (cu.mask & baseMask) !== 0n
+              );
+
+              // Optimization: Check if remaining cover units can cover the impossible cells
+              let coverUnion = 0n;
+              for (const cu of finalCoverUnits) coverUnion |= cu.mask;
+              if ((coverUnion & impossibleOutsideBase) === 0n) continue;
+
+              // Check Endofins (Overlaps within base units)
+              let endoMask =
+                (baseUnits[ia].mask & baseUnits[ib].mask) |
+                (baseUnits[ia].mask & baseUnits[ic].mask) |
+                (baseUnits[ib].mask & baseUnits[ic].mask);
+              let countedEndo = endoMask & baseMask;
+              if (techniques._bits.popcount(countedEndo) > 2) continue;
+
+              const C = finalCoverUnits.length;
+
+              // Cover Triple Loop
+              for (let ca = 0; ca < C - 2 && !changed; ca++) {
+                for (let cbx = ca + 1; cbx < C - 1 && !changed; cbx++) {
+                  for (let cc = cbx + 1; cc < C && !changed; cc++) {
+                    const coverMask =
+                      finalCoverUnits[ca].mask |
+                      finalCoverUnits[cbx].mask |
+                      finalCoverUnits[cc].mask;
+
+                    // Must cover all impossible cells outside base
+                    if ((coverMask & impossibleOutsideBase) === 0n) continue;
+
+                    // Type Constraints (Logic directly from C++)
+                    let baseTypeMask =
+                      (1 << baseUnits[ia].type) |
+                      (1 << baseUnits[ib].type) |
+                      (1 << baseUnits[ic].type);
+                    let coverTypeMask =
+                      (1 << finalCoverUnits[ca].type) |
+                      (1 << finalCoverUnits[cbx].type) |
+                      (1 << finalCoverUnits[cc].type);
+
+                    if (
+                      baseTypeMask === 1 << U_ROW &&
+                      coverTypeMask === 1 << U_COL
+                    )
+                      continue;
+                    if (
+                      baseTypeMask === 1 << U_COL &&
+                      coverTypeMask === 1 << U_ROW
+                    )
+                      continue;
+                    if (isMutant) {
+                      if (
+                        baseTypeMask === ((1 << U_ROW) | (1 << U_BOX)) &&
+                        coverTypeMask === ((1 << U_COL) | (1 << U_BOX))
+                      )
+                        continue;
+                      if (
+                        baseTypeMask === ((1 << U_COL) | (1 << U_BOX)) &&
+                        coverTypeMask === ((1 << U_ROW) | (1 << U_BOX))
+                      )
+                        continue;
+                    }
+
+                    // Fins Calculation
+                    // Exo-fins: Candidates in Base but NOT in Cover
+                    const exoFinsMask = baseMask & ~coverMask;
+                    if (techniques._bits.popcount(exoFinsMask) > 4) continue;
+
+                    const allFinsMask = exoFinsMask | countedEndo;
+                    if (techniques._bits.popcount(allFinsMask) > 5) continue;
+
+                    // Possible Eliminations: Candidates in Cover AND Digit, but NOT in Base
+                    const possibleElimsMask = coverMask & cb & ~baseMask;
+                    if (possibleElimsMask === 0n) continue;
+
+                    let toEliminateMask = 0n;
+
+                    if (allFinsMask === 0n) {
+                      // Basic Fish (No fins)
+                      toEliminateMask = possibleElimsMask;
+                    } else {
+                      // Finned Fish: Eliminations must see ALL fins
+                      let commonVis = ~0n;
+
+                      let mF = allFinsMask;
+                      let idxF = 0;
+                      let hasFins = false;
+                      while (mF !== 0n) {
+                        if (mF & 1n) {
+                          hasFins = true;
+                          // This peer map look up might be slow if done bit-by-bit,
+                          // but fins count is low (<= 5).
+                          const rF = Math.floor(idxF / 9);
+                          const cF = idxF % 9;
+                          // Note: We need a peer mask for (rF, cF).
+                          // Assuming techniques._getPeerMask exists or we use existing helpers
+                          // Fallback: Manually constructing or using PEER_MAP if available globally
+                          // Re-using _findCommonPeersBS logic implies access to PEER_MAP
+                          if (typeof PEER_MAP !== "undefined") {
+                            commonVis &= PEER_MAP[idxF];
+                          } else {
+                            // Fallback if PEER_MAP not directly available in this scope (should act as peers[k])
+                            // This part relies on integration with your existing peer structure
+                            // Assuming global PEER_MAP or techniques._peers
+                            commonVis &= techniques._peers
+                              ? techniques._peers[idxF]
+                              : 0n; // Placeholder
+                          }
+                        }
+                        mF >>= 1n;
+                        idxF++;
+                      }
+
+                      if (!hasFins || commonVis === 0n) continue;
+                      toEliminateMask = possibleElimsMask & commonVis;
+                    }
+
+                    if (toEliminateMask === 0n) continue;
+
+                    // Process Eliminations
+                    const elims = [];
+                    let mE = toEliminateMask;
+                    let idxE = 0;
+                    while (mE !== 0n) {
+                      if (mE & 1n) {
+                        const rr = Math.floor(idxE / 9);
+                        const cc2 = idxE % 9;
+                        if (pencils[rr][cc2].has(num)) {
+                          elims.push({ r: rr, c: cc2, num: num });
+                          changed = true;
+                        }
+                      }
+                      mE >>= 1n;
+                      idxE++;
+                    }
+
+                    if (elims.length > 0) {
+                      const name = isMutant
+                        ? "Finned Mutant Swordfish"
+                        : "Finned Franken Swordfish";
+                      return {
+                        change: true,
+                        type: "remove",
+                        cells: elims,
+                        hint: {
+                          name: name,
+                          mainInfo: `Digit ${num}`,
+                        },
+                      };
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } // End Base Loops
+
+      if (changed) break;
+      memoSet.add(memoKey); // Cache processed result
+    }
+
+    return { change: false };
+  },
+
+  finnedFrankenSwordfish: (board, pencils) => {
+    return techniques._complexFishCore(board, pencils, 3, false);
+  },
+
+  finnedMutantSwordfish: (board, pencils) => {
+    return techniques._complexFishCore(board, pencils, 3, true);
   },
 };
