@@ -41,7 +41,8 @@ let currentPuzzleKey = null; // Track which puzzle is currently active
 let isLoadingSavedGame = false;
 let currentHintData = null;
 let hintClickCount = 0;
-
+let isCustomDifficultyEvaluated = false;
+let customScoreEvaluated = -1;
 let lampTimestamps = {};
 let previousLampColor = null;
 let lastValidLampColor = "white";
@@ -567,7 +568,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     yellow: "Level 3 - 5",
     orange: "Level 6",
     red: "Level 7 - 8",
-    violet: "Level 10 -",
+    violet: "Level 10+",
     gray: "This puzzle does not have a unique solution.",
   };
 
@@ -1795,6 +1796,8 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   lampTimestamps = {};
   previousLampColor = null;
   isCustomPuzzle = puzzleData === null;
+  isCustomDifficultyEvaluated = false;
+  customScoreEvaluated = -1;
   isLoadingSavedGame = false;
   lastValidScore = 0;
 
@@ -2588,9 +2591,9 @@ function loadPuzzleTimer(savedTimeFromStorage) {
   resetTimerState();
 
   // Do not start a timer for custom puzzles or if the puzzle key is missing.
-  if (isCustomPuzzle || !currentPuzzleKey) {
-    return;
-  }
+  // if (isCustomPuzzle || !currentPuzzleKey) {
+  //   return;
+  // }
 
   // Prioritize the time saved during the current session.
   const inSessionTime = puzzleTimers[currentPuzzleKey];
@@ -3150,9 +3153,21 @@ async function evaluateBoardDifficulty() {
     }
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (${evaluatedScore})`;
-    } else {
-      puzzleScoreEl.textContent = `(${evaluatedScore})`;
+    } else if (isCustomPuzzle) {
+      if (!isCustomDifficultyEvaluated) {
+        puzzleLevelEl.textContent = `Lv. ${maxDifficulty} (${
+          difficultyWords[maxDifficulty] || "Unknown"
+        })`;
+        customScoreEvaluated = evaluatedScore;
+        isCustomDifficultyEvaluated = true;
+      }
+      if (customScoreEvaluated > 0) {
+        puzzleScoreEl.textContent = `~${customScoreEvaluated} (${evaluatedScore})`;
+      } else {
+        puzzleScoreEl.textContent = `(${evaluatedScore})`;
+      }
     }
+
     if (previousLampColor === "black" || previousLampColor === "bug") {
       previousLampColor = null;
     }
@@ -3169,6 +3184,11 @@ async function evaluateBoardDifficulty() {
       puzzleScoreEl.textContent = `~${currentPuzzleScore}`;
     } else {
       puzzleScoreEl.textContent = "";
+    }
+
+    if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
+      puzzleLevelEl.textContent = `Lv. 10+ (UNMEASURED)`;
+      isCustomDifficultyEvaluated = true;
     }
 
     // === Final bug detection ===
