@@ -686,7 +686,7 @@ function setupEventListeners() {
   puzzleStringInput.addEventListener("input", function () {
     // 1. Auto-format valid 81-char strings into 9 lines
     const raw = this.value.replace(/\s/g, "");
-    if (raw.length === 81 && /^[0-9.]+$/.test(raw)) {
+    if (/^[0-9.]+$/.test(raw)) {
       const formatted = raw.match(/.{1,9}/g).join("\n");
       if (this.value !== formatted) {
         this.value = formatted;
