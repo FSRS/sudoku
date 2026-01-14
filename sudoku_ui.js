@@ -3178,9 +3178,12 @@ async function evaluateBoardDifficulty() {
 
     for (const tech of techniqueOrder) {
       // [OPTIMIZATION] Compute hash for the current board state
-      const currentHash = getBoardStateHash(virtualBoard, startingPencils);
+      const currentHash =
+        tech.level > 5
+          ? getBoardStateHash(virtualBoard, startingPencils)
+          : null;
       // console.log(currentHash);
-      const cacheKey = `${currentHash}_${tech.name}`;
+      const cacheKey = currentHash ? `${currentHash}_${tech.name}` : null;
 
       let result;
 
