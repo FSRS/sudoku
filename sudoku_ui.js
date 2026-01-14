@@ -248,6 +248,13 @@ function renderBoard() {
     const row = parseInt(cell.dataset.row);
     const col = parseInt(cell.dataset.col);
     const state = boardState[row][col];
+
+    // Clear previous tooltip if exists
+    if (cell.tooltipInstance) {
+      cell.tooltipInstance.remove();
+      cell.tooltipInstance = null;
+    }
+
     cell.innerHTML = "";
     cell.classList.remove(
       "selected",
@@ -256,27 +263,42 @@ function renderBoard() {
       "highlighted"
     );
     cell.style.backgroundColor = state.cellColor || "";
+
+    // Remove old handlers before adding new ones
+    cell.onmouseover = null;
+    cell.onmouseout = null;
+
     if (state.cellColor) {
       cell.classList.add("has-color");
     } else {
       cell.classList.remove("has-color");
     }
-    cell.addEventListener("mouseover", () => {
-      currentlyHoveredElement = cell; // Track the cell
-      if (
-        currentMode === "color" &&
-        coloringSubMode === "cell" &&
-        selectedColor
-      ) {
-        cell.style.backgroundColor = selectedColor;
-      }
-    });
-    cell.addEventListener("mouseout", () => {
-      currentlyHoveredElement = null; // Clear tracking on leave
-      if (currentMode === "color" && coloringSubMode === "cell") {
-        cell.style.backgroundColor = state.cellColor || "";
-      }
-    });
+
+    cell.addEventListener(
+      "mouseover",
+      () => {
+        currentlyHoveredElement = cell;
+        if (
+          currentMode === "color" &&
+          coloringSubMode === "cell" &&
+          selectedColor
+        ) {
+          cell.style.backgroundColor = selectedColor;
+        }
+      },
+      { once: false }
+    ); // Changed to explicit false for clarity
+
+    cell.addEventListener(
+      "mouseout",
+      () => {
+        currentlyHoveredElement = null;
+        if (currentMode === "color" && coloringSubMode === "cell") {
+          cell.style.backgroundColor = state.cellColor || "";
+        }
+      },
+      { once: false }
+    );
     if (row === selectedCell.row && col === selectedCell.col) {
       const useGreenHighlight =
         currentMode === "pencil" ||
@@ -1791,10 +1813,17 @@ function autoPencil() {
 
 async function loadPuzzle(puzzleString, puzzleData = null) {
   if (autoPencilTipTimer) clearTimeout(autoPencilTipTimer);
+  if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
   techniqueResultCache.clear();
   vagueHintMessage = "";
   lampTimestamps = {};
   previousLampColor = null;
+
+  document.querySelectorAll(".custom-tooltip").forEach((tooltip) => {
+    tooltip.remove();
+  });
+  activeTooltipElement = null;
+
   isCustomPuzzle = puzzleData === null;
   isCustomDifficultyEvaluated = false;
   customScoreEvaluated = -1;
@@ -2047,6 +2076,12 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
 }
 
 function clearUserBoard() {
+  // Clean up tooltips
+  document.querySelectorAll(".custom-tooltip").forEach((tooltip) => {
+    tooltip.remove();
+  });
+  activeTooltipElement = null;
+
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       if (!boardState[r][c].isGiven) {
@@ -2055,6 +2090,7 @@ function clearUserBoard() {
       }
     }
   }
+  techniqueResultCache.clear();
   lampTimestamps = {};
   previousLampColor = null;
   vagueHintMessage = "";
@@ -2066,7 +2102,6 @@ function clearUserBoard() {
   onBoardUpdated(true);
   evaluateBoardDifficulty();
 }
-
 // --- ADD Progress Save/Load Functions ---
 
 /**
