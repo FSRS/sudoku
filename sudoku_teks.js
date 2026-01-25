@@ -151,7 +151,7 @@ const techniques = {
     if (removals.length > 0) {
       // De-duplicate removals (a cell can be a peer in multiple ways)
       const uniqueRemovals = Array.from(
-        new Set(removals.map(JSON.stringify))
+        new Set(removals.map(JSON.stringify)),
       ).map(JSON.parse);
       return {
         change: true,
@@ -187,7 +187,7 @@ const techniques = {
           r,
           emptyCol,
           solvedMask,
-          `Row ${r + 1}`
+          `Row ${r + 1}`,
         );
       }
     }
@@ -212,7 +212,7 @@ const techniques = {
           emptyRow,
           c,
           solvedMask,
-          `Col ${c + 1}`
+          `Col ${c + 1}`,
         );
       }
     }
@@ -243,7 +243,7 @@ const techniques = {
           emptyCell.r,
           emptyCell.c,
           solvedMask,
-          `Box ${b + 1}`
+          `Box ${b + 1}`,
         );
       }
     }
@@ -661,7 +661,7 @@ const techniques = {
           ([r, c]) =>
             board[r][c] === 0 &&
             pencils[r][c].size >= 2 &&
-            pencils[r][c].size <= size
+            pencils[r][c].size <= size,
         );
 
         if (potentialCells.length < size) continue;
@@ -669,7 +669,7 @@ const techniques = {
         for (const cellGroup of techniques.combinations(potentialCells, size)) {
           const union = new Set();
           cellGroup.forEach(([r, c]) =>
-            pencils[r][c].forEach((p) => union.add(p))
+            pencils[r][c].forEach((p) => union.add(p)),
           );
 
           if (union.size === size) {
@@ -740,7 +740,7 @@ const techniques = {
             candMap
               .get(num)
               .forEach((cell) =>
-                cellUnion.add(techniques._cellToId(cell[0], cell[1]))
+                cellUnion.add(techniques._cellToId(cell[0], cell[1])),
               );
           });
 
@@ -796,7 +796,7 @@ const techniques = {
         for (const lines of techniques.combinations(candidatesInDim, size)) {
           const allSecondaryIndices = new Set();
           lines.forEach(([_, indices]) =>
-            indices.forEach((idx) => allSecondaryIndices.add(idx))
+            indices.forEach((idx) => allSecondaryIndices.add(idx)),
           );
           if (allSecondaryIndices.size === size) {
             const removals = [];
@@ -821,8 +821,8 @@ const techniques = {
                     size === 2
                       ? "X-Wing"
                       : size === 3
-                      ? "Swordfish"
-                      : "Jellyfish",
+                        ? "Swordfish"
+                        : "Jellyfish",
                   mainInfo: `Digit ${num}`,
                 },
               };
@@ -879,11 +879,11 @@ const techniques = {
       // Step 2: Generate combinations of 'fishSize' base lines
       for (const baseLines of techniques.combinations(
         potentialLines,
-        fishSize
+        fishSize,
       )) {
         const allCoverIndicesSet = new Set();
         baseLines.forEach((line) =>
-          line.locs.forEach((loc) => allCoverIndicesSet.add(loc))
+          line.locs.forEach((loc) => allCoverIndicesSet.add(loc)),
         );
 
         // Finned fish have fishSize + 1 or +2 cover locations (with fins in the same box)
@@ -899,7 +899,7 @@ const techniques = {
         // Step 3: Iterate through all possible sets of 'fishSize' cover lines to be the "base"
         for (const coverBaseIndices of techniques.combinations(
           allCoverIndices,
-          fishSize
+          fishSize,
         )) {
           const coverBaseSet = new Set(coverBaseIndices);
 
@@ -919,7 +919,7 @@ const techniques = {
 
           // Step 5: Check if all fins are in the same box
           const finBoxes = new Set(
-            fins.map(([r, c]) => techniques._getBoxIndex(r, c))
+            fins.map(([r, c]) => techniques._getBoxIndex(r, c)),
           );
           if (finBoxes.size !== 1) continue;
 
@@ -959,8 +959,8 @@ const techniques = {
                   fishSize === 2
                     ? "X-Wing"
                     : fishSize === 3
-                    ? "Swordfish"
-                    : "Jellyfish"
+                      ? "Swordfish"
+                      : "Jellyfish"
                 }`,
 
                 mainInfo: `Digit ${num}`,
@@ -992,14 +992,14 @@ const techniques = {
           (cell.r !== pivot.r || cell.c !== pivot.c) &&
           techniques._sees([cell.r, cell.c], [pivot.r, pivot.c]) &&
           cell.cands.includes(x) &&
-          !cell.cands.includes(y)
+          !cell.cands.includes(y),
       );
       const pincer2Candidates = bivalueCells.filter(
         (cell) =>
           (cell.r !== pivot.r || cell.c !== pivot.c) &&
           techniques._sees([cell.r, cell.c], [pivot.r, pivot.c]) &&
           cell.cands.includes(y) &&
-          !cell.cands.includes(x)
+          !cell.cands.includes(x),
       );
 
       for (const pincer1 of pincer1Candidates) {
@@ -1013,7 +1013,7 @@ const techniques = {
             const removals = [];
             const commonSeers = techniques._commonVisibleCells(
               [pincer1.r, pincer1.c],
-              [pincer2.r, pincer2.c]
+              [pincer2.r, pincer2.c],
             );
             for (const [r, c] of commonSeers) {
               if (pencils[r][c].has(z) && !(r === pivot.r && c === pivot.c)) {
@@ -1060,7 +1060,7 @@ const techniques = {
       const wings = bivalueCells.filter(
         (cell) =>
           techniques._sees([cell.r, cell.c], [pivot.r, pivot.c]) &&
-          [...cell.cands].every((cand) => pivot.cands.has(cand))
+          [...cell.cands].every((cand) => pivot.cands.has(cand)),
       );
       if (wings.length < 2) continue;
 
@@ -1076,7 +1076,7 @@ const techniques = {
         // --- END: BUG FIX ---
 
         const intersection = new Set(
-          [...wing1.cands].filter((c) => wing2.cands.has(c))
+          [...wing1.cands].filter((c) => wing2.cands.has(c)),
         );
         if (intersection.size === 1) {
           const z = intersection.values().next().value;
@@ -1145,7 +1145,7 @@ const techniques = {
         cell1,
         cell2,
         x,
-        y
+        y,
       );
       if (result.change) return result;
       // Strong link on y, eliminate x
@@ -1155,7 +1155,7 @@ const techniques = {
         cell1,
         cell2,
         y,
-        x
+        x,
       );
       if (result.change) return result;
     }
@@ -1186,7 +1186,7 @@ const techniques = {
           const removals = [];
           const commonSeers = techniques._commonVisibleCells(
             [cell1.r, cell1.c],
-            [cell2.r, cell2.c]
+            [cell2.r, cell2.c],
           );
           for (const [r, c] of commonSeers) {
             if (pencils[r][c].has(y)) {
@@ -1253,14 +1253,14 @@ const techniques = {
             unit.some(
               ([r, c]) =>
                 (r === cell1.r && c === cell1.c) ||
-                (r === cell2.r && c === cell2.c)
+                (r === cell2.r && c === cell2.c),
             )
           ) {
             continue;
           }
 
           const x_cells_in_unit = unit.filter(([r, c]) =>
-            pencils[r][c].has(linkDigit)
+            pencils[r][c].has(linkDigit),
           );
           if (x_cells_in_unit.length === 0) continue;
 
@@ -1275,7 +1275,7 @@ const techniques = {
             const removals = [];
             const commonPeers = techniques._commonVisibleCells(
               [cell1.r, cell1.c],
-              [cell2.r, cell2.c]
+              [cell2.r, cell2.c],
             );
             for (const [r, c] of commonPeers) {
               if (pencils[r][c].has(elimDigit)) {
@@ -1376,7 +1376,7 @@ const techniques = {
             ) {
               const newPath = [...path, neighbor];
               const newPathStr = JSON.stringify(
-                newPath.map((p) => p.join(",")).sort()
+                newPath.map((p) => p.join(",")).sort(),
               ); // Path invariant to direction
               if (!visitedPaths.has(newPathStr)) {
                 queue.push([neighbor, newPath]);
@@ -1508,7 +1508,7 @@ const techniques = {
               if (
                 techniques._getBoxIndex(
                   rowLinkCells[i][0],
-                  rowLinkCells[i][1]
+                  rowLinkCells[i][1],
                 ) ===
                 techniques._getBoxIndex(colLinkCells[j][0], colLinkCells[j][1])
               ) {
@@ -1574,12 +1574,12 @@ const techniques = {
                   ? techniques._getUnitCells("row", pC[0])
                   : techniques._getUnitCells("col", pC[1]);
                 const strongLinkLocs = strongLinkLine.filter(([r, c]) =>
-                  pencils[r][c].has(num)
+                  pencils[r][c].has(num),
                 );
 
                 if (strongLinkLocs.length === 2) {
                   const pD = strongLinkLocs.find(
-                    (cell) => cell[0] !== pC[0] || cell[1] !== pC[1]
+                    (cell) => cell[0] !== pC[0] || cell[1] !== pC[1],
                   );
                   if (!pD) continue;
 
@@ -1637,7 +1637,7 @@ const techniques = {
         for (let b = 0; b < 9; b++) {
           const boxCells = techniques._getUnitCells("box", b);
           const box_n_cells = boxCells.filter(([r, c]) =>
-            pencils[r][c].has(num)
+            pencils[r][c].has(num),
           );
           if (box_n_cells.length < 2) continue;
 
@@ -1649,7 +1649,7 @@ const techniques = {
           for (const r1 of rows) {
             for (const c1 of cols) {
               const coversAll = box_n_cells.every(
-                ([r, c]) => r === r1 || c === c1
+                ([r, c]) => r === r1 || c === c1,
               );
               if (!coversAll) continue;
 
@@ -1823,14 +1823,14 @@ const techniques = {
             techniques._getBoxIndex(cell2.r, cell2.c),
           ]);
           const other_box_index = [...chute_boxes].find(
-            (b) => !pair_boxes.has(b)
+            (b) => !pair_boxes.has(b),
           );
           if (other_box_index === undefined) continue;
           other_box_start = (other_box_index % 3) * 3;
 
           for (let c = other_box_start; c < other_box_start + 3; c++) {
             pencils[other_line][c].forEach((cand) =>
-              intersectionCandidates.add(cand)
+              intersectionCandidates.add(cand),
             );
             if (board[other_line][c] !== 0)
               intersectionCandidates.add(board[other_line][c]);
@@ -1850,14 +1850,14 @@ const techniques = {
             techniques._getBoxIndex(cell2.r, cell2.c),
           ]);
           const other_box_index = [...chute_boxes].find(
-            (b) => !pair_boxes.has(b)
+            (b) => !pair_boxes.has(b),
           );
           if (other_box_index === undefined) continue;
           other_box_start = Math.floor(other_box_index / 3) * 3;
 
           for (let r = other_box_start; r < other_box_start + 3; r++) {
             pencils[r][other_line].forEach((cand) =>
-              intersectionCandidates.add(cand)
+              intersectionCandidates.add(cand),
             );
             if (board[r][other_line] !== 0)
               intersectionCandidates.add(board[r][other_line]);
@@ -1867,7 +1867,7 @@ const techniques = {
         const removals = [];
         const commonSeers = techniques._commonVisibleCells(
           [cell1.r, cell1.c],
-          [cell2.r, cell2.c]
+          [cell2.r, cell2.c],
         );
         if (!intersectionCandidates.has(x)) {
           for (const [r, c] of commonSeers) {
@@ -1881,7 +1881,7 @@ const techniques = {
         }
         if (removals.length > 0) {
           const uniqueRemovals = Array.from(
-            new Set(removals.map(JSON.stringify))
+            new Set(removals.map(JSON.stringify)),
           ).map(JSON.parse);
           return {
             change: true,
@@ -2096,20 +2096,20 @@ const techniques = {
       // --- Types 2 & 5: Two or three extra cells with a common extra digit ---
       if (extraCells.length === 2 || extraCells.length === 3) {
         const extrasMasks = extraCells.map(([r, c]) =>
-          Array.from(pencils[r][c]).filter((x) => x !== d1 && x !== d2)
+          Array.from(pencils[r][c]).filter((x) => x !== d1 && x !== d2),
         );
         let allHaveOneExtra = extrasMasks.every((arr) => arr.length === 1);
         if (allHaveOneExtra && extrasMasks.length > 0) {
           const commonExtraDigit = extrasMasks[0][0];
           let allAreSame = extrasMasks.every(
-            (arr) => arr[0] === commonExtraDigit
+            (arr) => arr[0] === commonExtraDigit,
           );
           if (allAreSame) {
             const peers = techniques._findCommonPeers(
               extraCells,
               cells,
               board,
-              pencils
+              pencils,
             );
             const removals = [];
             for (const [r, c] of peers) {
@@ -2152,7 +2152,7 @@ const techniques = {
             const unitCells = unitCellsRaw.filter(
               ([r, c]) =>
                 !cells.some((rc) => rc[0] === r && rc[1] === c) &&
-                board[r][c] === 0
+                board[r][c] === 0,
             );
             if (unitCells.length < 1) return null;
             // Note: The loop for k can stop earlier, as k + 1 cannot be larger than the number of available 'other' cells
@@ -2160,7 +2160,7 @@ const techniques = {
               for (const chosen of techniques.combinations(unitCells, k)) {
                 const union = new Set(virtualSet);
                 chosen.forEach(([r, c]) =>
-                  pencils[r][c].forEach((p) => union.add(p))
+                  pencils[r][c].forEach((p) => union.add(p)),
                 );
                 // --- FIX IS HERE ---
                 // The number of candidates must equal k real cells + 1 virtual cell.
@@ -2190,7 +2190,10 @@ const techniques = {
             techniques._getBoxIndex(e2r, e2c)
           ) {
             sharedUnits.push(
-              techniques._getUnitCells("box", techniques._getBoxIndex(e1r, e1c))
+              techniques._getUnitCells(
+                "box",
+                techniques._getBoxIndex(e1r, e1c),
+              ),
             );
           }
 
@@ -2390,7 +2393,7 @@ const techniques = {
             "row",
             floor1[0],
             floor1[1],
-            e1c
+            e1c,
           );
           const c_f1_bi_d1 = techniques._isStrongLink(
             pencils,
@@ -2398,7 +2401,7 @@ const techniques = {
             "col",
             floor1[1],
             floor1[0],
-            e2r
+            e2r,
           );
           const r_f2_bi_d1 = techniques._isStrongLink(
             pencils,
@@ -2406,7 +2409,7 @@ const techniques = {
             "row",
             floor2[0],
             floor2[1],
-            e2c
+            e2c,
           );
           const c_f2_bi_d1 = techniques._isStrongLink(
             pencils,
@@ -2414,7 +2417,7 @@ const techniques = {
             "col",
             floor2[1],
             floor2[0],
-            e1r
+            e1r,
           );
           const r_f1_bi_d2 = techniques._isStrongLink(
             pencils,
@@ -2422,7 +2425,7 @@ const techniques = {
             "row",
             floor1[0],
             floor1[1],
-            e1c
+            e1c,
           );
           const c_f1_bi_d2 = techniques._isStrongLink(
             pencils,
@@ -2430,7 +2433,7 @@ const techniques = {
             "col",
             floor1[1],
             floor1[0],
-            e2r
+            e2r,
           );
           const r_f2_bi_d2 = techniques._isStrongLink(
             pencils,
@@ -2438,7 +2441,7 @@ const techniques = {
             "row",
             floor2[0],
             floor2[1],
-            e2c
+            e2c,
           );
           const c_f2_bi_d2 = techniques._isStrongLink(
             pencils,
@@ -2446,7 +2449,7 @@ const techniques = {
             "col",
             floor2[1],
             floor2[0],
-            e1r
+            e1r,
           );
 
           let isType6 = false;
@@ -2488,7 +2491,7 @@ const techniques = {
             "row",
             fr,
             fc,
-            other_c
+            other_c,
           );
           const c_floor_bi_d1 = techniques._isStrongLink(
             pencils,
@@ -2496,7 +2499,7 @@ const techniques = {
             "col",
             fc,
             fr,
-            other_r
+            other_r,
           );
           const r_other_bi_d1 = techniques._isStrongLink(
             pencils,
@@ -2504,7 +2507,7 @@ const techniques = {
             "row",
             other_r,
             fc,
-            other_c
+            other_c,
           );
           const c_other_bi_d1 = techniques._isStrongLink(
             pencils,
@@ -2512,7 +2515,7 @@ const techniques = {
             "col",
             other_c,
             fr,
-            other_r
+            other_r,
           );
           const r_floor_bi_d2 = techniques._isStrongLink(
             pencils,
@@ -2520,7 +2523,7 @@ const techniques = {
             "row",
             fr,
             fc,
-            other_c
+            other_c,
           );
           const c_floor_bi_d2 = techniques._isStrongLink(
             pencils,
@@ -2528,7 +2531,7 @@ const techniques = {
             "col",
             fc,
             fr,
-            other_r
+            other_r,
           );
           const r_other_bi_d2 = techniques._isStrongLink(
             pencils,
@@ -2536,7 +2539,7 @@ const techniques = {
             "row",
             other_r,
             fc,
-            other_c
+            other_c,
           );
           const c_other_bi_d2 = techniques._isStrongLink(
             pencils,
@@ -2544,7 +2547,7 @@ const techniques = {
             "col",
             other_c,
             fr,
-            other_r
+            other_r,
           );
           if (r_other_bi_d1 && (r_floor_bi_d1 || c_other_bi_d1))
             addRemoval(other_r, other_c, d2);
@@ -2583,7 +2586,7 @@ const techniques = {
 
       if (removals.length > 0) {
         const uniqueRemovals = Array.from(
-          new Set(removals.map(JSON.stringify))
+          new Set(removals.map(JSON.stringify)),
         ).map(JSON.parse);
         if (uniqueRemovals.length > 0) {
           return {
@@ -2726,7 +2729,7 @@ const techniques = {
     const check_unit = (unit_cells) => {
       const union = new Set();
       unit_cells.forEach((cell) =>
-        cell.cands.forEach((cand) => union.add(cand))
+        cell.cands.forEach((cand) => union.add(cand)),
       );
       return union.size === 3;
     };
@@ -2767,7 +2770,7 @@ const techniques = {
                   ];
                   for (const col_pair of techniques.combinations(
                     cols_in_stack,
-                    2
+                    2,
                   )) {
                     const [c1, c2] = col_pair;
                     const cells = [
@@ -2785,7 +2788,7 @@ const techniques = {
                       d3,
                       pencils,
                       rectangles,
-                      true
+                      true,
                     );
                   }
                 }
@@ -2818,7 +2821,7 @@ const techniques = {
                     d3,
                     pencils,
                     rectangles,
-                    true // is_3x2
+                    true, // is_3x2
                   );
                 }
               }
@@ -2848,7 +2851,7 @@ const techniques = {
                       d3,
                       pencils,
                       rectangles,
-                      false
+                      false,
                     );
                   }
                 }
@@ -2881,7 +2884,7 @@ const techniques = {
                     d3,
                     pencils,
                     rectangles,
-                    false // is_3x2 = false
+                    false, // is_3x2 = false
                   );
                 }
               }
@@ -2907,7 +2910,7 @@ const techniques = {
       const removals = [];
 
       const extra_cells = cells.filter(([r, c]) =>
-        [...pencils[r][c]].some((cand) => !core_digits.has(cand))
+        [...pencils[r][c]].some((cand) => !core_digits.has(cand)),
       );
 
       // --- Type 1 ---
@@ -2922,7 +2925,7 @@ const techniques = {
             type: "remove",
             cells: uniqueRemovals(removals),
             hint: {
-              name: "Extended Rectangle Type 1",
+              name: "Extended Unique Rectangle Type 1",
               mainInfo: `Digits ${digits.join("/")}`,
             },
           };
@@ -2935,7 +2938,7 @@ const techniques = {
         let is_type2 = true;
         for (const [r, c] of extra_cells) {
           const extras = [...pencils[r][c]].filter(
-            (cand) => !core_digits.has(cand)
+            (cand) => !core_digits.has(cand),
           );
           if (extras.length !== 1) {
             is_type2 = false;
@@ -2952,7 +2955,7 @@ const techniques = {
             extra_cells,
             cells,
             board,
-            pencils
+            pencils,
           );
           for (const [r, c] of peers) {
             if (pencils[r][c].has(common_extra_cand)) {
@@ -2965,7 +2968,7 @@ const techniques = {
               type: "remove",
               cells: uniqueRemovals(removals),
               hint: {
-                name: "Extended Rectangle Type 2",
+                name: "Extended Unique Rectangle Type 2",
                 mainInfo: `Digits ${digits.join("/")}`,
               },
             };
@@ -2979,20 +2982,20 @@ const techniques = {
         const r_set = new Set(extra_cells.map((c) => c[0]));
         const c_set = new Set(extra_cells.map((c) => c[1]));
         const b_set = new Set(
-          extra_cells.map(([r, c]) => techniques._getBoxIndex(r, c))
+          extra_cells.map(([r, c]) => techniques._getBoxIndex(r, c)),
         );
 
         if (r_set.size === 1)
           sharedUnits.push(
-            techniques._getUnitCells("row", r_set.values().next().value)
+            techniques._getUnitCells("row", r_set.values().next().value),
           );
         if (c_set.size === 1)
           sharedUnits.push(
-            techniques._getUnitCells("col", c_set.values().next().value)
+            techniques._getUnitCells("col", c_set.values().next().value),
           );
         if (b_set.size === 1)
           sharedUnits.push(
-            techniques._getUnitCells("box", b_set.values().next().value)
+            techniques._getUnitCells("box", b_set.values().next().value),
           );
 
         if (sharedUnits.length > 0) {
@@ -3007,7 +3010,7 @@ const techniques = {
             const erCellsSet = new Set(cells.map(JSON.stringify));
             const unitCells = unitCellsRaw.filter(
               ([r, c]) =>
-                !erCellsSet.has(JSON.stringify([r, c])) && board[r][c] === 0
+                !erCellsSet.has(JSON.stringify([r, c])) && board[r][c] === 0,
             );
             if (unitCells.length < 1) return null;
 
@@ -3015,7 +3018,7 @@ const techniques = {
               for (const chosen of techniques.combinations(unitCells, k)) {
                 const union = new Set(virtual_cands);
                 chosen.forEach(([r, c]) =>
-                  pencils[r][c].forEach((p) => union.add(p))
+                  pencils[r][c].forEach((p) => union.add(p)),
                 );
 
                 if (union.size === k + 1) {
@@ -3044,7 +3047,7 @@ const techniques = {
                 type: "remove",
                 cells: uniqueRemovals(res),
                 hint: {
-                  name: "Extended Rectangle Type 3",
+                  name: "Extended Unique Rectangle Type 3",
                   mainInfo: `Digits ${digits.join("/")}`,
                 },
               };
@@ -3087,12 +3090,12 @@ const techniques = {
                 unitType,
                 unitIndex,
                 loc1,
-                loc2
+                loc2,
               );
             } else {
               const boxCells = techniques._getUnitCells("box", unitIndex);
               const candLocs = boxCells.filter(([r, c]) =>
-                pencils[r][c].has(d)
+                pencils[r][c].has(d),
               );
               if (
                 candLocs.length === 2 &&
@@ -3117,7 +3120,7 @@ const techniques = {
                   type: "remove",
                   cells: uniqueRemovals(removals),
                   hint: {
-                    name: "Extended Rectangle Type 4",
+                    name: "Extended Unique Rectangle Type 4",
                     mainInfo: `Digits ${digits.join("/")}`,
                   },
                 };
@@ -3181,7 +3184,7 @@ const techniques = {
                   type: "remove",
                   cells: uniqueRemovals(removals),
                   hint: {
-                    name: "Extended Rectangle Type 6",
+                    name: "Extended Unique Rectangle Type 6",
                     mainInfo: `Digits ${digits.join("/")}`,
                   },
                 };
@@ -3345,12 +3348,12 @@ const techniques = {
 
             // Check that the found hexagon contains at least 2 pure bivalue cells
             const biv_count = hex_cells.filter(([r, c]) =>
-              bivalue_set_for_pair.has(r * 9 + c)
+              bivalue_set_for_pair.has(r * 9 + c),
             ).length;
             if (biv_count < 2) continue;
 
             const blocks = new Set(
-              hex_cells.map(([r, c]) => techniques._getBoxIndex(r, c))
+              hex_cells.map(([r, c]) => techniques._getBoxIndex(r, c)),
             );
             if (blocks.size !== 3) continue;
 
@@ -3382,7 +3385,7 @@ const techniques = {
       const extra_cells = cells.filter(
         ([r, c]) =>
           pencils[r][c].size !== 2 ||
-          ![...pencils[r][c]].every((d) => d_set.has(d))
+          ![...pencils[r][c]].every((d) => d_set.has(d)),
       );
 
       // --- Type 1 ---
@@ -3424,7 +3427,7 @@ const techniques = {
             extra_cells,
             cells,
             board,
-            pencils
+            pencils,
           );
           for (const [r, c] of peers) {
             if (pencils[r][c].has(common_extra_cand)) {
@@ -3462,7 +3465,7 @@ const techniques = {
           techniques._getBoxIndex(e2r, e2c)
         ) {
           sharedUnits.push(
-            techniques._getUnitCells("box", techniques._getBoxIndex(e1r, e1c))
+            techniques._getUnitCells("box", techniques._getBoxIndex(e1r, e1c)),
           );
         }
 
@@ -3476,7 +3479,7 @@ const techniques = {
             const hexCellsSet = new Set(cells.map(JSON.stringify));
             const unitCells = unitCellsRaw.filter(
               ([r, c]) =>
-                !hexCellsSet.has(JSON.stringify([r, c])) && board[r][c] === 0
+                !hexCellsSet.has(JSON.stringify([r, c])) && board[r][c] === 0,
             );
             if (unitCells.length < 1) return null;
 
@@ -3484,7 +3487,7 @@ const techniques = {
               for (const chosen of techniques.combinations(unitCells, k)) {
                 const union = new Set(virtual_cands);
                 chosen.forEach(([r, c]) =>
-                  pencils[r][c].forEach((p) => union.add(p))
+                  pencils[r][c].forEach((p) => union.add(p)),
                 );
 
                 if (union.size === k + 1) {
@@ -3547,12 +3550,12 @@ const techniques = {
                 unitType,
                 unitIndex,
                 loc1,
-                loc2
+                loc2,
               );
             } else {
               const boxCells = techniques._getUnitCells("box", unitIndex);
               const candLocs = boxCells.filter(([r, c]) =>
-                pencils[r][c].has(d)
+                pencils[r][c].has(d),
               );
               if (
                 candLocs.length === 2 &&
@@ -3601,7 +3604,7 @@ const techniques = {
           if (extra_cells.length === 2) {
             for (const hex_cell of cells) {
               const is_extra = extra_cells.some(
-                (ec) => ec[0] === hex_cell[0] && ec[1] === hex_cell[1]
+                (ec) => ec[0] === hex_cell[0] && ec[1] === hex_cell[1],
               );
               if (is_extra) continue;
               if (
@@ -3633,7 +3636,7 @@ const techniques = {
                     "row",
                     r,
                     req_locs[0],
-                    req_locs[1]
+                    req_locs[1],
                   )
                 ) {
                   u_is_bilocated_in_all_rows = false;
@@ -3758,15 +3761,15 @@ const techniques = {
             for (const C of combinations(C_full, k)) {
               const usedC = new Set(C.map(([r, c]) => `${r},${c}`));
               const unusedC = C_full.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`)
+                ([r, c]) => !usedC.has(`${r},${c}`),
               );
 
               // Build pools excluding used C, including unused intersection cells
               const line_pool = allRowCells.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`)
+                ([r, c]) => !usedC.has(`${r},${c}`),
               );
               const box_pool = allBoxCells.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`)
+                ([r, c]) => !usedC.has(`${r},${c}`),
               );
 
               // --- Process this intersection subset ---
@@ -3800,12 +3803,12 @@ const techniques = {
                       recordRemovalsFromMask(
                         line_pool,
                         A.positions,
-                        remaining_V
+                        remaining_V,
                       );
                       recordRemovalsFromMask(
                         box_pool,
                         B.positions,
-                        remaining_V
+                        remaining_V,
                       );
                     }
                     if (eliminations.length > 0)
@@ -3851,14 +3854,14 @@ const techniques = {
             for (const C of combinations(C_full, k)) {
               const usedC = new Set(C.map(([r, c]) => `${r},${c}`));
               const unusedC = C_full.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`)
+                ([r, c]) => !usedC.has(`${r},${c}`),
               );
 
               const line_pool = allColCells.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`)
+                ([r, c]) => !usedC.has(`${r},${c}`),
               );
               const box_pool = allBoxCells.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`)
+                ([r, c]) => !usedC.has(`${r},${c}`),
               );
 
               let V_mask = 0;
@@ -3890,12 +3893,12 @@ const techniques = {
                       recordRemovalsFromMask(
                         line_pool,
                         A.positions,
-                        remaining_V
+                        remaining_V,
                       );
                       recordRemovalsFromMask(
                         box_pool,
                         B.positions,
-                        remaining_V
+                        remaining_V,
                       );
                     }
                     if (eliminations.length > 0)
@@ -3985,7 +3988,7 @@ const techniques = {
         if (boxCells.length < 3) continue;
 
         const extraRowCells = rowCells.filter(
-          ([r, c]) => !boxCells.some(([br, bc]) => br === r && bc === c)
+          ([r, c]) => !boxCells.some(([br, bc]) => br === r && bc === c),
         );
         if (extraRowCells.length === 0) continue;
 
@@ -4017,7 +4020,7 @@ const techniques = {
                       let isRowAhs = true;
                       for (const [r, c] of rowCells) {
                         const inAhs = rowAhsCells.some(
-                          ([rr, cc]) => rr === r && cc === c
+                          ([rr, cc]) => rr === r && cc === c,
                         );
                         if (!inAhs && maskFromSet(pencils[r][c]) & candMask) {
                           isRowAhs = false;
@@ -4029,7 +4032,7 @@ const techniques = {
                       for (let bit = candMask; bit; bit &= bit - 1) {
                         const vbit = bit & -bit;
                         const found = rowAhsCells.some(
-                          ([r, c]) => maskFromSet(pencils[r][c]) & vbit
+                          ([r, c]) => maskFromSet(pencils[r][c]) & vbit,
                         );
                         if (!found) {
                           isRowAhs = false;
@@ -4058,15 +4061,15 @@ const techniques = {
                         if (colCells.length < 4) continue;
 
                         const boxColInt = colCells.filter(
-                          ([rr, cc]) => boxIndex(rr, cc) === boxIdx
+                          ([rr, cc]) => boxIndex(rr, cc) === boxIdx,
                         );
                         if (boxColInt.length < 3) continue;
 
                         const extraColCells = colCells.filter(
                           ([rr, cc]) =>
                             !boxColInt.some(
-                              ([br, bc]) => br === rr && bc === cc
-                            )
+                              ([br, bc]) => br === rr && bc === cc,
+                            ),
                         );
                         if (!extraColCells.length) continue;
 
@@ -4084,7 +4087,7 @@ const techniques = {
                                 let isColAhs = true;
                                 for (const [r, c] of colCells) {
                                   const inAhs = colAhsCells.some(
-                                    ([rr, cc]) => rr === r && cc === c
+                                    ([rr, cc]) => rr === r && cc === c,
                                   );
                                   if (
                                     !inAhs &&
@@ -4100,7 +4103,7 @@ const techniques = {
                                   const vbit = bit & -bit;
                                   const found = colAhsCells.some(
                                     ([r, c]) =>
-                                      maskFromSet(pencils[r][c]) & vbit
+                                      maskFromSet(pencils[r][c]) & vbit,
                                   );
                                   if (!found) {
                                     isColAhs = false;
@@ -4140,7 +4143,7 @@ const techniques = {
                                 restrictMask(
                                   intersect[0],
                                   intersect[1],
-                                  candMask
+                                  candMask,
                                 );
 
                                 const [br, bc] = boxStart(boxIdx);
@@ -4209,7 +4212,7 @@ const techniques = {
         if (cells.length === 2) {
           addLink(
             getCandId(cells[0][0], cells[0][1], d),
-            getCandId(cells[1][0], cells[1][1], d)
+            getCandId(cells[1][0], cells[1][1], d),
           );
         }
       }
@@ -4236,7 +4239,7 @@ const techniques = {
     coloring,
     pencils,
     board,
-    isSimpleColoring
+    isSimpleColoring,
   ) => {
     const removals = [];
     const parseCandId = techniques._parseCandId;
@@ -4434,7 +4437,7 @@ const techniques = {
         coloring,
         pencils,
         board,
-        singleDigit !== null
+        singleDigit !== null,
       );
 
       // Clean up coloring for next component
@@ -4645,14 +4648,14 @@ const techniques = {
             groups.push(
               _create(
                 r3.filter((c) => c.join(",") !== overlapStr),
-                d
-              )
+                d,
+              ),
             );
             groups.push(
               _create(
                 c3.filter((c) => c.join(",") !== overlapStr),
-                d
-              )
+                d,
+              ),
             );
           }
         }
@@ -4955,10 +4958,10 @@ const techniques = {
                 // Weak link between same digits (different cells)
                 _getCommonPeers(u, v).forEach(({ r, c }) => {
                   const inU = u.cells.some(
-                    (cell) => cell[0] === r && cell[1] === c
+                    (cell) => cell[0] === r && cell[1] === c,
                   );
                   const inV = v.cells.some(
-                    (cell) => cell[0] === r && cell[1] === c
+                    (cell) => cell[0] === r && cell[1] === c,
                   );
                   if (!inU && !inV && pencils[r][c].has(u.digit)) {
                     elims.push({ r, c, num: u.digit });
@@ -5005,10 +5008,10 @@ const techniques = {
               const peers = _getCommonPeers(start, end);
               peers.forEach(({ r, c }) => {
                 const inStart = start.cells.some(
-                  (cell) => cell[0] === r && cell[1] === c
+                  (cell) => cell[0] === r && cell[1] === c,
                 );
                 const inEnd = end.cells.some(
-                  (cell) => cell[0] === r && cell[1] === c
+                  (cell) => cell[0] === r && cell[1] === c,
                 );
                 if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
                   elims.push({ r, c, num: start.digit });
@@ -5019,7 +5022,7 @@ const techniques = {
               if (end.count === 1) {
                 const [er, ec] = end.cells[0];
                 const seesStart = start.cells.every((sc) =>
-                  techniques._sees(sc, [er, ec])
+                  techniques._sees(sc, [er, ec]),
                 );
                 if (seesStart && pencils[er][ec].has(start.digit)) {
                   elims.push({ r: er, c: ec, num: start.digit });
@@ -5028,7 +5031,7 @@ const techniques = {
               if (start.count === 1) {
                 const [sr, sc] = start.cells[0];
                 const seesEnd = end.cells.every((ec) =>
-                  techniques._sees(ec, [sr, sc])
+                  techniques._sees(ec, [sr, sc]),
                 );
                 if (seesEnd && pencils[sr][sc].has(end.digit)) {
                   elims.push({ r: sr, c: sc, num: end.digit });
@@ -5801,7 +5804,7 @@ const techniques = {
             B,
             rccMask,
             commonMask,
-            pencils
+            pencils,
           );
         } else if (rccCount >= 2) {
           elims = techniques._applyDoublyLinked(
@@ -5809,13 +5812,13 @@ const techniques = {
             B,
             rccMask,
             commonMask,
-            pencils
+            pencils,
           );
         }
 
         if (elims.length > 0) {
           const uniqueElims = Array.from(
-            new Set(elims.map(JSON.stringify))
+            new Set(elims.map(JSON.stringify)),
           ).map(JSON.parse);
 
           let name = "ALS-XZ";
@@ -5922,7 +5925,7 @@ const techniques = {
       other2Mask,
       alses1,
       alses2,
-      restriction
+      restriction,
     ) => {
       let changed = false;
 
@@ -6318,7 +6321,7 @@ const techniques = {
     pencils,
     minLen,
     maxLen,
-    nameOverride = "ALS Chain"
+    nameOverride = "ALS Chain",
   ) => {
     let eliminations = [];
     let found = false;
@@ -6454,7 +6457,7 @@ const techniques = {
 
     if (found && eliminations.length > 0) {
       const uniqueElims = Array.from(
-        new Set(eliminations.map(JSON.stringify))
+        new Set(eliminations.map(JSON.stringify)),
       ).map(JSON.parse);
 
       // --- Hint Construction ---
@@ -6537,13 +6540,13 @@ const techniques = {
   _precomputeDigitLocations: (board, pencils) => {
     // Initialize 9x9 arrays with 0 (for digits 1-9)
     techniques._digitRowMasks = Array.from({ length: 9 }, () =>
-      new Int32Array(9).fill(0)
+      new Int32Array(9).fill(0),
     );
     techniques._digitColMasks = Array.from({ length: 9 }, () =>
-      new Int32Array(9).fill(0)
+      new Int32Array(9).fill(0),
     );
     techniques._digitBoxMasks = Array.from({ length: 9 }, () =>
-      new Int32Array(9).fill(0)
+      new Int32Array(9).fill(0),
     );
 
     for (let d = 1; d <= 9; d++) {
@@ -6725,7 +6728,7 @@ const techniques = {
             B,
             rccMask,
             commonMask,
-            pencils
+            pencils,
           );
         } else {
           elims = techniques._applyDoublyLinked(
@@ -6733,13 +6736,13 @@ const techniques = {
             B,
             rccMask,
             commonMask,
-            pencils
+            pencils,
           );
         }
 
         if (elims.length > 0) {
           const uniqueElims = Array.from(
-            new Set(elims.map(JSON.stringify))
+            new Set(elims.map(JSON.stringify)),
           ).map(JSON.parse);
 
           return {
@@ -7001,7 +7004,7 @@ const techniques = {
       // If eliminations found for this stem, return immediately
       if (foundAny && eliminations.length > 0) {
         const uniqueElims = Array.from(
-          new Set(eliminations.map(JSON.stringify))
+          new Set(eliminations.map(JSON.stringify)),
         ).map(JSON.parse);
         return {
           change: true,
@@ -7109,7 +7112,7 @@ const techniques = {
       const rowToInds = Array.from({ length: 9 }, () => []);
       const rowsWith = [];
       const rowMasks = Array.from({ length: 9 }, (_, r) =>
-        getUnitMask(U_ROW, r)
+        getUnitMask(U_ROW, r),
       );
 
       for (let r = 0; r < 9; r++) {
@@ -7259,7 +7262,7 @@ const techniques = {
 
               // Filter Cover Units (must overlap with base)
               const finalCoverUnits = coverUnits.filter(
-                (cu) => (cu.mask & baseMask) !== 0n
+                (cu) => (cu.mask & baseMask) !== 0n,
               );
 
               // Optimization: Check if remaining cover units can cover the impossible cells

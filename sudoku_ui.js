@@ -177,7 +177,7 @@ function initBoardState() {
           pencils: new Set(),
           cellColor: null,
           pencilColors: new Map(),
-        }))
+        })),
     );
 }
 
@@ -260,7 +260,7 @@ function renderBoard() {
       "selected",
       "selected-green",
       "invalid",
-      "highlighted"
+      "highlighted",
     );
     cell.style.backgroundColor = state.cellColor || "";
 
@@ -286,7 +286,7 @@ function renderBoard() {
           cell.style.backgroundColor = selectedColor;
         }
       },
-      { once: false }
+      { once: false },
     ); // Changed to explicit false for clarity
 
     cell.addEventListener(
@@ -297,7 +297,7 @@ function renderBoard() {
           cell.style.backgroundColor = state.cellColor || "";
         }
       },
-      { once: false }
+      { once: false },
     );
     if (row === selectedCell.row && col === selectedCell.col) {
       const useGreenHighlight =
@@ -499,7 +499,7 @@ function hideTooltip(targetElement) {
     () => {
       tooltipEl.remove();
     },
-    { once: true }
+    { once: true },
   ); // Important: 'once' cleans up the listener automatically
 
   // 3. Clear the reference
@@ -644,7 +644,8 @@ function updateLamp(color, { record = true, level = null } = {}) {
   if (currentRank < previousRank) {
     const colorsToSet = Object.keys(colorHierarchy).filter(
       (key) =>
-        colorHierarchy[key] < previousRank && colorHierarchy[key] >= currentRank
+        colorHierarchy[key] < previousRank &&
+        colorHierarchy[key] >= currentRank,
     );
     colorsToSet.forEach((colorName) => {
       // Overwrite with the latest time for authoritative final run
@@ -654,7 +655,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
   // If difficulty increased (e.g., white -> green) clear timestamps lower than new rank.
   else if (currentRank > previousRank) {
     const colorsToReset = Object.keys(colorHierarchy).filter(
-      (key) => colorHierarchy[key] < currentRank
+      (key) => colorHierarchy[key] < currentRank,
     );
     colorsToReset.forEach((colorName) => {
       if (lampTimestamps[colorName]) {
@@ -731,7 +732,7 @@ function setupEventListeners() {
   undoBtn.addEventListener("click", undo);
   redoBtn.addEventListener("click", redo);
   closeModalBtn.addEventListener("click", () =>
-    candidateModal.classList.add("hidden")
+    candidateModal.classList.add("hidden"),
   );
   window.addEventListener("resize", updateButtonLabels);
   formatToggleBtn.addEventListener("click", (e) => {
@@ -856,14 +857,14 @@ function setupEventListeners() {
       return;
     }
     let customOption = [...dateSelect.options].find(
-      (opt) => opt.value === rawValue
+      (opt) => opt.value === rawValue,
     );
     if (!customOption) {
       customOption = document.createElement("option");
       customOption.value = rawValue;
       customOption.textContent = `${rawValue.slice(0, 4)}-${rawValue.slice(
         4,
-        6
+        6,
       )}-${rawValue.slice(6, 8)}`;
       dateSelect.appendChild(customOption);
     }
@@ -930,7 +931,7 @@ function setupEventListeners() {
             // 2. Format each group with compact notation
             const groups = [];
             const sortedDigits = Array.from(removalsByDigit.keys()).sort(
-              (a, b) => a - b
+              (a, b) => a - b,
             );
 
             for (const d of sortedDigits) {
@@ -991,7 +992,7 @@ function setupEventListeners() {
     if (arePencilsHidden && !isExperimentalMode) {
       showMessage(
         "Experimental mode is disabled while marks are hidden.",
-        "orange"
+        "orange",
       );
       return;
     }
@@ -1089,7 +1090,7 @@ function handleKeyDown(e) {
     if (!isClearStoragePending) {
       showMessage(
         "Press <span class='shortcut-highlight'>Alt+W</span> again to clear ALL saved data and the current board.",
-        "orange"
+        "orange",
       );
       isClearStoragePending = true;
       return;
@@ -1287,7 +1288,7 @@ function handleKeyDown(e) {
     if (arePencilsHidden) {
       showMessage(
         "Experimental mode is disabled while marks are hidden. (Press Alt+A to make visible)",
-        "orange"
+        "orange",
       );
       return;
     }
@@ -1312,7 +1313,7 @@ function handleKeyDown(e) {
     } else if (currentMode === "concrete" || currentMode === "pencil") {
       if (selectedCell.row === null) return;
       const numPadButton = numberPad.querySelector(
-        `button[data-number="${key}"]`
+        `button[data-number="${key}"]`,
       );
       if (numPadButton) {
         numPadButton.click();
@@ -1393,7 +1394,7 @@ function handleModeChange(e) {
     if (targetMode === "pencil" && arePencilsHidden) {
       showMessage(
         "Pencil mode is disabled while marks are hidden. (Press Alt+A to make visible)",
-        "orange"
+        "orange",
       );
       return;
     }
@@ -1405,7 +1406,7 @@ function handleModeChange(e) {
       if (targetSubMode === "candidate" && arePencilsHidden) {
         showMessage(
           "Candidate coloring is disabled while marks are hidden. (Press Alt+A to make visible)",
-          "orange"
+          "orange",
         );
         return;
       }
@@ -1623,7 +1624,7 @@ function findAndLoadSelectedPuzzle() {
   const selectedDate = parseInt(dateSelect.value, 10);
   const selectedLevel = parseInt(levelSelect.value, 10);
   const puzzle = allPuzzles.find(
-    (p) => p.date === selectedDate && p.level === selectedLevel
+    (p) => p.date === selectedDate && p.level === selectedLevel,
   );
   if (puzzle) {
     puzzleStringInput.value = puzzle.puzzle;
@@ -1655,7 +1656,7 @@ function checkCompletion() {
       messageArea.className =
         "text-center text-sm font-semibold h-5 flex items-center justify-center gap-2";
       const congratsText = document.createTextNode(
-        "Congratulations! You solved it! → "
+        "Congratulations! You solved it! → ",
       );
       const shareButton = document.createElement("button");
       shareButton.textContent = "Share";
@@ -1675,7 +1676,7 @@ function checkCompletion() {
             messageArea.classList.remove(...colorClasses);
             messageArea.classList.add("text-green-600");
             const successText = document.createTextNode(
-              "Copied Discord sharable text!"
+              "Copied Discord sharable text!",
             );
             messageArea.appendChild(successText);
             const copyAgainButton = document.createElement("button");
@@ -1760,7 +1761,7 @@ function autoPencil() {
   if (hasUsedAutoPencil && !isAutoPencilPending) {
     showMessage(
       "This will overwrite pencil marks. Click again to apply.",
-      "orange"
+      "orange",
     );
     isAutoPencilPending = true;
     return;
@@ -1806,7 +1807,7 @@ function autoPencil() {
   setTimeout(() => {
     showMessage(
       "Tip: To highlight all bivalue cells, click a cell with exactly two candidates when highlighting is off.",
-      "gray"
+      "gray",
     );
   }, 2000);
 }
@@ -2031,7 +2032,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       `Loaded puzzle for ${
         dateSelect.options[dateSelect.selectedIndex].text
       }, Level ${puzzleData.level}`,
-      "green"
+      "green",
     );
   }
 
@@ -2170,7 +2171,7 @@ function savePuzzleProgress() {
   }
 
   const existingSaveIndex = allSaves.findIndex(
-    (s) => s.date === selectedDate && s.level === selectedLevel
+    (s) => s.date === selectedDate && s.level === selectedLevel,
   );
 
   if (hasUserInput) {
@@ -2220,7 +2221,7 @@ function applySavedProgress(puzzleData) {
   }
 
   const savedGameIndex = allSaves.findIndex(
-    (s) => s.date === puzzleData.date && s.level === puzzleData.level
+    (s) => s.date === puzzleData.date && s.level === puzzleData.level,
   );
   if (savedGameIndex === -1) return 0;
 
@@ -2262,7 +2263,7 @@ function applySavedProgress(puzzleData) {
         "lamp-violet",
         "lamp-gray",
         "lamp-black",
-        "lamp-magenta"
+        "lamp-magenta",
       );
       difficultyLamp.classList.add(`lamp-${last}`);
 
@@ -2323,7 +2324,7 @@ function solve() {
   if (!isSolvePending) {
     showMessage(
       "This will reveal the solution. Click again to solve.",
-      "orange"
+      "orange",
     );
     isSolvePending = true;
     return;
@@ -2399,7 +2400,7 @@ function generateDiscordShareText() {
   if (dateVal && /^\d{8}$/.test(dateVal)) {
     puzzleDateStr = `${dateVal.slice(0, 4)}-${dateVal.slice(
       4,
-      6
+      6,
     )}-${dateVal.slice(6, 8)}`;
   }
   // --- FIX END ---
@@ -2448,7 +2449,7 @@ function generateDiscordShareText() {
     const itemRank = colorHierarchy[item.color];
     if (itemRank < startingRank && lampTimestamps[item.color]) {
       timeDetails += `\n${item.emoji} ${formatTime(
-        lampTimestamps[item.color]
+        lampTimestamps[item.color],
       ).replace(/:/g, "\\:")}`;
     }
   }
@@ -2516,7 +2517,7 @@ function cloneBoardState(state) {
       pencils: new Set(cell.pencils),
       cellColor: cell.cellColor,
       pencilColors: new Map(cell.pencilColors),
-    }))
+    })),
   );
 }
 
@@ -2674,7 +2675,7 @@ function undo() {
     vagueHintMessage = historyEntry.vagueHint;
 
     lampTimestamps = JSON.parse(
-      JSON.stringify(historyEntry.lampTimestamps || {})
+      JSON.stringify(historyEntry.lampTimestamps || {}),
     );
     previousLampColor = historyEntry.previousLampColor;
 
@@ -2705,7 +2706,7 @@ function redo() {
     vagueHintMessage = historyEntry.vagueHint;
 
     lampTimestamps = JSON.parse(
-      JSON.stringify(historyEntry.lampTimestamps || {})
+      JSON.stringify(historyEntry.lampTimestamps || {}),
     );
     previousLampColor = historyEntry.previousLampColor;
 
@@ -2734,7 +2735,7 @@ function updateUndoRedoButtons() {
 function saveExperimentalModePreference() {
   localStorage.setItem(
     "sudokuExperimentalMode",
-    JSON.stringify(isExperimentalMode)
+    JSON.stringify(isExperimentalMode),
   );
 }
 
@@ -2771,7 +2772,7 @@ function removeCurrentPuzzleSave() {
   }
 
   const existingSaveIndex = allSaves.findIndex(
-    (s) => s.date === selectedDate && s.level === selectedLevel
+    (s) => s.date === selectedDate && s.level === selectedLevel,
   );
 
   if (existingSaveIndex > -1) {
@@ -2856,11 +2857,11 @@ async function evaluateBoardDifficulty() {
     startingPencils = calculateAllPencils(currentBoardForEval);
   } else {
     startingPencils = currentBoardForEval.map((row) =>
-      row.map((cell) => new Set(cell.pencils))
+      row.map((cell) => new Set(cell.pencils)),
     );
   }
   const virtualBoard = currentBoardForEval.map((row) =>
-    row.map((cell) => cell.value)
+    row.map((cell) => cell.value),
   );
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -3045,7 +3046,7 @@ async function evaluateBoardDifficulty() {
       score: 120,
     },
     {
-      name: "Extended Rectangle",
+      name: "Extended Unique Rectangle",
       func: techniques.extendedRectangle,
       level: 5,
       score: 140,
@@ -3260,7 +3261,7 @@ async function evaluateBoardDifficulty() {
           console.groupCollapsed(`Found: ${tech.name} (Level ${tech.level})`);
           if (result.type === "place") {
             console.log(
-              `Action: r${result.r + 1}c${result.c + 1}=${result.num}`
+              `Action: r${result.r + 1}c${result.c + 1}=${result.num}`,
             );
           } else if (result.type === "remove") {
             console.log(`Action: Remove candidates:`);
@@ -3289,7 +3290,7 @@ async function evaluateBoardDifficulty() {
               startingPencils[boxR + i][boxC + j].delete(result.num);
         } else if (result.type === "remove") {
           result.cells.forEach(({ r, c, num }) =>
-            startingPencils[r][c].delete(num)
+            startingPencils[r][c].delete(num),
           );
         }
         if (IS_DEBUG_MODE) {
@@ -3384,7 +3385,7 @@ async function evaluateBoardDifficulty() {
   if (IS_DEBUG_MODE) {
     const solveEndTime = performance.now();
     console.log(
-      `Evaluation completed in ${(solveEndTime - solveStartTime).toFixed(2)}ms`
+      `Evaluation completed in ${(solveEndTime - solveStartTime).toFixed(2)}ms`,
     );
     console.log("----------------------------------------------");
   }
