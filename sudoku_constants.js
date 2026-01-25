@@ -70,6 +70,51 @@ const levelTips = [
   "Lv. 10: ALS-Chain, Death Blossom, Finned Franken/Mutant Swordfish",
 ];
 
+const PALETTES = {
+  // Optimized for Dark Backgrounds (Lighter, Pastels)
+  dark: [
+    "#f5f5f5", // 0: Whiteish
+    "#d4f8d4", // 1: Pale Green
+    "#69f0ae", // 2: Vibrant Green
+    "#ccff90", // 3: Lime
+    "#ffff00", // 4: Yellow
+    "#ffc107", // 5: Amber
+    "#ff9800", // 6: Orange
+    "#ff5722", // 7: Deep Orange
+    "#f44336", // 8: Red
+    "#d500f9", // 9: Magenta
+    "#651fff", // 10: Violet
+  ],
+  // Optimized for Light Backgrounds (Darker, Saturated)
+  light: [
+    "#424242", // 0: Dark Grey (instead of white)
+    "#2e7d32", // 1: Forest Green
+    "#00c853", // 2: Green
+    "#9e9d24", // 3: Lime 800 (Brighter Olive)
+    "#f9a825", // 4: Yellow 800 (Rich Dark Yellow)
+    "#ff8f00", // 5: Amber 800  (Vibrant Golden)
+    "#ef6c00", // 6: Orange 800 (Clearly Orange, not Red)
+    "#d32f2f", // 7: Red 700    (Classic Bright Red)
+    "#880e4f", // 8: Pink 900   (Deep Burgundy/Maroon)
+    "#aa00ff", // 9: Purple
+    "#6200ea", // 10: Deep Indigo
+  ],
+};
+
+const emojiScale = [
+  "🤩",
+  "🥰",
+  "😄",
+  "😊",
+  "🙂",
+  "😐",
+  "😟",
+  "😧",
+  "😰",
+  "😨",
+  "😱",
+];
+
 // live palette variables used by updateControls()
 let cellColorPalette;
 let candidateColorPalette;

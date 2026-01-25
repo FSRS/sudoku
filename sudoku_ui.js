@@ -2783,7 +2783,17 @@ function removeCurrentPuzzleSave() {
 }
 
 // --- Difficulty Evaluation Logic ---
+const getThemeColor = (level) => {
+  // Check if browser is in dark mode
+  const isDarkMode =
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
 
+  const palette = isDarkMode ? PALETTES.dark : PALETTES.light;
+
+  // Return color or fallback
+  return palette[level] || palette[0];
+};
 /**
  * Generates a fast 32-bit hash of the current board state.
  * Inputs: Concrete values and candidate bitmasks.
@@ -3259,7 +3269,11 @@ async function evaluateBoardDifficulty() {
       if (result.change) {
         evaluatedScore += tech.score;
         if (IS_DEBUG_MODE) {
-          console.groupCollapsed(`Found: ${tech.name} (Level ${tech.level})`);
+          const logColor = getThemeColor(tech.level);
+          console.groupCollapsed(
+            `%c${tech.level.toString().padStart(2)} ${emojiScale[tech.level]} ${tech.name.padEnd(27)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
+            `color: ${logColor}; font-weight: bold;`,
+          );
           if (result.type === "place") {
             console.log(
               `Action: r${result.r + 1}c${result.c + 1}=${result.num}`,
@@ -3310,7 +3324,7 @@ async function evaluateBoardDifficulty() {
   if (isSolved) {
     lastValidScore = evaluatedScore;
     if (IS_DEBUG_MODE) {
-      console.log(`Estimated score: ${evaluatedScore}`);
+      console.log(`Level: ${maxDifficulty}, Score: ${evaluatedScore}`);
     }
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (${evaluatedScore})`;
@@ -3386,9 +3400,9 @@ async function evaluateBoardDifficulty() {
   if (IS_DEBUG_MODE) {
     const solveEndTime = performance.now();
     console.log(
-      `Evaluation completed in ${(solveEndTime - solveStartTime).toFixed(2)}ms`,
+      `Evaluation completed in ${(solveEndTime - solveStartTime).toFixed(2)} ms`,
     );
-    console.log("----------------------------------------------");
+    console.log("-----------------------------------------------");
   }
 }
 
