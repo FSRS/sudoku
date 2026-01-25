@@ -565,8 +565,9 @@ function updateLamp(color, { record = true, level = null } = {}) {
 
   // Visual-only states that must never touch timestamp logic
   if (color === "black") {
-    difficultyLamp.dataset.tooltip =
-      "Error: An incorrect progress has been made.";
+    difficultyLamp.dataset.tooltip = hasUsedAutoPencil
+      ? "Error: Incorrect progress has been made."
+      : "Full candidate notation not used; evaluation halted.";
     return;
   }
 
