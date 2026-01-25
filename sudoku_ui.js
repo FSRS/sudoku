@@ -567,7 +567,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
   if (color === "black") {
     difficultyLamp.dataset.tooltip = hasUsedAutoPencil
       ? "Error: Incorrect progress has been made."
-      : "Full candidate notation not used; evaluation halted.";
+      : "Auto Pencil not used; evaluation halted.";
     return;
   }
 
