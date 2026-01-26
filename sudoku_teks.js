@@ -1067,13 +1067,9 @@ const techniques = {
       for (const wingCombo of techniques.combinations(wings, 2)) {
         const [wing1, wing2] = wingCombo;
 
-        // --- START: BUG FIX ---
-        // A true XYZ-Wing requires the two wing cells to not see each other.
-        // If they do, they form a Naked Triple with the pivot cell.
         if (techniques._sees([wing1.r, wing1.c], [wing2.r, wing2.c])) {
           continue;
         }
-        // --- END: BUG FIX ---
 
         const intersection = new Set(
           [...wing1.cands].filter((c) => wing2.cands.has(c)),
@@ -1477,8 +1473,6 @@ const techniques = {
 
       for (const rLink of rowLinks) {
         for (const cLink of colLinks) {
-          // --- START: BUG FIX ---
-          // Add stricter check to ensure the four cells are distinct and don't overlap.
           const r_base = rLink.r;
           const [c1, c2] = rLink.locs;
           const c_base = cLink.c;
@@ -1492,7 +1486,6 @@ const techniques = {
           ) {
             continue;
           }
-          // --- END: BUG FIX ---
 
           const rowLinkCells = [
             [rLink.r, rLink.locs[0]],
@@ -1949,15 +1942,20 @@ const techniques = {
           }
         }
 
-        // Step 5: If 'num' appears an odd number of times in all three units, it must be the solution
         if (rowCount % 2 !== 0 && colCount % 2 !== 0 && boxCount % 2 !== 0) {
-          // Reduce the cell to a naked single
+          // Identify the candidates to remove (everything that isn't 'num')
+          const removals = cands
+            .filter((n) => n !== num)
+            .map((n) => ({
+              r: r_plus1,
+              c: c_plus1,
+              num: n,
+            }));
+
           return {
             change: true,
-            type: "place",
-            r: r_plus1,
-            c: c_plus1,
-            num,
+            type: "remove",
+            cells: removals,
             hint: {
               name: "BUG+1",
               mainInfo: `Tri-value cell at r${r_plus1 + 1}c${c_plus1 + 1}`,
