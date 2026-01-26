@@ -3828,7 +3828,8 @@ const techniques = {
             }
           }
         }
-
+      }
+      for (let i = 0; i < 3; i++) {
         // ---- Column-based intersection ----
         {
           const colIdx = bc + i;
