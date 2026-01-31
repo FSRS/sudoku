@@ -4242,12 +4242,14 @@ const techniques = {
   ) => {
     const removals = [];
     const parseCandId = techniques._parseCandId;
+    const getCandId = techniques._getCandId;
+    const bitFor = (d) => 1 << (d - 1);
 
     // Helper: Eliminate entire color group (Color X is False -> Remove all X candidates)
-    const eliminateColor = (color) => {
+    const eliminateColor = (targetColor) => {
       const output = [];
       for (const id of componentNodes) {
-        if (coloring[id] === color) {
+        if (coloring[id] === targetColor) {
           const { r, c, n } = parseCandId(id);
           output.push({ r, c, num: n });
         }
@@ -4255,79 +4257,82 @@ const techniques = {
       return output;
     };
 
-    // -- Data Structures for Rule Checking --
+    // --- 1. Populate Global Masks & Check "Twice in a Cell" (Rule 1) ---
+    // killedMasks[C][cellIdx]: Bitmask of digits that Color C "sees" in cellIdx
+    const killedMasks = [null, new Int32Array(81), new Int32Array(81)];
 
-    // cellHas[cellIndex] = bitmask (1=Color1, 2=Color2, 3=Both)
-    const cellHas = new Int8Array(81).fill(0);
+    // cellColors[cellIdx]: Bitmask (1=HasColor1, 2=HasColor2, 3=Both)
+    const cellColors = new Int8Array(81).fill(0);
 
-    // unitHas[digit][unitIndex] = bitmask
-    const rowHas = Array.from({ length: 10 }, () => new Int8Array(9).fill(0));
-    const colHas = Array.from({ length: 10 }, () => new Int8Array(9).fill(0));
-    const boxHas = Array.from({ length: 10 }, () => new Int8Array(9).fill(0));
+    // To check Rule 1 efficiently, track which colors have already appeared in each cell
+    const cellHasColor1 = new Int8Array(81).fill(0); // 1 if cell has a cand of Color 1
+    const cellHasColor2 = new Int8Array(81).fill(0); // 1 if cell has a cand of Color 2
 
-    // 1. Populate Maps & Check Intrinsic Contradictions (Rules 1 & 2)
     for (const id of componentNodes) {
-      const killedMasks = [null, new Int32Array(81), new Int32Array(81)];
-      const bitFor = (d) => 1 << (d - 1);
       const color = coloring[id];
       const { r, c, n } = parseCandId(id);
-      const digitBit = bitFor(n);
       const cellId = r * 9 + c;
+      const digitBit = bitFor(n);
 
-      // Ensure PEER_MAP is accessible
-      const peerMask = PEER_MAP[cellId];
-
-      // Iterate 0-80 and check mask
-      for (let peerIdx = 0; peerIdx < 81; peerIdx++) {
-        if ((peerMask & CELL_MASK[peerIdx]) !== 0n) {
-          killedMasks[color][peerIdx] |= digitBit;
+      // --- Rule 1: Twice in a Cell ---
+      // If this cell already has a candidate of this color, that color is impossible.
+      if (!isSimpleColoring) {
+        if (color === 1) {
+          if (cellHasColor1[cellId]) return eliminateColor(1);
+          cellHasColor1[cellId] = 1;
+        } else if (color === 2) {
+          if (cellHasColor2[cellId]) return eliminateColor(2);
+          cellHasColor2[cellId] = 1;
         }
+      }
+
+      // Track that this cell contains a node of 'color' (for later rules)
+      cellColors[cellId] |= color;
+
+      // Populate killedMasks using Peer Map
+      let pm = PEER_MAP[cellId];
+      let idx = 0;
+      while (pm !== 0n) {
+        if (pm & 1n) {
+          killedMasks[color][idx] |= digitBit;
+        }
+        pm >>= 1n;
+        idx++;
       }
     }
 
-    // --- Rule 6: Cell Emptiness (3D Medusa Only) ---
+    // --- 2. Check Color Trap (Intra-Color Contradiction) ---
+    // If a node of Color A exists in a cell that is already "killed" by Color A,
+    // it means two nodes of Color A see each other. Color A is IMPOSSIBLE.
+    for (const id of componentNodes) {
+      const color = coloring[id];
+      const { r, c, n } = parseCandId(id);
+      const cellId = r * 9 + c;
+      const digitBit = bitFor(n);
+
+      if ((killedMasks[color][cellId] & digitBit) !== 0) {
+        return eliminateColor(color);
+      }
+    }
+
+    // --- 3. 3D Medusa Specific: Cell Emptiness ---
     // If Color X is TRUE, does it eliminate ALL candidates in an uncolored cell?
     if (!isSimpleColoring) {
-      const killedMasks = [null, new Int32Array(81), new Int32Array(81)];
-      const bitFor = (d) => 1 << (d - 1);
-
-      // Build killed masks
-      for (const id of componentNodes) {
-        const color = coloring[id];
-        const { r, c, n } = parseCandId(id);
-        const digitBit = bitFor(n);
-        const cellId = r * 9 + c;
-
-        // Ensure PEER_MAP is accessible
-        const peerMask = PEER_MAP[cellId];
-
-        // NEW CODE: Iterate 0-80 and check mask
-        for (let peerIdx = 0; peerIdx < 81; peerIdx++) {
-          if ((peerMask & CELL_MASK[peerIdx]) !== 0n) {
-            killedMasks[color][peerIdx] |= digitBit;
-          }
-        }
-        // --- CHANGED SECTION END ---
-      }
-
-      // Check all cells for emptiness
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           if (board[r][c] !== 0) continue;
-          const killedMasks = [null, new Int32Array(81), new Int32Array(81)];
-          const bitFor = (d) => 1 << (d - 1);
           const cellIdx = r * 9 + c;
 
-          // Construct mask of current candidates in the cell
+          // Mask of currently available candidates in this cell
           let cellMask = 0;
           for (const d of pencils[r][c]) cellMask |= bitFor(d);
           if (cellMask === 0) continue;
 
-          // If cellMask is a subset of killedMasks[1], Color 1 kills this cell -> Color 1 is False
+          // If Color 1 kills all candidates, Color 1 must be False
           if ((cellMask & ~killedMasks[1][cellIdx]) === 0) {
             return eliminateColor(1);
           }
-          // If cellMask is a subset of killedMasks[2], Color 2 kills this cell -> Color 2 is False
+          // If Color 2 kills all candidates, Color 2 must be False
           if ((cellMask & ~killedMasks[2][cellIdx]) === 0) {
             return eliminateColor(2);
           }
@@ -4335,17 +4340,18 @@ const techniques = {
       }
     }
 
-    // --- Eliminations (Rules 3, 4, 5) ---
+    // --- 4. Candidate Eliminations ---
 
-    // Rule 3: Two colors in same cell -> remove uncolored candidates
+    // Rule 3: Two colors in same cell (Medusa only)
+    // If a cell has both colors, uncolored candidates in that cell are removed.
     if (!isSimpleColoring) {
       for (let i = 0; i < 81; i++) {
-        if (cellHas[i] === 3) {
+        if (cellColors[i] === 3) {
           // Both colors present
           const r = Math.floor(i / 9);
           const c = i % 9;
           for (const cand of pencils[r][c]) {
-            const id = techniques._getCandId(r, c, cand);
+            const id = getCandId(r, c, cand);
             if (coloring[id] === 0) {
               removals.push({ r, c, num: cand });
             }
@@ -4354,38 +4360,32 @@ const techniques = {
       }
     }
 
-    // Rules 4 & 5
+    // Scan all empty cells for Rule 4 & 5
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         if (board[r][c] !== 0) continue;
         const cellIdx = r * 9 + c;
-        const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
 
         for (const d of pencils[r][c]) {
-          const candId = techniques._getCandId(r, c, d);
-          if (coloring[candId] !== 0) continue; // Skip colored candidates
+          // Skip if this candidate is part of the coloring graph
+          const candId = getCandId(r, c, d);
+          if (coloring[candId] !== 0) continue;
 
-          // Check visibility of Colors for digit 'd'
-          const seesC1 =
-            rowHas[d][r] & 1 || colHas[d][c] & 1 || boxHas[d][b] & 1;
-          const seesC2 =
-            rowHas[d][r] & 2 || colHas[d][c] & 2 || boxHas[d][b] & 2;
+          const dBit = bitFor(d);
+          const seesC1 = (killedMasks[1][cellIdx] & dBit) !== 0;
+          const seesC2 = (killedMasks[2][cellIdx] & dBit) !== 0;
 
-          // Rule 4: Sees both colors of same digit
+          // Rule 4: Candidate sees BOTH colors of itself
           if (seesC1 && seesC2) {
             removals.push({ r, c, num: d });
             continue;
           }
 
-          // Rule 5: Sees Color A (digit d) AND cell has Color B (other digit)
+          // Rule 5 (Medusa): Sees Color A (digit d) AND cell has Color B (other digit)
           if (!isSimpleColoring) {
-            const cellMask = cellHas[cellIdx];
-            // If sees Color 1 (d) AND cell has Color 2 (other)
-            if (seesC1 && cellMask & 2) {
+            if (seesC1 && cellColors[cellIdx] & 2) {
               removals.push({ r, c, num: d });
-            }
-            // If sees Color 2 (d) AND cell has Color 1 (other)
-            else if (seesC2 && cellMask & 1) {
+            } else if (seesC2 && cellColors[cellIdx] & 1) {
               removals.push({ r, c, num: d });
             }
           }
