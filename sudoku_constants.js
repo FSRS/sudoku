@@ -102,17 +102,17 @@ const PALETTES = {
 };
 
 const emojiScale = [
-  "🤩",
+  "🤩", // 0
   "😁",
   "😄",
   "😊",
   "🙂",
   "😐",
   "🫤",
+  "😕",
   "😟",
-  "😧",
-  "😨",
-  "😱",
+  "🙁",
+  "☹️", // 10
 ];
 
 // live palette variables used by updateControls()
