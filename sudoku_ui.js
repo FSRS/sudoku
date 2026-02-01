@@ -2193,7 +2193,7 @@ function savePuzzleProgress() {
     }
 
     // Limit total saves to prevent localStorage from filling up
-    if (allSaves.length > 70) {
+    if (allSaves.length > 999) {
       allSaves.shift(); // Remove the oldest save
     }
   } else {
