@@ -58,10 +58,12 @@
 @layer theme {
   :root,
   :host {
-    --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    --font-sans:
+      ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
       "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-      "Liberation Mono", "Courier New", monospace;
+    --font-mono:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
     --color-red-600: oklch(57.7% 0.245 27.325);
     --color-green-600: oklch(62.7% 0.194 149.214);
     --color-green-700: oklch(52.7% 0.154 150.069);
@@ -620,21 +622,27 @@
     opacity: 0.25;
   }
   .shadow-lg {
-    --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, #0000001a),
+    --tw-shadow:
+      0 10px 15px -3px var(--tw-shadow-color, #0000001a),
       0 4px 6px -4px var(--tw-shadow-color, #0000001a);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    box-shadow:
+      var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
       var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
   .shadow-sm {
-    --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, #0000001a),
+    --tw-shadow:
+      0 1px 3px 0 var(--tw-shadow-color, #0000001a),
       0 1px 2px -1px var(--tw-shadow-color, #0000001a);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    box-shadow:
+      var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
       var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
   .shadow-xl {
-    --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, #0000001a),
+    --tw-shadow:
+      0 20px 25px -5px var(--tw-shadow-color, #0000001a),
       0 8px 10px -6px var(--tw-shadow-color, #0000001a);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+    box-shadow:
+      var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
       var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
   .outline {
@@ -642,11 +650,30 @@
     outline-width: 1px;
   }
   .transition {
-    transition-property: color, background-color, border-color, outline-color,
-      text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via,
-      --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate,
-      filter, -webkit-backdrop-filter, backdrop-filter, display,
-      content-visibility, overlay, pointer-events;
+    transition-property:
+      color,
+      background-color,
+      border-color,
+      outline-color,
+      text-decoration-color,
+      fill,
+      stroke,
+      --tw-gradient-from,
+      --tw-gradient-via,
+      --tw-gradient-to,
+      opacity,
+      box-shadow,
+      transform,
+      translate,
+      scale,
+      rotate,
+      filter,
+      -webkit-backdrop-filter,
+      backdrop-filter,
+      display,
+      content-visibility,
+      overlay,
+      pointer-events;
     transition-timing-function: var(
       --tw-ease,
       var(--default-transition-timing-function)
@@ -901,7 +928,10 @@ button:disabled:hover {
   /* smooth slide animation */
   max-width: 100px; /* Needed for CSS transition to work */
   overflow: hidden; /* Hides the text as the box shrinks */
-  transition: max-width 0.8s ease, margin 0.8s ease, padding 0.8s ease,
+  transition:
+    max-width 0.8s ease,
+    margin 0.8s ease,
+    padding 0.8s ease,
     border 0.8s ease;
 
   cursor: help;
@@ -1000,13 +1030,17 @@ button:disabled:hover {
   pointer-events: none;
   opacity: 0;
   transform: scale(0.9) translateY(4px);
-  transition: opacity 150ms ease-in-out, transform 150ms ease-in-out;
+  transition:
+    opacity 150ms ease-in-out,
+    transform 150ms ease-in-out;
 
   /* Light mode styles */
   background-color: #e5e7eb;
   border: 1px solid #4b5563;
   color: var(--nc-tx-1);
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 .custom-tooltip.visible {
@@ -1142,28 +1176,27 @@ button:disabled:hover {
 .pencil-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr); /* NEW: Fixes vertical grid slots */
   width: 100%;
   height: 100%;
   font-size: 0.9rem;
-  /* color and opacity are now handled by .pencil-mark */
   text-align: center;
-  line-height: 1.2;
+  line-height: 1; /* NEW: Prevents line height from pushing text out */
 }
 
 .pencil-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; /* NEW */
+  align-items: center; /* NEW: Vertically center */
+  justify-content: center; /* NEW: Horizontally center */
   font-weight: bold;
-  /* 1. Set the default color and opacity for UNCOLORED marks */
+  overflow: hidden; /* NEW: Clips content if it accidentally overflows */
   color: var(--color-gray-700);
   opacity: 0.6;
-  transition: opacity 0.2s; /* Optional: adds a smooth transition */
+  transition: opacity 0.2s;
 }
 
-/* 2. NEW RULE: Target only pencil marks that have an inline color style */
 .pencil-mark[style*="color"] {
-  opacity: 1; /* Make them fully opaque */
+  opacity: 1;
 }
 
 /* --- Component: Controls & Buttons --- */
@@ -1209,7 +1242,9 @@ button:disabled:hover {
   color: var(--nc-text-light); /* Light text for contrast */
   background-color: var(--nc-accent-color);
   border: 1px solid transparent;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px -1px rgba(0, 0, 0, 0.1);
 
   /* Interactivity */
   transition: all 150ms ease-in-out;
@@ -1218,7 +1253,8 @@ button:disabled:hover {
 
 .puzzle-action-button:hover {
   background-color: var(--nc-accent-hover-color);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -2px rgba(0, 0, 0, 0.1);
   transform: translateY(-1px);
 }
@@ -1558,6 +1594,6 @@ button:disabled:hover {
 
   /* Reduce pencil mark font size to fit smaller cells */
   .pencil-grid {
-    font-size: 0.8rem !important;
+    font-size: clamp(8px, 2.8vw, 11px) !important;
   }
 }
