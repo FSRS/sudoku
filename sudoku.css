@@ -1005,7 +1005,7 @@ button:disabled:hover {
 /* Message Area for displaying information to the user */
 #message-area {
   min-height: 2.5rem;
-  max-height: 3.5rem;
+  max-height: 5rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1237,6 +1237,9 @@ button:disabled:hover {
   margin-left: 0.5rem; /* Adds a little space next to the text */
 
   /* Appearance */
+  -webkit-appearance: none; /* NEW: Fixes rounded corners on iOS/Mobile Safari */
+  appearance: none; /* NEW: Standard reset for other mobile browsers */
+
   border-radius: var(--radius-md);
   font-weight: var(--font-weight-bold);
   color: var(--nc-text-light); /* Light text for contrast */
