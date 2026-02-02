@@ -1751,7 +1751,7 @@ const techniques = {
                 type: "remove",
                 cells: [{ r: r2, c: c2, num }],
                 hint: {
-                  name: "Rectangle Elimination",
+                  name: "Grouped 2-String Kite",
                   mainInfo: `Digit ${num}`,
                 },
               };

@@ -3089,7 +3089,7 @@ async function evaluateBoardDifficulty() {
       score: 150,
     },
     {
-      name: "Rectangle Elimination",
+      name: "Grouped 2-String Kite",
       func: techniques.rectangleElimination,
       level: 5,
       score: 150,
