@@ -1597,6 +1597,7 @@ button:disabled:hover {
 
   /* Reduce pencil mark font size to fit smaller cells */
   .pencil-grid {
-    font-size: clamp(8px, 2.8vw, 11px) !important;
+    font-size: clamp(11px, 3.5vw, 15px) !important;
+    line-height: 0.7 !important;
   }
 }
