@@ -3397,7 +3397,7 @@ const techniques = {
             type: "remove",
             cells: uniqueRemovals(removals),
             hint: {
-              name: "Unique Hexagon Type 1",
+              name: "Unique Loop Type 1",
               mainInfo: `using Candidates ${digits[0]}/${digits[1]}`,
             },
           };
@@ -3440,8 +3440,8 @@ const techniques = {
               hint: {
                 name:
                   extra_cells.length === 2
-                    ? "Unique Hexagon Type 2"
-                    : "Unique Hexagon Type 5",
+                    ? "Unique Loop Type 2"
+                    : "Unique Loop Type 5",
                 mainInfo: `using Candidates ${digits[0]}/${digits[1]}`,
               },
             };
@@ -3513,7 +3513,7 @@ const techniques = {
                 type: "remove",
                 cells: uniqueRemovals(res),
                 hint: {
-                  name: "Unique Hexagon Type 3",
+                  name: "Unique Loop Type 3",
                   mainInfo: `using Candidates ${digits[0]}/${digits[1]}`,
                 },
               };
@@ -3574,7 +3574,7 @@ const techniques = {
                   type: "remove",
                   cells: uniqueRemovals(removals),
                   hint: {
-                    name: "Unique Hexagon Type 4",
+                    name: "Unique Loop Type 4",
                     mainInfo: `using Candidates ${digits[0]}/${digits[1]}`,
                   },
                 };
@@ -3651,7 +3651,7 @@ const techniques = {
                     type: "remove",
                     cells: uniqueRemovals(removals),
                     hint: {
-                      name: "Unique Hexagon Type 6",
+                      name: "Unique Loop Type 6",
                       mainInfo: `using Candidates ${digits[0]}/${digits[1]}`,
                     },
                   };

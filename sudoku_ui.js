@@ -3639,7 +3639,7 @@ async function evaluateBoardDifficulty() {
       score: 160,
     },
     {
-      name: "Unique Hexagon",
+      name: "Unique Loop",
       func: techniques.uniqueHexagon,
       level: 5,
       score: 120,
