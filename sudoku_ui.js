@@ -23,6 +23,7 @@ const puzzleLevelEl = document.getElementById("puzzle-level");
 const puzzleScoreEl = document.getElementById("puzzle-score");
 const puzzleTimerEl = document.getElementById("puzzle-timer");
 const modeToggleButton = document.getElementById("mode-toggle-btn");
+const drawButton = modeSelector.querySelector('[data-mode="draw"]');
 const colorButton = modeSelector.querySelector('[data-mode="color"]');
 const difficultyLamp = document.getElementById("difficulty-lamp");
 const vagueHintBtn = document.getElementById("vague-hint-btn");
@@ -49,15 +50,22 @@ let previousLampColor = null;
 let lastValidLampColor = "white";
 let currentEvaluationId = 0;
 
+let drawSubMode = "solid"; // "solid" or "dash"
+let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
+let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
+let lineColorPalette = []; // Specific palette for lines
+
 // --- UI Update Functions ---
 
 function updateColorPalettes(isDarkMode) {
   if (isDarkMode) {
     cellColorPalette = colorPaletteDark;
     candidateColorPalette = colorPaletteLight;
+    lineColorPalette = colorPaletteMid;
   } else {
     cellColorPalette = colorPaletteLight;
-    candidateColorPalette = colorPaletteMid;
+    candidateColorPalette = colorPaletteDark;
+    lineColorPalette = colorPaletteMid;
   }
 }
 
@@ -87,37 +95,89 @@ function updateButtonLabels() {
     }
   }
 
+  if (currentMode === "draw") {
+    const label = drawSubMode === "solid" ? "Draw: Solid" : "Draw: Dash";
+    drawButton.textContent = isMobile
+      ? drawSubMode === "solid"
+        ? "Solid"
+        : "Dash"
+      : label;
+    drawButton.dataset.tooltip = `Draw Mode (${drawSubMode}): Click two candidates to connect. (X to toggle style)`;
+
+    drawButton.classList.remove("active", "active-green");
+    if (drawSubMode === "dash") {
+      drawButton.classList.add("active-green");
+    } else {
+      drawButton.classList.add("active");
+    }
+  } else {
+    drawButton.textContent = isMobile ? "Draw" : "Draw (X)";
+    drawButton.dataset.tooltip = "Switch to Draw mode (X)";
+    drawButton.classList.remove("active", "active-green");
+  }
+
   if (currentMode === "color") {
     if (coloringSubMode === "cell") {
       colorButton.textContent = isMobile ? "Cell" : "Color: Cell";
       colorButton.dataset.tooltip =
-        "Color Cell Mode: Pick a color, then click a cell to paint it. (X to switch)";
+        "Color Cell Mode: Pick a color, then click a cell to paint it. (C to switch)";
     } else {
       colorButton.textContent = isMobile ? "Cand." : "Color: Cand.";
       colorButton.dataset.tooltip =
-        "Color Candidate Mode: Pick a color, then click a candidate to paint it. (X to switch)";
+        "Color Candidate Mode: Pick a color, then click a candidate to paint it. (C to switch)";
     }
   } else {
-    colorButton.textContent = isMobile ? "Color" : "Color (X)";
-    colorButton.dataset.tooltip = "Switch to Color mode (X)";
+    colorButton.textContent = isMobile ? "Color" : "Color (C)";
+    colorButton.dataset.tooltip = "Switch to Color mode (C)";
   }
 
   formatToggleBtn.style.display = "none";
   exptModeBtn.style.display = "inline-flex";
+
   const exptShortcut = isMobile ? "" : " (E)";
   exptModeBtn.textContent =
     (isExperimentalMode ? "Expt!" : "Expt.") + exptShortcut;
+
+  // --- UPDATED LOGIC START ---
   if (isExperimentalMode) {
+    // 1. Add active class
     exptModeBtn.classList.add("active-green");
+
+    // 2. Remove default white background/text styling
+    exptModeBtn.classList.remove(
+      "bg-white",
+      "text-gray-700",
+      "hover:bg-gray-100",
+    );
+
+    // 3. Add explicit Green Active Styling (Background, Text, Border)
+    exptModeBtn.classList.add(
+      "bg-green-100",
+      "text-green-800",
+      "border-green-300",
+      "hover:bg-green-200",
+    );
+
     if (isMobile) {
-      // Use "past tense" for mobile, describing the new state
       exptModeBtn.dataset.tooltip = "Experimental Mode Enabled!";
     } else {
-      // Keep "future tense" for desktop, describing the action
       exptModeBtn.dataset.tooltip = "Disable Experimental Mode (E).";
     }
   } else {
+    // 1. Remove active class
     exptModeBtn.classList.remove("active-green");
+
+    // 2. Restore default white background/text styling
+    exptModeBtn.classList.add("bg-white", "text-gray-700", "hover:bg-gray-100");
+
+    // 3. Remove explicit Green Active Styling
+    exptModeBtn.classList.remove(
+      "bg-green-100",
+      "text-green-800",
+      "border-green-300",
+      "hover:bg-green-200",
+    );
+
     if (isMobile) {
       exptModeBtn.dataset.tooltip = "Experimental Mode Disabled.";
     } else {
@@ -125,6 +185,7 @@ function updateButtonLabels() {
         "Enable Experimental Mode (E): Click candidates directly.";
     }
   }
+  // --- UPDATED LOGIC END ---
 
   vagueHintBtn.textContent = isMobile ? "?" : "? (V)";
   if (isMobile) {
@@ -137,6 +198,7 @@ function updateButtonLabels() {
 
   if (!isMobile) {
     attachTooltipEvents(modeToggleButton);
+    attachTooltipEvents(drawButton);
     attachTooltipEvents(colorButton);
     attachTooltipEvents(exptModeBtn);
   }
@@ -183,6 +245,8 @@ function initBoardState() {
 
 function createGrid() {
   gridContainer.innerHTML = "";
+
+  // 1. Generate the Grid Rows & Cells FIRST
   for (let i = 0; i < 9; i++) {
     const rowEl = document.createElement("div");
     rowEl.className = "grid-row flex";
@@ -195,32 +259,69 @@ function createGrid() {
     }
     gridContainer.appendChild(rowEl);
   }
+
+  // 2. Add the SVG Drawing Layer LAST
+  // Placing it last ensures it doesn't offset the :nth-child CSS selectors for the rows,
+  // while z-index/absolute positioning keeps it visually on top.
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.id = "drawing-layer";
+  svg.setAttribute(
+    "class",
+    "absolute inset-0 w-full h-full pointer-events-none z-20 overflow-visible",
+  );
+  gridContainer.appendChild(svg);
 }
 
 function updateControls() {
   numberPad.innerHTML = "";
-  if (currentMode === "color") {
-    const activePalette =
-      coloringSubMode === "candidate"
-        ? candidateColorPalette
-        : cellColorPalette;
+
+  // Treat "draw" mode like "color" mode for the controls
+  if (currentMode === "color" || currentMode === "draw") {
+    let activePalette;
+
+    // Select the correct palette
+    if (currentMode === "draw") {
+      activePalette = lineColorPalette;
+    } else {
+      activePalette =
+        coloringSubMode === "candidate"
+          ? candidateColorPalette
+          : cellColorPalette;
+    }
+
     for (let i = 0; i < 9; i++) {
       const btn = document.createElement("button");
       btn.style.backgroundColor = activePalette[i];
       btn.dataset.color = activePalette[i];
       btn.textContent = i + 1;
+
       const isDarkMode =
         window.matchMedia &&
         window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const labelColor =
-        coloringSubMode === "candidate"
-          ? isDarkMode
-            ? "#1f2937"
-            : "#e5e7eb"
-          : "rgba(255,255,255,0.6)";
+
+      // Text color logic
+      let labelColor;
+      if (currentMode === "draw") {
+        // Lines use specific palettes; usually just ensure contrast
+        labelColor = isDarkMode ? "#1f2937" : "#e5e7eb";
+      } else {
+        labelColor =
+          coloringSubMode === "candidate"
+            ? isDarkMode
+              ? "#1f2937"
+              : "#e5e7eb"
+            : "rgba(255,255,255,0.6)";
+      }
+
       btn.className =
         "color-btn p-2 text-lg font-bold border rounded-md shadow-sm h-12";
       btn.style.color = labelColor;
+
+      // Highlight if selected
+      if (selectedColor === activePalette[i]) {
+        btn.classList.add("selected");
+      }
+
       btn.addEventListener("mouseenter", () => {
         btn.style.filter = isDarkMode ? "brightness(1.25)" : "brightness(0.9)";
       });
@@ -230,6 +331,7 @@ function updateControls() {
       numberPad.appendChild(btn);
     }
   } else {
+    // Concrete / Pencil Modes (Numbers)
     for (let i = 1; i <= 9; i++) {
       const btn = document.createElement("button");
       btn.textContent = i;
@@ -239,6 +341,173 @@ function updateControls() {
       numberPad.appendChild(btn);
     }
   }
+}
+
+/* REPLACE getCandidateCenter function in sudoku_ui.js */
+function getCandidateCenter(r, c, n) {
+  // Try DOM-based positioning first for perfect visual alignment
+  const cell = gridContainer.querySelector(
+    `.sudoku-cell[data-row="${r}"][data-col="${c}"]`,
+  );
+  if (cell) {
+    const pencilGrid = cell.querySelector(".pencil-grid");
+    if (pencilGrid) {
+      const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+      const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
+      const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
+      const index = currentOrder.indexOf(n);
+
+      const marks = pencilGrid.querySelectorAll(".pencil-mark");
+      const mark = marks[index];
+
+      if (mark) {
+        const markRect = mark.getBoundingClientRect();
+        const gridRect = gridContainer.getBoundingClientRect();
+
+        // Account for the grid's border (clientLeft is the border width)
+        const borderLeft = gridContainer.clientLeft || 0;
+        const borderTop = gridContainer.clientTop || 0;
+        const innerWidth = gridContainer.clientWidth;
+        const innerHeight = gridContainer.clientHeight;
+
+        // Calculate center relative to the inner content box (where SVG lives)
+        const markCenterX =
+          markRect.left + markRect.width / 2 - gridRect.left - borderLeft;
+        const markCenterY =
+          markRect.top + markRect.height / 2 - gridRect.top - borderTop;
+
+        const x = (markCenterX / innerWidth) * 100;
+        const y = (markCenterY / innerHeight) * 100;
+
+        return { x, y };
+      }
+    }
+  }
+
+  // FALLBACK: Pure Math (Original Logic) if DOM elements are missing
+  // This handles edge cases or initial loads before render
+  const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
+  const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
+
+  const idx = currentOrder.indexOf(n);
+  const subRow = Math.floor(idx / 3);
+  const subCol = idx % 3;
+
+  const cellWidth = 100 / 9;
+  const subCellWidth = cellWidth / 3;
+  const centerOffset = subCellWidth / 2;
+
+  const x = c * cellWidth + subCol * subCellWidth + centerOffset;
+  const y = r * cellWidth + subRow * subCellWidth + centerOffset;
+
+  return { x, y };
+}
+
+function handleDrawClick(r, c, n) {
+  // 1. Start Drawing
+  if (!drawingState || !drawingState.start) {
+    drawingState = {
+      start: { r, c, n },
+      currentPos: getCandidateCenter(r, c, n),
+    };
+    updatePreview(); // Initialize the preview (start circle)
+    return;
+  }
+
+  // 2. Cancel (Clicking the same start point)
+  if (
+    drawingState.start.r === r &&
+    drawingState.start.c === c &&
+    drawingState.start.n === n
+  ) {
+    drawingState = null;
+    updatePreview(); // Clear the preview
+    return;
+  }
+
+  // 3. Complete Drawing
+  const start = drawingState.start;
+  const end = { r, c, n };
+
+  // Use currently selected color or default
+  const activeColor = selectedColor || lineColorPalette[0];
+
+  // Create object for label formatting (Solid uses "=", Dash uses "-")
+  const lineObj = {
+    r1: start.r,
+    c1: start.c,
+    n1: start.n,
+    r2: end.r,
+    c2: end.c,
+    n2: end.n,
+    style: drawSubMode,
+  };
+  const label = formatLineLabel(lineObj);
+
+  // Check for existing identical line (direction agnostic)
+  const existingIdx = drawnLines.findIndex(
+    (l) =>
+      (l.r1 === start.r &&
+        l.c1 === start.c &&
+        l.n1 === start.n &&
+        l.r2 === end.r &&
+        l.c2 === end.c &&
+        l.n2 === end.n) ||
+      (l.r1 === end.r &&
+        l.c1 === end.c &&
+        l.n1 === end.n &&
+        l.r2 === start.r &&
+        l.c2 === start.c &&
+        l.n2 === start.n),
+  );
+
+  let actionTaken = false;
+
+  if (existingIdx !== -1) {
+    const existing = drawnLines[existingIdx];
+    // 4-1. Exact match (style & color) -> Delete
+    if (existing.color === activeColor && existing.style === drawSubMode) {
+      drawnLines.splice(existingIdx, 1);
+      actionTaken = true;
+    } else {
+      // 4-2. Different properties -> Replace
+      drawnLines[existingIdx] = {
+        r1: start.r,
+        c1: start.c,
+        n1: start.n,
+        r2: end.r,
+        c2: end.c,
+        n2: end.n,
+        color: activeColor,
+        style: drawSubMode,
+      };
+      actionTaken = true;
+    }
+  } else {
+    // New Line
+    drawnLines.push({
+      r1: start.r,
+      c1: start.c,
+      n1: start.n,
+      r2: end.r,
+      c2: end.c,
+      n2: end.n,
+      color: activeColor,
+      style: drawSubMode,
+    });
+    actionTaken = true;
+  }
+
+  // Cleanup
+  drawingState = null;
+
+  if (actionTaken) {
+    saveState(); // Save history
+  }
+
+  renderLines(); // Update the static SVG layer (permits the new line)
+  updatePreview(); // Clear the dynamic preview layer
 }
 
 function renderBoard() {
@@ -302,7 +571,9 @@ function renderBoard() {
     if (row === selectedCell.row && col === selectedCell.col) {
       const useGreenHighlight =
         currentMode === "pencil" ||
-        (currentMode === "color" && coloringSubMode === "candidate");
+        (currentMode === "color" && coloringSubMode === "candidate") ||
+        (currentMode === "draw" && drawSubMode === "dash"); // ADD THIS CHECK
+
       if (useGreenHighlight) {
         cell.classList.add("selected-green");
       } else {
@@ -328,7 +599,11 @@ function renderBoard() {
           if (state.pencilColors.has(i)) {
             mark.style.color = state.pencilColors.get(i);
           }
-          if (!isMobile || (isMobile && isExperimentalMode)) {
+          const allowInteraction =
+            !isMobile ||
+            (isMobile && (isExperimentalMode || currentMode === "draw"));
+
+          if (allowInteraction) {
             mark.addEventListener("mouseover", (e) => {
               e.stopPropagation(); // Prevents the cell from getting the event
               currentlyHoveredElement = mark;
@@ -346,7 +621,10 @@ function renderBoard() {
               mark.style.color = state.pencilColors.get(i) || "";
             });
             mark.addEventListener("click", (e) => {
-              if (
+              if (currentMode === "draw") {
+                e.stopPropagation();
+                handleDrawClick(row, col, i);
+              } else if (
                 currentMode === "color" &&
                 coloringSubMode === "candidate" &&
                 selectedColor
@@ -402,6 +680,189 @@ function renderBoard() {
     }
   });
   validateBoard();
+}
+
+function pruneInvalidLines() {
+  drawnLines = drawnLines.filter((line) => {
+    const cell1 = boardState[line.r1][line.c1];
+    const cell2 = boardState[line.r2][line.c2];
+
+    // A candidate line endpoint is valid ONLY IF:
+    // 1. The cell is empty (value === 0)
+    // 2. The specific pencil mark (candidate) exists in the cell's set
+    const startExists = cell1.value === 0 && cell1.pencils.has(line.n1);
+    const endExists = cell2.value === 0 && cell2.pencils.has(line.n2);
+
+    return startExists && endExists;
+  });
+}
+
+/* REPLACE renderLines function */
+function renderLines() {
+  const svg = document.getElementById("drawing-layer");
+  if (!svg) return;
+
+  // Clear everything
+  svg.innerHTML = "";
+
+  // Create a group for static lines
+  const staticGroup = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "g",
+  );
+  staticGroup.id = "static-lines-group";
+  svg.appendChild(staticGroup);
+
+  // Create a group for the preview
+  const previewGroup = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "g",
+  );
+  previewGroup.id = "preview-lines-group";
+  svg.appendChild(previewGroup);
+
+  // Helper to draw a single line entry
+  const drawLineEntry = (r1, c1, n1, r2, c2, n2, color, style) => {
+    const start = getCandidateCenter(r1, c1, n1);
+    const end = getCandidateCenter(r2, c2, n2);
+
+    // Define radius (numeric for calculation)
+    const radiusVal = style === "solid" ? 1.6 : 1.2;
+
+    // --- Calculate Shortened Coordinates ---
+    let x1 = start.x,
+      y1 = start.y;
+    let x2 = end.x,
+      y2 = end.y;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+
+    // Only offset if the line is longer than 2x radius (to prevent inversion)
+    if (len > radiusVal * 2) {
+      const offX = (dx / len) * radiusVal;
+      const offY = (dy / len) * radiusVal;
+      x1 += offX;
+      y1 += offY;
+      x2 -= offX;
+      y2 -= offY;
+    }
+
+    // 1. Connection Line (Shortened)
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    path.setAttribute("x1", `${x1}%`);
+    path.setAttribute("y1", `${y1}%`);
+    path.setAttribute("x2", `${x2}%`);
+    path.setAttribute("y2", `${y2}%`);
+    path.setAttribute("stroke", color);
+    path.classList.add("draw-line", style);
+    staticGroup.appendChild(path);
+
+    // 2. Endpoints (Drawn at original centers)
+    const drawEndpoint = (cx, cy) => {
+      const circle = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "circle",
+      );
+      circle.setAttribute("cx", `${cx}%`);
+      circle.setAttribute("cy", `${cy}%`);
+      circle.setAttribute("r", `${radiusVal}%`);
+      circle.setAttribute("fill", color);
+      circle.setAttribute("opacity", "0.3");
+      staticGroup.appendChild(circle);
+    };
+
+    drawEndpoint(start.x, start.y);
+    drawEndpoint(end.x, end.y);
+  };
+
+  // Render ONLY stored lines
+  drawnLines.forEach((line) => {
+    drawLineEntry(
+      line.r1,
+      line.c1,
+      line.n1,
+      line.r2,
+      line.c2,
+      line.n2,
+      line.color,
+      line.style,
+    );
+  });
+}
+
+function updatePreview() {
+  const svg = document.getElementById("drawing-layer");
+  const previewGroup = document.getElementById("preview-lines-group");
+
+  if (!svg || !previewGroup) return;
+
+  if (!drawingState || !drawingState.start) {
+    previewGroup.innerHTML = "";
+    return;
+  }
+
+  const start = drawingState.start;
+  const startPos = getCandidateCenter(start.r, start.c, start.n);
+  const color = selectedColor || lineColorPalette[0] || "black";
+
+  let endX, endY;
+  if (drawingState.currentPos) {
+    endX = drawingState.currentPos.x;
+    endY = drawingState.currentPos.y;
+  } else {
+    endX = startPos.x;
+    endY = startPos.y;
+  }
+
+  // --- Calculate Shortened Coordinates for Preview ---
+  const radiusVal = drawSubMode === "solid" ? 1.6 : 1.2;
+
+  let x1 = startPos.x,
+    y1 = startPos.y;
+  let x2 = endX,
+    y2 = endY;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+
+  if (len > radiusVal) {
+    x1 += (dx / len) * radiusVal;
+    y1 += (dy / len) * radiusVal;
+
+    if (len > radiusVal * 2) {
+      x2 -= (dx / len) * radiusVal;
+      y2 -= (dy / len) * radiusVal;
+    }
+  }
+
+  let line = document.getElementById("preview-line-el");
+  let circle = document.getElementById("preview-circle-el");
+
+  if (!line) {
+    line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.id = "preview-line-el";
+    previewGroup.appendChild(line);
+
+    circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.id = "preview-circle-el";
+    previewGroup.appendChild(circle);
+  }
+
+  // 1. Update Line
+  line.setAttribute("x1", `${x1}%`);
+  line.setAttribute("y1", `${y1}%`);
+  line.setAttribute("x2", `${x2}%`);
+  line.setAttribute("y2", `${y2}%`);
+  line.setAttribute("stroke", color);
+  line.setAttribute("class", `draw-line ${drawSubMode}`);
+
+  // 2. Update Start Circle
+  circle.setAttribute("cx", `${startPos.x}%`);
+  circle.setAttribute("cy", `${startPos.y}%`);
+  circle.setAttribute("r", `${radiusVal}%`);
+  circle.setAttribute("fill", color);
+  circle.setAttribute("opacity", "0.3");
 }
 
 // --- Custom Tooltip Logic ---
@@ -697,6 +1158,11 @@ function isBoardIdenticalToSolution() {
 // --- Event Handlers and Listeners ---
 
 function setupEventListeners() {
+  const isDarkMode =
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  updateColorPalettes(isDarkMode);
+
   loadExperimentalModePreference(); // Load the user's preference first
   gridContainer.addEventListener("click", handleCellClick);
 
@@ -1058,6 +1524,26 @@ function setupEventListeners() {
       }, 1200); // Start sliding slightly before the drop finishes (1.5s) for a smoother feel
     });
   }
+  document.addEventListener("mousemove", (e) => {
+    if (currentMode === "draw" && drawingState && drawingState.start) {
+      const gridRect = gridContainer.getBoundingClientRect();
+      const borderLeft = gridContainer.clientLeft || 0;
+      const borderTop = gridContainer.clientTop || 0;
+      const innerWidth = gridContainer.clientWidth;
+      const innerHeight = gridContainer.clientHeight;
+
+      const relativeX = e.clientX - gridRect.left - borderLeft;
+      const relativeY = e.clientY - gridRect.top - borderTop;
+
+      const xPct = (relativeX / innerWidth) * 100;
+      const yPct = (relativeY / innerHeight) * 100;
+
+      drawingState.currentPos = { x: xPct, y: yPct };
+
+      // FIX: Call the optimized update function
+      requestAnimationFrame(updatePreview);
+    }
+  });
 }
 
 function handleKeyDown(e) {
@@ -1244,29 +1730,12 @@ function handleKeyDown(e) {
     return;
   }
   if (key_lower === "x") {
-    colorButton.click();
+    const drawBtn = modeSelector.querySelector('[data-mode="draw"]');
+    if (drawBtn) drawBtn.click();
     return;
   }
   if (key_lower === "c") {
-    if (
-      currentMode === "color" &&
-      selectedCell.row !== null &&
-      selectedColor !== null
-    ) {
-      if (coloringSubMode === "cell") {
-        const { row, col } = selectedCell;
-        const cellState = boardState[row][col];
-        const oldColor = cellState.cellColor;
-        const newColor = oldColor === selectedColor ? null : selectedColor;
-        if (oldColor !== newColor) {
-          cellState.cellColor = newColor;
-          saveState();
-        }
-      } else {
-        showCandidatePopup(selectedCell.row, selectedCell.col);
-      }
-      onBoardUpdated();
-    }
+    colorButton.click();
     return;
   }
   if (key_lower === "v") {
@@ -1305,7 +1774,7 @@ function handleKeyDown(e) {
     return;
   }
   if (key >= "1" && key <= "9") {
-    if (currentMode === "color") {
+    if (currentMode === "color" || currentMode === "draw") {
       const colorButtons = numberPad.querySelectorAll("button");
       const colorIndex = parseInt(key) - 1;
       if (colorButtons[colorIndex]) {
@@ -1378,18 +1847,24 @@ function handleCellClick(e) {
   }
 }
 
+/* REPLACE handleModeChange function */
 function handleModeChange(e) {
   const clickedButton = e.target.closest("button");
   if (!clickedButton) return;
 
-  // Stop the event here to prevent the global click listener from closing the tooltip immediately
   e.stopPropagation();
 
-  if (clickedButton !== modeToggleButton && clickedButton !== colorButton) {
+  // Allow Draw button, plus the existing ones
+  const drawButton = modeSelector.querySelector('[data-mode="draw"]');
+  if (
+    clickedButton !== modeToggleButton &&
+    clickedButton !== colorButton &&
+    clickedButton !== drawButton
+  ) {
     return;
   }
 
-  // --- Mode Switching Logic ---
+  // --- Logic Checks (Guard Clauses) ---
   if (clickedButton === modeToggleButton) {
     const targetMode = currentMode === "concrete" ? "pencil" : "concrete";
     if (targetMode === "pencil" && arePencilsHidden) {
@@ -1415,6 +1890,29 @@ function handleModeChange(e) {
   }
 
   const previousMode = currentMode;
+  const wasUsingColorPad = previousMode === "color" || previousMode === "draw";
+
+  // 1. Handle Draw Click
+  if (clickedButton === drawButton) {
+    if (currentMode !== "draw") {
+      currentMode = "draw";
+      drawSubMode = "solid";
+    } else {
+      drawSubMode = drawSubMode === "solid" ? "dash" : "solid";
+    }
+    drawingState = null;
+  }
+  // 2. Handle Logic/Color Clicks (Switching AWAY from Draw)
+  else if (
+    clickedButton === modeToggleButton ||
+    clickedButton === colorButton
+  ) {
+    if (currentMode === "draw") {
+      drawingState = null;
+    }
+  }
+
+  // 3. Handle Standard Mode Toggles
   if (clickedButton === modeToggleButton) {
     currentMode =
       currentMode === "concrete" || currentMode === "pencil"
@@ -1430,8 +1928,50 @@ function handleModeChange(e) {
       coloringSubMode = coloringSubMode === "cell" ? "candidate" : "cell";
     }
   }
+
+  // --- NEW: Always reset Selected Color to #1 when in Color/Draw modes ---
+  if (currentMode === "color" || currentMode === "draw") {
+    let activePalette;
+    if (currentMode === "draw") {
+      activePalette = lineColorPalette;
+    } else {
+      activePalette =
+        coloringSubMode === "candidate"
+          ? candidateColorPalette
+          : cellColorPalette;
+    }
+
+    // Reset to the first color (Label "1")
+    if (activePalette && activePalette.length > 0) {
+      selectedColor = activePalette[0];
+    }
+  } else {
+    selectedColor = null;
+  }
+
+  // --- UI Refresh Logic ---
+
+  // Determine if we need to switch the pad (Number Pad <-> Color Palette)
+  const isUsingColorPad = currentMode === "color" || currentMode === "draw";
+  const padChanged = wasUsingColorPad !== isUsingColorPad;
+
+  // Check if we need to rebuild controls (Switching palettes or sub-modes)
+  const modeTypeChanged =
+    (previousMode === "color" && currentMode === "draw") ||
+    (previousMode === "draw" && currentMode === "color");
+  const colorSubChanged =
+    clickedButton === colorButton && currentMode === "color";
+  const drawSubChanged = clickedButton === drawButton && currentMode === "draw";
+
+  // If any mode/submode changed, rebuild controls to show correct palette & selection
+  if (padChanged || modeTypeChanged || colorSubChanged || drawSubChanged) {
+    updateControls();
+  }
+
+  // --- Visuals (Buttons & Tips) ---
   const isMobile = window.innerWidth <= 550;
   let tip = "";
+
   if (currentMode === "concrete") {
     tip = isMobile
       ? "Tip: Touch a filled cell to highlight its number."
@@ -1441,75 +1981,72 @@ function handleModeChange(e) {
       ? "Tip: Touch a cell, then a digit to toggle a pencil mark."
       : "Tip: Click a cell, then a digit to toggle a pencil mark.";
   } else if (currentMode === "color") {
-    if (coloringSubMode === "cell") {
-      tip = isMobile
-        ? "Tip: Pick a color, then touch a cell to paint it."
-        : "Tip: Pick a color, then click a&nbsp;cell&nbsp;<span class='shortcut-highlight'>(or press 'C')</span> to paint it.";
-    } else {
-      tip = isMobile
-        ? "Tip: Pick a color, then touch a cell to select a candidate."
-        : "Tip: Pick a color, hover over a candidate to preview, and click to apply.";
-    }
+    tip =
+      coloringSubMode === "cell"
+        ? isMobile
+          ? "Tip: Pick a color, then touch a cell to paint it."
+          : "Tip: Pick a color, then click a&nbsp;cell&nbsp;<span class='shortcut-highlight'>(or press 'C')</span> to paint it."
+        : isMobile
+          ? "Tip: Pick a color, then touch a cell to select a candidate."
+          : "Tip: Pick a color, hover over a candidate to preview, and click to apply.";
+  } else if (currentMode === "draw") {
+    tip = isMobile
+      ? `Draw (${drawSubMode}): Touch start then end candidate.`
+      : `Draw (${drawSubMode}): Click two candidates to connect. (X to switch)`;
   }
   showMessage(tip, "gray");
+
+  // Reset Button Classes
   modeToggleButton.classList.remove("active", "active-green");
   colorButton.classList.remove("active", "active-green");
-  if (currentMode === "concrete") {
-    modeToggleButton.classList.add("active");
-  } else if (currentMode === "pencil") {
-    modeToggleButton.classList.add("active-green");
-  } else if (currentMode === "color") {
-    if (coloringSubMode === "candidate") {
-      colorButton.classList.add("active-green");
-    } else {
-      colorButton.classList.add("active");
-    }
-  }
-  const wasColor = previousMode === "color";
-  const isColor = currentMode === "color";
-  if (isColor || wasColor) {
-    updateControls();
-    if (isColor) {
-      const firstColorButton = numberPad.querySelector(".color-btn");
-      if (firstColorButton) {
-        selectedColor = firstColorButton.dataset.color;
-        firstColorButton.classList.add("selected");
-      }
-    } else {
-      selectedColor = null;
-    }
-  }
-  renderBoard();
-  updateButtonLabels();
-  // --- NEW: Integrated Mobile Tooltip Logic ---
-  if (isMobile) {
-    // Hide any currently active tooltip.
-    if (activeTooltipElement) {
-      hideTooltip(activeTooltipElement);
-    }
+  drawButton.classList.remove("active", "active-green");
 
-    // After the button's state and text have been updated, show the NEW tooltip.
+  // Apply Active Class
+  if (currentMode === "concrete") modeToggleButton.classList.add("active");
+  else if (currentMode === "pencil")
+    modeToggleButton.classList.add("active-green");
+  else if (currentMode === "color") {
+    if (coloringSubMode === "candidate")
+      colorButton.classList.add("active-green");
+    else colorButton.classList.add("active");
+  } else if (currentMode === "draw") {
+    if (drawSubMode === "dash") {
+      drawButton.classList.add("active-green");
+    } else {
+      drawButton.classList.add("active");
+    }
+  }
+
+  renderBoard();
+  renderLines();
+  updateButtonLabels();
+
+  // Handle Mobile Tooltips
+  if (isMobile) {
+    if (activeTooltipElement) hideTooltip(activeTooltipElement);
     showTooltip(clickedButton);
     activeTooltipElement = clickedButton;
   } else {
-    // For desktop, if the tooltip is currently visible when clicked, hide it.
-    // This removes the stale tooltip so the next hover will show the updated one.
-    if (clickedButton.tooltipInstance) {
-      hideTooltip(clickedButton);
-    }
+    if (clickedButton.tooltipInstance) hideTooltip(clickedButton);
   }
 }
 
 function handleNumberPadClick(e) {
   const btn = e.target.closest("button");
   if (!btn) return;
-  if (currentMode === "color") {
+
+  // Handle Color Selection (Color Mode OR Draw Mode)
+  if (currentMode === "color" || currentMode === "draw") {
     selectedColor = btn.dataset.color;
+
+    // Visual update for buttons
     numberPad
       .querySelectorAll(".color-btn")
       .forEach((b) => b.classList.remove("selected"));
     btn.classList.add("selected");
-    if (currentlyHoveredElement) {
+
+    // Immediate preview effect (only for Color mode)
+    if (currentMode === "color" && currentlyHoveredElement) {
       if (coloringSubMode === "cell") {
         if (currentlyHoveredElement.classList.contains("sudoku-cell")) {
           currentlyHoveredElement.style.backgroundColor = selectedColor;
@@ -1520,6 +2057,8 @@ function handleNumberPadClick(e) {
     }
     return;
   }
+
+  // Handle Number Input (Concrete / Pencil)
   const num = parseInt(btn.dataset.number);
   if (selectedCell.row !== null) {
     const { row, col } = selectedCell;
@@ -1534,7 +2073,6 @@ function handleNumberPadClick(e) {
           highlightedDigit = null;
           highlightState = 0;
         }
-        // CHANGE: Call saveState() instead of just renderBoard()
         renderBoard();
       }
       return;
@@ -1753,6 +2291,9 @@ function clearAllColors() {
       boardState[r][c].pencilColors.clear();
     }
   }
+  drawnLines = []; // Clear the lines array
+  drawingState = null; // Reset any active drawing state
+  renderLines(); // Update the SVG layer
   saveState();
   renderBoard();
   showMessage("All colors cleared.", "gray");
@@ -1862,6 +2403,9 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }
 
   initBoardState();
+  drawnLines = [];
+  drawingState = null;
+  renderLines();
 
   // 2. Prepare the Normalized String (81 chars of dots/digits)
   let normalizedPuzzleString = "";
@@ -2100,6 +2644,9 @@ function clearUserBoard() {
   isAutoPencilPending = false;
   isSolvePending = false;
   isClearStoragePending = false;
+  drawnLines = [];
+  drawingState = null;
+  renderLines();
   saveState();
   onBoardUpdated(true);
   evaluateBoardDifficulty();
@@ -2182,6 +2729,7 @@ function savePuzzleProgress() {
       level: selectedLevel,
       puzzle: initialPuzzleString,
       progress: serializeProgress(),
+      lines: drawnLines,
       time: Math.max(0, Math.floor(currentElapsedTime)),
       lampTimes: lampTimestamps,
     };
@@ -2227,6 +2775,12 @@ function applySavedProgress(puzzleData) {
   if (savedGameIndex === -1) return 0;
 
   const savedGame = allSaves[savedGameIndex];
+
+  if (savedGame.lines) {
+    drawnLines = savedGame.lines;
+  } else {
+    drawnLines = [];
+  }
 
   if (savedGame.puzzle !== puzzleData.puzzle) {
     allSaves.splice(savedGameIndex, 1);
@@ -2296,6 +2850,8 @@ function applySavedProgress(puzzleData) {
       currentCell.pencilColors = new Map(savedCell.pc || []);
     }
   }
+
+  renderLines();
 
   showMessage("Loaded saved progress.", "green");
   return typeof savedGame.time === "number" ? savedGame.time : 0;
@@ -2526,6 +3082,7 @@ function saveState() {
   history = history.slice(0, historyIndex + 1);
   history.push({
     boardState: cloneBoardState(boardState),
+    drawnLines: JSON.parse(JSON.stringify(drawnLines)), // Deep copy lines
     lampColor: currentLampColor,
     vagueHint: vagueHintMessage,
     previousLampColor: previousLampColor,
@@ -2536,8 +3093,12 @@ function saveState() {
   savePuzzleProgress();
 }
 function onBoardUpdated(skipEvaluation = false) {
+  pruneInvalidLines();
+
   currentEvaluationId++; // Increment this to cancel any running evaluations
   renderBoard();
+
+  renderLines();
 
   const isBoardValid = validateBoard();
 
@@ -2547,16 +3108,6 @@ function onBoardUpdated(skipEvaluation = false) {
   }
 
   if (skipEvaluation) return;
-
-  // let emptyWithNoPencils = 0;
-  // for (let r = 0; r < 9; r++) {
-  //   for (let c = 0; c < 9; c++) {
-  //     if (boardState[r][c].value === 0 && boardState[r][c].pencils.size === 0) {
-  //       emptyWithNoPencils++;
-  //     }
-  //   }
-  // }
-  // if (emptyWithNoPencils >= 4) return;
 
   if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
   lampEvaluationTimeout = setTimeout(() => {
@@ -2663,16 +3214,33 @@ function hasLogicChanged(stateA, stateB) {
 
 function undo() {
   if (historyIndex > 0) {
-    const currentLogic = boardState;
-    const prevLogic = history[historyIndex - 1].boardState;
-    const logicChanged = hasLogicChanged(currentLogic, prevLogic);
+    const currentEntry = history[historyIndex];
+    const prevEntry = history[historyIndex - 1];
 
-    // Standard diff description only
-    const actionDesc = getDiffDescription(prevLogic, currentLogic);
+    // 1. Calculate Diff (Board)
+    const actionDesc = getDiffDescription(
+      prevEntry.boardState,
+      currentEntry.boardState,
+    );
+
+    // 2. Calculate Diff (Lines)
+    const lineDesc = getLineDiffDescription(
+      prevEntry.drawnLines,
+      currentEntry.drawnLines,
+    );
+
+    // 3. Combine Diffs
+    let finalDesc = actionDesc;
+    if (finalDesc === "No visible changes" && lineDesc) {
+      finalDesc = lineDesc;
+    } else if (lineDesc) {
+      finalDesc += `, ${lineDesc}`;
+    }
 
     historyIndex--;
     const historyEntry = history[historyIndex];
     boardState = cloneBoardState(historyEntry.boardState);
+    drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || [])); // Restore lines
     vagueHintMessage = historyEntry.vagueHint;
 
     lampTimestamps = JSON.parse(
@@ -2680,30 +3248,48 @@ function undo() {
     );
     previousLampColor = historyEntry.previousLampColor;
 
-    // REMOVED: Restoring highlightState/highlightedDigit
-
     updateLamp(historyEntry.lampColor, { record: false });
 
     renderBoard();
+    renderLines();
+    // Pass true to skip evaluation if logic didn't change (purely aesthetic line change)
+    const logicChanged = actionDesc !== "No visible changes" || lineDesc;
     onBoardUpdated(!logicChanged);
+
     updateUndoRedoButtons();
     savePuzzleProgress();
 
-    showMessage(`Undid: ${actionDesc}`, "gray");
+    showMessage(`Undid: ${finalDesc}`, "gray");
   }
 }
 
 function redo() {
   if (historyIndex < history.length - 1) {
-    const currentLogic = boardState;
-    const nextLogic = history[historyIndex + 1].boardState;
-    const logicChanged = hasLogicChanged(currentLogic, nextLogic);
+    const currentEntry = history[historyIndex];
+    const nextEntry = history[historyIndex + 1];
 
-    const actionDesc = getDiffDescription(currentLogic, nextLogic);
+    // 1. Calculate Diff
+    const actionDesc = getDiffDescription(
+      currentEntry.boardState,
+      nextEntry.boardState,
+    );
+    const lineDesc = getLineDiffDescription(
+      currentEntry.drawnLines,
+      nextEntry.drawnLines,
+    );
+
+    // 2. Combine
+    let finalDesc = actionDesc;
+    if (finalDesc === "No visible changes" && lineDesc) {
+      finalDesc = lineDesc;
+    } else if (lineDesc) {
+      finalDesc += `, ${lineDesc}`;
+    }
 
     historyIndex++;
     const historyEntry = history[historyIndex];
     boardState = cloneBoardState(historyEntry.boardState);
+    drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || []));
     vagueHintMessage = historyEntry.vagueHint;
 
     lampTimestamps = JSON.parse(
@@ -2711,16 +3297,18 @@ function redo() {
     );
     previousLampColor = historyEntry.previousLampColor;
 
-    // REMOVED: Restoring highlightState/highlightedDigit
-
     updateLamp(historyEntry.lampColor, { record: false });
 
     renderBoard();
+    renderLines();
+
+    const logicChanged = actionDesc !== "No visible changes" || lineDesc;
     onBoardUpdated(!logicChanged);
+
     updateUndoRedoButtons();
     savePuzzleProgress();
 
-    showMessage(`Redid: ${actionDesc}`, "gray");
+    showMessage(`Redid: ${finalDesc}`, "gray");
   }
 }
 
@@ -3526,6 +4114,85 @@ function getColorName(hex) {
 /**
  * Compares two board states and returns a detailed string description.
  */
+function formatLineLabel(l) {
+  if (!l) return "";
+  const connector = l.style === "solid" ? "=" : "-";
+  return `(${l.n1})r${l.r1 + 1}c${l.c1 + 1}${connector}(${l.n2})r${l.r2 + 1}c${l.c2 + 1}`;
+}
+
+function getLineDiffDescription(before, after) {
+  if (!before) before = [];
+  if (!after) after = [];
+
+  // Helper to check if two lines are the "same" (coordinates & props)
+  // We check both directions (A->B and B->A) just in case
+  const isSameLine = (a, b) => {
+    const forward =
+      a.r1 === b.r1 &&
+      a.c1 === b.c1 &&
+      a.n1 === b.n1 &&
+      a.r2 === b.r2 &&
+      a.c2 === b.c2 &&
+      a.n2 === b.n2;
+    const backward =
+      a.r1 === b.r2 &&
+      a.c1 === b.c2 &&
+      a.n1 === b.n2 &&
+      a.r2 === b.r1 &&
+      a.c2 === b.c1 &&
+      a.n2 === b.n1;
+
+    // For exact match, style and color must also match
+    return (forward || backward) && a.color === b.color && a.style === b.style;
+  };
+
+  // Case 1: Line Added
+  if (after.length > before.length) {
+    // Find the line in 'after' that isn't in 'before'
+    const added = after.find((a) => !before.some((b) => isSameLine(a, b)));
+    if (added) return `Line added: ${formatLineLabel(added)}`;
+    return "Line added";
+  }
+
+  // Case 2: Line Removed
+  if (before.length > after.length) {
+    // Find the line in 'before' that isn't in 'after'
+    const removed = before.find((b) => !after.some((a) => isSameLine(a, b)));
+    if (removed) return `Line removed: ${formatLineLabel(removed)}`;
+    return "Line removed";
+  }
+
+  // Case 3: Line Modified (Style/Color change)
+  // We look for a line that has the same coordinates but different style/color
+  if (JSON.stringify(before) !== JSON.stringify(after)) {
+    const changed = after.find((a) => {
+      // Find the "same coordinate" line in the 'before' array
+      const match = before.find(
+        (b) =>
+          (a.r1 === b.r1 &&
+            a.c1 === b.c1 &&
+            a.n1 === b.n1 &&
+            a.r2 === b.r2 &&
+            a.c2 === b.c2 &&
+            a.n2 === b.n2) ||
+          (a.r1 === b.r2 &&
+            a.c1 === b.c2 &&
+            a.n1 === b.n2 &&
+            a.r2 === b.r1 &&
+            a.c2 === b.c1 &&
+            a.n2 === b.n1),
+      );
+      // If found, check if properties changed
+      return match && (match.color !== a.color || match.style !== a.style);
+    });
+
+    if (changed) return `Line updated: ${formatLineLabel(changed)}`;
+    return "Line style updated";
+  }
+
+  return null;
+}
+
 function getDiffDescription(before, after) {
   let placements = [];
   let valueRemovals = [];
