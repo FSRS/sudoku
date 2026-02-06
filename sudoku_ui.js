@@ -59,13 +59,13 @@ let lineColorPalette = []; // Specific palette for lines
 
 function updateColorPalettes(isDarkMode) {
   if (isDarkMode) {
-    cellColorPalette = colorPaletteDark;
-    candidateColorPalette = colorPaletteLight;
-    lineColorPalette = colorPaletteMid;
+    cellColorPalette = colorPalette800;
+    candidateColorPalette = colorPalette400;
+    lineColorPalette = colorPalette600;
   } else {
-    cellColorPalette = colorPaletteLight;
-    candidateColorPalette = colorPaletteDark;
-    lineColorPalette = colorPaletteMid;
+    cellColorPalette = colorPalette300;
+    candidateColorPalette = colorPalette700;
+    lineColorPalette = colorPalette500;
   }
 }
 
@@ -303,14 +303,23 @@ function updateControls() {
       let labelColor;
       if (currentMode === "draw") {
         // Lines use specific palettes; usually just ensure contrast
-        labelColor = isDarkMode ? "#1f2937" : "#e5e7eb";
+        labelColor =
+          drawSubMode === "dash"
+            ? isDarkMode
+              ? "#1f2937"
+              : "#e5e7eb"
+            : isDarkMode
+              ? "rgba(255,255,255,0.6)"
+              : "rgba(31,31,31,0.6)";
       } else {
         labelColor =
           coloringSubMode === "candidate"
             ? isDarkMode
               ? "#1f2937"
               : "#e5e7eb"
-            : "rgba(255,255,255,0.6)";
+            : isDarkMode
+              ? "rgba(255,255,255,0.6)"
+              : "rgba(31,31,31,0.6)";
       }
 
       btn.className =
@@ -4100,15 +4109,25 @@ function generateAsciiGrid() {
 function getColorName(hex) {
   if (!hex) return "Color";
 
-  // Try to find the index in any of the palettes
-  let idx = colorPaletteLight.indexOf(hex);
-  if (idx === -1) idx = colorPaletteMid.indexOf(hex);
-  if (idx === -1) idx = colorPaletteDark.indexOf(hex);
+  // Group palettes to make the search logic scalable
+  const palettes = [
+    colorPalette300,
+    colorPalette400,
+    colorPalette500,
+    colorPalette600,
+    colorPalette700,
+    colorPalette800,
+  ];
 
-  if (idx !== -1) {
-    return `[Color ${idx + 1}]`;
+  // Check each palette and return immediately if found
+  for (const palette of palettes) {
+    const idx = palette.indexOf(hex);
+    if (idx !== -1) {
+      return `[Color ${idx + 1}]`;
+    }
   }
-  return "Custom Color"; // Fallback
+
+  return "Custom Color";
 }
 
 /**

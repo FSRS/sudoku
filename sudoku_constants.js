@@ -19,19 +19,43 @@ const difficultyWords = [
   "VANQUISHER",
 ];
 
-const colorPaletteLight = [
-  "#f87171",
-  "#fb923c",
-  "#facc15",
-  "#a3e635",
-  "#34d399",
-  "#22d3ee",
-  "#60a5fa",
-  "#c084fc",
-  "#f472b6",
+const colorPalette300 = [
+  "#fca5a5", // red-300
+  "#fdba74", // orange-300
+  "#fde047", // yellow-300
+  "#bef264", // lime-300
+  "#6ee7b7", // emerald-300
+  "#67e8f9", // cyan-300
+  "#93c5fd", // blue-300
+  "#c4b5fd", // violet-300
+  "#f9a8d4", // pink-300
 ];
 
-const colorPaletteMid = [
+const colorPalette400 = [
+  "#f87171", // red-400
+  "#fb923c", // orange-400
+  "#facc15", // yellow-400
+  "#a3e635", // lime-400
+  "#34d399", // emerald-400
+  "#22d3ee", // cyan-400
+  "#60a5fa", // blue-400
+  "#c084fc", // violet-400
+  "#f472b6", // pink-400
+];
+
+const colorPalette500 = [
+  "#ef4444", // red-500
+  "#f97316", // orange-500
+  "#eab308", // yellow-500
+  "#84cc16", // lime-500
+  "#22c55e", // green-500
+  "#06b6d4", // cyan-500
+  "#3b82f6", // blue-500
+  "#8b5cf6", // violet-500
+  "#ec4899", // pink-500
+];
+
+const colorPalette600 = [
   "#dc2626", // red-600
   "#ea580c", // orange-600
   "#ca8a04", // yellow-600
@@ -43,11 +67,22 @@ const colorPaletteMid = [
   "#db2777", // pink-600
 ];
 
-// darker palette for dark-mode (deeper/jewel tones)
-const colorPaletteDark = [
+const colorPalette700 = [
+  "#b91c1c", // red-700
+  "#c2410c", // orange-700
+  "#a16207", // yellow-700
+  "#4d7c0f", // lime-700
+  "#15803d", // green-700
+  "#0e7490", // cyan-700
+  "#1d4ed8", // blue-700
+  "#6d28d9", // violet-700
+  "#be185d", // pink-700
+];
+
+const colorPalette800 = [
   "#991b1b", // red-800
   "#9a3412", // orange-800
-  "#92400e", // amber-800
+  "#854d0e", // yellow-800
   "#3f6212", // lime-800
   "#065f46", // emerald-800
   "#155e75", // cyan-800
