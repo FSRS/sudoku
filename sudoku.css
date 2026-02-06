@@ -1233,7 +1233,7 @@ button:disabled:hover {
   font-weight: bold;
   overflow: hidden; /* NEW: Clips content if it accidentally overflows */
   color: var(--color-gray-700);
-  opacity: 0.6;
+  opacity: 0.75;
   transition: opacity 0.2s;
 }
 
@@ -1357,7 +1357,7 @@ button:disabled:hover {
 
 /* Base Line Style */
 .draw-line {
-  opacity: 0.4;
+  opacity: 0.65;
   stroke-linecap: round;
   stroke-linejoin: round;
   transition: d 0.1s ease; /* Smooth movement for preview */
@@ -1365,11 +1365,11 @@ button:disabled:hover {
 
 /* Line Styles */
 .draw-line.solid {
-  stroke-width: 6px; /* Thick */
+  stroke-width: 8px; /* Thick */
 }
 
 .draw-line.dash {
-  stroke-width: 3px; /* Thin */
+  stroke-width: 4px; /* Thin */
   stroke-dasharray: 6, 6;
 }
 

@@ -777,7 +777,7 @@ function renderLines() {
       circle.setAttribute("cy", `${cy}%`);
       circle.setAttribute("r", `${radiusVal}%`);
       circle.setAttribute("fill", color);
-      circle.setAttribute("opacity", "0.3");
+      circle.setAttribute("opacity", "0.65");
       staticGroup.appendChild(circle);
     };
 
@@ -871,7 +871,7 @@ function updatePreview() {
   circle.setAttribute("cy", `${startPos.y}%`);
   circle.setAttribute("r", `${radiusVal}%`);
   circle.setAttribute("fill", color);
-  circle.setAttribute("opacity", "0.3");
+  circle.setAttribute("opacity", "0.65");
 }
 
 // --- Custom Tooltip Logic ---
