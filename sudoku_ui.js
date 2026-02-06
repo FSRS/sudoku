@@ -190,10 +190,10 @@ function updateButtonLabels() {
   vagueHintBtn.textContent = isMobile ? "?" : "? (V)";
   if (isMobile) {
     vagueHintBtn.dataset.tooltip =
-      "Get increasingly concrete hints for the next step.";
+      "View increasingly concrete hints for the next step.";
   } else {
     vagueHintBtn.dataset.tooltip =
-      "Get increasingly concrete hints for the next step (V).";
+      "View increasingly concrete hints for the next step (V).";
   }
 
   if (!isMobile) {
