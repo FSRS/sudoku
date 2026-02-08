@@ -2332,7 +2332,70 @@ const techniques = {
         const [r, c] = extraCells[0];
         addRemoval(r, c, d1);
         addRemoval(r, c, d2);
-      } else if (extraCells.length === 2) {
+
+        return {
+          change: true,
+          type: "remove",
+          cells: removals,
+          hint: {
+            name: "Unique Rectangle Type 1",
+            mainInfo: `using Candidates ${digits[0]}/${digits[1]}`,
+          },
+        };
+      }
+
+      if (extraCells.length === 2 || extraCells.length === 3) {
+        const extrasLists = extraCells.map(([r, c]) =>
+          [...pencils[r][c]].filter((cand) => cand !== d1 && cand !== d2),
+        );
+
+        // Check 1: All extra cells must have exactly one extra candidate
+        const allHaveOneExtra = extrasLists.every((list) => list.length === 1);
+
+        if (allHaveOneExtra) {
+          const commonExtra = extrasLists[0][0];
+
+          // Check 2: All extra cells must have the SAME extra candidate
+          const allSame = extrasLists.every((list) => list[0] === commonExtra);
+
+          if (allSame) {
+            const peers = techniques._findCommonPeers(
+              extraCells,
+              cells, // Pass rectangle cells to exclude them from peer search
+              board,
+              pencils,
+            );
+
+            const type2Removals = [];
+            for (const [r, c] of peers) {
+              if (pencils[r][c].has(commonExtra)) {
+                type2Removals.push({ r, c, num: commonExtra });
+              }
+            }
+
+            if (type2Removals.length > 0) {
+              // Deduplicate just in case
+              const uniqueCells = Array.from(
+                new Set(type2Removals.map(JSON.stringify)),
+              ).map(JSON.parse);
+              return {
+                change: true,
+                type: "remove",
+                cells: uniqueCells,
+                hint: {
+                  name:
+                    extraCells.length === 2
+                      ? "Unique Rectangle Type 2"
+                      : "Unique Rectangle Type 5",
+                  mainInfo: `using Candidates ${digits[0]}/${digits[1]}`,
+                },
+              };
+            }
+          }
+        }
+      }
+
+      if (extraCells.length === 2) {
         const [e1r, e1c] = extraCells[0];
         const [e2r, e2c] = extraCells[1];
         const [f1r, f1c] = bivalueCells[0];
@@ -2590,7 +2653,7 @@ const techniques = {
           return {
             change: true,
             type: "remove",
-            cells: removals,
+            cells: uniqueRemovals,
             hint: {
               name: "Hidden Rectangle",
               mainInfo: `using Candidates ${digits[0]}/${digits[1]}`,
