@@ -2126,6 +2126,7 @@ function handleNumberPadClick(e) {
       }
     }
     if (changeMade) {
+      if (!timerInterval) startTimer(currentElapsedTime);
       saveState();
       onBoardUpdated();
       checkCompletion();
@@ -2333,6 +2334,7 @@ function autoPencil() {
     isAutoPencilPending = true;
     return;
   }
+  if (!timerInterval) startTimer(currentElapsedTime);
   let emptyWithNoPencils = 0;
   if (!hasUsedAutoPencil) {
     for (let r = 0; r < 9; r++) {
@@ -2592,6 +2594,10 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   await evaluateBoardDifficulty();
   isLoadingSavedGame = false;
   saveState();
+
+  if (savedTime > 0 && !timerInterval) {
+    startTimer(savedTime);
+  }
 
   addSudokuCoachLink(initialPuzzleString);
 
@@ -3205,11 +3211,6 @@ function savePuzzleTimer() {
 function loadPuzzleTimer(savedTimeFromStorage) {
   resetTimerState();
 
-  // Do not start a timer for custom puzzles or if the puzzle key is missing.
-  // if (isCustomPuzzle || !currentPuzzleKey) {
-  //   return;
-  // }
-
   // Prioritize the time saved during the current session.
   const inSessionTime = puzzleTimers[currentPuzzleKey];
 
@@ -3217,7 +3218,9 @@ function loadPuzzleTimer(savedTimeFromStorage) {
   const timeToStart =
     typeof inSessionTime === "number" ? inSessionTime : savedTimeFromStorage;
 
-  startTimer(timeToStart > 0 ? timeToStart : 0);
+  // MODIFIED: Set time but DO NOT start the interval automatically
+  currentElapsedTime = timeToStart > 0 ? timeToStart : 0;
+  puzzleTimerEl.textContent = formatTime(currentElapsedTime);
 }
 
 function hasLogicChanged(stateA, stateB) {
