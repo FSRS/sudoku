@@ -55,6 +55,11 @@ let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
 let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
 let lineColorPalette = []; // Specific palette for lines
 
+const lastUsedColors = {
+  draw: { solid: null, dash: null },
+  color: { cell: null, candidate: null },
+};
+
 // --- UI Update Functions ---
 
 function updateColorPalettes(isDarkMode) {
@@ -1938,20 +1943,25 @@ function handleModeChange(e) {
     }
   }
 
-  // --- NEW: Always reset Selected Color to #1 when in Color/Draw modes ---
   if (currentMode === "color" || currentMode === "draw") {
     let activePalette;
+    let savedColor = null;
+
     if (currentMode === "draw") {
       activePalette = lineColorPalette;
+      savedColor = lastUsedColors.draw[drawSubMode];
     } else {
       activePalette =
         coloringSubMode === "candidate"
           ? candidateColorPalette
           : cellColorPalette;
+      savedColor = lastUsedColors.color[coloringSubMode];
     }
 
-    // Reset to the first color (Label "1")
-    if (activePalette && activePalette.length > 0) {
+    // Use saved color if it exists; otherwise fallback to first color in palette
+    if (savedColor) {
+      selectedColor = savedColor;
+    } else if (activePalette && activePalette.length > 0) {
       selectedColor = activePalette[0];
     }
   } else {
@@ -2047,6 +2057,12 @@ function handleNumberPadClick(e) {
   // Handle Color Selection (Color Mode OR Draw Mode)
   if (currentMode === "color" || currentMode === "draw") {
     selectedColor = btn.dataset.color;
+
+    if (currentMode === "draw") {
+      lastUsedColors.draw[drawSubMode] = selectedColor;
+    } else {
+      lastUsedColors.color[coloringSubMode] = selectedColor;
+    }
 
     // Visual update for buttons
     numberPad
