@@ -54,6 +54,7 @@ let drawSubMode = "solid"; // "solid" or "dash"
 let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
 let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
 let lineColorPalette = []; // Specific palette for lines
+let hadUsedHint = false;
 
 const lastUsedColors = {
   draw: { solid: null, dash: null },
@@ -1373,6 +1374,8 @@ function setupEventListeners() {
     }
 
     if (vagueHintMessage) {
+      hadUsedHint = true; // Mark hint as used
+      savePuzzleProgress(); // Save immediately so reloading doesn't reset it
       hintClickCount++; // Increment click count
 
       let message = "";
@@ -2399,6 +2402,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   customScoreEvaluated = -1;
   isLoadingSavedGame = false;
   lastValidScore = 0;
+  hadUsedHint = false;
 
   // 1. Detect if input is an ASCII grid (must have structure)
   const isMultiLine = puzzleString.includes("|") && puzzleString.includes("\n");
@@ -2763,6 +2767,7 @@ function savePuzzleProgress() {
       lines: drawnLines,
       time: Math.max(0, Math.floor(currentElapsedTime)),
       lampTimes: lampTimestamps,
+      usedHint: hadUsedHint,
     };
 
     if (existingSaveIndex > -1) {
@@ -2812,6 +2817,8 @@ function applySavedProgress(puzzleData) {
   } else {
     drawnLines = [];
   }
+
+  hadUsedHint = savedGame.usedHint !== undefined ? savedGame.usedHint : true;
 
   if (savedGame.puzzle !== puzzleData.puzzle) {
     allSaves.splice(savedGameIndex, 1);
@@ -2983,7 +2990,6 @@ function generateDiscordShareText() {
   const title = "[fsrs Daily Sudoku](https://fsrs.darksabun.club/sudoku.html)";
   const dateVal = dateSelect.value;
 
-  // --- FIX START: Restore the original dynamic date logic ---
   let puzzleDateStr = new Date().toISOString().slice(0, 10);
   if (dateVal && /^\d{8}$/.test(dateVal)) {
     puzzleDateStr = `${dateVal.slice(0, 4)}-${dateVal.slice(
@@ -2991,7 +2997,6 @@ function generateDiscordShareText() {
       6,
     )}-${dateVal.slice(6, 8)}`;
   }
-  // --- FIX END ---
 
   const level = parseInt(levelSelect.value, 10);
   const levelWord = difficultyWords[level] || "Unknown";
@@ -3030,7 +3035,12 @@ function generateDiscordShareText() {
   const startingColor = levelInfo[level].color;
   const startingRank = colorHierarchy[startingColor] || 9;
 
-  const levelStr = `${levelInfo[level].emoji} Level ${level} (${levelWord})`;
+  let levelStr = `${levelInfo[level].emoji} Level ${level} (${levelWord})`;
+
+  // Append star if hints were never used
+  if (!hadUsedHint) {
+    levelStr += " :star:";
+  }
 
   let timeDetails = "";
   for (const item of accomplishmentOrder) {
