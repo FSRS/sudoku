@@ -1370,19 +1370,13 @@ function setupEventListeners() {
     dateModal.classList.remove("flex");
     dateSelect.value = dateSelect.querySelector("option").value;
   });
-  vagueHintBtn.addEventListener("click", () => {
-    if (isBoardIdenticalToSolution()) {
-      showMessage("The Sudoku is already solved!", "green");
-      return;
-    }
-    if (currentLampColor === "gray") {
-      showMessage("No hint available for an invalid puzzle.", "red");
-      return;
-    } else if (currentLampColor === "black") {
-      showMessage("Hint unavailable: a wrong progress has been made.", "red");
-      return;
-    }
+  // 1. Select the new modal elements
+  const hintModal = document.getElementById("hint-confirm-modal");
+  const hintConfirmBtn = document.getElementById("hint-confirm-btn");
+  const hintCancelBtn = document.getElementById("hint-cancel-btn");
 
+  // 2. Define the core hint logic (extracted from the original click handler)
+  const executeHint = () => {
     if (vagueHintMessage) {
       hadUsedHint = true;
       savePuzzleProgress();
@@ -1458,6 +1452,49 @@ function setupEventListeners() {
     } else {
       showMessage("Hint not found!", "orange");
     }
+  };
+
+  // 3. Update the main button listener
+  vagueHintBtn.addEventListener("click", (e) => {
+    // A. Validation Checks (Keep these before the modal)
+    if (isBoardIdenticalToSolution()) {
+      showMessage("The Sudoku is already solved!", "green");
+      return;
+    }
+    if (currentLampColor === "gray") {
+      showMessage("No hint available for an invalid puzzle.", "red");
+      return;
+    } else if (currentLampColor === "black") {
+      showMessage("Hint unavailable: a wrong progress has been made.", "red");
+      return;
+    }
+    if (!vagueHintMessage) {
+      showMessage("Hint not found!", "orange");
+      return;
+    }
+
+    // B. Modal Logic
+    if (!hadUsedHint) {
+      // If first time, show confirmation
+      hintModal.classList.remove("hidden");
+      hintModal.classList.add("flex");
+    } else {
+      // If already used, execute immediately
+      executeHint();
+    }
+  });
+
+  // 4. Add listeners for the new modal buttons
+  hintConfirmBtn.addEventListener("click", () => {
+    hintModal.classList.add("hidden");
+    hintModal.classList.remove("flex");
+    executeHint(); // This sets hadUsedHint = true inside the function
+  });
+
+  hintCancelBtn.addEventListener("click", () => {
+    hintModal.classList.add("hidden");
+    hintModal.classList.remove("flex");
+    // Do nothing, hadUsedHint remains false
   });
   exptModeBtn.addEventListener("click", (e) => {
     e.stopPropagation();

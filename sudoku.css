@@ -1325,6 +1325,10 @@ button:disabled:hover {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 100; /* Increased to 100 to match the HTML intent and beat pencil marks (30) */
 }
+#hint-confirm-modal {
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 100; /* Increased to 100 to match the HTML intent and beat pencil marks (30) */
+}
 #candidate-modal > div,
 #date-modal > div {
   background-color: var(--nc-header-bg);
@@ -1672,12 +1676,14 @@ button:disabled:hover {
     outline-offset: 2px;
   }
   #date-cancel-btn,
-  #close-modal-btn {
+  #close-modal-btn,
+  #hint-cancel-btn {
     background-color: #4b5563;
     color: #e5e7eb;
   }
   #date-cancel-btn:hover,
-  #close-modal-btn:hover {
+  #close-modal-btn:hover,
+  #hint-cancel-btn:hover {
     background-color: #374151;
   }
 
