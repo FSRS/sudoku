@@ -2158,6 +2158,21 @@ async function populateSelectors() {
   dateSelect.appendChild(unlimitedOption);
 }
 
+/**
+ * Decompresses a puzzle string by converting letters a-z back into dots.
+ * a = 1 dot, b = 2 dots, ... z = 26 dots.
+ */
+function decompressPuzzleString(str) {
+  if (!str) return "";
+  // Check if string needs decompression (contains letters)
+  if (!/[a-z]/.test(str)) return str;
+
+  return str.replace(/[a-z]/g, (char) => {
+    // 'a' is code 97. 97 - 96 = 1 dot.
+    return ".".repeat(char.charCodeAt(0) - 96);
+  });
+}
+
 async function findAndLoadSelectedPuzzle() {
   // 1. Handle "Unlimited" Mode
   if (dateSelect.value === "unlimited") {
@@ -2180,17 +2195,29 @@ async function findAndLoadSelectedPuzzle() {
       if (!response.ok) throw new Error(`Failed to fetch ${filename}`);
 
       const text = await response.text();
+
       const lines = text
         .split(/\r?\n/)
         .map((l) => l.trim())
-        .filter((l) => l.length === 81);
+        .filter((l) => l.length > 0); // Allow compressed length (shorter than 81)
 
       if (lines.length === 0)
         throw new Error("Puzzle file is empty or invalid.");
 
-      // [REQ 4] Always pick a random line (ensures new puzzle on re-load)
+      // Pick random line first, THEN decompress (Save CPU)
       const randomIndex = Math.floor(Math.random() * lines.length);
-      const puzzleStr = lines[randomIndex];
+      const rawString = lines[randomIndex];
+      const puzzleStr = decompressPuzzleString(rawString);
+
+      // Validation check after decompression
+      if (puzzleStr.length !== 81) {
+        console.error(
+          "Invalid decompressed length:",
+          puzzleStr.length,
+          rawString,
+        );
+        throw new Error("Puzzle integrity check failed.");
+      }
 
       puzzleStringInput.value = puzzleStr;
 
