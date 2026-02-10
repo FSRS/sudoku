@@ -620,7 +620,7 @@ function renderBoard() {
 
           if (allowInteraction) {
             mark.addEventListener("mouseover", (e) => {
-              e.stopPropagation(); // Prevents the cell from getting the event
+              e.stopPropagation();
               currentlyHoveredElement = mark;
               if (
                 currentMode === "color" &&
@@ -631,7 +631,7 @@ function renderBoard() {
               }
             });
             mark.addEventListener("mouseout", (e) => {
-              e.stopPropagation(); // Prevents the cell from getting the event
+              e.stopPropagation();
               currentlyHoveredElement = null;
               mark.style.color = state.pencilColors.get(i) || "";
             });
@@ -658,6 +658,9 @@ function renderBoard() {
                 e.stopPropagation();
                 const cellState = boardState[row][col];
                 if (cellState.pencils.has(i)) {
+                  // FIX: Start timer if not running
+                  if (!timerInterval) startTimer(currentElapsedTime);
+
                   cellState.pencils.delete(i);
                   saveState();
                   onBoardUpdated();
@@ -666,6 +669,10 @@ function renderBoard() {
                 e.stopPropagation();
                 const cellState = boardState[row][col];
                 if (cellState.isGiven) return;
+
+                // FIX: Start timer if not running
+                if (!timerInterval) startTimer(currentElapsedTime);
+
                 cellState.value = i;
                 cellState.pencils.clear();
                 autoEliminatePencils(row, col, i);
@@ -1178,18 +1185,13 @@ function setupEventListeners() {
     window.matchMedia("(prefers-color-scheme: dark)").matches;
   updateColorPalettes(isDarkMode);
 
-  loadExperimentalModePreference(); // Load the user's preference first
+  loadExperimentalModePreference();
   gridContainer.addEventListener("click", handleCellClick);
-
-  // MODIFIED: Pass the event object 'e' to the handler
   modeSelector.addEventListener("click", (e) => handleModeChange(e));
-
   numberPad.addEventListener("click", handleNumberPadClick);
   loadBtn.addEventListener("click", () => loadPuzzle(puzzleStringInput.value));
 
-  // --- Auto-format & Auto-resize Textarea ---
   puzzleStringInput.addEventListener("input", function () {
-    // 1. Auto-format valid 81-char strings into 9 lines
     const raw = this.value.replace(/\s/g, "");
     if (/^[0-9.]+$/.test(raw)) {
       const formatted = raw.match(/.{1,9}/g).join("\n");
@@ -1197,10 +1199,8 @@ function setupEventListeners() {
         this.value = formatted;
       }
     }
-
-    // 2. Auto-resize height
-    this.style.height = "auto"; // Reset to shrink if needed
-    this.style.height = this.scrollHeight + "px"; // Expand to fit content
+    this.style.height = "auto";
+    this.style.height = this.scrollHeight + "px";
   });
 
   solveBtn.addEventListener("click", solve);
@@ -1220,7 +1220,6 @@ function setupEventListeners() {
   formatToggleBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
-    // updateButtonLabels();
     const tip = `Candidate display set to ${
       candidatePopupFormat === "A" ? "Numpad (A)" : "Phone (B)"
     } layout.`;
@@ -1233,8 +1232,30 @@ function setupEventListeners() {
       showCandidatePopup(selectedCell.row, selectedCell.col);
     }
   });
+
+  // [REQ 4] Allow re-selecting the same level in Unlimited Mode
+  // If the user clicks the menu, we temporarily clear the selection (visually)
+  // so that clicking the SAME number triggers a 'change' event.
+  levelSelect.addEventListener("mousedown", () => {
+    if (dateSelect.value === "unlimited") {
+      levelSelect.dataset.lastVal = levelSelect.value;
+      levelSelect.value = "";
+    }
+  });
+  // If user clicks away without selecting, restore the old value
+  levelSelect.addEventListener("blur", () => {
+    if (dateSelect.value === "unlimited" && levelSelect.value === "") {
+      levelSelect.value = levelSelect.dataset.lastVal;
+    }
+  });
+
+  levelSelect.addEventListener("change", findAndLoadSelectedPuzzle);
+
   dateSelect.addEventListener("change", () => {
     if (dateSelect.value === "custom") {
+      const dateModal = document.getElementById("date-modal");
+      const dateInput = document.getElementById("date-input");
+      const dateError = document.getElementById("date-error");
       dateModal.classList.remove("hidden");
       dateModal.classList.add("flex");
       dateInput.value = "";
@@ -1244,7 +1265,7 @@ function setupEventListeners() {
       findAndLoadSelectedPuzzle();
     }
   });
-  levelSelect.addEventListener("change", findAndLoadSelectedPuzzle);
+
   document.addEventListener("keydown", handleKeyDown);
 
   const isMobile = window.innerWidth <= 550;
@@ -1306,17 +1327,6 @@ function setupEventListeners() {
     if (val.length > 6) formatted += "-" + val.slice(6, 8);
     dateInput.value = formatted;
   });
-  dateSelect.addEventListener("change", () => {
-    if (dateSelect.value === "custom") {
-      dateModal.classList.remove("hidden");
-      dateModal.classList.add("flex");
-      dateInput.value = "";
-      dateError.textContent = "";
-      dateInput.focus();
-      return;
-    }
-    findAndLoadSelectedPuzzle();
-  });
   dateSubmitBtn.addEventListener("click", () => {
     const rawValue = dateInput.value.replace(/\D/g, "");
     if (!isValidDate(rawValue)) {
@@ -1374,12 +1384,12 @@ function setupEventListeners() {
     }
 
     if (vagueHintMessage) {
-      hadUsedHint = true; // Mark hint as used
-      savePuzzleProgress(); // Save immediately so reloading doesn't reset it
-      hintClickCount++; // Increment click count
+      hadUsedHint = true;
+      savePuzzleProgress();
+      hintClickCount++;
 
       let message = "";
-      let color = "green"; // Default text color
+      let color = "green";
 
       if (!currentHintData || !currentHintData.hint) {
         message = `Vague Hint: ${vagueHintMessage}`;
@@ -1387,23 +1397,16 @@ function setupEventListeners() {
         const h = currentHintData.hint;
         const { r, c, num, type } = currentHintData;
 
-        // --- 3-Tier Hint Logic ---
         if (hintClickCount === 1) {
-          // Tier 1: Technique Name Only
           message = `Vague Hint: ${h.name}`;
         } else if (hintClickCount === 2) {
-          // Tier 2: Specific Info
           message = `Hint: ${h.name} - ${h.mainInfo || ""}`;
         } else {
-          // Tier 3: Concrete Action (Formatted)
           let actionStr = "";
-
           if (type === "place") {
             actionStr = `r${r + 1}c${c + 1} = ${num}`;
           } else {
             const cells = currentHintData.cells || [];
-
-            // 1. Group by removal digit
             const removalsByDigit = new Map();
             cells.forEach((cell) => {
               if (!removalsByDigit.has(cell.num)) {
@@ -1411,35 +1414,25 @@ function setupEventListeners() {
               }
               removalsByDigit.get(cell.num).push({ r: cell.r, c: cell.c });
             });
-
-            // 2. Format each group with compact notation
             const groups = [];
             const sortedDigits = Array.from(removalsByDigit.keys()).sort(
               (a, b) => a - b,
             );
-
             for (const d of sortedDigits) {
               const cellGroup = removalsByDigit.get(d);
-
-              // Sort cells: Row first, then Column
               cellGroup.sort((a, b) => a.r - b.r || a.c - b.c);
-
               let locStr = "";
               const firstR = cellGroup[0].r;
               const isSameRow = cellGroup.every((c) => c.r === firstR);
               const firstC = cellGroup[0].c;
               const isSameCol = cellGroup.every((c) => c.c === firstC);
-
               if (isSameRow) {
-                // Same Row: r1c78
                 const cols = cellGroup.map((c) => c.c + 1).join("");
                 locStr = `r${firstR + 1}c${cols}`;
               } else if (isSameCol) {
-                // Same Column: r23c8
                 const rows = cellGroup.map((c) => c.r + 1).join("");
                 locStr = `r${rows}c${firstC + 1}`;
               } else {
-                // Mixed: Group by Row (r1c45,r2c6)
                 const rowMap = new Map();
                 for (const c of cellGroup) {
                   if (!rowMap.has(c.r)) rowMap.set(c.r, []);
@@ -1452,20 +1445,15 @@ function setupEventListeners() {
                 }
                 locStr = parts.join(",");
               }
-
               groups.push(`${locStr}<>${d}`);
             }
-
             actionStr = groups.join(", ");
           }
-
           message = `Concrete Hint: ${h.name} -> ${actionStr}`;
           color = "blue";
           hintClickCount = 0;
         }
       }
-
-      // Map "blue" to appropriate class or pass directly if supported
       showMessage(message, color === "blue" ? "blue" : "green");
     } else {
       showMessage("Hint not found!", "orange");
@@ -1494,8 +1482,6 @@ function setupEventListeners() {
         : "Expt. OFF: Click-to-set/remove candidates disabled.";
     }
     showMessage(tip, "gray");
-
-    // Add the same mobile tooltip logic here
     if (isMobile) {
       if (activeTooltipElement) {
         hideTooltip(activeTooltipElement);
@@ -1503,42 +1489,29 @@ function setupEventListeners() {
       showTooltip(exptModeBtn);
       activeTooltipElement = exptModeBtn;
     } else {
-      // For desktop, if the tooltip is currently visible when clicked, hide it.
       if (exptModeBtn.tooltipInstance) {
         hideTooltip(exptModeBtn);
       }
     }
   });
 
-  // Attach tooltip events to all elements that have the data-tooltip attribute.
   document.querySelectorAll("[data-tooltip]").forEach(attachTooltipEvents);
-
-  // Manually attach listeners to the remaining dynamic buttons.
   attachTooltipEvents(vagueHintBtn);
-
-  // --- Global listener to close mobile tooltips when clicking away ---
   document.addEventListener("click", () => {
     if (activeTooltipElement) {
       hideTooltip(activeTooltipElement);
       activeTooltipElement = null;
     }
   });
-  // --- Year Sticker Interaction ---
   const sticker = document.getElementById("year-sticker");
   if (sticker) {
     sticker.addEventListener("click", (e) => {
-      // Prevent any other click actions (just in case)
       e.stopPropagation();
       e.preventDefault();
-
-      // Add the falling class to trigger CSS animation
       sticker.classList.add("sticker-falling");
-
       setTimeout(() => {
-        // This triggers the CSS transition we just added.
-        // The width shrinks to 0 over 0.8 seconds, causing the title to slide center.
         sticker.classList.add("sticker-collapsed");
-      }, 1200); // Start sliding slightly before the drop finishes (1.5s) for a smoother feel
+      }, 1200);
     });
   }
   document.addEventListener("mousemove", (e) => {
@@ -1548,16 +1521,11 @@ function setupEventListeners() {
       const borderTop = gridContainer.clientTop || 0;
       const innerWidth = gridContainer.clientWidth;
       const innerHeight = gridContainer.clientHeight;
-
       const relativeX = e.clientX - gridRect.left - borderLeft;
       const relativeY = e.clientY - gridRect.top - borderTop;
-
       const xPct = (relativeX / innerWidth) * 100;
       const yPct = (relativeY / innerHeight) * 100;
-
       drawingState.currentPos = { x: xPct, y: yPct };
-
-      // FIX: Call the optimized update function
       requestAnimationFrame(updatePreview);
     }
   });
@@ -2183,9 +2151,76 @@ async function populateSelectors() {
   customOption.value = "custom";
   customOption.textContent = "Enter a date";
   dateSelect.appendChild(customOption);
+
+  const unlimitedOption = document.createElement("option");
+  unlimitedOption.value = "unlimited";
+  unlimitedOption.textContent = "Unlimited";
+  dateSelect.appendChild(unlimitedOption);
 }
 
-function findAndLoadSelectedPuzzle() {
+async function findAndLoadSelectedPuzzle() {
+  // 1. Handle "Unlimited" Mode
+  if (dateSelect.value === "unlimited") {
+    let level = parseInt(levelSelect.value, 10);
+
+    // [REQ 3] Fallback Level 10 to 9
+    if (level >= 10) {
+      level = 9;
+      // Visually update the selector so the user sees the change
+      levelSelect.value = "9";
+    }
+
+    const fileIndex = String(level).padStart(2, "0");
+    const filename = `./sudoku/unlimited/Lv${fileIndex}.txt`;
+
+    showMessage(`Fetching Unlimited Puzzle (Lv. ${level})...`, "blue");
+
+    try {
+      const response = await fetch(filename);
+      if (!response.ok) throw new Error(`Failed to fetch ${filename}`);
+
+      const text = await response.text();
+      const lines = text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.length === 81);
+
+      if (lines.length === 0)
+        throw new Error("Puzzle file is empty or invalid.");
+
+      // [REQ 4] Always pick a random line (ensures new puzzle on re-load)
+      const randomIndex = Math.floor(Math.random() * lines.length);
+      const puzzleStr = lines[randomIndex];
+
+      puzzleStringInput.value = puzzleStr;
+
+      // [REQ 2] Pass "Unlimited" metadata so loadPuzzle doesn't reset the Date selector
+      const unlimitedData = {
+        date: "unlimited",
+        level: level,
+        score: 0,
+        puzzle: puzzleStr,
+      };
+
+      loadPuzzle(puzzleStr, unlimitedData);
+
+      // Manually set the label since we want "Unlimited" prefix
+      puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
+
+      // Clear score initially
+      puzzleScoreEl.textContent = "";
+
+      showMessage("Loaded Unlimited Puzzle!", "green");
+    } catch (err) {
+      console.error(err);
+      showMessage("Error loading unlimited puzzle.", "red");
+      initBoardState();
+      renderBoard();
+    }
+    return;
+  }
+
+  // 2. Handle Standard Date/Level Selection
   if (dateSelect.value === "custom") {
     dateSelect.value = dateSelect.options[0].value;
   }
@@ -2392,25 +2427,33 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   lampTimestamps = {};
   previousLampColor = null;
 
+  // [REQ 1] Prevent Double Evaluation
+  // Incrementing this immediately cancels any pending async evaluations from previous states
+  currentEvaluationId++;
+
   document.querySelectorAll(".custom-tooltip").forEach((tooltip) => {
     tooltip.remove();
   });
   activeTooltipElement = null;
 
-  isCustomPuzzle = puzzleData === null;
+  // Detect Unlimited Mode
+  const isUnlimited = puzzleData && puzzleData.date === "unlimited";
+
+  // Identify if it's strictly a custom puzzle (null data) or Unlimited
+  isCustomPuzzle = puzzleData === null || isUnlimited;
+
   isCustomDifficultyEvaluated = false;
   customScoreEvaluated = -1;
   isLoadingSavedGame = false;
   lastValidScore = 0;
   hadUsedHint = false;
 
-  // 1. Detect if input is an ASCII grid (must have structure)
+  // 1. Detect if input is an ASCII grid
   const isMultiLine = puzzleString.includes("|") && puzzleString.includes("\n");
   let parsedGridCells = null;
 
   if (isMultiLine) {
     const lines = puzzleString.trim().split("\n");
-    // Filter rows that match the ASCII grid structure
     const dataRows = lines.filter((line) => line.trim().startsWith("|"));
 
     if (dataRows.length === 9) {
@@ -2418,7 +2461,6 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       let isParseValid = true;
 
       for (const row of dataRows) {
-        // Extract all digit sequences
         const matches = row.match(/\d+/g);
         if (!matches || matches.length !== 9) {
           isParseValid = false;
@@ -2438,12 +2480,10 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   drawingState = null;
   renderLines();
 
-  // 2. Prepare the Normalized String (81 chars of dots/digits)
+  // 2. Prepare the Normalized String
   let normalizedPuzzleString = "";
 
   if (parsedGridCells) {
-    // --- ASCII Grid Parsing Logic ---
-    // Helper to identify peers for single-digit candidate detection
     const getPeers = (idx) => {
       const peers = new Set();
       const r = Math.floor(idx / 9);
@@ -2498,27 +2538,17 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     }
     initialPuzzleString = normalizedPuzzleString;
   } else {
-    // --- Standard String Logic (Single or Multi-line) ---
-    // 1. Remove ALL whitespace/newlines to handle the user's case
     const cleanString = puzzleString.replace(/\s/g, "");
-
-    // 2. Validate length
     if (cleanString.length !== 81 || !/^[0-9\.]+$/.test(cleanString)) {
       showMessage("Error: Invalid puzzle string.", "red");
       addSudokuCoachLink(null);
       return;
     }
-
     initialPuzzleString = cleanString;
-
-    // 3. Parse Strict Digits
     for (let i = 0; i < 81; i++) {
       const char = cleanString[i];
       const row = Math.floor(i / 9);
       const col = i % 9;
-
-      // STRICT CHECK: Only parse if char is '1' through '9'
-      // This ignores '.', '0', or any accidental slip-ups
       if (char >= "1" && char <= "9") {
         const num = parseInt(char, 10);
         boardState[row][col].value = num;
@@ -2527,16 +2557,12 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     }
   }
 
-  // --- Common Logic Below ---
-
-  // Build validation board from the normalized initialPuzzleString
   const boardForValidation = Array(9)
     .fill(null)
     .map(() => Array(9).fill(0));
 
   for (let i = 0; i < 81; i++) {
     const char = initialPuzzleString[i];
-    // Same strict check for validation board
     if (char >= "1" && char <= "9") {
       boardForValidation[Math.floor(i / 9)][i % 9] = parseInt(char, 10);
     }
@@ -2545,6 +2571,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   let savedTime = 0;
   let wasSaveLoaded = false;
 
+  // Only apply saved progress if it's a Standard Daily puzzle
   if (!isCustomPuzzle && puzzleData) {
     savedTime = applySavedProgress(puzzleData);
     if (savedTime > 0) {
@@ -2574,13 +2601,19 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   puzzleInfoContainer.classList.remove("hidden");
   puzzleTimerEl.classList.remove("hidden");
 
+  // [REQ 2] UI Updates: preserve "Unlimited" mode if active
   if (puzzleData) {
     currentPuzzleScore = puzzleData.score;
-    puzzleLevelEl.textContent = `Lv. ${puzzleData.level} (${
-      difficultyWords[puzzleData.level]
-    })`;
-    puzzleScoreEl.textContent = `~${puzzleData.score}`;
+
+    if (!isUnlimited) {
+      puzzleLevelEl.textContent = `Lv. ${puzzleData.level} (${
+        difficultyWords[puzzleData.level]
+      })`;
+      puzzleScoreEl.textContent = `~${puzzleData.score}`;
+    }
+    // For Unlimited, findAndLoadSelectedPuzzle handles the labels
   } else {
+    // Strictly Custom (User Typed/Pasted)
     currentPuzzleScore = 0;
     puzzleLevelEl.textContent = "";
     puzzleScoreEl.textContent = "";
@@ -2606,7 +2639,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   addSudokuCoachLink(initialPuzzleString);
 
   if (isCustomPuzzle) {
-    showMessage("Custom puzzle loaded!", "green");
+    if (!isUnlimited) showMessage("Custom puzzle loaded!", "green");
   } else if (!wasSaveLoaded && puzzleData) {
     showMessage(
       `Loaded puzzle for ${
@@ -2616,7 +2649,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     );
   }
 
-  if (puzzleData) {
+  if (puzzleData && !isUnlimited) {
     setTimeout(() => {
       const tip = levelTips[puzzleData.level];
       if (tip) {
@@ -2636,17 +2669,12 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }, 5000);
 
   setTimeout(() => {
-    // 1. Identify which digits exist in the initial puzzle
     const presentDigits = new Set();
-    // initialPuzzleString is the normalized 81-char string of the starting grid
     for (const char of initialPuzzleString) {
       if (char >= "1" && char <= "9") {
         presentDigits.add(char);
       }
     }
-
-    // 2. If we have fewer than 9 unique digits, at least one is missing.
-    // Only show the tip in this specific case.
     if (presentDigits.size < 9) {
       const highlightTip =
         "Tip: Select a clue cell and press a number to toggle highlighting.";

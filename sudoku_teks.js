@@ -4998,7 +4998,12 @@ const techniques = {
       if (chain.length > maxLength) return;
 
       const shouldCheck = !options.useGrouped || hasGrouped;
-      if (shouldCheck && chain.length % 2 === 0 && chain.length >= 4) {
+      if (
+        shouldCheck &&
+        chain.length % 2 === 0 &&
+        chain.length >= 6 &&
+        chain[0].key > chain[chain.length - 1].key
+      ) {
         const start = chain[0];
         const end = chain[chain.length - 1];
 
@@ -5009,7 +5014,7 @@ const techniques = {
           const isContinuous = wNeighbors.some((n) => n.key === start.key);
 
           if (isContinuous) {
-            if ((start.key < end.key) | (chain.length === 4)) return;
+            // if ((start.key < end.key) | (chain.length === 4)) return;
             const fullChain = [...chain, start];
 
             for (let i = 1; i < fullChain.length - 1; i += 2) {
@@ -5055,14 +5060,11 @@ const techniques = {
                 },
               };
               return;
-            } else {
-              // Optimization: Chain is continuous but useless. Stop extending.
-              return;
             }
           }
 
           // --- Standard Check: Discontinuous Chain (Length >= 6) ---
-          if (!isContinuous && chain.length >= 6 && start.key > end.key) {
+          if (!isContinuous) {
             // Note: If it was continuous, we returned above. So this is strictly discontinuous.
 
             if (start.digit === end.digit) {
