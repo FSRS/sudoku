@@ -2178,72 +2178,71 @@ async function findAndLoadSelectedPuzzle() {
   if (dateSelect.value === "unlimited") {
     let level = parseInt(levelSelect.value, 10);
 
-    // [REQ 3] Fallback Level 10 to 9
+    // Fallback Level 10 to 9
     if (level >= 10) {
       level = 9;
-      // Visually update the selector so the user sees the change
       levelSelect.value = "9";
     }
 
-    const fileIndex = String(level).padStart(2, "0");
-    const filename = `./sudoku/unlimited/Lv${fileIndex}.txt`;
-
-    showMessage(`Fetching Unlimited Puzzle (Lv. ${level})...`, "blue");
-
+    // CHECK FOR SAVED GAME
+    let allSaves = [];
     try {
-      const response = await fetch(filename);
-      if (!response.ok) throw new Error(`Failed to fetch ${filename}`);
+      const savedData = localStorage.getItem("sudokuSaves");
+      if (savedData) allSaves = JSON.parse(savedData);
+    } catch (e) {}
 
-      const text = await response.text();
+    const savedGame = allSaves.find(
+      (s) => s.date === "unlimited" && s.level === level,
+    );
 
-      const lines = text
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0); // Allow compressed length (shorter than 81)
-
-      if (lines.length === 0)
-        throw new Error("Puzzle file is empty or invalid.");
-
-      // Pick random line first, THEN decompress (Save CPU)
-      const randomIndex = Math.floor(Math.random() * lines.length);
-      const rawString = lines[randomIndex];
-      const puzzleStr = decompressPuzzleString(rawString);
-
-      // Validation check after decompression
-      if (puzzleStr.length !== 81) {
-        console.error(
-          "Invalid decompressed length:",
-          puzzleStr.length,
-          rawString,
-        );
-        throw new Error("Puzzle integrity check failed.");
-      }
-
-      puzzleStringInput.value = puzzleStr;
-
-      // [REQ 2] Pass "Unlimited" metadata so loadPuzzle doesn't reset the Date selector
-      const unlimitedData = {
-        date: "unlimited",
-        level: level,
-        score: 0,
-        puzzle: puzzleStr,
-      };
-
-      loadPuzzle(puzzleStr, unlimitedData);
-
-      // Manually set the label since we want "Unlimited" prefix
-      puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
-
-      // Clear score initially
-      puzzleScoreEl.textContent = "";
-
-      showMessage("Loaded Unlimited Puzzle!", "green");
-    } catch (err) {
-      console.error(err);
-      showMessage("Error loading unlimited puzzle.", "red");
+    if (savedGame) {
+      // CLEAR BOARD VISUALS immediately
       initBoardState();
       renderBoard();
+      document.getElementById("candidate-modal").classList.add("hidden");
+
+      // Show Resume Modal
+      const modal = document.getElementById("resume-modal");
+      const levelText = document.getElementById("resume-level-text");
+      const resumeBtn = document.getElementById("resume-btn");
+      const newGameBtn = document.getElementById("new-game-btn");
+
+      levelText.textContent = `Level ${level}`;
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+
+      // Define one-time handlers
+      resumeBtn.onclick = (e) => {
+        e.stopPropagation(); // STOP PROPAGATION
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+        puzzleStringInput.value = savedGame.puzzle;
+
+        const unlimitedData = {
+          date: "unlimited",
+          level: level,
+          score: 0,
+          puzzle: savedGame.puzzle,
+        };
+
+        loadPuzzle(savedGame.puzzle, unlimitedData);
+        puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
+      };
+
+      newGameBtn.onclick = (e) => {
+        e.stopPropagation(); // STOP PROPAGATION
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+        // Remove the old save since user chose New Game
+        removeCurrentPuzzleSave();
+        fetchUnlimitedPuzzle(level);
+      };
+
+      return; // Stop here, wait for user input
     }
+
+    // No save found, fetch new immediately
+    fetchUnlimitedPuzzle(level);
     return;
   }
 
@@ -2454,8 +2453,6 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   lampTimestamps = {};
   previousLampColor = null;
 
-  // [REQ 1] Prevent Double Evaluation
-  // Incrementing this immediately cancels any pending async evaluations from previous states
   currentEvaluationId++;
 
   document.querySelectorAll(".custom-tooltip").forEach((tooltip) => {
@@ -2463,10 +2460,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   });
   activeTooltipElement = null;
 
-  // Detect Unlimited Mode
   const isUnlimited = puzzleData && puzzleData.date === "unlimited";
-
-  // Identify if it's strictly a custom puzzle (null data) or Unlimited
   isCustomPuzzle = puzzleData === null || isUnlimited;
 
   isCustomDifficultyEvaluated = false;
@@ -2475,30 +2469,19 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   lastValidScore = 0;
   hadUsedHint = false;
 
-  // 1. Detect if input is an ASCII grid
+  // -- 1. Parse Puzzle String --
   const isMultiLine = puzzleString.includes("|") && puzzleString.includes("\n");
   let parsedGridCells = null;
-
   if (isMultiLine) {
     const lines = puzzleString.trim().split("\n");
     const dataRows = lines.filter((line) => line.trim().startsWith("|"));
-
     if (dataRows.length === 9) {
       const extractedCells = [];
-      let isParseValid = true;
-
-      for (const row of dataRows) {
+      dataRows.forEach((row) => {
         const matches = row.match(/\d+/g);
-        if (!matches || matches.length !== 9) {
-          isParseValid = false;
-          break;
-        }
-        extractedCells.push(...matches);
-      }
-
-      if (isParseValid && extractedCells.length === 81) {
-        parsedGridCells = extractedCells;
-      }
+        if (matches) extractedCells.push(...matches);
+      });
+      if (extractedCells.length === 81) parsedGridCells = extractedCells;
     }
   }
 
@@ -2506,9 +2489,6 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   drawnLines = [];
   drawingState = null;
   renderLines();
-
-  // 2. Prepare the Normalized String
-  let normalizedPuzzleString = "";
 
   if (parsedGridCells) {
     const getPeers = (idx) => {
@@ -2529,12 +2509,11 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       }
       return peers;
     };
-
+    let normalizedPuzzleString = "";
     for (let i = 0; i < 81; i++) {
       const cellData = parsedGridCells[i];
       const row = Math.floor(i / 9);
       const col = i % 9;
-
       let isCandidate = false;
       if (cellData.length === 1) {
         const digit = cellData;
@@ -2549,7 +2528,6 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       } else {
         isCandidate = true;
       }
-
       if (!isCandidate) {
         const num = parseInt(cellData, 10);
         boardState[row][col].value = num;
@@ -2587,7 +2565,6 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   const boardForValidation = Array(9)
     .fill(null)
     .map(() => Array(9).fill(0));
-
   for (let i = 0; i < 81; i++) {
     const char = initialPuzzleString[i];
     if (char >= "1" && char <= "9") {
@@ -2598,15 +2575,6 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   let savedTime = 0;
   let wasSaveLoaded = false;
 
-  // Only apply saved progress if it's a Standard Daily puzzle
-  if (!isCustomPuzzle && puzzleData) {
-    savedTime = applySavedProgress(puzzleData);
-    if (savedTime > 0) {
-      wasSaveLoaded = true;
-      isLoadingSavedGame = true;
-    }
-  }
-
   const initialBoardForSolution = boardForValidation.map((row) => [...row]);
   solveSudoku(initialBoardForSolution);
   solutionBoard = initialBoardForSolution;
@@ -2615,6 +2583,35 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     const validity = checkPuzzleUniqueness(boardForValidation);
     if (!validity.isValid) {
       setTimeout(() => showMessage(validity.message, "red"), 750);
+    }
+  }
+
+  // --- SPECIAL HANDLING FOR UNLIMITED: INITIAL EVALUATION ---
+  if (isUnlimited) {
+    // [FIX] If we loaded a score from the save, use it directly!
+    if (puzzleData && puzzleData.score > 0) {
+      customScoreEvaluated = puzzleData.score;
+      isCustomDifficultyEvaluated = true;
+    } else {
+      // Otherwise, we must evaluate. Use { waitForFrame: false } to minimize race conditions.
+      await evaluateBoardDifficulty({ waitForFrame: false });
+
+      // RETRY LOGIC: If evaluation aborted, retry once.
+      if (!isCustomDifficultyEvaluated) {
+        currentEvaluationId++;
+        await evaluateBoardDifficulty({ waitForFrame: false });
+      }
+    }
+  }
+
+  // --- APPLY SAVED PROGRESS ---
+  if (puzzleData) {
+    // For Unlimited, puzzleData is constructed manually
+    savedTime = applySavedProgress(puzzleData);
+    if (savedTime > 0) {
+      wasSaveLoaded = true;
+      isLoadingSavedGame = true;
+      showMessage("Resumed saved game.", "green");
     }
   }
 
@@ -2628,19 +2625,15 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   puzzleInfoContainer.classList.remove("hidden");
   puzzleTimerEl.classList.remove("hidden");
 
-  // [REQ 2] UI Updates: preserve "Unlimited" mode if active
+  // UI Labels
   if (puzzleData) {
     currentPuzzleScore = puzzleData.score;
-
     if (!isUnlimited) {
-      puzzleLevelEl.textContent = `Lv. ${puzzleData.level} (${
-        difficultyWords[puzzleData.level]
-      })`;
+      puzzleLevelEl.textContent = `Lv. ${puzzleData.level} (${difficultyWords[puzzleData.level]})`;
       puzzleScoreEl.textContent = `~${puzzleData.score}`;
     }
-    // For Unlimited, findAndLoadSelectedPuzzle handles the labels
+    // For Unlimited, the label is set in findAndLoadSelectedPuzzle
   } else {
-    // Strictly Custom (User Typed/Pasted)
     currentPuzzleScore = 0;
     puzzleLevelEl.textContent = "";
     puzzleScoreEl.textContent = "";
@@ -2651,12 +2644,17 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   savePuzzleTimer();
 
   currentPuzzleKey = isCustomPuzzle
-    ? null
+    ? isUnlimited
+      ? `unlimited-${puzzleData.level}`
+      : null
     : `${puzzleData.date}-${puzzleData.level}`;
 
   loadPuzzleTimer(savedTime);
-  await evaluateBoardDifficulty();
+
+  // Evaluate AGAIN to update the Lamp color based on current (potentially resumed) progress
   isLoadingSavedGame = false;
+  await evaluateBoardDifficulty();
+
   saveState();
 
   if (savedTime > 0 && !timerInterval) {
@@ -2666,12 +2664,11 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   addSudokuCoachLink(initialPuzzleString);
 
   if (isCustomPuzzle) {
-    if (!isUnlimited) showMessage("Custom puzzle loaded!", "green");
+    if (!isUnlimited && !wasSaveLoaded)
+      showMessage("Custom puzzle loaded!", "green");
   } else if (!wasSaveLoaded && puzzleData) {
     showMessage(
-      `Loaded puzzle for ${
-        dateSelect.options[dateSelect.selectedIndex].text
-      }, Level ${puzzleData.level}`,
+      `Loaded puzzle for ${dateSelect.options[dateSelect.selectedIndex].text}, Level ${puzzleData.level}`,
       "green",
     );
   }
@@ -2679,9 +2676,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   if (puzzleData && !isUnlimited) {
     setTimeout(() => {
       const tip = levelTips[puzzleData.level];
-      if (tip) {
-        showMessage(tip, "gray");
-      }
+      if (tip) showMessage(tip, "gray");
     }, 2000);
   }
 
@@ -2695,19 +2690,6 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     }
   }, 5000);
 
-  setTimeout(() => {
-    const presentDigits = new Set();
-    for (const char of initialPuzzleString) {
-      if (char >= "1" && char <= "9") {
-        presentDigits.add(char);
-      }
-    }
-    if (presentDigits.size < 9) {
-      const highlightTip =
-        "Tip: Select a clue cell and press a number to toggle highlighting.";
-      showMessage(highlightTip, "gray");
-    }
-  }, 8000);
   checkCompletion();
 }
 
@@ -2769,14 +2751,24 @@ function serializeProgress() {
 }
 
 function savePuzzleProgress() {
-  if (isCustomPuzzle || isSolvingViaButton) return; // Do not save custom puzzles or when auto-solving
+  // Allow saving if it's a standard daily puzzle OR an Unlimited puzzle
+  const isUnlimited = dateSelect.value === "unlimited";
 
-  const selectedDate = parseInt(dateSelect.value, 10);
+  // Do not save strictly custom (user-entered) puzzles or during auto-solve
+  if ((isCustomPuzzle && !isUnlimited) || isSolvingViaButton) return;
+
+  const selectedDate = isUnlimited
+    ? "unlimited"
+    : parseInt(dateSelect.value, 10);
   const selectedLevel = parseInt(levelSelect.value, 10);
 
-  if (!selectedDate || isNaN(selectedLevel) || !initialPuzzleString) return;
+  if (
+    (!selectedDate && selectedDate !== "unlimited") ||
+    isNaN(selectedLevel) ||
+    !initialPuzzleString
+  )
+    return;
 
-  // --- MODIFICATION: Check if any user input exists ---
   let hasUserInput = false;
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -2789,7 +2781,7 @@ function savePuzzleProgress() {
           cell.pencilColors.size > 0
         ) {
           hasUserInput = true;
-          break; // Found input, no need to check further
+          break;
         }
       }
     }
@@ -2808,12 +2800,12 @@ function savePuzzleProgress() {
     allSaves = [];
   }
 
+  // Find existing save for this specific Date + Level
   const existingSaveIndex = allSaves.findIndex(
     (s) => s.date === selectedDate && s.level === selectedLevel,
   );
 
   if (hasUserInput) {
-    // If user made progress, create or update the save file.
     const currentSave = {
       date: selectedDate,
       level: selectedLevel,
@@ -2823,27 +2815,206 @@ function savePuzzleProgress() {
       time: Math.max(0, Math.floor(currentElapsedTime)),
       lampTimes: lampTimestamps,
       usedHint: hadUsedHint,
+      // [FIX] Save the initial difficulty score if available
+      difficultyScore: customScoreEvaluated > 0 ? customScoreEvaluated : 0,
     };
 
     if (existingSaveIndex > -1) {
-      allSaves[existingSaveIndex] = currentSave; // Update existing save
+      // Preserve difficultyScore if we already have it but current session lost it (edge case)
+      if (
+        currentSave.difficultyScore === 0 &&
+        allSaves[existingSaveIndex].difficultyScore > 0
+      ) {
+        currentSave.difficultyScore =
+          allSaves[existingSaveIndex].difficultyScore;
+      }
+      allSaves[existingSaveIndex] = currentSave; // Overwrite
     } else {
-      allSaves.push(currentSave); // Add new save
+      allSaves.push(currentSave); // Add new
     }
 
-    // Limit total saves to prevent localStorage from filling up
     if (allSaves.length > 999) {
-      allSaves.shift(); // Remove the oldest save
+      allSaves.shift();
     }
   } else {
-    // If no user input, remove any existing save for this puzzle.
+    // If board is empty (reset), remove the save
     if (existingSaveIndex > -1) {
       allSaves.splice(existingSaveIndex, 1);
     }
   }
 
-  // Update localStorage with the potentially modified saves array.
   localStorage.setItem("sudokuSaves", JSON.stringify(allSaves));
+}
+
+function removeCurrentPuzzleSave() {
+  const isUnlimited = dateSelect.value === "unlimited";
+  if (isCustomPuzzle && !isUnlimited) return;
+
+  const selectedDate = isUnlimited
+    ? "unlimited"
+    : parseInt(dateSelect.value, 10);
+  const selectedLevel = parseInt(levelSelect.value, 10);
+  if ((!selectedDate && selectedDate !== "unlimited") || isNaN(selectedLevel))
+    return;
+
+  let allSaves = [];
+  try {
+    const savedData = localStorage.getItem("sudokuSaves");
+    if (savedData) {
+      allSaves = JSON.parse(savedData);
+      if (!Array.isArray(allSaves)) allSaves = [];
+    }
+  } catch (e) {
+    return;
+  }
+
+  const existingSaveIndex = allSaves.findIndex(
+    (s) => s.date === selectedDate && s.level === selectedLevel,
+  );
+
+  if (existingSaveIndex > -1) {
+    allSaves.splice(existingSaveIndex, 1);
+    localStorage.setItem("sudokuSaves", JSON.stringify(allSaves));
+  }
+}
+
+/* ADD helper function to fetch new unlimited puzzles */
+async function fetchUnlimitedPuzzle(level) {
+  const fileIndex = String(level).padStart(2, "0");
+  const filename = `./sudoku/unlimited/Lv${fileIndex}.txt`;
+
+  showMessage(`Fetching Unlimited Puzzle (Lv. ${level})...`, "blue");
+
+  try {
+    const response = await fetch(filename);
+    if (!response.ok) throw new Error(`Failed to fetch ${filename}`);
+
+    const text = await response.text();
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length === 0) throw new Error("Puzzle file is empty or invalid.");
+
+    const randomIndex = Math.floor(Math.random() * lines.length);
+    const rawString = lines[randomIndex];
+    const puzzleStr = decompressPuzzleString(rawString);
+
+    if (puzzleStr.length !== 81)
+      throw new Error("Puzzle integrity check failed.");
+
+    puzzleStringInput.value = puzzleStr;
+
+    const unlimitedData = {
+      date: "unlimited",
+      level: level,
+      score: 0,
+      puzzle: puzzleStr,
+    };
+
+    loadPuzzle(puzzleStr, unlimitedData);
+
+    puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
+    puzzleScoreEl.textContent = "";
+    showMessage("Loaded Unlimited Puzzle!", "green");
+  } catch (err) {
+    console.error(err);
+    showMessage("Error loading unlimited puzzle.", "red");
+    initBoardState();
+    renderBoard();
+  }
+}
+
+async function findAndLoadSelectedPuzzle() {
+  // 1. Handle "Unlimited" Mode
+  if (dateSelect.value === "unlimited") {
+    let level = parseInt(levelSelect.value, 10);
+
+    // Fallback Level 10 to 9
+    if (level >= 10) {
+      level = 9;
+      levelSelect.value = "9";
+    }
+
+    // CHECK FOR SAVED GAME
+    let allSaves = [];
+    try {
+      const savedData = localStorage.getItem("sudokuSaves");
+      if (savedData) allSaves = JSON.parse(savedData);
+    } catch (e) {}
+
+    const savedGame = allSaves.find(
+      (s) => s.date === "unlimited" && s.level === level,
+    );
+
+    if (savedGame) {
+      // Show Resume Modal
+      const modal = document.getElementById("resume-modal");
+      const levelText = document.getElementById("resume-level-text");
+      const resumeBtn = document.getElementById("resume-btn");
+      const newGameBtn = document.getElementById("new-game-btn");
+
+      levelText.textContent = `Level ${level}`;
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+
+      // Define one-time handlers
+      resumeBtn.onclick = () => {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+        puzzleStringInput.value = savedGame.puzzle;
+
+        const unlimitedData = {
+          date: "unlimited",
+          level: level,
+          // [FIX] Load the saved difficulty score (fallback to 0 for old saves)
+          score: savedGame.difficultyScore || 0,
+          puzzle: savedGame.puzzle,
+        };
+
+        loadPuzzle(savedGame.puzzle, unlimitedData);
+        puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
+      };
+
+      newGameBtn.onclick = () => {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+        // Remove the old save since user chose New Game
+        removeCurrentPuzzleSave();
+        fetchUnlimitedPuzzle(level);
+      };
+
+      return; // Stop here, wait for user input
+    }
+
+    // No save found, fetch new immediately
+    fetchUnlimitedPuzzle(level);
+    return;
+  }
+
+  // 2. Handle Standard Date/Level Selection
+  if (dateSelect.value === "custom") {
+    dateSelect.value = dateSelect.options[0].value;
+  }
+  const selectedDate = parseInt(dateSelect.value, 10);
+  const selectedLevel = parseInt(levelSelect.value, 10);
+  const puzzle = allPuzzles.find(
+    (p) => p.date === selectedDate && p.level === selectedLevel,
+  );
+  if (puzzle) {
+    puzzleStringInput.value = puzzle.puzzle;
+    loadPuzzle(puzzle.puzzle, puzzle);
+  } else {
+    initBoardState();
+    onBoardUpdated();
+    showMessage("No puzzle found for this date and level.", "red");
+    puzzleLevelEl.textContent = "";
+    puzzleScoreEl.textContent = "";
+    puzzleTimerEl.textContent = "";
+    stopTimer();
+    addSudokuCoachLink(null);
+  }
 }
 
 /**
@@ -3431,38 +3602,6 @@ function loadExperimentalModePreference() {
   }
 }
 
-/**
- * Removes the saved progress for the current daily puzzle from localStorage.
- */
-function removeCurrentPuzzleSave() {
-  if (isCustomPuzzle) return;
-
-  const selectedDate = parseInt(dateSelect.value, 10);
-  const selectedLevel = parseInt(levelSelect.value, 10);
-  if (!selectedDate || isNaN(selectedLevel)) return;
-
-  let allSaves = [];
-  try {
-    const savedData = localStorage.getItem("sudokuSaves");
-    if (savedData) {
-      allSaves = JSON.parse(savedData);
-      if (!Array.isArray(allSaves)) allSaves = [];
-    }
-  } catch (e) {
-    console.error("Failed to parse saved Sudoku data:", e);
-    return;
-  }
-
-  const existingSaveIndex = allSaves.findIndex(
-    (s) => s.date === selectedDate && s.level === selectedLevel,
-  );
-
-  if (existingSaveIndex > -1) {
-    allSaves.splice(existingSaveIndex, 1);
-    localStorage.setItem("sudokuSaves", JSON.stringify(allSaves));
-  }
-}
-
 // --- Difficulty Evaluation Logic ---
 const getThemeColor = (level) => {
   // Check if browser is in dark mode
@@ -3504,15 +3643,20 @@ function getBoardStateHash(board, pencils) {
   return h;
 }
 
-async function evaluateBoardDifficulty() {
+async function evaluateBoardDifficulty(opts = {}) {
+  // [FIX] Support options to skip frame waiting for more robust initialization
+  const { waitForFrame = true } = opts;
+
   // 1. Capture the ID of this specific run
   const myEvaluationId = currentEvaluationId;
 
-  // Yield immediately to let UI render any pending changes
-  await new Promise(requestAnimationFrame);
+  if (waitForFrame) {
+    // Yield immediately to let UI render any pending changes
+    await new Promise(requestAnimationFrame);
 
-  // Abort if a new update happened while we were waiting
-  if (myEvaluationId !== currentEvaluationId) return;
+    // Abort if a new update happened while we were waiting
+    if (myEvaluationId !== currentEvaluationId) return;
+  }
 
   vagueHintMessage = "";
   if (!initialPuzzleString || !solutionBoard) {
@@ -3888,12 +4032,15 @@ async function evaluateBoardDifficulty() {
     // A. NON-BLOCKING CHECK
     // If more than 12ms have passed since the last frame, yield to the browser
     if (performance.now() - lastYieldTime > 12) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      // [FIX] Ensure we respect the waitForFrame option even inside the loop
+      // to keep initialization logic tight if requested.
+      if (waitForFrame) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        // B. CANCELLATION CHECK
+        // If the user changed the board during the pause, stop this calculation
+        if (myEvaluationId !== currentEvaluationId) return;
+      }
       lastYieldTime = performance.now();
-
-      // B. CANCELLATION CHECK
-      // If the user changed the board during the pause, stop this calculation
-      if (myEvaluationId !== currentEvaluationId) return;
     }
 
     const isSolved = virtualBoard.flat().every((v) => v !== 0);
@@ -4000,7 +4147,7 @@ async function evaluateBoardDifficulty() {
       }
     }
   }
-  if (myEvaluationId !== currentEvaluationId) return;
+  if (waitForFrame && myEvaluationId !== currentEvaluationId) return;
   isSolved = virtualBoard.flat().every((v) => v !== 0);
   if (isSolved) {
     lastValidScore = evaluatedScore;
