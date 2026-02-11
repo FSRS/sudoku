@@ -2322,7 +2322,7 @@ function checkCompletion() {
       messageArea.className =
         "text-center text-sm font-semibold h-5 flex items-center justify-center gap-2";
       const congratsText = document.createTextNode(
-        "Congratulations! You solved it! → ",
+        `Congratulations! You solved it!${hadUsedHint ? "" : " ★"} → `,
       );
       const shareButton = document.createElement("button");
       shareButton.textContent = "Share";
@@ -2359,7 +2359,7 @@ function checkCompletion() {
       messageArea.appendChild(congratsText);
       messageArea.appendChild(shareButton);
     } else {
-      showMessage("Congratulations! You solved it!", "green");
+      showMessage(`Congratulations! You solved it!${hadUsedHint ? "" : " ★"}`, "green");
     }
     triggerSolveAnimation();
     stopTimer();
