@@ -2995,7 +2995,7 @@ function applySavedProgress(puzzleData) {
 
   hadUsedHint = savedGame.usedHint !== undefined ? savedGame.usedHint : true;
 
-  if (savedGame.puzzle !== puzzleData.puzzle) {
+  if (savedGame.puzzle !== decompressPuzzleString(puzzleData.puzzle)) {
     allSaves.splice(savedGameIndex, 1);
     localStorage.setItem("sudokuSaves", JSON.stringify(allSaves));
     return 0;
