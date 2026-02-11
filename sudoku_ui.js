@@ -2293,8 +2293,11 @@ async function findAndLoadSelectedPuzzle() {
     (p) => p.date === selectedDate && p.level === selectedLevel,
   );
   if (puzzle) {
-    puzzleStringInput.value = puzzle.puzzle;
-    loadPuzzle(puzzle.puzzle, puzzle);
+    const rawPuzzle = puzzle.puzzle;
+    const decompressedPuzzle = decompressPuzzleString(rawPuzzle);
+
+    puzzleStringInput.value = decompressedPuzzle;
+    loadPuzzle(decompressedPuzzle, puzzle);
   } else {
     initBoardState();
     onBoardUpdated();
@@ -2960,97 +2963,6 @@ async function fetchUnlimitedPuzzle(level) {
     showMessage("Error loading unlimited puzzle.", "red");
     initBoardState();
     renderBoard();
-  }
-}
-
-async function findAndLoadSelectedPuzzle() {
-  // 1. Handle "Unlimited" Mode
-  if (dateSelect.value === "unlimited") {
-    let level = parseInt(levelSelect.value, 10);
-
-    // Fallback Level 10 to 9
-    if (level >= 10) {
-      level = 9;
-      levelSelect.value = "9";
-    }
-
-    // CHECK FOR SAVED GAME
-    let allSaves = [];
-    try {
-      const savedData = localStorage.getItem("sudokuSaves");
-      if (savedData) allSaves = JSON.parse(savedData);
-    } catch (e) {}
-
-    const savedGame = allSaves.find(
-      (s) => s.date === "unlimited" && s.level === level,
-    );
-
-    if (savedGame) {
-      // Show Resume Modal
-      const modal = document.getElementById("resume-modal");
-      const levelText = document.getElementById("resume-level-text");
-      const resumeBtn = document.getElementById("resume-btn");
-      const newGameBtn = document.getElementById("new-game-btn");
-
-      levelText.textContent = `Level ${level}`;
-      modal.classList.remove("hidden");
-      modal.classList.add("flex");
-
-      // Define one-time handlers
-      resumeBtn.onclick = () => {
-        modal.classList.add("hidden");
-        modal.classList.remove("flex");
-        puzzleStringInput.value = savedGame.puzzle;
-
-        const unlimitedData = {
-          date: "unlimited",
-          level: level,
-          // [FIX] Load the saved difficulty score (fallback to 0 for old saves)
-          score: savedGame.difficultyScore || 0,
-          puzzle: savedGame.puzzle,
-        };
-
-        loadPuzzle(savedGame.puzzle, unlimitedData);
-        puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
-      };
-
-      newGameBtn.onclick = () => {
-        modal.classList.add("hidden");
-        modal.classList.remove("flex");
-        // Remove the old save since user chose New Game
-        removeCurrentPuzzleSave();
-        fetchUnlimitedPuzzle(level);
-      };
-
-      return; // Stop here, wait for user input
-    }
-
-    // No save found, fetch new immediately
-    fetchUnlimitedPuzzle(level);
-    return;
-  }
-
-  // 2. Handle Standard Date/Level Selection
-  if (dateSelect.value === "custom") {
-    dateSelect.value = dateSelect.options[0].value;
-  }
-  const selectedDate = parseInt(dateSelect.value, 10);
-  const selectedLevel = parseInt(levelSelect.value, 10);
-  const puzzle = allPuzzles.find(
-    (p) => p.date === selectedDate && p.level === selectedLevel,
-  );
-  if (puzzle) {
-    puzzleStringInput.value = puzzle.puzzle;
-    loadPuzzle(puzzle.puzzle, puzzle);
-  } else {
-    initBoardState();
-    onBoardUpdated();
-    showMessage("No puzzle found for this date and level.", "red");
-    puzzleLevelEl.textContent = "";
-    puzzleScoreEl.textContent = "";
-    puzzleTimerEl.textContent = "";
-    stopTimer();
-    addSudokuCoachLink(null);
   }
 }
 
