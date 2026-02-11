@@ -2322,7 +2322,7 @@ function checkCompletion() {
       messageArea.className =
         "text-center text-sm font-semibold h-5 flex items-center justify-center gap-2";
       const congratsText = document.createTextNode(
-        `Congratulations! You solved it!${hadUsedHint ? "" : " ★"} → `,
+        `You solved it!${hadUsedHint ? "" : " ★"} → `,
       );
       const shareButton = document.createElement("button");
       shareButton.textContent = "Share";
@@ -2359,7 +2359,7 @@ function checkCompletion() {
       messageArea.appendChild(congratsText);
       messageArea.appendChild(shareButton);
     } else {
-      showMessage(`Congratulations! You solved it!${hadUsedHint ? "" : " ★"}`, "green");
+      showMessage(`You solved it!${hadUsedHint ? "" : " ★"}`, "green");
     }
     triggerSolveAnimation();
     stopTimer();
@@ -4195,9 +4195,9 @@ async function evaluateBoardDifficulty(opts = {}) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (${evaluatedScore})`;
     } else if (isCustomPuzzle) {
       if (!isCustomDifficultyEvaluated) {
-        puzzleLevelEl.textContent = `Lv. ${maxDifficulty} (${
-          difficultyWords[maxDifficulty] || "Unknown"
-        })`;
+        if (dateSelect.value !== "unlimited") {
+          puzzleLevelEl.textContent = `Custom Lv. ${maxDifficulty}`;
+        }
         customScoreEvaluated = evaluatedScore;
         isCustomDifficultyEvaluated = true;
       }
@@ -4207,7 +4207,6 @@ async function evaluateBoardDifficulty(opts = {}) {
         puzzleScoreEl.textContent = `(${evaluatedScore})`;
       }
     }
-
     if (previousLampColor === "black") {
       previousLampColor = null;
     }
@@ -4225,6 +4224,13 @@ async function evaluateBoardDifficulty(opts = {}) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore}`;
     } else {
       puzzleScoreEl.textContent = "";
+    }
+
+    if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
+      if (dateSelect.value !== "unlimited") {
+        puzzleLevelEl.textContent = `Custom Lv. 11`;
+      }
+      isCustomDifficultyEvaluated = true;
     }
 
     if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
