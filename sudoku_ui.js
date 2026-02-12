@@ -719,7 +719,6 @@ function pruneInvalidLines() {
   });
 }
 
-/* REPLACE renderLines function */
 function renderLines() {
   const svg = document.getElementById("drawing-layer");
   if (!svg) return;
@@ -3795,12 +3794,6 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 120,
     },
     {
-      name: "Unique Rectangle",
-      func: (b, p) => techniques.uniqueRectangle(b, p),
-      level: 4,
-      score: 100,
-    },
-    {
       name: "XYZ-Wing",
       func: (b, p) => techniques.xyzWing(b, p),
       level: 4,
@@ -3823,6 +3816,12 @@ async function evaluateBoardDifficulty(opts = {}) {
       func: (b, p) => techniques.fish(b, p, 4),
       level: 4,
       score: 160,
+    },
+    {
+      name: "Unique Rectangle",
+      func: (b, p) => techniques.uniqueRectangle(b, p),
+      level: 4,
+      score: 100,
     },
     {
       name: "Unique Loop",
@@ -3850,17 +3849,12 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 120,
     },
     { name: "Turbot Fish", func: techniques.turbotFish, level: 5, score: 130 },
+
     {
-      name: "Hidden Rectangle",
-      func: techniques.hiddenRectangle,
+      name: "Finned X-Wing",
+      func: techniques.finnedXWing,
       level: 5,
-      score: 110,
-    },
-    {
-      name: "Empty Rectangle",
-      func: techniques.emptyRectangle,
-      level: 5,
-      score: 150,
+      score: 140,
     },
     {
       name: "Grouped 2-String Kite",
@@ -3869,10 +3863,17 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 150,
     },
     {
-      name: "Finned X-Wing",
-      func: techniques.finnedXWing,
+      name: "Empty Rectangle",
+      func: techniques.emptyRectangle,
       level: 5,
-      score: 140,
+      score: 150,
+    },
+
+    {
+      name: "Hidden Rectangle",
+      func: techniques.hiddenRectangle,
+      level: 5,
+      score: 110,
     },
     {
       name: "Finned Swordfish",

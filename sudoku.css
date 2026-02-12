@@ -1221,9 +1221,9 @@ button:disabled:hover {
   grid-template-rows: repeat(3, 1fr); /* NEW: Fixes vertical grid slots */
   width: 100%;
   height: 100%;
-  font-size: 0.9rem;
+  font-size: clamp(11px, 2.5vw, 0.95rem);
   text-align: center;
-  line-height: 1; /* NEW: Prevents line height from pushing text out */
+  line-height: 1;
 }
 
 .pencil-mark {
