@@ -3764,12 +3764,6 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 150,
     },
     {
-      name: "Remote Pair",
-      func: (b, p) => techniques.remotePair(b, p),
-      level: 3,
-      score: 110,
-    },
-    {
       name: "X-Wing",
       func: (b, p) => techniques.fish(b, p, 2),
       level: 3,
@@ -3782,10 +3776,28 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 120,
     },
     {
+      name: "Remote Pair",
+      func: (b, p) => techniques.remotePair(b, p),
+      level: 3,
+      score: 110,
+    },
+    {
       name: "BUG+1",
       func: (b, p) => techniques.bugPlusOne(b, p),
       level: 4,
       score: 100,
+    },
+    {
+      name: "Swordfish",
+      func: (b, p) => techniques.fish(b, p, 3),
+      level: 4,
+      score: 130,
+    },
+    {
+      name: "Jellyfish",
+      func: (b, p) => techniques.fish(b, p, 4),
+      level: 4,
+      score: 160,
     },
     {
       name: "Chute Remote Pair",
@@ -3802,18 +3814,6 @@ async function evaluateBoardDifficulty(opts = {}) {
     {
       name: "W-Wing",
       func: (b, p) => techniques.wWing(b, p),
-      level: 4,
-      score: 160,
-    },
-    {
-      name: "Swordfish",
-      func: (b, p) => techniques.fish(b, p, 3),
-      level: 4,
-      score: 130,
-    },
-    {
-      name: "Jellyfish",
-      func: (b, p) => techniques.fish(b, p, 4),
       level: 4,
       score: 160,
     },
