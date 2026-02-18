@@ -2322,7 +2322,7 @@ function checkCompletion() {
     if (!isCustomPuzzle) {
       messageArea.innerHTML = "";
       messageArea.className =
-        "text-center text-sm font-semibold h-5 flex items-center justify-center gap-2";
+        "text-center text-sm font-semibold flex items-center justify-center gap-2";
       const congratsText = document.createTextNode(
         `You solved it!${hadUsedHint ? "" : " ★"} → `,
       );
@@ -2478,7 +2478,7 @@ function autoPencil() {
 
   setTimeout(() => {
     showMessage(
-      "Tip: To highlight all bivalue cells, click a cell with exactly two candidates when highlighting is off.",
+      "Tip: To highlight all bivalue cells, click one when highlighting is off.",
       "gray",
     );
   }, 2000);
