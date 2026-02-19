@@ -4525,9 +4525,7 @@ const techniques = {
           name = "Simple Coloring";
           info = `Digit ${singleDigit}`;
         } else {
-          info = `Start: r${startCand.r + 1}c${startCand.c + 1} (${
-            startCand.n
-          })`;
+          info = `Start: (${startCand.n})r${startCand.r + 1}c${startCand.c + 1}`;
         }
 
         return {
