@@ -3848,7 +3848,7 @@ async function evaluateBoardDifficulty(opts = {}) {
       level: 5,
       score: 120,
     },
-    { name: "Turbot Fish", func: techniques.turbotFish, level: 5, score: 130 },
+    { name: "Crane", func: techniques.turbotFish, level: 5, score: 130 },
 
     {
       name: "Finned X-Wing",

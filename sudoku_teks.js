@@ -1594,7 +1594,7 @@ const techniques = {
                       type: "remove",
                       cells: removals,
                       hint: {
-                        name: "Turbot Fish",
+                        name: "Crane",
                         mainInfo: `Digit ${num}`,
                       },
                     };
