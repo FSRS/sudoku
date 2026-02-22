@@ -70,8 +70,10 @@ function updateColorPalettes(isDarkMode) {
     lineColorPalette = colorPalette600;
   } else {
     cellColorPalette = colorPalette300;
-    candidateColorPalette = colorPalette700;
-    lineColorPalette = colorPalette500;
+    //candidateColorPalette = colorPalette700;
+    // lineColorPalette = colorPalette500;
+    candidateColorPalette = colorPalette600;
+    lineColorPalette = colorPalette450;
   }
 }
 
@@ -4300,9 +4302,10 @@ function getColorName(hex) {
   const palettes = [
     colorPalette300,
     colorPalette400,
-    colorPalette500,
+    // colorPalette500,
+    colorPalette450,
     colorPalette600,
-    colorPalette700,
+    // colorPalette700,
     colorPalette800,
   ];
 

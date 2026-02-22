@@ -43,17 +43,29 @@ const colorPalette400 = [
   "#f472b6", // pink-400
 ];
 
-const colorPalette500 = [
-  "#ef4444", // red-500
-  "#f97316", // orange-500
-  "#eab308", // yellow-500
-  "#84cc16", // lime-500
-  "#22c55e", // green-500
-  "#06b6d4", // cyan-500
-  "#3b82f6", // blue-500
-  "#8b5cf6", // violet-500
-  "#ec4899", // pink-500
+const colorPalette450 = [
+  "#f45b5b", // red-450
+  "#fa8329", // orange-450
+  "#f2c00f", // yellow-450
+  "#94d926", // lime-450
+  "#2bcc7c", // green-450
+  "#14c5e1", // cyan-450
+  "#4e94f8", // blue-450
+  "#a670f9", // violet-450
+  "#f05da8", // pink-450
 ];
+
+// const colorPalette500 = [
+//   "#ef4444", // red-500
+//   "#f97316", // orange-500
+//   "#eab308", // yellow-500
+//   "#84cc16", // lime-500
+//   "#22c55e", // green-500
+//   "#06b6d4", // cyan-500
+//   "#3b82f6", // blue-500
+//   "#8b5cf6", // violet-500
+//   "#ec4899", // pink-500
+// ];
 
 const colorPalette600 = [
   "#dc2626", // red-600
@@ -67,17 +79,17 @@ const colorPalette600 = [
   "#db2777", // pink-600
 ];
 
-const colorPalette700 = [
-  "#b91c1c", // red-700
-  "#c2410c", // orange-700
-  "#a16207", // yellow-700
-  "#4d7c0f", // lime-700
-  "#15803d", // green-700
-  "#0e7490", // cyan-700
-  "#1d4ed8", // blue-700
-  "#6d28d9", // violet-700
-  "#be185d", // pink-700
-];
+// const colorPalette700 = [
+//   "#b91c1c", // red-700
+//   "#c2410c", // orange-700
+//   "#a16207", // yellow-700
+//   "#4d7c0f", // lime-700
+//   "#15803d", // green-700
+//   "#0e7490", // cyan-700
+//   "#1d4ed8", // blue-700
+//   "#6d28d9", // violet-700
+//   "#be185d", // pink-700
+// ];
 
 const colorPalette800 = [
   "#991b1b", // red-800
