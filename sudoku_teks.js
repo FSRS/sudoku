@@ -3729,110 +3729,127 @@ const techniques = {
   },
 
   almostLockedPair: (board, pencils) => {
-    // Helper to check if a list of cells contains a specific coordinate
-    const containsCell = (list, r, c) =>
-      list.some(([cr, cc]) => cr === r && cc === c);
+    // Helper: Remove candidates v1/v2 from a list of cells
+    const removeCandidates = (
+      cellsToRemove,
+      v1,
+      v2,
+      ignoreR,
+      ignoreC,
+      ignoreBox,
+      ignoreLine,
+      isRow,
+    ) => {
+      const removals = [];
+      for (const [r, c] of cellsToRemove) {
+        if (r === ignoreR && c === ignoreC) continue;
+        if (ignoreBox !== -1 && techniques._getBoxIndex(r, c) === ignoreBox)
+          continue;
+        if (ignoreLine !== -1 && (isRow ? r === ignoreLine : c === ignoreLine))
+          continue;
 
-    // Iterate through all 6 Chutes (3 Horizontal/Row-based, 3 Vertical/Col-based)
-    // Chutes 0-2: Horizontal bands (Rows 0-2, 3-5, 6-8)
-    // Chutes 3-5: Vertical stacks (Cols 0-2, 3-5, 6-8)
-    for (let chute = 0; chute < 6; chute++) {
-      const isRow = chute < 3;
-      const chuteBand = chute % 3; // 0, 1, or 2
+        if (pencils[r][c].has(v1)) removals.push({ r, c, num: v1 });
+        if (pencils[r][c].has(v2)) removals.push({ r, c, num: v2 });
+      }
+      return removals;
+    };
 
-      // 1. Collect all bivalue cells in this chute
-      const bivalueCells = [];
-      // A chute consists of 3 parallel lines (rows or cols)
-      for (let lineOffset = 0; lineOffset < 3; lineOffset++) {
-        const lineIndex = chuteBand * 3 + lineOffset;
-        const lineType = isRow ? "row" : "col";
-        const cells = techniques._getUnitCells(lineType, lineIndex);
-
-        for (const [r, c] of cells) {
-          if (pencils[r][c].size === 2) {
-            bivalueCells.push({
-              r,
-              c,
-              cands: [...pencils[r][c]].sort((a, b) => a - b),
-            });
-          }
+    // Helper: Remove all candidates EXCEPT v1/v2 from a specific cell
+    const cleanExtraCell = (r, c, v1, v2) => {
+      const removals = [];
+      for (const cand of pencils[r][c]) {
+        if (cand !== v1 && cand !== v2) {
+          removals.push({ r, c, num: cand });
         }
       }
+      return removals;
+    };
 
-      if (bivalueCells.length < 2) continue;
+    // Iterate 6 Chutes: 0-2 (Rows), 3-5 (Cols)
+    for (let chute = 0; chute < 6; chute++) {
+      const isRow = chute < 3;
+      const bandIdx = chute % 3;
+      const chuteLines = [bandIdx * 3, bandIdx * 3 + 1, bandIdx * 3 + 2];
 
-      // 2. Find Pairs of bivalue cells
-      for (let i = 0; i < bivalueCells.length; i++) {
-        for (let j = i + 1; j < bivalueCells.length; j++) {
-          const cellA = bivalueCells[i];
-          const cellB = bivalueCells[j];
+      const chuteBoxes = [];
+      for (let i = 0; i < 3; i++) {
+        chuteBoxes.push(isRow ? bandIdx * 3 + i : i * 3 + bandIdx);
+      }
 
-          // Condition 1: Same Candidates
-          if (
-            cellA.cands[0] !== cellB.cands[0] ||
-            cellA.cands[1] !== cellB.cands[1]
-          )
-            continue;
+      // 1. Find bivalue cells in this chute
+      for (const lineIdx of chuteLines) {
+        const lineCells = techniques._getUnitCells(
+          isRow ? "row" : "col",
+          lineIdx,
+        );
 
-          // Condition 1: Not Seeing Each Other
-          if (techniques._sees([cellA.r, cellA.c], [cellB.r, cellB.c]))
-            continue;
+        for (const [r, c] of lineCells) {
+          // Check for Bivalue Cell
+          if (board[r][c] !== 0 || pencils[r][c].size !== 2) continue;
 
-          // Condition 2: Select Line and Box
-          // We must check two configurations since the pivots are interchangeable:
-          // Config 1: Line from cellA, Box from cellB
-          // Config 2: Line from cellB, Box from cellA
-          const configs = [
-            { lineCell: cellA, boxCell: cellB },
-            { lineCell: cellB, boxCell: cellA },
-          ];
+          const [v1, v2] = [...pencils[r][c]];
+          const currentBox = techniques._getBoxIndex(r, c);
 
-          for (const cfg of configs) {
-            const { lineCell, boxCell } = cfg;
+          // --- 2A & 3A: Line-to-Box Logic ---
+          for (const targetBox of chuteBoxes) {
+            if (targetBox === currentBox) continue;
 
-            const lineType = isRow ? "row" : "col";
-            const lineIndex = isRow ? lineCell.r : lineCell.c;
-            const boxIndex = techniques._getBoxIndex(boxCell.r, boxCell.c);
+            const boxCells = techniques._getUnitCells("box", targetBox);
 
-            // Calculate Intersection of Line and Box
-            const lineCells = techniques._getUnitCells(lineType, lineIndex);
-            const intersection = lineCells.filter(
-              ([r, c]) => techniques._getBoxIndex(r, c) === boxIndex,
-            );
-
-            // Note: Since cells don't see each other, lineCell is never in intersection,
-            // and boxCell is never in intersection.
-
-            const cands = cellA.cands; // [d1, d2]
-
-            // --- 3A. Check Line Restriction ---
-            // Are candidates in the Line ONLY in lineCell + Intersection?
-            let restrictedInLine = true;
-            for (const [r, c] of lineCells) {
-              if (r === lineCell.r && c === lineCell.c) continue;
-              if (containsCell(intersection, r, c)) continue;
-
-              // If candidate exists outside allowed area, condition fails
-              if (pencils[r][c].has(cands[0]) || pencils[r][c].has(cands[1])) {
-                restrictedInLine = false;
+            // Refinement: The target box must not contain a concrete v1 or v2
+            let hasConcrete = false;
+            for (const [br, bc] of boxCells) {
+              if (board[br][bc] === v1 || board[br][bc] === v2) {
+                hasConcrete = true;
                 break;
               }
             }
+            if (hasConcrete) continue;
 
-            if (restrictedInLine) {
-              // Eliminate from BOX (outside boxCell and Intersection)
-              const boxCells = techniques._getUnitCells("box", boxIndex);
+            // Find distribution of v1 and v2 in the target box
+            const inIntersection = [];
+            const outsideIntersection = [];
+
+            for (const [br, bc] of boxCells) {
+              if (board[br][bc] !== 0) continue;
+
+              const hasV1 = pencils[br][bc].has(v1);
+              const hasV2 = pencils[br][bc].has(v2);
+
+              if (!hasV1 && !hasV2) continue;
+
+              const isIntersect = isRow ? br === r : bc === c;
+              if (isIntersect) {
+                inIntersection.push({ r: br, c: bc, hasV1, hasV2 });
+              } else {
+                outsideIntersection.push({ r: br, c: bc, hasV1, hasV2 });
+              }
+            }
+
+            // Condition: Candidates appear in intersection, AND exactly one cell outside intersection.
+            // That one extra cell MUST contain BOTH candidates.
+            if (inIntersection.length > 0 && outsideIntersection.length === 1) {
+              const extra = outsideIntersection[0];
+
               const elims = [];
 
-              for (const [r, c] of boxCells) {
-                if (r === boxCell.r && c === boxCell.c) continue;
-                if (containsCell(intersection, r, c)) continue;
+              // Elimination 1: Remove OTHER candidates from the extra cell
+              elims.push(...cleanExtraCell(extra.r, extra.c, v1, v2));
 
-                if (pencils[r][c].has(cands[0]))
-                  elims.push({ r, c, num: cands[0] });
-                if (pencils[r][c].has(cands[1]))
-                  elims.push({ r, c, num: cands[1] });
-              }
+              // Elimination 2: Remove bivalue candidates from the Line
+              // (excluding the bivalue cell itself and the target box intersection)
+              elims.push(
+                ...removeCandidates(
+                  lineCells,
+                  v1,
+                  v2,
+                  r,
+                  c,
+                  targetBox,
+                  -1,
+                  isRow,
+                ),
+              );
 
               if (elims.length > 0) {
                 return {
@@ -3841,38 +3858,80 @@ const techniques = {
                   cells: elims,
                   hint: {
                     name: "Almost Locked Pair",
-                    mainInfo: `Using candidates ${cands.join("/")}`,
+                    mainInfo: `using candidates ${v1}/${v2}`,
                   },
                 };
               }
             }
+          }
 
-            // --- 3B. Check Box Restriction ---
-            // Are candidates in the Box ONLY in boxCell + Intersection?
-            let restrictedInBox = true;
-            const boxCells = techniques._getUnitCells("box", boxIndex);
-            for (const [r, c] of boxCells) {
-              if (r === boxCell.r && c === boxCell.c) continue;
-              if (containsCell(intersection, r, c)) continue;
+          // --- 2B & 3B: Box-to-Line Logic ---
+          for (const targetLine of chuteLines) {
+            if (targetLine === lineIdx) continue;
 
-              if (pencils[r][c].has(cands[0]) || pencils[r][c].has(cands[1])) {
-                restrictedInBox = false;
+            const targetLineCells = techniques._getUnitCells(
+              isRow ? "row" : "col",
+              targetLine,
+            );
+
+            // Refinement: The target line must not contain a concrete v1 or v2
+            let hasConcrete = false;
+            for (const [tr, tc] of targetLineCells) {
+              if (board[tr][tc] === v1 || board[tr][tc] === v2) {
+                hasConcrete = true;
                 break;
               }
             }
+            if (hasConcrete) continue;
 
-            if (restrictedInBox) {
-              // Eliminate from LINE (outside lineCell and Intersection)
-              const elims = [];
-              for (const [r, c] of lineCells) {
-                if (r === lineCell.r && c === lineCell.c) continue;
-                if (containsCell(intersection, r, c)) continue;
+            // Find distribution of v1 and v2 in the target line
+            const inIntersection = [];
+            const outsideIntersection = [];
 
-                if (pencils[r][c].has(cands[0]))
-                  elims.push({ r, c, num: cands[0] });
-                if (pencils[r][c].has(cands[1]))
-                  elims.push({ r, c, num: cands[1] });
+            for (const [tr, tc] of targetLineCells) {
+              if (board[tr][tc] !== 0) continue;
+
+              const hasV1 = pencils[tr][tc].has(v1);
+              const hasV2 = pencils[tr][tc].has(v2);
+
+              if (!hasV1 && !hasV2) continue;
+
+              const isIntersect =
+                techniques._getBoxIndex(tr, tc) === currentBox;
+              if (isIntersect) {
+                inIntersection.push({ r: tr, c: tc, hasV1, hasV2 });
+              } else {
+                outsideIntersection.push({ r: tr, c: tc, hasV1, hasV2 });
               }
+            }
+
+            // Condition: Candidates appear in intersection, AND exactly one cell outside intersection.
+            if (inIntersection.length > 0 && outsideIntersection.length === 1) {
+              const extra = outsideIntersection[0];
+
+              const elims = [];
+
+              // Elimination 1: Remove OTHER candidates from the extra cell
+              elims.push(...cleanExtraCell(extra.r, extra.c, v1, v2));
+
+              // Elimination 2: Remove bivalue candidates from the Box
+              // (excluding the bivalue cell itself and the target line intersection)
+              const currentBoxCells = techniques._getUnitCells(
+                "box",
+                currentBox,
+              );
+              elims.push(
+                ...removeCandidates(
+                  currentBoxCells,
+                  v1,
+                  v2,
+                  r,
+                  c,
+                  -1,
+                  targetLine,
+                  isRow,
+                ),
+              );
 
               if (elims.length > 0) {
                 return {
@@ -3881,7 +3940,7 @@ const techniques = {
                   cells: elims,
                   hint: {
                     name: "Almost Locked Pair",
-                    mainInfo: `Using candidates ${cands.join("/")}`,
+                    mainInfo: `using candidates ${v1}/${v2}`,
                   },
                 };
               }
@@ -3890,6 +3949,7 @@ const techniques = {
         }
       }
     }
+
     return { change: false };
   },
 
@@ -3926,7 +3986,8 @@ const techniques = {
       return res;
     };
 
-    const findAlses = (cells, minSize = 1, maxSize = 8, extraCandSize = 1) => {
+    // Modified to track 'extra' candidates and allow up to maxExtra (2 for AALS)
+    const findAlses = (cells, minSize = 1, maxSize = 8, maxExtra = 2) => {
       const alses = [];
       if (!cells || !cells.length) return alses;
       for (let size = minSize; size <= cells.length; size++) {
@@ -3934,9 +3995,12 @@ const techniques = {
         for (const combo of combinations(cells, size)) {
           let unionMask = 0;
           for (const [r, c] of combo) unionMask |= maskFromSet(pencils[r][c]);
-          if (bitCount(unionMask) === size + extraCandSize) {
+          const extra = bitCount(unionMask) - size;
+
+          // extra === 1 is ALS, extra === 2 is AALS
+          if (extra >= 1 && extra <= maxExtra) {
             const posSet = new Set(combo.map(([r, c]) => `${r},${c}`));
-            alses.push({ positions: posSet, mask: unionMask });
+            alses.push({ positions: posSet, mask: unionMask, extra });
           }
         }
       }
@@ -3960,160 +4024,82 @@ const techniques = {
     for (let b = 0; b < 9; b++) {
       const br = Math.floor(b / 3) * 3;
       const bc = (b % 3) * 3;
+      const boxNum = b + 1; // Simplifies mathematical box calculation
 
       for (let i = 0; i < 3; i++) {
-        // ---- Row-based intersection ----
-        {
-          const rowIdx = br + i;
+        // Run once for Row (true), once for Col (false)
+        for (const isRow of [true, false]) {
+          const lineIdx = isRow ? br + i : bc + i;
+
           const C_full = [];
           for (let j = 0; j < 3; j++) {
-            const rr = rowIdx,
-              cc = bc + j;
+            const rr = isRow ? lineIdx : br + j;
+            const cc = isRow ? bc + j : lineIdx;
             if (board[rr][cc] === 0) C_full.push([rr, cc]);
           }
           if (C_full.length < 2) continue;
 
-          // All empty cells in row and box
-          const allRowCells = [];
-          for (let cc = 0; cc < 9; cc++)
-            if (board[rowIdx][cc] === 0) allRowCells.push([rowIdx, cc]);
+          // All empty cells in the line and box
+          const allLineCells = [];
+          for (let idx = 0; idx < 9; idx++) {
+            const rr = isRow ? lineIdx : idx;
+            const cc = isRow ? idx : lineIdx;
+            if (board[rr][cc] === 0) allLineCells.push([rr, cc]);
+          }
+
           const allBoxCells = [];
-          for (let rr = br; rr < br + 3; rr++)
-            for (let cc = bc; cc < bc + 3; cc++)
+          for (let rr = br; rr < br + 3; rr++) {
+            for (let cc = bc; cc < bc + 3; cc++) {
               if (board[rr][cc] === 0) allBoxCells.push([rr, cc]);
+            }
+          }
 
           // --- Try all 2+ cell combinations of intersection C ---
           for (let k = 2; k <= C_full.length; k++) {
             for (const C of combinations(C_full, k)) {
               const usedC = new Set(C.map(([r, c]) => `${r},${c}`));
-              const unusedC = C_full.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`),
-              );
 
-              // Build pools excluding used C, including unused intersection cells
-              const line_pool = allRowCells.filter(
+              // Build pools excluding used C
+              const line_pool = allLineCells.filter(
                 ([r, c]) => !usedC.has(`${r},${c}`),
               );
               const box_pool = allBoxCells.filter(
                 ([r, c]) => !usedC.has(`${r},${c}`),
               );
 
-              // --- Process this intersection subset ---
               let V_mask = 0;
               for (const [r, c] of C) V_mask |= maskFromSet(pencils[r][c]);
               if (bitCount(V_mask) < C.length + 2) continue;
 
-              const line_alses = findAlses(line_pool, 1, 8, 1);
-              const box_alses = findAlses(box_pool, 1, 8, 1);
+              // maxExtra = 2 allows standard ALSes and AALSes
+              const line_alses = findAlses(line_pool, 1, 8, 2);
+              const box_alses = findAlses(box_pool, 1, 8, 2);
               if (!line_alses.length || !box_alses.length) continue;
 
               for (const A of line_alses) {
                 for (const B of box_alses) {
+                  // If we only want to allow at most ONE AALS, the sum of extra candidates cannot exceed 3.
+                  // (1+1 = 2 -> Standard SdC | 1+2 / 2+1 = 3 -> SdC with one AALS)
+                  const totalExtra = A.extra + B.extra;
+                  if (totalExtra > 3) continue;
+
                   // Disjointness check
                   let overlap = false;
-                  for (const p of A.positions)
+                  for (const p of A.positions) {
                     if (B.positions.has(p)) {
                       overlap = true;
                       break;
                     }
-                  if (overlap) continue;
-
-                  const D_mask = A.mask;
-                  const E_mask = B.mask;
-                  const remaining_V = V_mask & ~(D_mask | E_mask);
-
-                  if (bitCount(remaining_V) === C.length - 2) {
-                    recordRemovalsFromMask(line_pool, A.positions, D_mask);
-                    recordRemovalsFromMask(box_pool, B.positions, E_mask);
-                    if (remaining_V > 0) {
-                      recordRemovalsFromMask(
-                        line_pool,
-                        A.positions,
-                        remaining_V,
-                      );
-                      recordRemovalsFromMask(
-                        box_pool,
-                        B.positions,
-                        remaining_V,
-                      );
-                    }
-                    if (eliminations.length > 0)
-                      return {
-                        change: true,
-                        type: "remove",
-                        cells: eliminations,
-
-                        hint: {
-                          name: "Sue de Coq",
-                          mainInfo: `Intersecting Row ${rowIdx + 1} and Box ${
-                            Math.floor(br / 3) * 3 + bc / 3 + 1
-                          }`,
-                        },
-                      };
                   }
-                }
-              }
-            }
-          }
-        }
-      }
-      for (let i = 0; i < 3; i++) {
-        // ---- Column-based intersection ----
-        {
-          const colIdx = bc + i;
-          const C_full = [];
-          for (let j = 0; j < 3; j++) {
-            const rr = br + j,
-              cc = colIdx;
-            if (board[rr][cc] === 0) C_full.push([rr, cc]);
-          }
-          if (C_full.length < 2) continue;
-
-          const allColCells = [];
-          for (let rr = 0; rr < 9; rr++)
-            if (board[rr][colIdx] === 0) allColCells.push([rr, colIdx]);
-          const allBoxCells = [];
-          for (let rr = br; rr < br + 3; rr++)
-            for (let cc = bc; cc < bc + 3; cc++)
-              if (board[rr][cc] === 0) allBoxCells.push([rr, cc]);
-
-          for (let k = 2; k <= C_full.length; k++) {
-            for (const C of combinations(C_full, k)) {
-              const usedC = new Set(C.map(([r, c]) => `${r},${c}`));
-              const unusedC = C_full.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`),
-              );
-
-              const line_pool = allColCells.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`),
-              );
-              const box_pool = allBoxCells.filter(
-                ([r, c]) => !usedC.has(`${r},${c}`),
-              );
-
-              let V_mask = 0;
-              for (const [r, c] of C) V_mask |= maskFromSet(pencils[r][c]);
-              if (bitCount(V_mask) < C.length + 2) continue;
-
-              const line_alses = findAlses(line_pool, 1, 7, 1);
-              const box_alses = findAlses(box_pool, 1, 7, 1);
-              if (!line_alses.length || !box_alses.length) continue;
-
-              for (const A of line_alses) {
-                for (const B of box_alses) {
-                  let overlap = false;
-                  for (const p of A.positions)
-                    if (B.positions.has(p)) {
-                      overlap = true;
-                      break;
-                    }
                   if (overlap) continue;
 
                   const D_mask = A.mask;
                   const E_mask = B.mask;
                   const remaining_V = V_mask & ~(D_mask | E_mask);
 
-                  if (bitCount(remaining_V) === C.length - 2) {
+                  // dynamically checking against C.length - totalExtra
+                  // (evaluates to C.length - 2 for standard, C.length - 3 for AALS)
+                  if (bitCount(remaining_V) === C.length - totalExtra) {
                     recordRemovalsFromMask(line_pool, A.positions, D_mask);
                     recordRemovalsFromMask(box_pool, B.positions, E_mask);
                     if (remaining_V > 0) {
@@ -4128,18 +4114,22 @@ const techniques = {
                         remaining_V,
                       );
                     }
-                    if (eliminations.length > 0)
+                    if (eliminations.length > 0) {
+                      const hintName =
+                        totalExtra === 3
+                          ? "Sue de Coq (with AALS)"
+                          : "Sue de Coq";
+                      const lineName = isRow ? "Row" : "Col";
                       return {
                         change: true,
                         type: "remove",
                         cells: eliminations,
                         hint: {
-                          name: "Sue de Coq",
-                          mainInfo: `Intersecting Col ${colIdx + 1} and Box ${
-                            Math.floor(br / 3) * 3 + bc / 3 + 1
-                          }`,
+                          name: hintName,
+                          mainInfo: `Intersecting ${lineName} ${lineIdx + 1} and Box ${boxNum}`,
                         },
                       };
+                    }
                   }
                 }
               }
