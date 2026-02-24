@@ -63,6 +63,35 @@ const lastUsedColors = {
 
 // --- UI Update Functions ---
 
+function initTheme() {
+  const toggleBtn = document.getElementById("theme-toggle");
+  const html = document.documentElement;
+
+  // Check local storage or fallback to OS preference
+  const saved = localStorage.getItem("theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+  if (saved === "dark" || (!saved && prefersDark)) {
+    html.classList.add("dark");
+  } else {
+    html.classList.remove("dark");
+  }
+
+  // Toggle button listener
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      html.classList.toggle("dark");
+      const isDark = html.classList.contains("dark");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+
+      // Refresh UI elements that depend on theme
+      updateColorPalettes(isDark);
+      updateControls();
+      renderBoard();
+    });
+  }
+}
+
 function updateColorPalettes(isDarkMode) {
   if (isDarkMode) {
     cellColorPalette = colorPalette800;
@@ -303,9 +332,7 @@ function updateControls() {
       btn.dataset.color = activePalette[i];
       btn.textContent = i + 1;
 
-      const isDarkMode =
-        window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const isDarkMode = document.documentElement.classList.contains("dark");
 
       // Text color logic
       let labelColor;
@@ -1181,9 +1208,8 @@ function isBoardIdenticalToSolution() {
 // --- Event Handlers and Listeners ---
 
 function setupEventListeners() {
-  const isDarkMode =
-    window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  initTheme();
+  const isDarkMode = document.documentElement.classList.contains("dark");
   updateColorPalettes(isDarkMode);
 
   loadExperimentalModePreference();
@@ -3555,9 +3581,7 @@ function loadExperimentalModePreference() {
 // --- Difficulty Evaluation Logic ---
 const getThemeColor = (level) => {
   // Check if browser is in dark mode
-  const isDarkMode =
-    window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isDarkMode = document.documentElement.classList.contains("dark");
 
   const palette = isDarkMode ? PALETTES.dark : PALETTES.light;
 

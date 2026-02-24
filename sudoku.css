@@ -1412,7 +1412,7 @@ button:disabled:hover {
 |   7. DARK MODE OVERRIDES                                                     |
 ================================================================================
 */
-@media (prefers-color-scheme: dark) {
+html.dark {
   /*
   ------------------------------------------------------------------------------
   |   Part A: Custom Violet Theme Variable Definitions                         |
@@ -1421,7 +1421,7 @@ button:disabled:hover {
   |   theme when dark mode is active.                                          |
   ------------------------------------------------------------------------------
   */
-  :root {
+  & {
     --nc-bg-1: #1e003a;
     --nc-tx-1: #d8bfd8;
     --nc-header-bg: #272041;
