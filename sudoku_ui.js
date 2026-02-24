@@ -99,8 +99,9 @@ function initTheme() {
   }
 }
 
-function updateColorPalettes(isDarkMode) {
-  if (isDarkMode) {
+function updateColorPalette() {
+  const isDark = document.documentElement.classList.contains("dark");
+  if (isDark) {
     cellColorPalette = colorPalette800;
     candidateColorPalette = colorPalette400;
     lineColorPalette = colorPalette600;
@@ -120,8 +121,7 @@ function swapThemeColors() {
   const oldLinePalette = lineColorPalette;
 
   // 2. Update global palettes to the new mode
-  const isDarkMode = document.documentElement.classList.contains("dark");
-  updateColorPalettes(isDarkMode);
+  updateColorPalettes();
 
   // 3. Grab the newly set palettes
   const newCellPalette = cellColorPalette;
@@ -1318,8 +1318,7 @@ function isBoardIdenticalToSolution() {
 
 function setupEventListeners() {
   initTheme();
-  const isDarkMode = document.documentElement.classList.contains("dark");
-  updateColorPalettes(isDarkMode);
+  updateColorPalettes();
 
   loadExperimentalModePreference();
   gridContainer.addEventListener("click", handleCellClick);
