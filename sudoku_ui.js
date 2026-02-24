@@ -80,14 +80,21 @@ function initTheme() {
   // Toggle button listener
   if (toggleBtn) {
     toggleBtn.addEventListener("click", () => {
+      // Toggle the HTML class
       html.classList.toggle("dark");
       const isDark = html.classList.contains("dark");
       localStorage.setItem("theme", isDark ? "dark" : "light");
 
-      // Refresh UI elements that depend on theme
-      updateColorPalettes(isDark);
+      // Execute the color mapping
+      swapThemeColors();
+
+      // Refresh UI elements
       updateControls();
+      renderLines();
       renderBoard();
+
+      // Save the updated mapped colors to localStorage so a page refresh loads correctly
+      savePuzzleProgress();
     });
   }
 }
@@ -104,6 +111,108 @@ function updateColorPalettes(isDarkMode) {
     candidateColorPalette = colorPalette600;
     lineColorPalette = colorPalette450;
   }
+}
+
+function swapThemeColors() {
+  // 1. Capture old palettes before updating
+  const oldCellPalette = cellColorPalette;
+  const oldCandPalette = candidateColorPalette;
+  const oldLinePalette = lineColorPalette;
+
+  // 2. Update global palettes to the new mode
+  const isDarkMode = document.documentElement.classList.contains("dark");
+  updateColorPalettes(isDarkMode);
+
+  // 3. Grab the newly set palettes
+  const newCellPalette = cellColorPalette;
+  const newCandPalette = candidateColorPalette;
+  const newLinePalette = lineColorPalette;
+
+  // Helper function to find a color's index and map it to the new palette
+  const mapColor = (color, oldPal, newPal) => {
+    if (!color) return color;
+    const idx = oldPal.indexOf(color);
+    return idx !== -1 && newPal[idx] ? newPal[idx] : color;
+  };
+
+  // 4. Map active Board Colors (Cells and Candidates)
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = boardState[r][c];
+
+      // Update cell color
+      cell.cellColor = mapColor(cell.cellColor, oldCellPalette, newCellPalette);
+
+      // Update candidate colors
+      for (let [digit, color] of cell.pencilColors.entries()) {
+        cell.pencilColors.set(
+          digit,
+          mapColor(color, oldCandPalette, newCandPalette),
+        );
+      }
+    }
+  }
+
+  // 5. Map Drawn Lines
+  for (let line of drawnLines) {
+    line.color = mapColor(line.color, oldLinePalette, newLinePalette);
+  }
+
+  // 6. Map Undo/Redo History (prevents old theme colors from reviving on Undo)
+  for (let entry of history) {
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const cell = entry.boardState[r][c];
+        cell.cellColor = mapColor(
+          cell.cellColor,
+          oldCellPalette,
+          newCellPalette,
+        );
+        for (let [digit, color] of cell.pencilColors.entries()) {
+          cell.pencilColors.set(
+            digit,
+            mapColor(color, oldCandPalette, newCandPalette),
+          );
+        }
+      }
+    }
+    if (entry.drawnLines) {
+      for (let line of entry.drawnLines) {
+        line.color = mapColor(line.color, oldLinePalette, newLinePalette);
+      }
+    }
+  }
+
+  // 7. Map Currently Selected Color & Control Pad History
+  if (selectedColor) {
+    if (currentMode === "draw")
+      selectedColor = mapColor(selectedColor, oldLinePalette, newLinePalette);
+    else if (currentMode === "color" && coloringSubMode === "candidate")
+      selectedColor = mapColor(selectedColor, oldCandPalette, newCandPalette);
+    else if (currentMode === "color" && coloringSubMode === "cell")
+      selectedColor = mapColor(selectedColor, oldCellPalette, newCellPalette);
+  }
+
+  lastUsedColors.draw.solid = mapColor(
+    lastUsedColors.draw.solid,
+    oldLinePalette,
+    newLinePalette,
+  );
+  lastUsedColors.draw.dash = mapColor(
+    lastUsedColors.draw.dash,
+    oldLinePalette,
+    newLinePalette,
+  );
+  lastUsedColors.color.cell = mapColor(
+    lastUsedColors.color.cell,
+    oldCellPalette,
+    newCellPalette,
+  );
+  lastUsedColors.color.candidate = mapColor(
+    lastUsedColors.color.candidate,
+    oldCandPalette,
+    newCandPalette,
+  );
 }
 
 function updateButtonLabels() {
