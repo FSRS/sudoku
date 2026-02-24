@@ -99,7 +99,7 @@ function initTheme() {
   }
 }
 
-function updateColorPalette() {
+function updateColorPalettes() {
   const isDark = document.documentElement.classList.contains("dark");
   if (isDark) {
     cellColorPalette = colorPalette800;
