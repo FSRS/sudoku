@@ -3953,6 +3953,257 @@ const techniques = {
     return { change: false };
   },
 
+  almostLockedTriple: (board, pencils) => {
+    // Helper: Remove all candidates EXCEPT those in V from a list of cells
+    const cleanExtraCells = (cellsToClean, V) => {
+      const removals = [];
+      for (const { r, c } of cellsToClean) {
+        for (const cand of pencils[r][c]) {
+          if (!V.has(cand)) {
+            removals.push({ r, c, num: cand });
+          }
+        }
+      }
+      return removals;
+    };
+
+    // Helper: Remove candidates in V from a list of cells, ignoring specific cells
+    const removeCandidates = (cellsToRemove, V, ignoreSet) => {
+      const removals = [];
+      for (const [r, c] of cellsToRemove) {
+        if (ignoreSet.has(`${r},${c}`)) continue;
+        for (const v of V) {
+          if (pencils[r][c].has(v)) {
+            removals.push({ r, c, num: v });
+          }
+        }
+      }
+      return removals;
+    };
+
+    // Iterate 6 Chutes: 0-2 (Rows), 3-5 (Cols)
+    for (let chute = 0; chute < 6; chute++) {
+      const isRow = chute < 3;
+      const bandIdx = chute % 3;
+      const chuteLines = [bandIdx * 3, bandIdx * 3 + 1, bandIdx * 3 + 2];
+
+      const chuteBoxes = [];
+      for (let i = 0; i < 3; i++) {
+        chuteBoxes.push(isRow ? bandIdx * 3 + i : i * 3 + bandIdx);
+      }
+
+      // --- 2A & 3A: Line-to-Box Logic ---
+      for (const lineIdx of chuteLines) {
+        const lineCells = techniques._getUnitCells(
+          isRow ? "row" : "col",
+          lineIdx,
+        );
+        const emptyLineCells = lineCells.filter(([r, c]) => board[r][c] === 0);
+
+        if (emptyLineCells.length < 3) continue;
+
+        // Select 2 cells from the line
+        for (const pair of techniques.combinations(emptyLineCells, 2)) {
+          const [c1, c2] = pair;
+          const V = new Set([
+            ...pencils[c1[0]][c1[1]],
+            ...pencils[c2[0]][c2[1]],
+          ]);
+
+          // Condition: Candidates union is exactly size 3
+          if (V.size !== 3) continue;
+
+          const currentBox1 = techniques._getBoxIndex(c1[0], c1[1]);
+          const currentBox2 = techniques._getBoxIndex(c2[0], c2[1]);
+
+          for (const targetBox of chuteBoxes) {
+            if (targetBox === currentBox1 || targetBox === currentBox2)
+              continue;
+
+            const boxCells = techniques._getUnitCells("box", targetBox);
+
+            // Refinement: Target box must not contain concrete digits from the triple
+            let hasConcrete = false;
+            for (const [br, bc] of boxCells) {
+              if (V.has(board[br][bc])) {
+                hasConcrete = true;
+                break;
+              }
+            }
+            if (hasConcrete) continue;
+
+            const inIntersection = [];
+            const outsideIntersection = [];
+
+            for (const [br, bc] of boxCells) {
+              if (board[br][bc] !== 0) continue;
+
+              let hasV = false;
+              for (const v of V) {
+                if (pencils[br][bc].has(v)) {
+                  hasV = true;
+                  break;
+                }
+              }
+              if (!hasV) continue;
+
+              const isIntersect = isRow ? br === lineIdx : bc === lineIdx;
+              if (isIntersect) {
+                inIntersection.push({ r: br, c: bc });
+              } else {
+                outsideIntersection.push({ r: br, c: bc });
+              }
+            }
+
+            // Condition: Appears in intersection AND exactly two extra cells
+            if (inIntersection.length > 0 && outsideIntersection.length === 2) {
+              const elims = [];
+
+              // Elimination 1: Remove OTHER candidates from the two extra cells
+              elims.push(...cleanExtraCells(outsideIntersection, V));
+
+              // Elimination 2: Remove triple candidates from the rest of the Line
+              const ignoreSet = new Set([
+                `${c1[0]},${c1[1]}`,
+                `${c2[0]},${c2[1]}`,
+              ]);
+              for (const { r, c } of inIntersection) ignoreSet.add(`${r},${c}`);
+
+              elims.push(
+                ...removeCandidates(
+                  lineCells.filter(([r, c]) => board[r][c] === 0),
+                  V,
+                  ignoreSet,
+                ),
+              );
+
+              if (elims.length > 0) {
+                const uniqueElims = Array.from(
+                  new Set(elims.map(JSON.stringify)),
+                ).map(JSON.parse);
+                return {
+                  change: true,
+                  type: "remove",
+                  cells: uniqueElims,
+                  hint: {
+                    name: "Almost Locked Triple",
+                    mainInfo: `using ${isRow ? "Row" : "Col"} ${lineIdx + 1} and Box ${targetBox + 1}`,
+                  },
+                };
+              }
+            }
+          }
+        }
+      }
+
+      // --- 2B & 3B: Box-to-Line Logic ---
+      for (const boxIdx of chuteBoxes) {
+        const boxCells = techniques._getUnitCells("box", boxIdx);
+        const emptyBoxCells = boxCells.filter(([r, c]) => board[r][c] === 0);
+
+        if (emptyBoxCells.length < 3) continue;
+
+        // Select 2 cells from the box
+        for (const pair of techniques.combinations(emptyBoxCells, 2)) {
+          const [c1, c2] = pair;
+          const V = new Set([
+            ...pencils[c1[0]][c1[1]],
+            ...pencils[c2[0]][c2[1]],
+          ]);
+
+          // Condition: Candidates union is exactly size 3
+          if (V.size !== 3) continue;
+
+          const currentLine1 = isRow ? c1[0] : c1[1];
+          const currentLine2 = isRow ? c2[0] : c2[1];
+
+          for (const targetLine of chuteLines) {
+            if (targetLine === currentLine1 || targetLine === currentLine2)
+              continue;
+
+            const lineCells = techniques._getUnitCells(
+              isRow ? "row" : "col",
+              targetLine,
+            );
+
+            // Refinement: Target line must not contain concrete digits from the triple
+            let hasConcrete = false;
+            for (const [tr, tc] of lineCells) {
+              if (V.has(board[tr][tc])) {
+                hasConcrete = true;
+                break;
+              }
+            }
+            if (hasConcrete) continue;
+
+            const inIntersection = [];
+            const outsideIntersection = [];
+
+            for (const [tr, tc] of lineCells) {
+              if (board[tr][tc] !== 0) continue;
+
+              let hasV = false;
+              for (const v of V) {
+                if (pencils[tr][tc].has(v)) {
+                  hasV = true;
+                  break;
+                }
+              }
+              if (!hasV) continue;
+
+              const isIntersect = techniques._getBoxIndex(tr, tc) === boxIdx;
+              if (isIntersect) {
+                inIntersection.push({ r: tr, c: tc });
+              } else {
+                outsideIntersection.push({ r: tr, c: tc });
+              }
+            }
+
+            // Condition: Appears in intersection AND exactly two extra cells
+            if (inIntersection.length > 0 && outsideIntersection.length === 2) {
+              const elims = [];
+
+              // Elimination 1: Remove OTHER candidates from the two extra cells
+              elims.push(...cleanExtraCells(outsideIntersection, V));
+
+              // Elimination 2: Remove triple candidates from the rest of the Box
+              const ignoreSet = new Set([
+                `${c1[0]},${c1[1]}`,
+                `${c2[0]},${c2[1]}`,
+              ]);
+              for (const { r, c } of inIntersection) ignoreSet.add(`${r},${c}`);
+
+              elims.push(
+                ...removeCandidates(
+                  boxCells.filter(([r, c]) => board[r][c] === 0),
+                  V,
+                  ignoreSet,
+                ),
+              );
+
+              if (elims.length > 0) {
+                const uniqueElims = Array.from(
+                  new Set(elims.map(JSON.stringify)),
+                ).map(JSON.parse);
+                return {
+                  change: true,
+                  type: "remove",
+                  cells: uniqueElims,
+                  hint: {
+                    name: "Almost Locked Triple",
+                    mainInfo: `using ${isRow ? "Row" : "Col"} ${targetLine + 1} and Box ${boxIdx + 1}`,
+                  },
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return { change: false };
+  },
+
   sueDeCoq: (board, pencils) => {
     const bitFor = (d) => 1 << (d - 1);
     const maskFromSet = (s) => {
