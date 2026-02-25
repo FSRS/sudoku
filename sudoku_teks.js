@@ -3858,7 +3858,7 @@ const techniques = {
                   cells: elims,
                   hint: {
                     name: "Almost Locked Pair",
-                    mainInfo: `using candidates ${v1}/${v2}`,
+                    mainInfo: `using ${isRow ? "Row" : "Col"} ${lineIdx + 1} and Box ${targetBox + 1}`,
                   },
                 };
               }
@@ -3940,7 +3940,7 @@ const techniques = {
                   cells: elims,
                   hint: {
                     name: "Almost Locked Pair",
-                    mainInfo: `using candidates ${v1}/${v2}`,
+                    mainInfo: `using ${isRow ? "Row" : "Col"} ${targetLine + 1} and Box ${currentBox + 1}`,
                   },
                 };
               }
