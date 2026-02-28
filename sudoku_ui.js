@@ -28,6 +28,7 @@ const colorButton = modeSelector.querySelector('[data-mode="color"]');
 const difficultyLamp = document.getElementById("difficulty-lamp");
 const vagueHintBtn = document.getElementById("vague-hint-btn");
 const techniqueResultCache = new Map();
+const minDateNum = 20260228;
 
 let vagueHintMessage = "";
 let currentPuzzleScore = 0;
@@ -1357,7 +1358,7 @@ function setupEventListeners() {
     candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
     const tip = `Candidate display set to ${
       candidatePopupFormat === "A" ? "Numpad (A)" : "Phone (B)"
-    } layout.`;
+    } layout. (Press 'D' to toggle)`;
     showMessage(tip, "gray");
     renderBoard();
     if (
@@ -1479,8 +1480,8 @@ function setupEventListeners() {
     const dd = String(today.getDate()).padStart(2, "0");
     const todayNum = parseInt(`${yyyy}${mm}${dd}`);
     const todayStr = `${yyyy}-${mm}-${dd}`;
-    if (dateNum < 20260101 || dateNum > todayNum) {
-      dateError.textContent = `Date must be between 2026-01-01 and ${todayStr}.`;
+    if (dateNum < minDateNum || dateNum > todayNum) {
+      dateError.textContent = `Date must be between 2026-03-01 and ${todayStr}.`;
       return;
     }
     let customOption = [...dateSelect.options].find(
@@ -2291,7 +2292,6 @@ async function populateSelectors() {
   }
   dateSelect.innerHTML = "";
   const today = new Date();
-  const minDateNum = 20260101;
   const recentDates = [];
   for (let i = 0; i < 7; i++) {
     const now = new Date();
@@ -2349,12 +2349,6 @@ async function findAndLoadSelectedPuzzle() {
   // 1. Handle "Unlimited" Mode
   if (dateSelect.value === "unlimited") {
     let level = parseInt(levelSelect.value, 10);
-
-    // Fallback Level 10 to 9
-    if (level >= 10) {
-      level = 9;
-      levelSelect.value = "9";
-    }
 
     // CHECK FOR SAVED GAME
     let allSaves = [];
@@ -2422,18 +2416,39 @@ async function findAndLoadSelectedPuzzle() {
   if (dateSelect.value === "custom") {
     dateSelect.value = dateSelect.options[0].value;
   }
-  const selectedDate = parseInt(dateSelect.value, 10);
-  const selectedLevel = parseInt(levelSelect.value, 10);
-  const puzzle = allPuzzles.find(
-    (p) => p.date === selectedDate && p.level === selectedLevel,
-  );
-  if (puzzle) {
-    const rawPuzzle = puzzle.puzzle;
-    const decompressedPuzzle = decompressPuzzleString(rawPuzzle);
 
-    puzzleStringInput.value = decompressedPuzzle;
-    loadPuzzle(decompressedPuzzle, puzzle);
-  } else {
+  const dateStr = dateSelect.value;
+  const selectedLevel = parseInt(levelSelect.value, 10);
+  const selectedDateInt = parseInt(dateStr, 10);
+
+  showMessage("Fetching puzzle...", "blue");
+
+  try {
+    const response = await fetch(
+      `https://json.sudoku.darksabun.club/ds_${dateStr}.json`,
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch puzzle data: ${response.status}`);
+    }
+
+    const dailyPuzzles = await response.json();
+    const puzzle = dailyPuzzles.find((p) => p.level === selectedLevel);
+
+    if (puzzle) {
+      // Inject date into the object so loadPuzzle/save logic works correctly
+      const puzzleData = { ...puzzle, date: selectedDateInt };
+
+      const rawPuzzle = puzzleData.puzzle;
+      const decompressedPuzzle = decompressPuzzleString(rawPuzzle);
+
+      puzzleStringInput.value = decompressedPuzzle;
+      loadPuzzle(decompressedPuzzle, puzzleData);
+    } else {
+      throw new Error("Puzzle level not found in daily file");
+    }
+  } catch (err) {
+    console.error(err);
     initBoardState();
     onBoardUpdated();
     showMessage("No puzzle found for this date and level.", "red");
@@ -2442,6 +2457,56 @@ async function findAndLoadSelectedPuzzle() {
     puzzleTimerEl.textContent = "";
     stopTimer();
     addSudokuCoachLink(null);
+  }
+}
+
+/* ADD helper function to fetch new unlimited puzzles */
+async function fetchUnlimitedPuzzle(level) {
+  const fileIndex = String(level).padStart(2, "0");
+
+  // Update the URL here
+  const filename = `https://json.sudoku.darksabun.club/unlimited/Lv${fileIndex}.txt`;
+
+  showMessage(`Fetching Unlimited Puzzle (Lv. ${level})...`, "blue");
+
+  try {
+    const response = await fetch(filename);
+    if (!response.ok) throw new Error(`Failed to fetch ${filename}`);
+
+    const text = await response.text();
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length === 0) throw new Error("Puzzle file is empty or invalid.");
+
+    const randomIndex = Math.floor(Math.random() * lines.length);
+    const rawString = lines[randomIndex];
+    const puzzleStr = decompressPuzzleString(rawString);
+
+    if (puzzleStr.length !== 81)
+      throw new Error("Puzzle integrity check failed.");
+
+    puzzleStringInput.value = puzzleStr;
+
+    const unlimitedData = {
+      date: "unlimited",
+      level: level,
+      score: 0,
+      puzzle: puzzleStr,
+    };
+
+    loadPuzzle(puzzleStr, unlimitedData);
+
+    puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
+    puzzleScoreEl.textContent = "";
+    showMessage("Loaded Unlimited Puzzle!", "green");
+  } catch (err) {
+    console.error(err);
+    showMessage("Error loading unlimited puzzle.", "red");
+    initBoardState();
+    renderBoard();
   }
 }
 
@@ -3050,54 +3115,6 @@ function removeCurrentPuzzleSave() {
   if (existingSaveIndex > -1) {
     allSaves.splice(existingSaveIndex, 1);
     localStorage.setItem("sudokuSaves", JSON.stringify(allSaves));
-  }
-}
-
-/* ADD helper function to fetch new unlimited puzzles */
-async function fetchUnlimitedPuzzle(level) {
-  const fileIndex = String(level).padStart(2, "0");
-  const filename = `./sudoku/unlimited/Lv${fileIndex}.txt`;
-
-  showMessage(`Fetching Unlimited Puzzle (Lv. ${level})...`, "blue");
-
-  try {
-    const response = await fetch(filename);
-    if (!response.ok) throw new Error(`Failed to fetch ${filename}`);
-
-    const text = await response.text();
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-
-    if (lines.length === 0) throw new Error("Puzzle file is empty or invalid.");
-
-    const randomIndex = Math.floor(Math.random() * lines.length);
-    const rawString = lines[randomIndex];
-    const puzzleStr = decompressPuzzleString(rawString);
-
-    if (puzzleStr.length !== 81)
-      throw new Error("Puzzle integrity check failed.");
-
-    puzzleStringInput.value = puzzleStr;
-
-    const unlimitedData = {
-      date: "unlimited",
-      level: level,
-      score: 0,
-      puzzle: puzzleStr,
-    };
-
-    loadPuzzle(puzzleStr, unlimitedData);
-
-    puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
-    puzzleScoreEl.textContent = "";
-    showMessage("Loaded Unlimited Puzzle!", "green");
-  } catch (err) {
-    console.error(err);
-    showMessage("Error loading unlimited puzzle.", "red");
-    initBoardState();
-    renderBoard();
   }
 }
 
@@ -3904,6 +3921,12 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 100,
     },
     {
+      name: "Swordfish",
+      func: (b, p) => techniques.fish(b, p, 3),
+      level: 3,
+      score: 130,
+    },
+    {
       name: "XY-Wing",
       func: (b, p) => techniques.xyWing(b, p),
       level: 3,
@@ -3920,12 +3943,6 @@ async function evaluateBoardDifficulty(opts = {}) {
       func: (b, p) => techniques.bugPlusOne(b, p),
       level: 4,
       score: 100,
-    },
-    {
-      name: "Swordfish",
-      func: (b, p) => techniques.fish(b, p, 3),
-      level: 4,
-      score: 130,
     },
     {
       name: "Jellyfish",
@@ -3951,6 +3968,15 @@ async function evaluateBoardDifficulty(opts = {}) {
       level: 4,
       score: 160,
     },
+    { name: "Skyscraper", func: techniques.skyscraper, level: 4, score: 110 },
+    {
+      name: "2-String Kite",
+      func: techniques.twoStringKite,
+      level: 4,
+      score: 120,
+    },
+    { name: "Turbot Fish", func: techniques.turbotFish, level: 4, score: 130 },
+
     {
       name: "Unique Rectangle",
       func: (b, p) => techniques.uniqueRectangle(b, p),
@@ -3975,15 +4001,6 @@ async function evaluateBoardDifficulty(opts = {}) {
       level: 5,
       score: 170,
     },
-    { name: "Skyscraper", func: techniques.skyscraper, level: 5, score: 110 },
-    {
-      name: "2-String Kite",
-      func: techniques.twoStringKite,
-      level: 5,
-      score: 120,
-    },
-    { name: "Crane", func: techniques.turbotFish, level: 5, score: 130 },
-
     {
       name: "Finned X-Wing",
       func: techniques.finnedXWing,
@@ -4002,7 +4019,24 @@ async function evaluateBoardDifficulty(opts = {}) {
       level: 5,
       score: 150,
     },
-
+    {
+      name: "Simple Coloring",
+      func: techniques.simpleColoring,
+      level: 5,
+      score: 150,
+    },
+    {
+      name: "Almost Locked Pair",
+      func: techniques.almostLockedPair,
+      level: 5,
+      score: 180,
+    },
+    {
+      name: "Almost Locked Triple",
+      func: techniques.almostLockedTriple,
+      level: 5,
+      score: 200,
+    },
     {
       name: "Hidden Rectangle",
       func: techniques.hiddenRectangle,
@@ -4021,26 +4055,10 @@ async function evaluateBoardDifficulty(opts = {}) {
       level: 6,
       score: 260,
     },
-    {
-      name: "Simple Coloring",
-      func: techniques.simpleColoring,
-      level: 6,
-      score: 150,
-    },
+
     { name: "X-Chain", func: techniques.xChain, level: 6, score: 200 },
     { name: "XY-Chain", func: techniques.xyChain, level: 6, score: 240 },
-    {
-      name: "Almost Locked Pair",
-      func: techniques.almostLockedPair,
-      level: 6,
-      score: 180,
-    },
-    {
-      name: "Almost Locked Triple",
-      func: techniques.almostLockedTriple,
-      level: 6,
-      score: 210,
-    },
+    { name: "3D Medusa", func: techniques.medusa3D, level: 6, score: 200 },
     { name: "Firework", func: techniques.firework, level: 6, score: 240 },
     { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6, score: 200 },
     { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6, score: 240 },
@@ -4050,7 +4068,6 @@ async function evaluateBoardDifficulty(opts = {}) {
       level: 7,
       score: 240,
     },
-    { name: "3D Medusa", func: techniques.medusa3D, level: 7, score: 200 },
     {
       name: "Alternating Inference Chain",
       func: techniques.alternatingInferenceChain,
@@ -4059,22 +4076,10 @@ async function evaluateBoardDifficulty(opts = {}) {
     },
     { name: "Grouped AIC", func: techniques.groupedAIC, level: 8, score: 300 },
     {
-      name: "Aligned Pair Exclusion",
-      func: techniques.alignedPairExclusion,
-      level: 8,
-      score: 290,
-    },
-    {
       name: "Almost Locked Set XZ-Rule",
       func: techniques.alsXZ,
       level: 8,
       score: 300,
-    },
-    {
-      name: "Aligned Triple Exclusion",
-      func: techniques.alignedTripleExclusion,
-      level: 9,
-      score: 310,
     },
     {
       name: "Almost Locked Set XY-Wing",
@@ -4087,6 +4092,12 @@ async function evaluateBoardDifficulty(opts = {}) {
       func: techniques.alsWWing,
       level: 9,
       score: 340,
+    },
+    {
+      name: "Almost Hidden Set XZ-Rule",
+      func: techniques.ahsXZ,
+      level: 9,
+      score: 350,
     },
     {
       name: "Almost Locked Set Chain",
@@ -4110,7 +4121,7 @@ async function evaluateBoardDifficulty(opts = {}) {
       name: "Finned Mutant Swordfish",
       func: techniques.finnedMutantSwordfish,
       level: 10,
-      score: 490,
+      score: 470,
     },
   ];
   const solveStartTime = performance.now();

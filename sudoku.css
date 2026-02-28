@@ -935,7 +935,7 @@ button:disabled:hover {
 }
 
 /* --- Component: Year Sticker --- */
-/* --- Animation: Silly Wiggle --- */
+/* --- Animation: Wiggle --- */
 @keyframes sticker-wiggle {
   0% {
     transform: rotate(-12deg) scale(1);
@@ -954,7 +954,6 @@ button:disabled:hover {
   }
 }
 
-/* --- Component: Humorous Year Sticker --- */
 #year-sticker {
   display: inline-block;
   position: relative;
@@ -978,19 +977,19 @@ button:disabled:hover {
 
   cursor: help;
   user-select: none;
-  /* --- CHANGE: Violet Theme for Light Mode --- */
-  background-color: #e9d5ff; /* Soft Lavender (purple-200) */
-  color: #581c87; /* Deep Purple Text (purple-900) */
-  border: 1px dashed #9333ea; /* Medium Purple Border (purple-600) */
-  box-shadow: 2px 3px 0px rgba(88, 28, 135, 0.2); /* Purple-tinted shadow */
+
+  background-color: #e0e7ff; /* Indigo-100 */
+  color: #312e81; /* Indigo-900 */
+  border: 1px dashed #4f46e5; /* Indigo-600 */
+  box-shadow: 2px 3px 0px rgba(49, 46, 129, 0.2); /* Indigo shadow */
 }
 
-/* --- Tape Effect (Unchanged) --- */
+/* --- Tape Effect --- */
 #year-sticker::before {
   content: "";
   position: absolute;
   top: -8px;
-  left: 50%;
+  left: 62%;
   transform: translateX(-50%) rotate(-5deg);
   width: 1rem;
   height: 2rem;
@@ -1431,9 +1430,9 @@ html.dark {
   /* Dark Mode Overrides */
 
   #year-sticker {
-    background-color: #581c87; /* Deep Purple (purple-900) */
-    color: #f3e8ff; /* Light Lavender Text (purple-100) */
-    border-color: #c084fc; /* Bright Violet Border (purple-400) */
+    background-color: #312e81; /* Deep Indigo (indigo-900) */
+    color: #e0e7ff; /* Light Indigo Text (indigo-100) */
+    border-color: #818cf8; /* Bright Indigo Border (indigo-400) */
     box-shadow: 2px 3px 0px rgba(0, 0, 0, 0.5);
   }
   #year-sticker::before {

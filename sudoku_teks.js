@@ -5672,284 +5672,6 @@ const techniques = {
       nameOverride: "Grouped AIC",
     }),
 
-  alignedPairExclusion: function (board, pencils) {
-    // --- Helpers ---
-    const _popcount = (n) => {
-      n = n - ((n >> 1) & 0x55555555);
-      n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
-      return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
-    };
-
-    const _getMask = (r, c) => {
-      let mask = 0;
-      if (pencils[r][c].size > 0) {
-        for (const d of pencils[r][c]) mask |= 1 << (d - 1);
-      }
-      return mask;
-    };
-
-    const _maskHas = (mask, d) => (mask & (1 << (d - 1))) !== 0;
-
-    // Recursive helper to find ALS (N cells, N+1 candidates)
-    const _findALS = (cells) => {
-      const alses = [];
-      const n = cells.length;
-      if (n === 0) return alses;
-      const maxSubset = n;
-
-      const search = (index, k, currentMask, targetSize) => {
-        if (k === 0) {
-          if (_popcount(currentMask) === targetSize + 1) {
-            alses.push({ candidates: currentMask });
-          }
-          return;
-        }
-        for (let i = index; i <= n - k; i++) {
-          const [r, c] = cells[i];
-          search(i + 1, k - 1, currentMask | _getMask(r, c), targetSize);
-        }
-      };
-
-      for (let size = 1; size <= maxSubset; size++) {
-        search(0, size, 0, size);
-      }
-      return alses;
-    };
-
-    const eliminations = [];
-    let hintInfo = "";
-    let hintName = "Aligned Pair Exclusion";
-
-    // --- APE Type 1 (Intersection of Line and Box) ---
-    const apeType1 = (isRow) => {
-      let found = false;
-      for (let i = 0; i < 9; i++) {
-        // Line index
-        for (let bSec = 0; bSec < 3; bSec++) {
-          // Box 'secondary' index
-
-          // 1. Identify Intersection Cells
-          const intersection = [];
-          const boxIdx = isRow
-            ? Math.floor(i / 3) * 3 + bSec
-            : bSec * 3 + Math.floor(i / 3);
-
-          for (let j = 0; j < 9; j++) {
-            const r = isRow ? i : j;
-            const c = isRow ? j : i;
-            if (
-              techniques._getBoxIndex(r, c) === boxIdx &&
-              pencils[r][c].size > 0
-            ) {
-              intersection.push([r, c]);
-            }
-          }
-
-          if (intersection.length < 2) continue;
-
-          // 2. Iterate Pair (p1, p2) within intersection
-          for (let m = 0; m < intersection.length; m++) {
-            for (let n = 0; n < intersection.length; n++) {
-              if (m === n) continue;
-
-              const p1 = intersection[m];
-              const p2 = intersection[n];
-
-              // 3. Find "Rest" cells (Reverted to separate lists)
-              const lineRest = [];
-              const boxRest = [];
-
-              // Line Rest: All empty cells in line MINUS p1, p2
-              for (let j = 0; j < 9; j++) {
-                const r = isRow ? i : j;
-                const c = isRow ? j : i;
-                if (pencils[r][c].size === 0) continue;
-                if (
-                  (r === p1[0] && c === p1[1]) ||
-                  (r === p2[0] && c === p2[1])
-                )
-                  continue;
-                lineRest.push([r, c]);
-              }
-
-              // Box Rest: All empty cells in box MINUS p1, p2
-              const boxCells = techniques._getUnitCells("box", boxIdx);
-              for (const [r, c] of boxCells) {
-                if (pencils[r][c].size === 0) continue;
-                if (
-                  (r === p1[0] && c === p1[1]) ||
-                  (r === p2[0] && c === p2[1])
-                )
-                  continue;
-                boxRest.push([r, c]);
-              }
-
-              if (lineRest.length === 0 && boxRest.length === 0) continue;
-
-              // 4. Find ALSs separately and merge lists
-              const alses = [..._findALS(lineRest), ..._findALS(boxRest)];
-              if (alses.length === 0) continue;
-
-              const p1Mask = _getMask(p1[0], p1[1]);
-              const p2Mask = _getMask(p2[0], p2[1]);
-
-              // 5. Check Eliminations
-              for (let d1 = 1; d1 <= 9; d1++) {
-                if (!_maskHas(p1Mask, d1)) continue;
-
-                const d1Bit = 1 << (d1 - 1);
-                const p2CandsToCheck = p2Mask & ~d1Bit;
-                if (p2CandsToCheck === 0) continue;
-
-                let lockedWithD1Mask = 0;
-                for (const als of alses) {
-                  if ((als.candidates & d1Bit) !== 0) {
-                    lockedWithD1Mask |= als.candidates;
-                  }
-                }
-
-                if ((p2CandsToCheck & ~lockedWithD1Mask) === 0) {
-                  eliminations.push({ r: p1[0], c: p1[1], num: d1 });
-                  found = true;
-                  hintName = "APE Type 1";
-                  hintInfo = `using ${isRow ? "Row" : "Col"} ${i + 1} and Box ${
-                    boxIdx + 1
-                  }`;
-                }
-              }
-            }
-          }
-        }
-      }
-      return found;
-    };
-
-    // --- APE Type 2 (Chute Intersection) ---
-    const apeType2 = (isRow) => {
-      let found = false;
-      for (let chute = 0; chute < 3; chute++) {
-        const lines = [chute * 3, chute * 3 + 1, chute * 3 + 2];
-        const boxes = isRow
-          ? [chute * 3, chute * 3 + 1, chute * 3 + 2]
-          : [chute, chute + 3, chute + 6];
-
-        for (let uAi = 0; uAi < 3; uAi++) {
-          for (let uBi = 0; uBi < 3; uBi++) {
-            if (uAi === uBi) continue;
-            for (let bAi = 0; bAi < 3; bAi++) {
-              for (let bBi = 0; bBi < 3; bBi++) {
-                if (bAi === bBi) continue;
-
-                const uA = lines[uAi];
-                const uB = lines[uBi];
-                const bA = boxes[bAi];
-                const bB = boxes[bBi];
-
-                // 1. Gather Intersection Area cells for ALS search
-                const getInter = (lineIdx, boxIdx) => {
-                  const cells = [];
-                  const boxC = techniques._getUnitCells("box", boxIdx);
-                  for (const [r, c] of boxC) {
-                    if (pencils[r][c].size > 0) {
-                      if (
-                        (isRow && r === lineIdx) ||
-                        (!isRow && c === lineIdx)
-                      ) {
-                        cells.push([r, c]);
-                      }
-                    }
-                  }
-                  return cells;
-                };
-
-                const inter_uA_bB = getInter(uA, bB); // ALS Area 1
-                const inter_uB_bA = getInter(uB, bA); // ALS Area 2
-
-                if (inter_uA_bB.length === 0 || inter_uB_bA.length === 0)
-                  continue;
-
-                // Find ALSs in these specific intersections
-                const alses = [
-                  ..._findALS(inter_uA_bB),
-                  ..._findALS(inter_uB_bA),
-                ];
-                if (alses.length === 0) continue;
-
-                // 2. Identify Pivot Cells P1(uA, bA) and P2(uB, bB)
-                const p1Cells = getInter(uA, bA);
-                const p2Cells = getInter(uB, bB);
-
-                if (p1Cells.length === 0 || p2Cells.length === 0) continue;
-
-                // 3. Check Eliminations
-                for (const p1 of p1Cells) {
-                  for (const p2 of p2Cells) {
-                    const p1Mask = _getMask(p1[0], p1[1]);
-                    const p2Mask = _getMask(p2[0], p2[1]);
-
-                    for (let d1 = 1; d1 <= 9; d1++) {
-                      if (!_maskHas(p1Mask, d1)) continue;
-
-                      const d1Bit = 1 << (d1 - 1);
-                      if ((p2Mask & d1Bit) !== 0) continue; // Skip if p2 has d1
-
-                      const p2CandsToCheck = p2Mask;
-                      if (p2CandsToCheck === 0) continue;
-
-                      let lockedWithD1Mask = 0;
-                      for (const als of alses) {
-                        if ((als.candidates & d1Bit) !== 0) {
-                          lockedWithD1Mask |= als.candidates;
-                        }
-                      }
-
-                      if ((p2CandsToCheck & ~lockedWithD1Mask) === 0) {
-                        eliminations.push({ r: p1[0], c: p1[1], num: d1 });
-                        found = true;
-                        hintName = "APE Type 2";
-                        hintInfo = `Chute ${isRow ? "Row" : "Col"} ${
-                          chute * 3 + 1
-                        }-${chute * 3 + 3}`;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      return found;
-    };
-
-    if (
-      apeType1(true) ||
-      apeType1(false) ||
-      apeType2(true) ||
-      apeType2(false)
-    ) {
-      const uniqueElims = [];
-      const seen = new Set();
-      for (const e of eliminations) {
-        const key = `${e.r},${e.c},${e.num}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          uniqueElims.push(e);
-        }
-      }
-      return {
-        change: true,
-        type: "remove",
-        cells: uniqueElims,
-        hint: {
-          name: hintName,
-          mainInfo: hintInfo,
-        },
-      };
-    }
-
-    return { change: false };
-  },
   // --- BITWISE HELPERS ---
   _bits: {
     popcount: (n) => {
@@ -6317,364 +6039,270 @@ const techniques = {
     return techniques.alsXZ(board, pencils, true);
   },
 
-  alignedTripleExclusion: (board, pencils) => {
-    // --- Helpers ---
+  ahsXZ: (board, pencils) => {
+    // Helper to get unique removals
+    const getUnique = (arr) =>
+      Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
 
-    const _popcount = (n) => {
-      n = n - ((n >> 1) & 0x55555555);
-      n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
-      return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
-    };
+    // 1. Collect all AHSes
+    const ahses = [];
+    const unitTypes = ["row", "col", "box"];
 
-    const _getMask = (r, c) => {
-      let mask = 0;
-      if (pencils[r][c].size > 0) {
-        for (const d of pencils[r][c]) mask |= 1 << (d - 1);
-      }
-      return mask;
-    };
+    for (let typeIdx = 0; typeIdx < 3; typeIdx++) {
+      const type = unitTypes[typeIdx];
+      for (let idx = 0; idx < 9; idx++) {
+        const unitCells = techniques._getUnitCells(type, idx);
+        const emptyCells = unitCells.filter(([r, c]) => board[r][c] === 0);
+        if (emptyCells.length === 0) continue;
 
-    // Finds ALS of specific 'degree' (excess candidates)
-    // Degree 1: N cells, N+1 candidates (Standard ALS)
-    // Degree 2: N cells, N+2 candidates (Almost Almost Locked Set)
-    const _findALS_ATE = (cells, degree, max_size = 6) => {
-      const alses = [];
-      const n = cells.length;
-      if (n === 0) return alses;
-
-      // Iterate through all possible subset sizes
-      for (let size = 1; size <= Math.min(n, max_size); size++) {
-        // Defined INSIDE the loop to capture 'size'
-        const combinations = (start, k, currentMask) => {
-          if (k === 0) {
-            // Check if the union of candidates equals size + degree
-            if (_popcount(currentMask) === size + degree) {
-              alses.push(currentMask);
-            }
-            return;
-          }
-          for (let i = start; i <= n - k; i++) {
-            const [r, c] = cells[i];
-            combinations(i + 1, k - 1, currentMask | _getMask(r, c));
-          }
-        };
-
-        combinations(0, size, 0);
-      }
-      return alses;
-    };
-
-    const _alsCoversAtLeast = (alsMask, tripleMask, required) => {
-      return _popcount(alsMask & tripleMask) >= required;
-    };
-
-    // Checks if the triple {d1, d2, d3} is covered by any ALS/AALS
-    // Returns TRUE if the combination is invalid (covered/blocked)
-    const _ateCheckTriple = (d1, d2, d3, alses1, alses2) => {
-      const tripleMask = (1 << (d1 - 1)) | (1 << (d2 - 1)) | (1 << (d3 - 1));
-
-      // Degree 1 ALS needs to cover at least 2 candidates
-      for (const mask of alses1) {
-        if (_alsCoversAtLeast(mask, tripleMask, 2)) return true;
-      }
-      // Degree 2 ALS needs to cover at least 3 candidates
-      for (const mask of alses2) {
-        if (_alsCoversAtLeast(mask, tripleMask, 3)) return true;
-      }
-      return false;
-    };
-
-    const eliminations = [];
-
-    const _ateTryElim = (
-      cell,
-      selfMask,
-      other1Mask,
-      other2Mask,
-      alses1,
-      alses2,
-      restriction,
-    ) => {
-      let changed = false;
-
-      // For every candidate in the target cell
-      for (let d = 1; d <= 9; d++) {
-        if (!((selfMask >> (d - 1)) & 1)) continue;
-
-        let isInvalid = true;
-
-        // Try to find ANY valid combination of d, dA, dB
-        // Loop dA (Other 1)
-        for (let dA = 1; dA <= 9; dA++) {
-          if (!((other1Mask >> (dA - 1)) & 1)) continue;
-          if (restriction & 4 && dA === d) continue; // Constraint: Self != Other1
-
-          let possibleWithDA = false;
-
-          // Loop dB (Other 2)
-          for (let dB = 1; dB <= 9; dB++) {
-            if (!((other2Mask >> (dB - 1)) & 1)) continue;
-            if (restriction & 2 && dB === d) continue; // Constraint: Self != Other2
-            if (restriction & 1 && dB === dA) continue; // Constraint: Other1 != Other2
-
-            // If checkTriple returns false, it means NO conflict, so this combo is valid
-            if (!_ateCheckTriple(d, dA, dB, alses1, alses2)) {
-              possibleWithDA = true;
-              break; // Found a valid dB for this dA
-            }
-          }
-
-          if (possibleWithDA) {
-            isInvalid = false;
-            break; // Found a valid dA (and dB), so d is safe
-          }
+        const availableDigits = new Set();
+        for (const [r, c] of emptyCells) {
+          for (const d of pencils[r][c]) availableDigits.add(d);
         }
+        const availArr = [...availableDigits];
 
-        if (isInvalid) {
-          eliminations.push({ r: cell[0], c: cell[1], num: d });
-          changed = true;
-        }
-      }
-      return changed;
-    };
-
-    // --- ATE Type 1 Logic ---
-    const _runType1 = (isRow) => {
-      for (let i = 0; i < 9; i++) {
-        // Line index
-        for (let bSec = 0; bSec < 3; bSec++) {
-          // Secondary box index
-          const boxIdx = isRow
-            ? Math.floor(i / 3) * 3 + bSec
-            : bSec * 3 + Math.floor(i / 3);
-
-          // 1. Find Intersection (must be exactly size 3)
-          const intersection = [];
-          for (let j = 0; j < 9; j++) {
-            const r = isRow ? i : j;
-            const c = isRow ? j : i;
-            if (board[r][c] === 0 && techniques._getBoxIndex(r, c) === boxIdx) {
-              intersection.push([r, c]);
-            }
-          }
-          if (intersection.length !== 3) continue;
-
-          const [p1, p2, p3] = intersection;
-
-          // 2. Find Rest Cells
-          const lineRest = [];
-          for (let j = 0; j < 9; j++) {
-            const r = isRow ? i : j;
-            const c = isRow ? j : i;
-            if (
-              board[r][c] === 0 &&
-              !intersection.some(([pr, pc]) => pr === r && pc === c)
-            ) {
-              lineRest.push([r, c]);
-            }
-          }
-          if (lineRest.length === 0) continue;
-
-          const boxRest = [];
-          const boxCells = techniques._getUnitCells("box", boxIdx);
-          for (const [r, c] of boxCells) {
-            if (
-              board[r][c] === 0 &&
-              !intersection.some(([pr, pc]) => pr === r && pc === c)
-            ) {
-              boxRest.push([r, c]);
-            }
-          }
-          if (boxRest.length === 0) continue;
-
-          // 3. Find ALSs
-          // Degree 1 (Standard) and Degree 2 (AALS)
-          const lineALS1 = _findALS_ATE(lineRest, 1);
-          const boxALS1 = _findALS_ATE(boxRest, 1);
-          const lineALS2 = _findALS_ATE(lineRest, 2);
-          const boxALS2 = _findALS_ATE(boxRest, 2);
-
-          if (
-            (lineALS1.length === 0 && lineALS2.length === 0) ||
-            (boxALS1.length === 0 && boxALS2.length === 0)
-          )
-            continue;
-
-          const alses1 = [...lineALS1, ...boxALS1];
-          const alses2 = [...lineALS2, ...boxALS2];
-
-          const m1 = _getMask(p1[0], p1[1]);
-          const m2 = _getMask(p2[0], p2[1]);
-          const m3 = _getMask(p3[0], p3[1]);
-
-          // Restriction 0b111: All cells see each other (same row/box intersection)
-          if (_ateTryElim(p1, m1, m2, m3, alses1, alses2, 0b111))
-            return {
-              found: true,
-              info: `${isRow ? "Row" : "Col"} ${i + 1}, Box ${boxIdx + 1}`,
-            };
-          if (_ateTryElim(p2, m2, m1, m3, alses1, alses2, 0b111))
-            return {
-              found: true,
-              info: `${isRow ? "Row" : "Col"} ${i + 1}, Box ${boxIdx + 1}`,
-            };
-          if (_ateTryElim(p3, m3, m1, m2, alses1, alses2, 0b111))
-            return {
-              found: true,
-              info: `${isRow ? "Row" : "Col"} ${i + 1}, Box ${boxIdx + 1}`,
-            };
-        }
-      }
-      return { found: false };
-    };
-
-    // --- ATE Type 2 Logic ---
-    const _runType2 = (isRow) => {
-      const tempPairs = [
-        [0, 1],
-        [0, 2],
-        [1, 0],
-        [1, 2],
-        [2, 0],
-        [2, 1],
-      ];
-
-      for (let chute = 0; chute < 3; chute++) {
-        // Define Units and Boxes for this chute
-        const units = [chute * 3, chute * 3 + 1, chute * 3 + 2];
-        const boxes = isRow
-          ? [chute * 3, chute * 3 + 1, chute * 3 + 2]
-          : [chute, chute + 3, chute + 6];
-
-        for (const [uIdxA, uIdxB] of tempPairs) {
-          const uA = units[uIdxA];
-          const uB = units[uIdxB];
-
-          for (const [bIdxA, bIdxB] of tempPairs) {
-            const bA = boxes[bIdxA];
-            const bB = boxes[bIdxB];
-
-            // 1. Find Intersections (ALS areas)
-            const getInter = (lineIdx, boxIdx) => {
-              const res = [];
-              const bCells = techniques._getUnitCells("box", boxIdx);
-              for (const [r, c] of bCells) {
-                if (board[r][c] === 0) {
-                  const lineMatch = isRow ? r === lineIdx : c === lineIdx;
-                  if (lineMatch) res.push([r, c]);
-                }
+        for (let size = 1; size <= 8; size++) {
+          if (size > availArr.length) continue;
+          for (const subset of techniques.combinations(availArr, size)) {
+            const subsetSet = new Set(subset);
+            const cellsWithSubset = emptyCells.filter(([r, c]) => {
+              for (const d of subset) {
+                if (pencils[r][c].has(d)) return true;
               }
-              return res;
-            };
+              return false;
+            });
 
-            const inter_uA_bB = getInter(uA, bB);
-            const inter_uB_bA = getInter(uB, bA);
-
-            if (inter_uA_bB.length === 0 || inter_uB_bA.length === 0) continue;
-
-            // 2. Find ALSs
-            const als1_A = _findALS_ATE(inter_uA_bB, 1, 3);
-            const als1_B = _findALS_ATE(inter_uB_bA, 1, 3);
-            const als2_A = _findALS_ATE(inter_uA_bB, 2, 3);
-            const als2_B = _findALS_ATE(inter_uB_bA, 2, 3);
-
-            if (
-              (als1_A.length === 0 && als2_A.length === 0) ||
-              (als1_B.length === 0 && als2_B.length === 0)
-            )
-              continue;
-
-            const alses1 = [...als1_A, ...als1_B];
-            const alses2 = [...als2_A, ...als2_B];
-
-            // 3. Define Pivot Groups
-            // P1 group from uA n bA
-            // P3 group from uB n bB
-            const P1_unit = getInter(uA, bA);
-            const P3_unit = getInter(uB, bB);
-
-            if (P1_unit.length < 2 || P3_unit.length === 0) continue;
-
-            // 4. Check combinations
-            for (let a = 0; a < P1_unit.length; a++) {
-              for (let b = a + 1; b < P1_unit.length; b++) {
-                const p1 = P1_unit[a];
-                const p2 = P1_unit[b];
-
-                for (const p3 of P3_unit) {
-                  const m1 = _getMask(p1[0], p1[1]);
-                  const m2 = _getMask(p2[0], p2[1]);
-                  const m3 = _getMask(p3[0], p3[1]);
-
-                  // Try Elim with Restrictions:
-                  // Target p1: p1!=p2 (0b100)
-                  if (_ateTryElim(p1, m1, m2, m3, alses1, alses2, 0b100))
-                    return {
-                      found: true,
-                      info: `Chute ${isRow ? "Row" : "Col"} ${chute * 3 + 1}-${
-                        chute * 3 + 3
-                      }`,
-                    };
-
-                  // Target p2: p2!=p1 (0b100) -> swapped other1/other2 semantics in helper call relative to logic
-                  // helper: (self, other1, other2). restriction & 4 is self!=other1
-                  if (_ateTryElim(p2, m2, m1, m3, alses1, alses2, 0b100))
-                    return {
-                      found: true,
-                      info: `Chute ${isRow ? "Row" : "Col"} ${chute * 3 + 1}-${
-                        chute * 3 + 3
-                      }`,
-                    };
-
-                  // Target p3: p1!=p2 (0b001) -> other1!=other2
-                  if (_ateTryElim(p3, m3, m1, m2, alses1, alses2, 0b001))
-                    return {
-                      found: true,
-                      info: `Chute ${isRow ? "Row" : "Col"} ${chute * 3 + 1}-${
-                        chute * 3 + 3
-                      }`,
-                    };
-                }
+            // AHS condition: N candidates distributed over N+1 cells
+            if (cellsWithSubset.length === size + 1) {
+              // Skip box if all cells are in the same row or col
+              if (type === "box") {
+                const sameRow = cellsWithSubset.every(
+                  (c) => c[0] === cellsWithSubset[0][0],
+                );
+                const sameCol = cellsWithSubset.every(
+                  (c) => c[1] === cellsWithSubset[0][1],
+                );
+                if (sameRow || sameCol) continue;
               }
+
+              ahses.push({
+                type,
+                idx,
+                digits: subsetSet,
+                cells: cellsWithSubset,
+              });
             }
           }
         }
       }
-      return { found: false };
-    };
-
-    // --- Execution ---
-    let res = _runType1(true);
-    if (!res.found) res = _runType1(false);
-
-    let typeName = "ATE Type 1";
-    if (!res.found) {
-      res = _runType2(true);
-      if (!res.found) res = _runType2(false);
-      typeName = "ATE Type 2";
     }
 
-    if (res.found && eliminations.length > 0) {
-      // Deduplicate eliminations
-      const uniqueElims = [];
-      const seen = new Set();
-      for (const e of eliminations) {
-        const k = `${e.r},${e.c},${e.num}`;
-        if (!seen.has(k)) {
-          seen.add(k);
-          uniqueElims.push(e);
+    // 2. Compare 2 AHSes
+    for (let i = 0; i < ahses.length; i++) {
+      for (let j = i + 1; j < ahses.length; j++) {
+        const ahs1 = ahses[i];
+        const ahs2 = ahses[j];
+
+        // Skip if they are on the same house
+        if (ahs1.type === ahs2.type && ahs1.idx === ahs2.idx) continue;
+
+        const sharedDigits = [...ahs1.digits].filter((d) => ahs2.digits.has(d));
+
+        // Each AHS should have non-sharing candidate(s)
+        if (
+          ahs1.digits.size <= sharedDigits.length ||
+          ahs2.digits.size <= sharedDigits.length
+        ) {
+          continue;
+        }
+
+        const commonCells = ahs1.cells.filter((c1) =>
+          ahs2.cells.some((c2) => c1[0] === c2[0] && c1[1] === c2[1]),
+        );
+
+        // 3-1. Share >= 2 common cells
+        if (commonCells.length >= 2) {
+          const rccs = [];
+          const zs = [];
+          for (const cell of commonCells) {
+            const cands = pencils[cell[0]][cell[1]];
+            const hasShared = sharedDigits.some((d) => cands.has(d));
+
+            // RCC (Restricted Common Cell): cell present in both AHS, not having any sharing candidate
+            if (!hasShared) rccs.push(cell);
+            else zs.push(cell);
+          }
+
+          const removals = [];
+
+          if (rccs.length >= 2) {
+            // 4A. Doubly linked (weak link on cell)
+            for (const rcc of rccs) {
+              for (const cand of pencils[rcc[0]][rcc[1]]) {
+                if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand)) {
+                  removals.push({ r: rcc[0], c: rcc[1], num: cand });
+                }
+              }
+            }
+            for (const z of zs) {
+              for (const cand of pencils[z[0]][z[1]]) {
+                if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand)) {
+                  removals.push({ r: z[0], c: z[1], num: cand });
+                }
+              }
+            }
+            if (removals.length > 0) {
+              return {
+                change: true,
+                type: "remove",
+                cells: getUnique(removals),
+                hint: {
+                  name: "AHS-XZ",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                },
+              };
+            }
+          } else if (rccs.length === 1) {
+            // 4B. Singly linked (weak link on cell)
+            for (const z of zs) {
+              for (const cand of pencils[z[0]][z[1]]) {
+                if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand)) {
+                  removals.push({ r: z[0], c: z[1], num: cand });
+                }
+              }
+            }
+            if (removals.length > 0) {
+              return {
+                change: true,
+                type: "remove",
+                cells: getUnique(removals),
+                hint: {
+                  name: "AHS-XZ",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                },
+              };
+            }
+          }
+        }
+        // 3-2. Share < 2 common cells but share >= 2 candidates
+        else if (sharedDigits.length >= 2) {
+          for (let dIdx1 = 0; dIdx1 < sharedDigits.length; dIdx1++) {
+            for (let dIdx2 = dIdx1 + 1; dIdx2 < sharedDigits.length; dIdx2++) {
+              const d1 = sharedDigits[dIdx1];
+              const d2 = sharedDigits[dIdx2];
+
+              const getExclusiveCells = (ahs, d) => {
+                return ahs.cells.filter((c) => {
+                  const cands = pencils[c[0]][c[1]];
+                  const ahsCands = [...cands].filter((x) => ahs.digits.has(x));
+                  // cell only contains d over AHS digits
+                  return ahsCands.length === 1 && ahsCands[0] === d;
+                });
+              };
+
+              const c1_d1_list = getExclusiveCells(ahs1, d1);
+              const c2_d1_list = getExclusiveCells(ahs2, d1);
+              const c1_d2_list = getExclusiveCells(ahs1, d2);
+              const c2_d2_list = getExclusiveCells(ahs2, d2);
+
+              if (
+                c1_d1_list.length === 0 ||
+                c2_d1_list.length === 0 ||
+                c1_d2_list.length === 0 ||
+                c2_d2_list.length === 0
+              )
+                continue;
+
+              // Find a pair for d1 that sees each other
+              let foundD1 = null;
+              for (const c1 of c1_d1_list) {
+                for (const c2 of c2_d1_list) {
+                  if (techniques._sees(c1, c2)) {
+                    foundD1 = [c1, c2];
+                    break;
+                  }
+                }
+                if (foundD1) break;
+              }
+
+              // Find a pair for d2 that sees each other
+              let foundD2 = null;
+              for (const c1 of c1_d2_list) {
+                for (const c2 of c2_d2_list) {
+                  if (techniques._sees(c1, c2)) {
+                    foundD2 = [c1, c2];
+                    break;
+                  }
+                }
+                if (foundD2) break;
+              }
+
+              if (foundD1 && foundD2) {
+                // 4C. Doubly linked (weak link on region)
+                const removals = [];
+
+                // Remove d1 from common peers
+                const peersD1 = techniques._commonVisibleCells(
+                  foundD1[0],
+                  foundD1[1],
+                );
+                for (const p of peersD1) {
+                  if (pencils[p[0]][p[1]].has(d1))
+                    removals.push({ r: p[0], c: p[1], num: d1 });
+                }
+
+                // Remove d2 from common peers
+                const peersD2 = techniques._commonVisibleCells(
+                  foundD2[0],
+                  foundD2[1],
+                );
+                for (const p of peersD2) {
+                  if (pencils[p[0]][p[1]].has(d2))
+                    removals.push({ r: p[0], c: p[1], num: d2 });
+                }
+
+                // On AHS1, Remove other than AHS1 digits from cells other than two cells detected on AHS1
+                for (const cell of ahs1.cells) {
+                  if (
+                    (cell[0] === foundD1[0][0] && cell[1] === foundD1[0][1]) ||
+                    (cell[0] === foundD2[0][0] && cell[1] === foundD2[0][1])
+                  )
+                    continue;
+                  for (const cand of pencils[cell[0]][cell[1]]) {
+                    if (!ahs1.digits.has(cand))
+                      removals.push({ r: cell[0], c: cell[1], num: cand });
+                  }
+                }
+
+                // On AHS2, Remove other than AHS2 digits from cells other than two cells detected on AHS2
+                for (const cell of ahs2.cells) {
+                  if (
+                    (cell[0] === foundD1[1][0] && cell[1] === foundD1[1][1]) ||
+                    (cell[0] === foundD2[1][0] && cell[1] === foundD2[1][1])
+                  )
+                    continue;
+                  for (const cand of pencils[cell[0]][cell[1]]) {
+                    if (!ahs2.digits.has(cand))
+                      removals.push({ r: cell[0], c: cell[1], num: cand });
+                  }
+                }
+
+                if (removals.length > 0) {
+                  return {
+                    change: true,
+                    type: "remove",
+                    cells: getUnique(removals),
+                    hint: {
+                      name: "AHS-XZ",
+                      mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                    },
+                  };
+                }
+              }
+            }
+          }
         }
       }
-
-      return {
-        change: true,
-        type: "remove",
-        cells: uniqueElims,
-        hint: {
-          name: typeName,
-          mainInfo: res.info,
-        },
-      };
     }
 
     return { change: false };
