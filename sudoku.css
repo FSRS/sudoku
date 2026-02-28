@@ -958,6 +958,8 @@ button:disabled:hover {
   display: inline-block;
   position: relative;
 
+  vertical-align: middle;
+
   font-size: 0.6em;
   font-weight: bold;
 
@@ -967,21 +969,25 @@ button:disabled:hover {
   border-radius: 2px;
 
   /* smooth slide animation */
-  max-width: 100px; /* Needed for CSS transition to work */
-  overflow: hidden; /* Hides the text as the box shrinks */
+  max-width: 100px;
+  overflow: hidden;
+
   transition:
     max-width 0.8s ease,
-    margin 0.8s ease,
-    padding 0.8s ease,
-    border 0.8s ease;
+    margin-left 0.8s ease,
+    padding-left 0.8s ease,
+    padding-right 0.8s ease,
+    border-left-width 0.8s ease,
+    border-right-width 0.8s ease,
+    color 0.8s ease;
 
   cursor: help;
   user-select: none;
 
-  background-color: #e0e7ff; /* Indigo-100 */
-  color: #312e81; /* Indigo-900 */
-  border: 1px dashed #4f46e5; /* Indigo-600 */
-  box-shadow: 2px 3px 0px rgba(49, 46, 129, 0.2); /* Indigo shadow */
+  background-color: #e0e7ff;
+  color: #312e81;
+  border: 1px dashed #4f46e5;
+  box-shadow: 2px 3px 0px rgba(49, 46, 129, 0.2);
 }
 
 /* --- Tape Effect --- */
@@ -1032,9 +1038,13 @@ button:disabled:hover {
 #year-sticker.sticker-collapsed {
   max-width: 0;
   margin-left: 0;
-  padding: 0;
-  border-width: 0;
-  box-shadow: none; /* Remove shadow so no "ghost" remains */
+  padding-left: 0;
+  padding-right: 0;
+  border-left-width: 0;
+  border-right-width: 0;
+
+  color: transparent;
+  box-shadow: none;
 }
 
 /*
