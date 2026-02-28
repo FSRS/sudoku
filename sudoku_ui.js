@@ -28,7 +28,7 @@ const colorButton = modeSelector.querySelector('[data-mode="color"]');
 const difficultyLamp = document.getElementById("difficulty-lamp");
 const vagueHintBtn = document.getElementById("vague-hint-btn");
 const techniqueResultCache = new Map();
-const minDateNum = 20260228;
+const minDateNum = 20260301;
 
 let vagueHintMessage = "";
 let currentPuzzleScore = 0;
