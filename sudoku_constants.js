@@ -113,7 +113,7 @@ const levelTips = [
   "Lv. 6: Finned Fishes, X-Chain, XY-Chain, 3D Medusa, Firework, WXYZ-Wing, Sue de Coq",
   "Lv. 7: Grouped X-Chain, Alternating Inference Chain",
   "Lv. 8: Grouped Alternating Inference Chain, ALS-XZ",
-  "Lv. 9: ALS-XY/W-Wing, AHS-XZ, ALS-XY/W-Wing",
+  "Lv. 9: ALS-XY/W-Wing, AHS-XZ, AHS-XY/W-Wing",
   "Lv. 10: ALS-Chain, Death Blossom, Finned Franken/Mutant Swordfish",
 ];
 

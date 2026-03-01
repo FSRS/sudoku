@@ -5460,7 +5460,7 @@ const techniques = {
                 type: "remove",
                 cells: elims,
                 hint: {
-                  name: options.nameOverride || "Continuous AIC Loop",
+                  name: options.nameOverride || "Alternating Inference Chain",
                   mainInfo: techniques._getHintInfo(chain, hintType),
                 },
               };
@@ -5514,7 +5514,7 @@ const techniques = {
                 type: "remove",
                 cells: elims,
                 hint: {
-                  name: options.nameOverride || "AIC",
+                  name: options.nameOverride || "Alternating Inference Chain",
                   mainInfo:
                     techniques._getHintInfo(chain, hintType) +
                     `${isContinuous ? " (Ring)" : ""}`,
@@ -5670,7 +5670,7 @@ const techniques = {
       bivalueOnly: false,
       maxLength: 16,
       hintType: "strongLink",
-      nameOverride: "Grouped AIC",
+      nameOverride: "Grouped Alternating Inference Chain",
     }),
 
   // --- BITWISE HELPERS ---
