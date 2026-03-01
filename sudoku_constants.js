@@ -167,7 +167,6 @@ let cellColorPalette;
 let candidateColorPalette;
 
 let boardState = [];
-let allPuzzles = [];
 let selectedCell = { row: null, col: null };
 let currentMode = "concrete";
 let coloringSubMode = "cell";

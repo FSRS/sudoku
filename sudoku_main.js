@@ -38,9 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     try {
-      const response = await fetch("sudoku/sudoku.json");
-      if (!response.ok) throw new Error("Failed to load sudoku.json");
-      allPuzzles = await response.json();
       await populateSelectors();
       findAndLoadSelectedPuzzle();
     } catch (error) {
