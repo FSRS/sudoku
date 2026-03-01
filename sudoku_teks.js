@@ -6621,129 +6621,360 @@ const techniques = {
   ahsWWing: (board, pencils) => {
     const getUnique = (arr) =>
       Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
+
     const ahses = techniques._collectAllAHS(board, pencils);
+
+    // Ensure digit location masks are built for fast bitwise checking
+    techniques._precomputeDigitLocations(board, pencils);
+
+    // Helper: Check if candidate d in a unit is fully covered by the combined peers of c1 and c2
+    const unitCoveredByPair = (c1, c2, d, unitType, idx) => {
+      let unitMask = 0;
+      if (unitType === 0) unitMask = techniques._digitRowMasks[d - 1][idx];
+      else if (unitType === 1) unitMask = techniques._digitColMasks[d - 1][idx];
+      else unitMask = techniques._digitBoxMasks[d - 1][idx];
+
+      if (techniques._bits.popcount(unitMask) < 2) return false;
+
+      if (unitType === 0 && (c1[0] === idx || c2[0] === idx)) return false;
+      if (unitType === 1 && (c1[1] === idx || c2[1] === idx)) return false;
+      if (unitType === 2) {
+        const b1 = Math.floor(c1[0] / 3) * 3 + Math.floor(c1[1] / 3);
+        const b2 = Math.floor(c2[0] / 3) * 3 + Math.floor(c2[1] / 3);
+        if (b1 === idx || b2 === idx) return false;
+      }
+
+      const getUnitCoverage = (cell, uType, uIdx) => {
+        let mask = 0;
+        const r = cell[0],
+          c = cell[1];
+
+        if (uType === 0) {
+          mask |= 1 << c;
+          if (Math.floor(r / 3) === Math.floor(uIdx / 3))
+            mask |= 7 << (Math.floor(c / 3) * 3);
+        } else if (uType === 1) {
+          mask |= 1 << r;
+          if (Math.floor(c / 3) === Math.floor(uIdx / 3))
+            mask |= 7 << (Math.floor(r / 3) * 3);
+        } else {
+          const bRow = Math.floor(uIdx / 3) * 3;
+          const bCol = (uIdx % 3) * 3;
+          if (r >= bRow && r < bRow + 3) mask |= 7 << ((r % 3) * 3);
+          if (c >= bCol && c < bCol + 3) mask |= 73 << (c % 3);
+        }
+        return mask;
+      };
+
+      const c1_cov = getUnitCoverage(c1, unitType, idx);
+      const c2_cov = getUnitCoverage(c2, unitType, idx);
+
+      if ((unitMask & ~(c1_cov | c2_cov)) !== 0) return false;
+      if ((unitMask & ~c1_cov) === 0 || (unitMask & ~c2_cov) === 0)
+        return false;
+
+      return true;
+    };
 
     for (let i = 0; i < ahses.length; i++) {
       for (let j = i + 1; j < ahses.length; j++) {
         const ahs1 = ahses[i];
         const ahs2 = ahses[j];
 
-        // Ensure not on the same unit
         if (ahs1.type === ahs2.type && ahs1.idx === ahs2.idx) continue;
 
         const sharedDigits = [...ahs1.digits].filter((d) => ahs2.digits.has(d));
-        if (sharedDigits.length < 2) continue;
+        if (sharedDigits.length === 0) continue;
 
-        for (let dIdx1 = 0; dIdx1 < sharedDigits.length; dIdx1++) {
-          for (let dIdx2 = dIdx1 + 1; dIdx2 < sharedDigits.length; dIdx2++) {
-            const d1 = sharedDigits[dIdx1];
-            const d2 = sharedDigits[dIdx2];
+        for (const d1 of sharedDigits) {
+          const c1_link_list = ahs1.exclusiveCellsMap.get(d1) || [];
+          const c2_link_list = ahs2.exclusiveCellsMap.get(d1) || [];
 
-            const roles = [
-              { link: d1, elim: d2 },
-              { link: d2, elim: d1 },
-            ];
+          if (!c1_link_list.length || !c2_link_list.length) continue;
 
-            for (const role of roles) {
-              const c1_link_list = ahs1.exclusiveCellsMap.get(role.link);
-              const c2_link_list = ahs2.exclusiveCellsMap.get(role.link);
-              const c1_elim_list = ahs1.exclusiveCellsMap.get(role.elim);
-              const c2_elim_list = ahs2.exclusiveCellsMap.get(role.elim);
-
-              if (
-                !c1_link_list.length ||
-                !c2_link_list.length ||
-                !c1_elim_list.length ||
-                !c2_elim_list.length
-              )
+          for (const c1_link of c1_link_list) {
+            for (const c2_link of c2_link_list) {
+              if (c1_link[0] === c2_link[0] && c1_link[1] === c2_link[1])
                 continue;
 
-              for (const c1_link of c1_link_list) {
-                for (const c2_link of c2_link_list) {
-                  // Must not overlap
-                  if (c1_link[0] === c2_link[0] && c1_link[1] === c2_link[1])
+              let hasStrongLink = false;
+              let validUType = -1;
+              let validUIdx = -1;
+
+              for (let uType = 0; uType < 3 && !hasStrongLink; uType++) {
+                for (let uIdx = 0; uIdx < 9 && !hasStrongLink; uIdx++) {
+                  if (unitCoveredByPair(c1_link, c2_link, d1, uType, uIdx)) {
+                    hasStrongLink = true;
+                    validUType = uType;
+                    validUIdx = uIdx;
+                  }
+                }
+              }
+
+              if (!hasStrongLink) continue;
+
+              const removals = [];
+              let changed = false;
+              let isRing = false;
+
+              // Ring Helpers
+              const processNonRcc = (ahs, linkCell, elimCell) => {
+                for (const cell of ahs.cells) {
+                  if (
+                    (cell[0] === linkCell[0] && cell[1] === linkCell[1]) ||
+                    (cell[0] === elimCell[0] && cell[1] === elimCell[1])
+                  )
                     continue;
 
-                  let hasStrongLink = false;
+                  for (const cand of pencils[cell[0]][cell[1]]) {
+                    if (!ahs.digits.has(cand)) {
+                      removals.push({ r: cell[0], c: cell[1], num: cand });
+                      changed = true;
+                    }
+                  }
+                }
+              };
 
-                  // W-Wing logic:
-                  // Loop over all houses (rows, cols, boxes)
-                  const unitTypes = ["row", "col", "box"];
-                  for (const uType of unitTypes) {
-                    for (let uIdx = 0; uIdx < 9; uIdx++) {
-                      const houseCells = techniques._getUnitCells(uType, uIdx);
+              const eliminateCoverPeers = (linkCell, d, uType, uIdx) => {
+                let unitMask = 0;
+                if (uType === 0)
+                  unitMask = techniques._digitRowMasks[d - 1][uIdx];
+                else if (uType === 1)
+                  unitMask = techniques._digitColMasks[d - 1][uIdx];
+                else unitMask = techniques._digitBoxMasks[d - 1][uIdx];
 
-                      // Loop over a house that does not include any of c1_link and c2_link
-                      const includesEither = houseCells.some(
-                        (c) =>
-                          (c[0] === c1_link[0] && c[1] === c1_link[1]) ||
-                          (c[0] === c2_link[0] && c[1] === c2_link[1]),
-                      );
-                      if (includesEither) continue;
+                const coveredHouseCells = [];
 
-                      // Check if house having at least two 'link' candidate
-                      const linkCellsInHouse = houseCells.filter((c) =>
-                        pencils[c[0]][c[1]].has(role.link),
-                      );
+                // 1. Collect all the cells in the target house that are covered by the linkCell
+                for (let idx = 0; idx < 9; idx++) {
+                  if ((unitMask & (1 << idx)) !== 0) {
+                    let houseCell;
+                    if (uType === 0) houseCell = [uIdx, idx];
+                    else if (uType === 1) houseCell = [idx, uIdx];
+                    else
+                      houseCell = [
+                        Math.floor(uIdx / 3) * 3 + Math.floor(idx / 3),
+                        (uIdx % 3) * 3 + (idx % 3),
+                      ];
 
-                      if (linkCellsInHouse.length >= 2) {
-                        let c1Covers = false;
-                        let c2Covers = false;
-                        let allCovered = true;
+                    if (techniques._sees(linkCell, houseCell)) {
+                      coveredHouseCells.push(houseCell);
+                    }
+                  }
+                }
 
-                        for (const c of linkCellsInHouse) {
-                          const seenByC1 = techniques._sees(c1_link, c);
-                          const seenByC2 = techniques._sees(c2_link, c);
+                if (coveredHouseCells.length === 0) return;
 
-                          if (seenByC1) c1Covers = true;
-                          if (seenByC2) c2Covers = true;
+                // 2. Find cells that see the linkCell AND *all* of the coveredHouseCells
+                for (let r = 0; r < 9; r++) {
+                  for (let c = 0; c < 9; c++) {
+                    // Don't target the linkCell itself
+                    if (r === linkCell[0] && c === linkCell[1]) continue;
 
-                          if (!seenByC1 && !seenByC2) {
-                            allCovered = false;
-                            break;
-                          }
-                        }
+                    const targetCell = [r, c];
 
-                        // Valid strong link: ALL candidates covered, AND both cells contribute to the coverage
-                        if (allCovered && c1Covers && c2Covers) {
-                          hasStrongLink = true;
+                    // Must see the linkCell
+                    if (!techniques._sees(targetCell, linkCell)) continue;
+
+                    let seesAllCovered = true;
+                    for (const hc of coveredHouseCells) {
+                      // Don't target the house cells themselves
+                      if (r === hc[0] && c === hc[1]) {
+                        seesAllCovered = false;
+                        break;
+                      }
+                      // Must see this specific covered house cell
+                      if (!techniques._sees(targetCell, hc)) {
+                        seesAllCovered = false;
+                        break;
+                      }
+                    }
+
+                    // If it sees the link cell and all covered house cells, eliminate the digit
+                    if (seesAllCovered && pencils[r][c].has(d)) {
+                      removals.push({ r: r, c: c, num: d });
+                      changed = true;
+                    }
+                  }
+                }
+              };
+
+              // 3A. Ring by Cell
+              let sharedCell = null;
+              for (const c1 of ahs1.cells) {
+                for (const c2 of ahs2.cells) {
+                  if (c1[0] === c2[0] && c1[1] === c2[1]) {
+                    if (
+                      (c1[0] !== c1_link[0] || c1[1] !== c1_link[1]) &&
+                      (c1[0] !== c2_link[0] || c1[1] !== c2_link[1])
+                    ) {
+                      let hasAnySharedCandidate = false;
+                      for (const sd of sharedDigits) {
+                        if (pencils[c1[0]][c1[1]].has(sd)) {
+                          hasAnySharedCandidate = true;
                           break;
                         }
                       }
-                    }
-                    if (hasStrongLink) break;
-                  }
 
-                  if (!hasStrongLink) continue;
+                      if (!hasAnySharedCandidate) {
+                        sharedCell = c1;
+                        break;
+                      }
+                    }
+                  }
+                }
+                if (sharedCell) break;
+              }
+
+              if (sharedCell) {
+                isRing = true;
+
+                const unionDigits = new Set([...ahs1.digits, ...ahs2.digits]);
+                for (const cand of pencils[sharedCell[0]][sharedCell[1]]) {
+                  if (!unionDigits.has(cand)) {
+                    removals.push({
+                      r: sharedCell[0],
+                      c: sharedCell[1],
+                      num: cand,
+                    });
+                    changed = true;
+                  }
+                }
+
+                processNonRcc(ahs1, c1_link, sharedCell);
+                processNonRcc(ahs2, c2_link, sharedCell);
+
+                eliminateCoverPeers(c1_link, d1, validUType, validUIdx);
+                eliminateCoverPeers(c2_link, d1, validUType, validUIdx);
+              }
+
+              // 3B. Ring by Candidate
+              if (!isRing) {
+                for (const d2 of sharedDigits) {
+                  if (d2 === d1) continue;
+
+                  const c1_elim_list = ahs1.exclusiveCellsMap.get(d2) || [];
+                  const c2_elim_list = ahs2.exclusiveCellsMap.get(d2) || [];
+
+                  if (!c1_elim_list.length || !c2_elim_list.length) continue;
 
                   for (const c1_elim of c1_elim_list) {
                     for (const c2_elim of c2_elim_list) {
-                      const removals = [];
+                      if (
+                        c1_elim[0] === c2_elim[0] &&
+                        c1_elim[1] === c2_elim[1]
+                      )
+                        continue;
+
+                      if (techniques._sees(c1_elim, c2_elim)) {
+                        isRing = true;
+
+                        const commonPeers = techniques._commonVisibleCells(
+                          c1_elim,
+                          c2_elim,
+                        );
+                        for (const p of commonPeers) {
+                          if (pencils[p[0]][p[1]].has(d2)) {
+                            removals.push({ r: p[0], c: p[1], num: d2 });
+                            changed = true;
+                          }
+                        }
+
+                        processNonRcc(ahs1, c1_link, c1_elim);
+                        processNonRcc(ahs2, c2_link, c2_elim);
+
+                        eliminateCoverPeers(c1_link, d1, validUType, validUIdx);
+                        eliminateCoverPeers(c2_link, d1, validUType, validUIdx);
+                        break;
+                      }
+                    }
+                    if (isRing) break;
+                  }
+                  if (isRing) break;
+                }
+              }
+
+              if (isRing) {
+                if (changed && removals.length > 0) {
+                  return {
+                    change: true,
+                    type: "remove",
+                    cells: getUnique(removals),
+                    hint: {
+                      name: "Almost Hidden Set W-Wing (Ring)",
+                      mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                    },
+                  };
+                }
+                continue; // Skip Wing check if Ring
+              }
+
+              // 4A. Elimination by Cell
+              const unionDigits = new Set([...ahs1.digits, ...ahs2.digits]);
+              for (const c1 of ahs1.cells) {
+                for (const c2 of ahs2.cells) {
+                  if (c1[0] === c2[0] && c1[1] === c2[1]) {
+                    if (
+                      (c1[0] === c1_link[0] && c1[1] === c1_link[1]) ||
+                      (c1[0] === c2_link[0] && c1[1] === c2_link[1])
+                    ) {
+                      continue;
+                    }
+
+                    for (const cand of pencils[c1[0]][c1[1]]) {
+                      if (!unionDigits.has(cand)) {
+                        removals.push({ r: c1[0], c: c1[1], num: cand });
+                        changed = true;
+                      }
+                    }
+                  }
+                }
+              }
+
+              // 4B. Elimination by Digit
+              if (!changed) {
+                for (const d2 of sharedDigits) {
+                  if (d2 === d1) continue;
+
+                  const c1_elim_list = ahs1.exclusiveCellsMap.get(d2) || [];
+                  const c2_elim_list = ahs2.exclusiveCellsMap.get(d2) || [];
+
+                  if (!c1_elim_list.length || !c2_elim_list.length) continue;
+
+                  for (const c1_elim of c1_elim_list) {
+                    for (const c2_elim of c2_elim_list) {
+                      if (
+                        c1_elim[0] === c2_elim[0] &&
+                        c1_elim[1] === c2_elim[1]
+                      )
+                        continue;
+
                       const commonPeers = techniques._commonVisibleCells(
                         c1_elim,
                         c2_elim,
                       );
 
                       for (const p of commonPeers) {
-                        if (pencils[p[0]][p[1]].has(role.elim)) {
-                          removals.push({ r: p[0], c: p[1], num: role.elim });
+                        if (pencils[p[0]][p[1]].has(d2)) {
+                          removals.push({ r: p[0], c: p[1], num: d2 });
+                          changed = true;
                         }
-                      }
-
-                      if (removals.length > 0) {
-                        return {
-                          change: true,
-                          type: "remove",
-                          cells: getUnique(removals),
-                          hint: {
-                            name: "Almost Hidden Set W-Wing",
-                            mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
-                          },
-                        };
                       }
                     }
                   }
                 }
+              }
+
+              if (changed && removals.length > 0) {
+                return {
+                  change: true,
+                  type: "remove",
+                  cells: getUnique(removals),
+                  hint: {
+                    name: "Almost Hidden Set W-Wing",
+                    mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  },
+                };
               }
             }
           }
@@ -6752,7 +6983,6 @@ const techniques = {
     }
     return { change: false };
   },
-
   // --- ALS CHAIN SUPPORT STRUCTURES ---
 
   /**
@@ -7199,7 +7429,7 @@ const techniques = {
   },
 
   alsWWing: (board, pencils) => {
-    if (_alsCache.legnth === 0)
+    if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
     techniques._buildAlsDigitCommonPeers();
@@ -7207,6 +7437,68 @@ const techniques = {
     techniques._precomputeDigitLocations(board, pencils);
 
     const alses = _alsCache;
+
+    // Helper: Eliminate d from common peers of the ALS's d-cells AND the house cells they cover
+    const eliminateAlsCoverPeers = (als, d, uType, uIdx) => {
+      const localElims = [];
+      const unitCells = [];
+
+      // 1. Get the 9 cells of the target unit
+      for (let i = 0; i < 9; i++) {
+        if (uType === 0) unitCells.push(uIdx * 9 + i);
+        else if (uType === 1) unitCells.push(i * 9 + uIdx);
+        else
+          unitCells.push(
+            (Math.floor(uIdx / 3) * 3 + Math.floor(i / 3)) * 9 +
+              ((uIdx % 3) * 3 + (i % 3)),
+          );
+      }
+
+      const alsPeers = _alsDigitCommonPeers[als.hash][d - 1]; // BigInt
+      const coveredHouseCellIds = [];
+
+      // 2. Collect which of these unit cells actually contain 'd' and are covered by the ALS peers
+      for (const cid of unitCells) {
+        const r = Math.floor(cid / 9);
+        const c = cid % 9;
+        if (pencils[r][c] && pencils[r][c].has(d)) {
+          if ((alsPeers & (1n << BigInt(cid))) !== 0n) {
+            coveredHouseCellIds.push(cid);
+          }
+        }
+      }
+
+      if (coveredHouseCellIds.length === 0) return localElims;
+
+      // 3. Find common peers of the ALS's d-cells AND the covered house cells
+      let commonPeersMask = (1n << 81n) - 1n; // All 81 bits set to 1
+
+      // Intersect with peers of all ALS d-cells
+      const alsCellsMask = als.candidatePositions[d - 1];
+      for (let i = 0n; i < 81n; i++) {
+        if ((alsCellsMask & (1n << i)) !== 0n) {
+          commonPeersMask &= PEER_MAP[Number(i)];
+        }
+      }
+
+      // Intersect with peers of covered house cells
+      for (const cid of coveredHouseCellIds) {
+        commonPeersMask &= PEER_MAP[cid];
+      }
+
+      // 4. Eliminate the digit from those common peers
+      for (let i = 0n; i < 81n; i++) {
+        if ((commonPeersMask & (1n << i)) !== 0n) {
+          const r = Math.floor(Number(i) / 9);
+          const c = Number(i) % 9;
+          if (pencils[r][c] && pencils[r][c].has(d)) {
+            localElims.push({ r, c, num: d });
+          }
+        }
+      }
+
+      return localElims;
+    };
 
     for (let i = 0; i < alses.length; i++) {
       for (let j = i + 1; j < alses.length; j++) {
@@ -7225,6 +7517,7 @@ const techniques = {
 
         let rccMask = 0;
         const commonDigits = techniques._bits.maskToDigits(commonMask);
+        const virtualRccs = []; // <-- Track Virtual RCCs
 
         for (const d of commonDigits) {
           // Disallow direct overlap of d-cells between A and B
@@ -7242,6 +7535,7 @@ const techniques = {
               if (techniques._unitCoveredByPair(A, B, d, ut, idx)) {
                 rccMask |= 1 << (d - 1);
                 foundVirtual = true;
+                virtualRccs.push({ d, uType: ut, uIdx: idx }); // Record for cover-peer eliminations
               }
             }
           }
@@ -7280,6 +7574,16 @@ const techniques = {
             commonMask,
             pencils,
           );
+
+          // NEW: Eliminate cover peers for Virtual RCCs
+          for (const vrcc of virtualRccs) {
+            elims.push(
+              ...eliminateAlsCoverPeers(A, vrcc.d, vrcc.uType, vrcc.uIdx),
+            );
+            elims.push(
+              ...eliminateAlsCoverPeers(B, vrcc.d, vrcc.uType, vrcc.uIdx),
+            );
+          }
         }
 
         if (elims.length > 0) {
