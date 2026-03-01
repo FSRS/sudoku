@@ -6065,7 +6065,8 @@ const techniques = {
         }
         const availArr = [...availableDigits];
 
-        for (let size = 1; size <= 8; size++) {
+        // REPLACE WITH THIS:
+        for (let size = 1; size < emptyCells.length - 1; size++) {
           if (size >= availArr.length) continue;
           for (const subset of techniques.combinations(availArr, size)) {
             const subsetSet = new Set(subset);
