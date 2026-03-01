@@ -1,5 +1,6 @@
 // --- ALS Cache Structure ---
 let _alsCache = [];
+let _ahsCache = [];
 let _alsDigitCommonPeers = {};
 let _alsRccMap = {};
 let _alsLookup = {};
@@ -5755,9 +5756,14 @@ const techniques = {
       const cells = unitCells.filter(([r, c]) => board[r][c] === 0);
       const n = cells.length;
 
+      // MODIFICATION: Max size cannot exceed the number of empty cells minus 1
+      const effectiveMaxSize = Math.min(maxSize, n - 1);
+
       const backtrack = (start, currentCells, currentMask) => {
         const k = currentCells.length;
-        if (k > maxSize) return;
+
+        // MODIFICATION: Check against effectiveMaxSize instead of maxSize
+        if (k > effectiveMaxSize) return;
 
         // Check for valid ALS
         if (k >= minSize) {
@@ -6039,12 +6045,10 @@ const techniques = {
     return techniques.alsXZ(board, pencils, true);
   },
 
-  ahsXZ: (board, pencils) => {
-    // Helper to get unique removals
-    const getUnique = (arr) =>
-      Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
+  // --- AHS COLLECTION ENGINE ---
+  _collectAllAHS: (board, pencils) => {
+    if (_ahsCache && _ahsCache.length > 0) return _ahsCache;
 
-    // 1. Collect all AHSes
     const ahses = [];
     const unitTypes = ["row", "col", "box"];
 
@@ -6062,7 +6066,7 @@ const techniques = {
         const availArr = [...availableDigits];
 
         for (let size = 1; size <= 8; size++) {
-          if (size > availArr.length) continue;
+          if (size >= availArr.length) continue;
           for (const subset of techniques.combinations(availArr, size)) {
             const subsetSet = new Set(subset);
             const cellsWithSubset = emptyCells.filter(([r, c]) => {
@@ -6096,6 +6100,18 @@ const techniques = {
         }
       }
     }
+
+    _ahsCache = ahses;
+    return ahses;
+  },
+
+  ahsXZ: (board, pencils) => {
+    const getUnique = (arr) =>
+      Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
+
+    // 1. Collect or Retrieve AHSes
+    _ahsCache = [];
+    const ahses = techniques._collectAllAHS(board, pencils);
 
     // 2. Compare 2 AHSes
     for (let i = 0; i < ahses.length; i++) {
@@ -6261,7 +6277,6 @@ const techniques = {
                     removals.push({ r: p[0], c: p[1], num: d2 });
                 }
 
-                // On AHS1, Remove other than AHS1 digits from cells other than two cells detected on AHS1
                 for (const cell of ahs1.cells) {
                   if (
                     (cell[0] === foundD1[0][0] && cell[1] === foundD1[0][1]) ||
@@ -6274,7 +6289,6 @@ const techniques = {
                   }
                 }
 
-                // On AHS2, Remove other than AHS2 digits from cells other than two cells detected on AHS2
                 for (const cell of ahs2.cells) {
                   if (
                     (cell[0] === foundD1[1][0] && cell[1] === foundD1[1][1]) ||
@@ -6304,9 +6318,439 @@ const techniques = {
         }
       }
     }
-
     return { change: false };
   },
+
+  // --- AHS RCC MAP BUILDER ---
+  _buildAhsRccMap: (ahses, pencils) => {
+    const rccMap = new Map();
+    for (let i = 0; i < ahses.length; i++) {
+      for (let j = i + 1; j < ahses.length; j++) {
+        const ahs1 = ahses[i];
+        const ahs2 = ahses[j];
+
+        // Skip if on the same unit
+        if (ahs1.type === ahs2.type && ahs1.idx === ahs2.idx) continue;
+
+        const sharedDigits = [...ahs1.digits].filter((d) => ahs2.digits.has(d));
+        const commonCells = ahs1.cells.filter((c1) =>
+          ahs2.cells.some((c2) => c1[0] === c2[0] && c1[1] === c2[1]),
+        );
+
+        const rccs = [];
+        for (const cell of commonCells) {
+          const cands = pencils[cell[0]][cell[1]];
+          const hasShared = sharedDigits.some((d) => cands.has(d));
+          // If common cell has no shared AHS digits, it's an RCC
+          if (!hasShared) rccs.push(cell);
+        }
+
+        if (rccs.length > 0) rccMap.set(`${i}-${j}`, rccs);
+      }
+    }
+    return rccMap;
+  },
+
+  // --- AHS XY-WING / RING ---
+  ahsXYWing: (board, pencils) => {
+    const getUnique = (arr) =>
+      Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
+    const cellEq = (c1, c2) => c1[0] === c2[0] && c1[1] === c2[1];
+    const inAnyAHS = (c, ...ahses) =>
+      ahses.some((ahs) => ahs.cells.some((x) => cellEq(x, c)));
+
+    // Utilize AHS cache
+    const ahses = techniques._collectAllAHS(board, pencils);
+    // if (ahses.length < 3) return { change: false };
+
+    // Precompute RCC map
+    const rccMap = techniques._buildAhsRccMap(ahses, pencils);
+    const getRccs = (idxA, idxB) => {
+      const min = Math.min(idxA, idxB);
+      const max = Math.max(idxA, idxB);
+      return rccMap.get(`${min}-${max}`) || [];
+    };
+
+    const getExclusiveCells = (ahs, d) => {
+      return ahs.cells.filter((c) => {
+        const cands = pencils[c[0]][c[1]];
+        const ahsCands = [...cands].filter((x) => ahs.digits.has(x));
+        return ahsCands.length === 1 && ahsCands[0] === d;
+      });
+    };
+
+    // Evaluate Triplets
+    for (let i = 0; i < ahses.length - 2; i++) {
+      for (let j = i + 1; j < ahses.length - 1; j++) {
+        for (let k = j + 1; k < ahses.length; k++) {
+          // Orders representing the "Hinge" (AHS2)
+          const orders = [
+            [i, j, k], // Hinge j
+            [j, k, i], // Hinge k
+            [k, i, j], // Hinge i
+          ];
+
+          for (const [idx1, idx2, idx3] of orders) {
+            const ahs1 = ahses[idx1];
+            const ahs2 = ahses[idx2];
+            const ahs3 = ahses[idx3];
+
+            const rcc12List = getRccs(idx1, idx2);
+            const rcc23List = getRccs(idx2, idx3);
+
+            if (rcc12List.length === 0 || rcc23List.length === 0) continue;
+
+            // Iterate through EACH specific RCC pair
+            for (const r1 of rcc12List) {
+              for (const r2 of rcc23List) {
+                if (cellEq(r1, r2)) continue; // r1 and r2 must be different
+
+                let isRing = false;
+                let removals = [];
+                let debugType = "";
+
+                // Helpers bound strictly to the current r1 and r2 iteration
+                const processNonRcc = (ahs, rccList, label) => {
+                  for (const cell of ahs.cells) {
+                    if (rccList.some((r) => cellEq(r, cell))) {
+                      continue;
+                    }
+                    for (const cand of pencils[cell[0]][cell[1]]) {
+                      if (!ahs.digits.has(cand)) {
+                        removals.push({ r: cell[0], c: cell[1], num: cand });
+                      }
+                    }
+                  }
+                };
+
+                const processRcc = (rccList, a1, a2) => {
+                  const unionDigits = new Set([...a1.digits, ...a2.digits]);
+                  for (const rcc of rccList) {
+                    for (const cand of pencils[rcc[0]][rcc[1]]) {
+                      if (!unionDigits.has(cand)) {
+                        removals.push({ r: rcc[0], c: rcc[1], num: cand });
+                      }
+                    }
+                  }
+                };
+
+                // --- 3A. Ring by cell ---
+                const rcc13List = getRccs(idx1, idx3);
+                let validR3 = null;
+
+                for (const r3 of rcc13List) {
+                  // r3 must differ from the specifically chosen r1 and r2
+                  if (!cellEq(r3, r1) && !cellEq(r3, r2)) {
+                    validR3 = r3;
+                    break;
+                  }
+                }
+
+                if (validR3) {
+                  isRing = true;
+                  debugType = "3A (Ring by cell)";
+
+                  // Process only the chosen r1, r2, and validR3
+                  processRcc([r1], ahs1, ahs2);
+                  processRcc([r2], ahs2, ahs3);
+                  processRcc([validR3], ahs1, ahs3);
+
+                  const allRccFlat = [r1, r2, validR3];
+                  processNonRcc(ahs1, allRccFlat, "AHS1");
+                  processNonRcc(ahs2, allRccFlat, "AHS2");
+                  processNonRcc(ahs3, allRccFlat, "AHS3");
+                }
+
+                // --- 3B. Ring by digit ---
+                if (!isRing) {
+                  const shared13 = [...ahs1.digits].filter((d) =>
+                    ahs3.digits.has(d),
+                  );
+                  let ringFound = false;
+
+                  for (const d of shared13) {
+                    const exc1 = getExclusiveCells(ahs1, d);
+                    const exc3 = getExclusiveCells(ahs3, d);
+
+                    for (const c1 of exc1) {
+                      // c1 must differ from r1 and r2
+                      if (cellEq(c1, r1) || cellEq(c1, r2)) continue;
+
+                      for (const c3 of exc3) {
+                        // c3 must differ from r1 and r2
+                        if (cellEq(c3, r1) || cellEq(c3, r2)) continue;
+
+                        if (cellEq(c1, c3) || techniques._sees(c1, c3)) {
+                          isRing = true;
+                          ringFound = true;
+                          debugType = "3B (Ring by digit)";
+
+                          const cPeers = cellEq(c1, c3)
+                            ? Array.from({ length: 81 }, (_, idx) => [
+                                Math.floor(idx / 9),
+                                idx % 9,
+                              ]).filter(
+                                (p) =>
+                                  !cellEq(p, c1) && techniques._sees(p, c1),
+                              )
+                            : techniques._commonVisibleCells(c1, c3);
+
+                          for (const p of cPeers) {
+                            if (
+                              !inAnyAHS(p, ahs1, ahs2, ahs3) &&
+                              pencils[p[0]][p[1]].has(d)
+                            ) {
+                              removals.push({ r: p[0], c: p[1], num: d });
+                            }
+                          }
+
+                          // Process only the chosen r1 and r2
+                          processRcc([r1], ahs1, ahs2);
+                          processRcc([r2], ahs2, ahs3);
+
+                          const allRccFlat = [r1, r2, c1, c3];
+                          processNonRcc(ahs1, allRccFlat, "AHS1");
+                          processNonRcc(ahs2, allRccFlat, "AHS2");
+                          processNonRcc(ahs3, allRccFlat, "AHS3");
+
+                          break; // Stop c3
+                        }
+                      }
+                      if (ringFound) break; // Stop c1
+                    }
+                    if (ringFound) break; // Stop d
+                  }
+                }
+
+                if (isRing) {
+                  if (removals.length > 0) {
+                    return {
+                      change: true,
+                      type: "remove",
+                      cells: getUnique(removals),
+                      hint: {
+                        name: "Almost Hidden Set XY-Ring",
+                        mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1}, ${ahs2.type} ${ahs2.idx + 1}, ${ahs3.type} ${ahs3.idx + 1}`,
+                      },
+                    };
+                  }
+                  continue; // Skip Wing checking for this r1, r2 pair if it was a Ring without elims
+                }
+
+                // --- 4. AHS XY-Wing case ---
+
+                // 4A. Elimination by cell
+                const common13 = ahs1.cells.filter((c1) =>
+                  ahs3.cells.some((c3) => cellEq(c1, c3)),
+                );
+                for (const c of common13) {
+                  // Interaction cell must differ from r1 and r2
+                  if (cellEq(c, r1) || cellEq(c, r2)) continue;
+
+                  const unionDigits = new Set([...ahs1.digits, ...ahs3.digits]);
+                  for (const cand of pencils[c[0]][c[1]]) {
+                    if (!unionDigits.has(cand)) {
+                      removals.push({ r: c[0], c: c[1], num: cand });
+                      found4A = true;
+                    }
+                  }
+                }
+
+                // 4B. Elimination by digit
+                const shared13 = [...ahs1.digits].filter((d) =>
+                  ahs3.digits.has(d),
+                );
+                for (const d of shared13) {
+                  const exc1 = getExclusiveCells(ahs1, d);
+                  const exc3 = getExclusiveCells(ahs3, d);
+
+                  for (const c1 of exc1) {
+                    // Interaction cell must differ from r1 and r2
+                    if (cellEq(c1, r1) || cellEq(c1, r2)) continue;
+
+                    for (const c3 of exc3) {
+                      // Interaction cell must differ from r1 and r2
+                      if (cellEq(c3, r1) || cellEq(c3, r2)) continue;
+                      if (cellEq(c1, c3)) continue; // Handled by 4A
+
+                      const cPeers = techniques._commonVisibleCells(c1, c3);
+                      for (const p of cPeers) {
+                        if (
+                          !inAnyAHS(p, ahs1, ahs2, ahs3) &&
+                          pencils[p[0]][p[1]].has(d)
+                        ) {
+                          removals.push({ r: p[0], c: p[1], num: d });
+                          found4B = true;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                if (removals.length > 0) {
+                  const types = [];
+                  return {
+                    change: true,
+                    type: "remove",
+                    cells: getUnique(removals),
+                    hint: {
+                      name: "Almost Hidden Set XY-Wing",
+                      mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1}, ${ahs2.type} ${ahs2.idx + 1}, ${ahs3.type} ${ahs3.idx + 1}`,
+                    },
+                  };
+                }
+              } // End loop r2
+            } // End loop r1
+          } // End orders loop
+        }
+      }
+    }
+    return { change: false };
+  },
+
+  ahsWWing: (board, pencils) => {
+    const getUnique = (arr) =>
+      Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
+    const ahses = techniques._collectAllAHS(board, pencils);
+
+    for (let i = 0; i < ahses.length; i++) {
+      for (let j = i + 1; j < ahses.length; j++) {
+        const ahs1 = ahses[i];
+        const ahs2 = ahses[j];
+
+        // Ensure not on the same unit
+        if (ahs1.type === ahs2.type && ahs1.idx === ahs2.idx) continue;
+
+        const sharedDigits = [...ahs1.digits].filter((d) => ahs2.digits.has(d));
+        if (sharedDigits.length < 2) continue;
+
+        const getExclusiveCells = (ahs, d) => {
+          return ahs.cells.filter((c) => {
+            const cands = pencils[c[0]][c[1]];
+            const ahsCands = [...cands].filter((x) => ahs.digits.has(x));
+            return ahsCands.length === 1 && ahsCands[0] === d;
+          });
+        };
+
+        for (let dIdx1 = 0; dIdx1 < sharedDigits.length; dIdx1++) {
+          for (let dIdx2 = dIdx1 + 1; dIdx2 < sharedDigits.length; dIdx2++) {
+            const d1 = sharedDigits[dIdx1];
+            const d2 = sharedDigits[dIdx2];
+
+            const roles = [
+              { link: d1, elim: d2 },
+              { link: d2, elim: d1 },
+            ];
+
+            for (const role of roles) {
+              const c1_link_list = getExclusiveCells(ahs1, role.link);
+              const c2_link_list = getExclusiveCells(ahs2, role.link);
+              const c1_elim_list = getExclusiveCells(ahs1, role.elim);
+              const c2_elim_list = getExclusiveCells(ahs2, role.elim);
+
+              if (
+                !c1_link_list.length ||
+                !c2_link_list.length ||
+                !c1_elim_list.length ||
+                !c2_elim_list.length
+              )
+                continue;
+
+              for (const c1_link of c1_link_list) {
+                for (const c2_link of c2_link_list) {
+                  // Must not overlap
+                  if (c1_link[0] === c2_link[0] && c1_link[1] === c2_link[1])
+                    continue;
+
+                  let hasStrongLink = false;
+
+                  // W-Wing logic:
+                  // Loop over all houses (rows, cols, boxes)
+                  const unitTypes = ["row", "col", "box"];
+                  for (const uType of unitTypes) {
+                    for (let uIdx = 0; uIdx < 9; uIdx++) {
+                      const houseCells = techniques._getUnitCells(uType, uIdx);
+
+                      // Loop over a house that does not include any of c1_link and c2_link
+                      const includesEither = houseCells.some(
+                        (c) =>
+                          (c[0] === c1_link[0] && c[1] === c1_link[1]) ||
+                          (c[0] === c2_link[0] && c[1] === c2_link[1]),
+                      );
+                      if (includesEither) continue;
+
+                      // Check if house having at least two 'link' candidate
+                      const linkCellsInHouse = houseCells.filter((c) =>
+                        pencils[c[0]][c[1]].has(role.link),
+                      );
+
+                      if (linkCellsInHouse.length >= 2) {
+                        let c1Covers = false;
+                        let c2Covers = false;
+                        let allCovered = true;
+
+                        for (const c of linkCellsInHouse) {
+                          const seenByC1 = techniques._sees(c1_link, c);
+                          const seenByC2 = techniques._sees(c2_link, c);
+
+                          if (seenByC1) c1Covers = true;
+                          if (seenByC2) c2Covers = true;
+
+                          if (!seenByC1 && !seenByC2) {
+                            allCovered = false;
+                            break;
+                          }
+                        }
+
+                        // Valid strong link: ALL candidates covered, AND both cells contribute to the coverage
+                        if (allCovered && c1Covers && c2Covers) {
+                          hasStrongLink = true;
+                          break;
+                        }
+                      }
+                    }
+                    if (hasStrongLink) break;
+                  }
+
+                  if (!hasStrongLink) continue;
+
+                  for (const c1_elim of c1_elim_list) {
+                    for (const c2_elim of c2_elim_list) {
+                      const removals = [];
+                      const commonPeers = techniques._commonVisibleCells(
+                        c1_elim,
+                        c2_elim,
+                      );
+
+                      for (const p of commonPeers) {
+                        if (pencils[p[0]][p[1]].has(role.elim)) {
+                          removals.push({ r: p[0], c: p[1], num: role.elim });
+                        }
+                      }
+
+                      if (removals.length > 0) {
+                        return {
+                          change: true,
+                          type: "remove",
+                          cells: getUnique(removals),
+                          hint: {
+                            name: "Almost Hidden Set W-Wing",
+                            mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                          },
+                        };
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return { change: false };
+  },
+
   // --- ALS CHAIN SUPPORT STRUCTURES ---
 
   /**

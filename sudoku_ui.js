@@ -4097,6 +4097,18 @@ async function evaluateBoardDifficulty(opts = {}) {
       name: "Almost Hidden Set XZ-Rule",
       func: techniques.ahsXZ,
       level: 9,
+      score: 310,
+    },
+    {
+      name: "Almost Hidden Set XY-Wing",
+      func: techniques.ahsXYWing,
+      level: 9,
+      score: 330,
+    },
+    {
+      name: "Almost Hidden Set W-Wing",
+      func: techniques.ahsWWing,
+      level: 9,
       score: 350,
     },
     {
@@ -4158,6 +4170,8 @@ async function evaluateBoardDifficulty(opts = {}) {
     alsCacheBuilt = false;
     alsRccMapBuilt = false;
 
+    ahsCacheBuilt = false;
+
     for (const tech of techniqueOrder) {
       // [OPTIMIZATION] Compute hash for the current board state
       const currentHash =
@@ -4195,6 +4209,8 @@ async function evaluateBoardDifficulty(opts = {}) {
         } else if (tech.name === "Death Blossom") {
           if (!alsCacheBuilt) _alsCache = [];
           alsCacheBuilt = true;
+        } else if (tech.name === "Almost Hidden Set XZ-Rule") {
+          ahsCacheBuilt = true;
         }
         // Run Technique
         result = tech.func(virtualBoard, startingPencils);
