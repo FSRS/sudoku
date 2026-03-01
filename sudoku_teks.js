@@ -6089,12 +6089,39 @@ const techniques = {
                 if (sameRow || sameCol) continue;
               }
 
-              ahses.push({
-                type,
-                idx,
-                digits: subsetSet,
-                cells: cellsWithSubset,
-              });
+              // AHS condition: N candidates distributed over N+1 cells
+              if (cellsWithSubset.length === size + 1) {
+                // Skip box if all cells are in the same row or col
+                if (type === "box") {
+                  const sameRow = cellsWithSubset.every(
+                    (c) => c[0] === cellsWithSubset[0][0],
+                  );
+                  const sameCol = cellsWithSubset.every(
+                    (c) => c[1] === cellsWithSubset[0][1],
+                  );
+                  if (sameRow || sameCol) continue;
+                }
+
+                const exclusiveCellsMap = new Map();
+                for (const d of subsetSet) {
+                  exclusiveCellsMap.set(d, []);
+                }
+                for (const c of cellsWithSubset) {
+                  const cands = pencils[c[0]][c[1]];
+                  const ahsCands = [...cands].filter((x) => subsetSet.has(x));
+                  if (ahsCands.length === 1) {
+                    exclusiveCellsMap.get(ahsCands[0]).push(c);
+                  }
+                }
+
+                ahses.push({
+                  type,
+                  idx,
+                  digits: subsetSet,
+                  cells: cellsWithSubset,
+                  exclusiveCellsMap, // <-- Cache stored here
+                });
+              }
             }
           }
         }
@@ -6207,19 +6234,10 @@ const techniques = {
               const d1 = sharedDigits[dIdx1];
               const d2 = sharedDigits[dIdx2];
 
-              const getExclusiveCells = (ahs, d) => {
-                return ahs.cells.filter((c) => {
-                  const cands = pencils[c[0]][c[1]];
-                  const ahsCands = [...cands].filter((x) => ahs.digits.has(x));
-                  // cell only contains d over AHS digits
-                  return ahsCands.length === 1 && ahsCands[0] === d;
-                });
-              };
-
-              const c1_d1_list = getExclusiveCells(ahs1, d1);
-              const c2_d1_list = getExclusiveCells(ahs2, d1);
-              const c1_d2_list = getExclusiveCells(ahs1, d2);
-              const c2_d2_list = getExclusiveCells(ahs2, d2);
+              const c1_d1_list = ahs1.exclusiveCellsMap.get(d1);
+              const c2_d1_list = ahs2.exclusiveCellsMap.get(d1);
+              const c1_d2_list = ahs1.exclusiveCellsMap.get(d2);
+              const c2_d2_list = ahs2.exclusiveCellsMap.get(d2);
 
               if (
                 c1_d1_list.length === 0 ||
@@ -6371,14 +6389,6 @@ const techniques = {
       return rccMap.get(`${min}-${max}`) || [];
     };
 
-    const getExclusiveCells = (ahs, d) => {
-      return ahs.cells.filter((c) => {
-        const cands = pencils[c[0]][c[1]];
-        const ahsCands = [...cands].filter((x) => ahs.digits.has(x));
-        return ahsCands.length === 1 && ahsCands[0] === d;
-      });
-    };
-
     // Evaluate Triplets
     for (let i = 0; i < ahses.length - 2; i++) {
       for (let j = i + 1; j < ahses.length - 1; j++) {
@@ -6407,7 +6417,6 @@ const techniques = {
 
                 let isRing = false;
                 let removals = [];
-                let debugType = "";
 
                 // Helpers bound strictly to the current r1 and r2 iteration
                 const processNonRcc = (ahs, rccList, label) => {
@@ -6448,7 +6457,6 @@ const techniques = {
 
                 if (validR3) {
                   isRing = true;
-                  debugType = "3A (Ring by cell)";
 
                   // Process only the chosen r1, r2, and validR3
                   processRcc([r1], ahs1, ahs2);
@@ -6469,8 +6477,8 @@ const techniques = {
                   let ringFound = false;
 
                   for (const d of shared13) {
-                    const exc1 = getExclusiveCells(ahs1, d);
-                    const exc3 = getExclusiveCells(ahs3, d);
+                    const exc1 = ahs1.exclusiveCellsMap.get(d);
+                    const exc3 = ahs3.exclusiveCellsMap.get(d);
 
                     for (const c1 of exc1) {
                       // c1 must differ from r1 and r2
@@ -6483,7 +6491,6 @@ const techniques = {
                         if (cellEq(c1, c3)) {
                           isRing = true;
                           ringFound = true;
-                          debugType = "3B (Ring by digit)";
 
                           // remove all candidates but d from c1
                           for (const cand of pencils[c1[0]][c1[1]]) {
@@ -6494,7 +6501,6 @@ const techniques = {
                         } else if (techniques._sees(c1, c3)) {
                           isRing = true;
                           ringFound = true;
-                          debugType = "3B (Ring by digit)";
 
                           const cPeers = cellEq(c1, c3)
                             ? Array.from({ length: 81 }, (_, idx) => [
@@ -6507,10 +6513,7 @@ const techniques = {
                             : techniques._commonVisibleCells(c1, c3);
 
                           for (const p of cPeers) {
-                            if (
-                              !inAnyAHS(p, ahs1, ahs2, ahs3) &&
-                              pencils[p[0]][p[1]].has(d)
-                            ) {
+                            if (pencils[p[0]][p[1]].has(d)) {
                               removals.push({ r: p[0], c: p[1], num: d });
                             }
                           }
@@ -6572,8 +6575,8 @@ const techniques = {
                   ahs3.digits.has(d),
                 );
                 for (const d of shared13) {
-                  const exc1 = getExclusiveCells(ahs1, d);
-                  const exc3 = getExclusiveCells(ahs3, d);
+                  const exc1 = ahs1.exclusiveCellsMap.get(d);
+                  const exc3 = ahs3.exclusiveCellsMap.get(d);
 
                   for (const c1 of exc1) {
                     // Interaction cell must differ from r1 and r2
@@ -6635,14 +6638,6 @@ const techniques = {
         const sharedDigits = [...ahs1.digits].filter((d) => ahs2.digits.has(d));
         if (sharedDigits.length < 2) continue;
 
-        const getExclusiveCells = (ahs, d) => {
-          return ahs.cells.filter((c) => {
-            const cands = pencils[c[0]][c[1]];
-            const ahsCands = [...cands].filter((x) => ahs.digits.has(x));
-            return ahsCands.length === 1 && ahsCands[0] === d;
-          });
-        };
-
         for (let dIdx1 = 0; dIdx1 < sharedDigits.length; dIdx1++) {
           for (let dIdx2 = dIdx1 + 1; dIdx2 < sharedDigits.length; dIdx2++) {
             const d1 = sharedDigits[dIdx1];
@@ -6654,10 +6649,10 @@ const techniques = {
             ];
 
             for (const role of roles) {
-              const c1_link_list = getExclusiveCells(ahs1, role.link);
-              const c2_link_list = getExclusiveCells(ahs2, role.link);
-              const c1_elim_list = getExclusiveCells(ahs1, role.elim);
-              const c2_elim_list = getExclusiveCells(ahs2, role.elim);
+              const c1_link_list = ahs1.exclusiveCellsMap.get(role.link);
+              const c2_link_list = ahs2.exclusiveCellsMap.get(role.link);
+              const c1_elim_list = ahs1.exclusiveCellsMap.get(role.elim);
+              const c2_elim_list = ahs2.exclusiveCellsMap.get(role.elim);
 
               if (
                 !c1_link_list.length ||
