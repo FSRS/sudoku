@@ -6375,8 +6375,6 @@ const techniques = {
     const getUnique = (arr) =>
       Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
     const cellEq = (c1, c2) => c1[0] === c2[0] && c1[1] === c2[1];
-    const inAnyAHS = (c, ...ahses) =>
-      ahses.some((ahs) => ahs.cells.some((x) => cellEq(x, c)));
 
     // Utilize AHS cache
     const ahses = techniques._collectAllAHS(board, pencils);
@@ -6590,10 +6588,7 @@ const techniques = {
 
                       const cPeers = techniques._commonVisibleCells(c1, c3);
                       for (const p of cPeers) {
-                        if (
-                          !inAnyAHS(p, ahs1, ahs2, ahs3) &&
-                          pencils[p[0]][p[1]].has(d)
-                        ) {
+                        if (pencils[p[0]][p[1]].has(d)) {
                           removals.push({ r: p[0], c: p[1], num: d });
                           found4B = true;
                         }
