@@ -6480,7 +6480,18 @@ const techniques = {
                         // c3 must differ from r1 and r2
                         if (cellEq(c3, r1) || cellEq(c3, r2)) continue;
 
-                        if (cellEq(c1, c3) || techniques._sees(c1, c3)) {
+                        if (cellEq(c1, c3)) {
+                          isRing = true;
+                          ringFound = true;
+                          debugType = "3B (Ring by digit)";
+
+                          // remove all candidates but d from c1
+                          for (const cand of pencils[c1[0]][c1[1]]) {
+                            if (cand !== d) {
+                              removals.push({ r: c1[0], c: c1[1], num: cand });
+                            }
+                          }
+                        } else if (techniques._sees(c1, c3)) {
                           isRing = true;
                           ringFound = true;
                           debugType = "3B (Ring by digit)";
