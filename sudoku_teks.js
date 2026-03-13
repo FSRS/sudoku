@@ -4367,10 +4367,7 @@ const techniques = {
                       );
                     }
                     if (eliminations.length > 0) {
-                      const hintName =
-                        totalExtra === 3
-                          ? "Sue de Coq (with AALS)"
-                          : "Sue de Coq";
+                      const hintName = "Sue de Coq";
                       const lineName = isRow ? "Row" : "Col";
                       return {
                         change: true,
