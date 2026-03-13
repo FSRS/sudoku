@@ -5441,7 +5441,7 @@ const techniques = {
                 });
               } else {
                 // Weak link within a cell (different digits)
-                if (u.count === 1 && v.count === 1) {
+                if (!bivalueOnly && u.count === 1 && v.count === 1) {
                   const [r, c] = u.cells[0];
                   if (v.cells[0][0] === r && v.cells[0][1] === c) {
                     for (const cand of pencils[r][c]) {
@@ -5487,23 +5487,25 @@ const techniques = {
                 }
               });
             } else {
-              // Type 2: Start(d1) ... End(d2) => Start sees End
-              if (end.count === 1) {
-                const [er, ec] = end.cells[0];
-                const seesStart = start.cells.every((sc) =>
-                  techniques._sees(sc, [er, ec]),
-                );
-                if (seesStart && pencils[er][ec].has(start.digit)) {
-                  elims.push({ r: er, c: ec, num: start.digit });
+              if (!bivalueOnly) {
+                // Type 2: Start(d1) ... End(d2) => Start sees End
+                if (end.count === 1) {
+                  const [er, ec] = end.cells[0];
+                  const seesStart = start.cells.every((sc) =>
+                    techniques._sees(sc, [er, ec]),
+                  );
+                  if (seesStart && pencils[er][ec].has(start.digit)) {
+                    elims.push({ r: er, c: ec, num: start.digit });
+                  }
                 }
-              }
-              if (start.count === 1) {
-                const [sr, sc] = start.cells[0];
-                const seesEnd = end.cells.every((ec) =>
-                  techniques._sees(ec, [sr, sc]),
-                );
-                if (seesEnd && pencils[sr][sc].has(end.digit)) {
-                  elims.push({ r: sr, c: sc, num: end.digit });
+                if (start.count === 1) {
+                  const [sr, sc] = start.cells[0];
+                  const seesEnd = end.cells.every((ec) =>
+                    techniques._sees(ec, [sr, sc]),
+                  );
+                  if (seesEnd && pencils[sr][sc].has(end.digit)) {
+                    elims.push({ r: sr, c: sc, num: end.digit });
+                  }
                 }
               }
             }

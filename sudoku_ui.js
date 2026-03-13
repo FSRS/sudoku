@@ -3975,7 +3975,7 @@ async function evaluateBoardDifficulty(opts = {}) {
       level: 4,
       score: 120,
     },
-    { name: "Turbot Fish", func: techniques.turbotFish, level: 4, score: 130 },
+    { name: "Crane", func: techniques.turbotFish, level: 4, score: 130 },
 
     {
       name: "Unique Rectangle",
