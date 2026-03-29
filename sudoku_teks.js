@@ -7106,7 +7106,19 @@ const techniques = {
         alsB.candidatePositions[rccDigit - 1];
       const peerMask = techniques._findCommonPeersBS(allCells);
       techniques._processElims(peerMask, rccDigit, pencils, eliminations);
-      if (eliminations.length > 0) changed = true; // Optimization: _processElims pushes to array
+      if (eliminations.length > 0) changed = true;
+      return changed;
+    };
+
+    const applyConfirmedDigit = (A, rccMask) => {
+      let changed = false;
+      const zMaskA = A.mask & ~rccMask;
+      const zDigitsA = techniques._bits.maskToDigits(zMaskA);
+      for (const z of zDigitsA) {
+        const pm = techniques._findCommonPeersBS(A.candidatePositions[z - 1]);
+        techniques._processElims(pm, z, pencils, eliminations);
+      }
+      if (eliminations.length > 0) changed = true;
       return changed;
     };
 
@@ -7165,6 +7177,23 @@ const techniques = {
                   // B. Closing link
                   if (eliminateRccPeers(alsEnd, alsStart, closingRcc))
                     ringChange = true;
+
+                  // C. Confirmed Candidate in ALS
+                  const rccStartbm =
+                    (1 << (closingRcc - 1)) | (1 << (startExitDigit - 1));
+                  if (applyConfirmedDigit(alsStart, rccStartbm))
+                    ringChange = true;
+                  for (let i = 1; i < path.length - 1; i++) {
+                    const alsMid = _alsLookup[path[i].hash];
+                    const rccMidbm =
+                      (1 << (path[i].viaDigit - 1)) |
+                      (1 << (path[i + 1].viaDigit - 1));
+                    if (applyConfirmedDigit(alsMid, rccMidbm))
+                      ringChange = true;
+                  }
+                  const rccEndbm =
+                    (1 << (endEntryDigit - 1)) | (1 << (closingRcc - 1));
+                  if (applyConfirmedDigit(alsEnd, rccEndbm)) ringChange = true;
 
                   if (ringChange) {
                     found = true;
