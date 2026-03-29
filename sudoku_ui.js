@@ -50,6 +50,7 @@ let lampTimestamps = {};
 let previousLampColor = null;
 let lastValidLampColor = "white";
 let currentEvaluationId = 0;
+let currentLampLevel = null;
 
 let drawSubMode = "solid"; // "solid" or "dash"
 let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
@@ -1181,6 +1182,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
 
   // Always update visual state so undos/redos show correct lamp
   currentLampColor = color;
+  if (level !== null) currentLampLevel = level;
   difficultyLamp.classList.remove(...allColors.map((c) => `lamp-${c}`));
   difficultyLamp.classList.add(`lamp-${color}`);
 
@@ -3452,6 +3454,7 @@ function saveState() {
     boardState: cloneBoardState(boardState),
     drawnLines: JSON.parse(JSON.stringify(drawnLines)), // Deep copy lines
     lampColor: currentLampColor,
+    lampLevel: currentLampLevel,
     vagueHint: vagueHintMessage,
     previousLampColor: previousLampColor,
     lampTimestamps: JSON.parse(JSON.stringify(lampTimestamps)),
@@ -3613,12 +3616,19 @@ function undo() {
     );
     previousLampColor = historyEntry.previousLampColor;
 
-    updateLamp(historyEntry.lampColor, { record: false });
+    updateLamp(historyEntry.lampColor, {
+      record: false,
+      level: historyEntry.lampLevel ?? null,
+    });
 
     renderBoard();
     renderLines();
-    // Pass true to skip evaluation if logic didn't change (purely aesthetic line change)
-    const logicChanged = actionDesc !== "No visible changes" || lineDesc;
+
+    // Check strictly for changes to concrete numbers or pencil marks
+    const logicChanged = hasLogicChanged(
+      currentEntry.boardState,
+      prevEntry.boardState,
+    );
     onBoardUpdated(!logicChanged);
 
     updateUndoRedoButtons();
@@ -3662,12 +3672,19 @@ function redo() {
     );
     previousLampColor = historyEntry.previousLampColor;
 
-    updateLamp(historyEntry.lampColor, { record: false });
+    updateLamp(historyEntry.lampColor, {
+      record: false,
+      level: historyEntry.lampLevel ?? null,
+    });
 
     renderBoard();
     renderLines();
 
-    const logicChanged = actionDesc !== "No visible changes" || lineDesc;
+    // Check strictly for changes to concrete numbers or pencil marks
+    const logicChanged = hasLogicChanged(
+      currentEntry.boardState,
+      nextEntry.boardState,
+    );
     onBoardUpdated(!logicChanged);
 
     updateUndoRedoButtons();
