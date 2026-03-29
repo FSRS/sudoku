@@ -7110,9 +7110,9 @@ const techniques = {
       return changed;
     };
 
-    const applyConfirmedDigit = (A, rccMask) => {
+    const eliminateNonRcc = (A, nonRccMask) => {
       let changed = false;
-      const zMaskA = A.mask & ~rccMask;
+      const zMaskA = A.mask & ~nonRccMask;
       const zDigitsA = techniques._bits.maskToDigits(zMaskA);
       for (const z of zDigitsA) {
         const pm = techniques._findCommonPeersBS(A.candidatePositions[z - 1]);
@@ -7178,22 +7178,21 @@ const techniques = {
                   if (eliminateRccPeers(alsEnd, alsStart, closingRcc))
                     ringChange = true;
 
-                  // C. Confirmed Candidate in ALS
-                  const rccStartbm =
+                  // C. non-Rcc in ALS
+                  const nonRccStartbm =
                     (1 << (closingRcc - 1)) | (1 << (startExitDigit - 1));
-                  if (applyConfirmedDigit(alsStart, rccStartbm))
+                  if (eliminateNonRcc(alsStart, nonRccStartbm))
                     ringChange = true;
                   for (let i = 1; i < path.length - 1; i++) {
                     const alsMid = _alsLookup[path[i].hash];
-                    const rccMidbm =
+                    const nonRccMidbm =
                       (1 << (path[i].viaDigit - 1)) |
                       (1 << (path[i + 1].viaDigit - 1));
-                    if (applyConfirmedDigit(alsMid, rccMidbm))
-                      ringChange = true;
+                    if (eliminateNonRcc(alsMid, nonRccMidbm)) ringChange = true;
                   }
-                  const rccEndbm =
+                  const nonRccEndbm =
                     (1 << (endEntryDigit - 1)) | (1 << (closingRcc - 1));
-                  if (applyConfirmedDigit(alsEnd, rccEndbm)) ringChange = true;
+                  if (eliminateNonRcc(alsEnd, nonRccEndbm)) ringChange = true;
 
                   if (ringChange) {
                     found = true;
