@@ -6323,7 +6323,7 @@ const techniques = {
             commonMask,
             pencils,
           );
-        } else if (rccCount >= 2) {
+        } else if (rccCount == 2) {
           elims = techniques._applyDoublyLinked(
             A,
             B,
@@ -6350,13 +6350,23 @@ const techniques = {
             mainInfo = `Bivalue cell at r${pr + 1}c${pc + 1}`;
           }
 
-          // --- Format the Detail String ---
-          const rccStr = techniques._bits.maskToDigits(rccMask).join("");
-
-          // nonrcc reflects the actual target digits being eliminated
-          const nonRccStr = [...new Set(uniqueElims.map((e) => e.num))]
+          const restrictedDigits = techniques._bits
+            .maskToDigits(rccMask)
+            .join("");
+          const targetDigits = [...new Set(uniqueElims.map((e) => e.num))]
             .sort((a, b) => a - b)
             .join("");
+
+          const isSingly = rccCount === 1;
+          const [d1, d2] = restrictedDigits.split("");
+
+          const linkA = isSingly
+            ? `${targetDigits}=${restrictedDigits}`
+            : `${d1}=${d2}`;
+
+          const linkB = isSingly
+            ? `${restrictedDigits}=${targetDigits}`
+            : `${d2}=${d1}`;
 
           const fmtALS = (als) => {
             if (als.unitName.startsWith("Box")) {
@@ -6382,13 +6392,11 @@ const techniques = {
             }
           };
 
-          const strA = fmtALS(A);
-          const strB = fmtALS(B);
+          const alsARef = fmtALS(A);
+          const alsBRef = fmtALS(B);
 
-          let detail = `(${nonRccStr}=${rccStr})(${strA})-(${rccStr}=${nonRccStr})(${strB})`;
-          if (rccCount >= 2) {
-            detail += "-(Ring)";
-          }
+          const base = `(${linkA})(${alsARef})-(${linkB})(${alsBRef})`;
+          const detail = isSingly ? base : `${base}-(Ring)`;
 
           return {
             change: true,
