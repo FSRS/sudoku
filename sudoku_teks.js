@@ -11,6 +11,7 @@ let _memoComplexFish = {
 
 const techniques = {
   _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
+  _getPointIndex: (r, c) => Math.floor(r % 3) * 3 + Math.floor(c % 3),
 
   _cellToId: (r, c) => r * 9 + c,
   _idToCell: (id) => [Math.floor(id / 9), id % 9],
@@ -126,6 +127,9 @@ const techniques = {
 
   eliminateCandidates: (board, pencils) => {
     const removals = [];
+    let newr = 0;
+    let newc = 0;
+    let newd = 0;
     let newpr = 0;
     let newpc = 0;
     for (let r = 0; r < 9; r++) {
@@ -141,6 +145,9 @@ const techniques = {
                 if (pencils[pr][pc].has(num)) {
                   newpr = pr;
                   newpc = pc;
+                  newr = r;
+                  newc = c;
+                  newd = num;
                   removals.push({ r: pr, c: pc, num });
                 }
               }
@@ -161,6 +168,7 @@ const techniques = {
         hint: {
           name: "Eliminate Candidates",
           mainInfo: `at r${newpr + 1}c${newpc + 1}`,
+          detail: `Concrete number (${newd})r${newr}c${newc}`,
         },
       };
     }
@@ -271,6 +279,10 @@ const techniques = {
       hint: {
         name: "Full House",
         mainInfo: unitName,
+        detail:
+          unitName.slice(0.3) == "Box"
+            ? `Last digit (${missingNum}) in ${unitName} at b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
+            : `Last digit (${missingNum}) in ${unitName} at r${r + 1}c${c + 1}`,
       },
     };
   },
@@ -289,6 +301,7 @@ const techniques = {
             hint: {
               name: "Naked Single",
               mainInfo: `at r${r + 1}c${c + 1}`,
+              detail: `Only remaining digit (${num}) at r${r + 1}c${c + 1}`,
             },
           };
         }
@@ -300,9 +313,9 @@ const techniques = {
   hiddenSingle: (board, pencils) => {
     // 1. Define types with the display name you want
     const unitTypes = [
+      { name: "box", label: "Box" },
       { name: "row", label: "Row" },
       { name: "col", label: "Col" },
-      { name: "box", label: "Box" },
     ];
 
     // 2. Iterate through types, then indices (0-8)
@@ -333,6 +346,10 @@ const techniques = {
                 name: "Hidden Single",
                 // 3. Use 'label' and 'i' directly
                 mainInfo: `${label} ${i + 1}`,
+                detail:
+                  label == "Box"
+                    ? `Only cell b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1} with digit (${num}) in ${label} ${i + 1}`
+                    : `Only cell  r${r + 1}c${c + 1} with digit (${num}) in ${label} ${i + 1}`,
               },
             };
           }
@@ -354,56 +371,46 @@ const techniques = {
       const box_r_start = Math.floor(b / 3) * 3;
       const box_c_start = (b % 3) * 3;
 
-      // --- Part 1: Check Intersections with ROWS ---
-      for (
-        let r_intersect = box_r_start;
-        r_intersect < box_r_start + 3;
-        r_intersect++
-      ) {
-        // Find potential cells for a subset within this intersection
-        const potential_cells = [];
-        for (let c = box_c_start; c < box_c_start + 3; c++) {
-          if (
-            board[r_intersect][c] === 0 &&
-            pencils[r_intersect][c].size <= size &&
-            pencils[r_intersect][c].size > 1
-          ) {
-            potential_cells.push([r_intersect, c]);
-          }
-        }
-        if (potential_cells.length < size) continue;
+      // Loop twice: once for rows (isRow = true), once for columns (isRow = false)
+      for (const isRow of [true, false]) {
+        for (let i = 0; i < 3; i++) {
+          const line_idx = isRow ? box_r_start + i : box_c_start + i;
 
-        // Generate combinations of 'size' cells from these potentials
-        for (const combo of techniques.combinations(potential_cells, size)) {
-          const union = new Set();
-          combo.forEach(([r, c]) => {
-            pencils[r][c].forEach((num) => union.add(num));
-          });
+          // Find potential cells for a subset within this intersection
+          const potential_cells = [];
+          for (let j = 0; j < 3; j++) {
+            const r = isRow ? line_idx : box_r_start + j;
+            const c = isRow ? box_c_start + j : line_idx;
 
-          // If the union of candidates has the same size as the number of cells, we've found a subset
-          if (union.size === size) {
-            const removals = [];
-
-            // A) Eliminate from other cells in the ROW (outside this box). This is a "Pointing" move.
-            for (let c_peer = 0; c_peer < 9; c_peer++) {
-              if (c_peer >= box_c_start && c_peer < box_c_start + 3) continue; // Skip cells inside the box
-              if (board[r_intersect][c_peer] === 0) {
-                for (const num of union) {
-                  if (pencils[r_intersect][c_peer].has(num)) {
-                    removals.push({ r: r_intersect, c: c_peer, num });
-                  }
-                }
-              }
+            if (
+              board[r][c] === 0 &&
+              pencils[r][c].size <= size &&
+              pencils[r][c].size > 1
+            ) {
+              potential_cells.push([r, c]);
             }
+          }
+          if (potential_cells.length < size) continue;
 
-            // B) Eliminate from other cells in the BOX (outside this row). This is a "Naked Subset" move within the box.
-            for (let r_peer = box_r_start; r_peer < box_r_start + 3; r_peer++) {
-              if (r_peer === r_intersect) continue; // Skip the intersection row itself
-              for (
-                let c_peer = box_c_start;
-                c_peer < box_c_start + 3;
-                c_peer++
-              ) {
+          // Generate combinations of 'size' cells from these potentials
+          for (const combo of techniques.combinations(potential_cells, size)) {
+            const union = new Set();
+            combo.forEach(([r, c]) => {
+              pencils[r][c].forEach((num) => union.add(num));
+            });
+
+            // If the union of candidates has the same size as the number of cells, we've found a subset
+            if (union.size === size) {
+              const removals = [];
+
+              // A) Eliminate from other cells in the LINE (outside this box). This is a "Pointing" move.
+              const box_limit = isRow ? box_c_start : box_r_start;
+              for (let k = 0; k < 9; k++) {
+                if (k >= box_limit && k < box_limit + 3) continue; // Skip cells inside the box
+
+                const r_peer = isRow ? line_idx : k;
+                const c_peer = isRow ? k : line_idx;
+
                 if (board[r_peer][c_peer] === 0) {
                   for (const num of union) {
                     if (pencils[r_peer][c_peer].has(num)) {
@@ -412,94 +419,50 @@ const techniques = {
                   }
                 }
               }
-            }
 
-            if (removals.length > 0) {
-              return {
-                change: true,
-                type: "remove",
-                cells: removals,
-                hint: {
-                  name: size === 2 ? "Locked Pair" : "Locked Triple",
-                  mainInfo: `Intersection of Row ${r_intersect + 1} and Box ${
-                    b + 1
-                  }`,
-                },
-              };
-            }
-          }
-        }
-      }
+              // B) Eliminate from other cells in the BOX (outside this line). This is a "Naked Subset" move.
+              for (let r_offset = 0; r_offset < 3; r_offset++) {
+                for (let c_offset = 0; c_offset < 3; c_offset++) {
+                  const r_peer = box_r_start + r_offset;
+                  const c_peer = box_c_start + c_offset;
 
-      // --- Part 2: Check Intersections with COLUMNS ---
-      for (
-        let c_intersect = box_c_start;
-        c_intersect < box_c_start + 3;
-        c_intersect++
-      ) {
-        const potential_cells = [];
-        for (let r = box_r_start; r < box_r_start + 3; r++) {
-          if (
-            board[r][c_intersect] === 0 &&
-            pencils[r][c_intersect].size <= size &&
-            pencils[r][c_intersect].size > 1
-          ) {
-            potential_cells.push([r, c_intersect]);
-          }
-        }
-        if (potential_cells.length < size) continue;
+                  // Skip the intersection line itself
+                  if (isRow && r_peer === line_idx) continue;
+                  if (!isRow && c_peer === line_idx) continue;
 
-        for (const combo of techniques.combinations(potential_cells, size)) {
-          const union = new Set();
-          combo.forEach(([r, c]) => {
-            pencils[r][c].forEach((num) => union.add(num));
-          });
-
-          if (union.size === size) {
-            const removals = [];
-
-            // A) Eliminate from other cells in the COLUMN (outside this box). This is a "Pointing" move.
-            for (let r_peer = 0; r_peer < 9; r_peer++) {
-              if (r_peer >= box_r_start && r_peer < box_r_start + 3) continue; // Skip cells inside the box
-              if (board[r_peer][c_intersect] === 0) {
-                for (const num of union) {
-                  if (pencils[r_peer][c_intersect].has(num)) {
-                    removals.push({ r: r_peer, c: c_intersect, num });
-                  }
-                }
-              }
-            }
-
-            // B) Eliminate from other cells in the BOX (outside this column). This is a "Naked Subset" move within the box.
-            for (let r_peer = box_r_start; r_peer < box_r_start + 3; r_peer++) {
-              for (
-                let c_peer = box_c_start;
-                c_peer < box_c_start + 3;
-                c_peer++
-              ) {
-                if (c_peer === c_intersect) continue; // Skip the intersection column itself
-                if (board[r_peer][c_peer] === 0) {
-                  for (const num of union) {
-                    if (pencils[r_peer][c_peer].has(num)) {
-                      removals.push({ r: r_peer, c: c_peer, num });
+                  if (board[r_peer][c_peer] === 0) {
+                    for (const num of union) {
+                      if (pencils[r_peer][c_peer].has(num)) {
+                        removals.push({ r: r_peer, c: c_peer, num });
+                      }
                     }
                   }
                 }
               }
-            }
 
-            if (removals.length > 0) {
-              return {
-                change: true,
-                type: "remove",
-                cells: removals,
-                hint: {
-                  name: size === 2 ? "Locked Pair" : "Locked Triple",
-                  mainInfo: `Intersection of Col ${c_intersect + 1} and Box ${
-                    b + 1
-                  }`,
-                },
-              };
+              if (removals.length > 0) {
+                // Construct the union cells string (e.g., r2c456 or r78c1)
+                const rows = [...new Set(combo.map(([r, c]) => r + 1))]
+                  .sort()
+                  .join("");
+                const cols = [...new Set(combo.map(([r, c]) => c + 1))]
+                  .sort()
+                  .join("");
+                const cellStr = `r${rows}c${cols}`;
+
+                const lineType = isRow ? "Row" : "Col";
+
+                return {
+                  change: true,
+                  type: "remove",
+                  cells: removals,
+                  hint: {
+                    name: size === 2 ? "Locked Pair" : "Locked Triple",
+                    mainInfo: `Intersection of ${lineType} ${line_idx + 1} and Box ${b + 1}`,
+                    detail: `${cellStr} together have digits (${[...union].join("")}) on intersection of ${lineType} ${line_idx + 1} and Box ${b + 1}`,
+                  },
+                };
+              }
             }
           }
         }
@@ -520,121 +483,119 @@ const techniques = {
         }
 
         if (boxCellsWithNum.length > 1) {
-          if (new Set(boxCellsWithNum.map(([r, c]) => r)).size === 1) {
-            const removals = [];
-            const row = boxCellsWithNum[0][0];
-            for (let c = 0; c < 9; c++) {
-              if (
-                Math.floor(c / 3) !== boxIdx % 3 &&
-                pencils[row][c].has(num)
-              ) {
-                removals.push({ r: row, c, num });
-              }
-            }
-            if (removals.length > 0) {
-              return {
-                change: true,
-                type: "remove",
-                cells: removals,
-                hint: {
-                  name: "Pointing",
-                  mainInfo: `Intersection of Box ${boxIdx + 1} and Row ${
-                    row + 1
-                  }`,
-                },
-              };
-            }
-          }
+          for (const isRow of [true, false]) {
+            // Check if all cells share the same row (if isRow) or col (if !isRow)
+            const lineIdxs = new Set(
+              boxCellsWithNum.map(([r, c]) => (isRow ? r : c)),
+            );
 
-          if (new Set(boxCellsWithNum.map(([r, c]) => c)).size === 1) {
-            const removals = [];
-            const col = boxCellsWithNum[0][1];
-            for (let r = 0; r < 9; r++) {
-              if (
-                Math.floor(r / 3) !== Math.floor(boxIdx / 3) &&
-                pencils[r][col].has(num)
-              ) {
-                removals.push({ r, c: col, num });
+            if (lineIdxs.size === 1) {
+              const lineIdx = [...lineIdxs][0];
+              const removals = [];
+
+              for (let peer = 0; peer < 9; peer++) {
+                const r = isRow ? lineIdx : peer;
+                const c = isRow ? peer : lineIdx;
+                // Calculate the box index for the current peer cell
+                const cellBoxIdx = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+
+                // If the cell is outside the pointing box and has the pencil mark
+                if (cellBoxIdx !== boxIdx && pencils[r][c].has(num)) {
+                  removals.push({ r, c, num });
+                }
               }
-            }
-            if (removals.length > 0) {
-              return {
-                change: true,
-                type: "remove",
-                cells: removals,
-                hint: {
-                  name: "Pointing",
-                  mainInfo: `Intersection of Box ${boxIdx + 1} and Col ${
-                    col + 1
-                  }`,
-                },
-              };
+
+              if (removals.length > 0) {
+                const lineName = isRow ? "Row" : "Col";
+                // Convert to bXpY format using _getPointIndex math (1-indexed)
+                const points = [
+                  ...new Set(
+                    boxCellsWithNum.map(
+                      ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                    ),
+                  ),
+                ]
+                  .sort()
+                  .join("");
+                const cellStr = `b${boxIdx + 1}p${points}`;
+
+                return {
+                  change: true,
+                  type: "remove",
+                  cells: removals,
+                  hint: {
+                    name: "Pointing",
+                    mainInfo: `Intersection of Box ${boxIdx + 1} and ${lineName} ${lineIdx + 1}`,
+                    detail: `All cells with digit (${num}) in Box ${boxIdx + 1} ${cellStr} are also in ${lineName} ${lineIdx + 1}`,
+                  },
+                };
+              }
             }
           }
         }
       }
     }
+
     // --- 2. Claiming (Line -> Box) ---
     for (let i = 0; i < 9; i++) {
-      // i is row or column index
       for (let num = 1; num <= 9; num++) {
-        const rowColsWithNum = [];
-        for (let c = 0; c < 9; c++) {
-          if (pencils[i][c].has(num)) rowColsWithNum.push(c);
-        }
-        if (
-          rowColsWithNum.length > 1 &&
-          new Set(rowColsWithNum.map((c) => Math.floor(c / 3))).size === 1
-        ) {
-          const removals = [];
-          const boxIdx =
-            Math.floor(i / 3) * 3 + Math.floor(rowColsWithNum[0] / 3);
-          const boxCells = techniques._getUnitCells("box", boxIdx);
-          for (const [r, c] of boxCells) {
-            if (r !== i && pencils[r][c].has(num)) {
-              removals.push({ r, c, num });
-            }
-          }
-          if (removals.length > 0) {
-            return {
-              change: true,
-              type: "remove",
-              cells: removals,
-              hint: {
-                name: "Claiming",
-                mainInfo: `Intersection of Row ${i + 1} and Box ${boxIdx + 1}`,
-              },
-            };
-          }
-        }
+        for (const isRow of [true, false]) {
+          const lineCellsWithNum = [];
 
-        const colRowsWithNum = [];
-        for (let r = 0; r < 9; r++) {
-          if (pencils[r][i].has(num)) colRowsWithNum.push(r);
-        }
-        if (
-          colRowsWithNum.length > 1 &&
-          new Set(colRowsWithNum.map((r) => Math.floor(r / 3))).size === 1
-        ) {
-          const removals = [];
-          const boxIdx =
-            Math.floor(colRowsWithNum[0] / 3) * 3 + Math.floor(i / 3);
-          const boxCells = techniques._getUnitCells("box", boxIdx);
-          for (const [r, c] of boxCells) {
-            if (c !== i && pencils[r][c].has(num)) {
-              removals.push({ r, c, num });
-            }
+          for (let peer = 0; peer < 9; peer++) {
+            const r = isRow ? i : peer;
+            const c = isRow ? peer : i;
+            if (pencils[r][c].has(num)) lineCellsWithNum.push([r, c]);
           }
-          if (removals.length > 0) {
-            return {
-              change: true,
-              type: "remove",
-              cells: removals,
-              hint: {
-                name: "Claiming",
-                mainInfo: `Intersection of Col ${i + 1} and Box ${boxIdx + 1}`,
-              },
-            };
+
+          if (lineCellsWithNum.length > 1) {
+            // Check if all these line cells belong to the same box
+            const boxIdxs = new Set(
+              lineCellsWithNum.map(
+                ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
+              ),
+            );
+
+            if (boxIdxs.size === 1) {
+              const targetBoxIdx = [...boxIdxs][0];
+              const removals = [];
+              const boxCells = techniques._getUnitCells("box", targetBoxIdx);
+
+              for (const [r, c] of boxCells) {
+                const isOutsideLine = isRow ? r !== i : c !== i;
+
+                // If the cell is in the claimed box but outside the claiming line
+                if (isOutsideLine && pencils[r][c].has(num)) {
+                  removals.push({ r, c, num });
+                }
+              }
+
+              if (removals.length > 0) {
+                const lineName = isRow ? "Row" : "Col";
+                const rows = [
+                  ...new Set(lineCellsWithNum.map(([r, c]) => r + 1)),
+                ]
+                  .sort()
+                  .join("");
+                const cols = [
+                  ...new Set(lineCellsWithNum.map(([r, c]) => c + 1)),
+                ]
+                  .sort()
+                  .join("");
+                const cellStr = `r${rows}c${cols}`;
+
+                return {
+                  change: true,
+                  type: "remove",
+                  cells: removals,
+                  hint: {
+                    name: "Claiming",
+                    mainInfo: `Intersection of ${lineName} ${i + 1} and Box ${targetBoxIdx + 1}`,
+                    detail: `All cells with digit (${num}) in ${lineName} ${i + 1} ${cellStr} are also in Box ${targetBoxIdx + 1}`,
+                  },
+                };
+              }
+            }
           }
         }
       }
@@ -645,9 +606,9 @@ const techniques = {
 
   nakedSubset: (board, pencils, size) => {
     const unitTypes = [
+      { name: "box", label: "Box" },
       { name: "row", label: "Row" },
       { name: "col", label: "Col" },
-      { name: "box", label: "Box" },
     ];
 
     for (const { name, label } of unitTypes) {
@@ -687,19 +648,43 @@ const techniques = {
               }
             }
 
-            if (removals.length > 0)
+            if (removals.length > 0) {
+              // --- Format cell string based on unit type ---
+              let cellStr = "";
+              if (name === "box") {
+                const points = [
+                  ...new Set(
+                    cellGroup.map(
+                      ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                    ),
+                  ),
+                ]
+                  .sort()
+                  .join("");
+                cellStr = `b${i + 1}p${points}`;
+              } else {
+                const rows = [...new Set(cellGroup.map(([r, c]) => r + 1))]
+                  .sort()
+                  .join("");
+                const cols = [...new Set(cellGroup.map(([r, c]) => c + 1))]
+                  .sort()
+                  .join("");
+                cellStr = `r${rows}c${cols}`;
+              }
+
               return {
                 change: true,
                 type: "remove",
                 cells: removals,
                 hint: {
-                  // Fixed: Hardcoded "Naked" instead of undefined variable 'type'
                   name: `Naked ${
                     size === 2 ? "Pair" : size === 3 ? "Triple" : "Quad"
                   }`,
                   mainInfo: `${unitName}`,
+                  detail: `${cellStr} together have digits (${[...union].sort().join("")}) in ${unitName}`,
                 },
               };
+            }
           }
         }
       }
@@ -709,9 +694,9 @@ const techniques = {
 
   hiddenSubset: (board, pencils, size) => {
     const unitTypes = [
+      { name: "box", label: "Box" },
       { name: "row", label: "Row" },
       { name: "col", label: "Col" },
-      { name: "box", label: "Box" },
     ];
 
     for (const { name, label } of unitTypes) {
@@ -758,16 +743,42 @@ const techniques = {
               }
             }
             if (removals.length > 0) {
+              // --- Format cell string based on unit type ---
+              let cellStr = "";
+              if (name === "box") {
+                const points = [
+                  ...new Set(
+                    cells.map(
+                      ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                    ),
+                  ),
+                ]
+                  .sort()
+                  .join("");
+                cellStr = `b${i + 1}p${points}`;
+              } else {
+                const rows = [...new Set(cells.map(([r, c]) => r + 1))]
+                  .sort()
+                  .join("");
+                const cols = [...new Set(cells.map(([r, c]) => c + 1))]
+                  .sort()
+                  .join("");
+                cellStr = `r${rows}c${cols}`;
+              }
+
+              // Extract and sort the digits for the string
+              const digitsStr = [...numGroup].sort().join("");
+
               return {
                 change: true,
                 type: "remove",
                 cells: removals,
                 hint: {
-                  // Fixed: Hardcoded "Hidden" instead of undefined variable 'type'
                   name: `Hidden ${
                     size === 2 ? "Pair" : size === 3 ? "Triple" : "Quad"
                   }`,
                   mainInfo: `${unitName}`,
+                  detail: `All cells with digits (${digitsStr}) in ${unitName} are ${cellStr}`,
                 },
               };
             }
@@ -812,7 +823,23 @@ const techniques = {
                 }
               }
             }
-            if (removals.length > 0)
+            if (removals.length > 0) {
+              // --- Build Base and Cover notation strings ---
+              const basePrefix = isRowBased ? "r" : "c";
+              const coverPrefix = isRowBased ? "c" : "r";
+
+              const baseNums = [...primaryLineIndices]
+                .map((i) => i + 1)
+                .sort((a, b) => a - b)
+                .join("");
+              const coverNums = [...allSecondaryIndices]
+                .map((i) => i + 1)
+                .sort((a, b) => a - b)
+                .join("");
+
+              const baseStr = `${basePrefix}${baseNums}`;
+              const coverStr = `${coverPrefix}${coverNums}`;
+
               return {
                 change: true,
                 type: "remove",
@@ -824,9 +851,11 @@ const techniques = {
                       : size === 3
                         ? "Swordfish"
                         : "Jellyfish",
-                  mainInfo: `Digit ${num}`,
+                  mainInfo: `Digit (${num})`,
+                  detail: `Digit (${num}), Base ${baseStr}, Cover ${coverStr}`,
                 },
               };
+            }
           }
         }
       }
@@ -951,6 +980,34 @@ const techniques = {
           }
 
           if (removals.length > 0) {
+            // --- Format the Strings for the Hint ---
+            const basePrefix = isRowBased ? "r" : "c";
+            const coverPrefix = isRowBased ? "c" : "r";
+
+            const baseNums = [...baseLineIndices]
+              .map((i) => i + 1)
+              .sort((a, b) => a - b)
+              .join("");
+            const coverNums = [...coverBaseSet]
+              .map((i) => i + 1)
+              .sort((a, b) => a - b)
+              .join("");
+
+            const baseStr = `${basePrefix}${baseNums}`;
+            const coverStr = `${coverPrefix}${coverNums}`;
+
+            // --- Format Fins using Box-Point (bp) Notation ---
+            const finPoints = [
+              ...new Set(
+                fins.map(
+                  ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                ),
+              ),
+            ]
+              .sort((a, b) => a - b)
+              .join("");
+            const finStr = `b${finBoxIndex + 1}p${finPoints}`;
+
             return {
               change: true,
               type: "remove",
@@ -963,8 +1020,8 @@ const techniques = {
                       ? "Swordfish"
                       : "Jellyfish"
                 }`,
-
-                mainInfo: `Digit ${num}`,
+                mainInfo: `Digit (${num})`,
+                detail: `Digit (${num}), Base ${baseStr}, Cover ${coverStr}, Fin (${finStr})`,
               },
             };
           }
@@ -1022,6 +1079,8 @@ const techniques = {
               }
             }
             if (removals.length > 0) {
+              const allCands = [x, y, z].sort().join("");
+
               return {
                 change: true,
                 type: "remove",
@@ -1029,6 +1088,7 @@ const techniques = {
                 hint: {
                   name: "XY-Wing",
                   mainInfo: `Pivot at r${pivot.r + 1}c${pivot.c + 1}`,
+                  detail: `Digits (${allCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${pincer1.r + 1}c${pincer1.c + 1} and r${pincer2.r + 1}c${pincer2.c + 1}.`,
                 },
               };
             }
@@ -1099,6 +1159,7 @@ const techniques = {
             }
           }
           if (removals.length > 0) {
+            const pivotCands = [...pivot.cands].sort().join("");
             return {
               change: true,
               type: "remove",
@@ -1106,6 +1167,7 @@ const techniques = {
               hint: {
                 name: "XYZ-Wing",
                 mainInfo: `Pivot at r${pivot.r + 1}c${pivot.c + 1}`,
+                detail: `Digits (${pivotCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${wing1.r + 1}c${wing1.c + 1} and r${wing2.r + 1}c${wing2.c + 1}.`,
               },
             };
           }
@@ -1161,14 +1223,21 @@ const techniques = {
 
   _findWWingElimination: (board, pencils, cell1, cell2, x, y) => {
     const units = [];
-    for (let i = 0; i < 9; i++) {
-      units.push(techniques._getUnitCells("row", i));
-      units.push(techniques._getUnitCells("col", i));
-      units.push(techniques._getUnitCells("box", i));
+    const unitTypes = ["row", "col", "box"];
+
+    // Track the unit type and index so we can format the strong link later
+    for (const type of unitTypes) {
+      for (let i = 0; i < 9; i++) {
+        units.push({
+          type: type,
+          index: i,
+          cells: techniques._getUnitCells(type, i),
+        });
+      }
     }
 
     for (const unit of units) {
-      const x_cells = unit.filter(([r, c]) => pencils[r][c].has(x));
+      const x_cells = unit.cells.filter(([r, c]) => pencils[r][c].has(x));
       if (x_cells.length === 2) {
         const [link1, link2] = x_cells;
         const sees_l1_c1 = techniques._sees(link1, [cell1.r, cell1.c]);
@@ -1191,13 +1260,32 @@ const techniques = {
             }
           }
           if (removals.length > 0) {
+            // --- Format the strong link based on unit type ---
+            let linkStr1 = "";
+            let linkStr2 = "";
+
+            if (unit.type === "box") {
+              const p1 =
+                Math.floor(link1[0] % 3) * 3 + Math.floor(link1[1] % 3) + 1;
+              const p2 =
+                Math.floor(link2[0] % 3) * 3 + Math.floor(link2[1] % 3) + 1;
+              linkStr1 = `b${unit.index + 1}p${p1}`;
+              linkStr2 = `b${unit.index + 1}p${p2}`;
+            } else {
+              linkStr1 = `r${link1[0] + 1}c${link1[1] + 1}`;
+              linkStr2 = `r${link2[0] + 1}c${link2[1] + 1}`;
+            }
+
+            const strongLinkDetail = `(${x})(${linkStr1}=${linkStr2})`;
+
             return {
               change: true,
               type: "remove",
               cells: removals,
               hint: {
                 name: "W-Wing",
-                mainInfo: `using Candidates ${x}/${y}`,
+                mainInfo: `Using digits (${y}${x})`,
+                detail: `Digits (${y}${x}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot ${unit.type.slice(0, 1)}${unit.index + 1} as ${strongLinkDetail}`,
               },
             };
           }
@@ -1280,13 +1368,67 @@ const techniques = {
               }
             }
             if (removals.length > 0) {
+              // --- Split linking cells into Group 1 and Group 2 ---
+              const group1 = x_cells_in_unit.filter(([r, c]) =>
+                techniques._sees([r, c], [cell1.r, cell1.c]),
+              );
+              const group2 = x_cells_in_unit.filter(([r, c]) =>
+                techniques._sees([r, c], [cell2.r, cell2.c]),
+              );
+
+              let linkStr1 = "";
+              let linkStr2 = "";
+
+              // --- Format string based on unit type (0-8 Row, 9-17 Col, 18-26 Box) ---
+              if (u >= 18) {
+                const boxIdx = u - 18 + 1;
+                const pts1 = [
+                  ...new Set(
+                    group1.map(
+                      ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                    ),
+                  ),
+                ]
+                  .sort()
+                  .join("");
+                const pts2 = [
+                  ...new Set(
+                    group2.map(
+                      ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                    ),
+                  ),
+                ]
+                  .sort()
+                  .join("");
+                linkStr1 = `b${boxIdx}p${pts1}`;
+                linkStr2 = `b${boxIdx}p${pts2}`;
+              } else {
+                const r1 = [...new Set(group1.map(([r, c]) => r + 1))]
+                  .sort()
+                  .join("");
+                const c1 = [...new Set(group1.map(([r, c]) => c + 1))]
+                  .sort()
+                  .join("");
+                const r2 = [...new Set(group2.map(([r, c]) => r + 1))]
+                  .sort()
+                  .join("");
+                const c2 = [...new Set(group2.map(([r, c]) => c + 1))]
+                  .sort()
+                  .join("");
+                linkStr1 = `r${r1}c${c1}`;
+                linkStr2 = `r${r2}c${c2}`;
+              }
+
+              const strongLinkDetail = `(${linkDigit})(${linkStr1}=${linkStr2})`;
+
               return {
                 change: true,
                 type: "remove",
                 cells: removals,
                 hint: {
                   name: "Grouped W-Wing",
-                  mainInfo: `using Candidates ${x}/${y}`,
+                  mainInfo: `Using digits (${elimDigit}${linkDigit})`,
+                  detail: `Digits (${elimDigit}${linkDigit}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot by pivot ${Math.floor(u / 9) == 0 ? "r" : Math.floor(u / 9) == 1 ? "c" : "b"}${(u % 9) + 1} as ${strongLinkDetail}.`,
                 },
               };
             }
@@ -1354,13 +1496,17 @@ const techniques = {
               }
             }
             if (removals.length > 0) {
+              const pathStr = path
+                .map(([r, c]) => `r${r + 1}c${c + 1}`)
+                .join("-");
               return {
                 change: true,
                 type: "remove",
                 cells: removals,
                 hint: {
                   name: "Remote Pair",
-                  mainInfo: `using Candidates ${pair[0]}/${pair[1]}`,
+                  mainInfo: `using digits (${pair[0]}${pair[1]})`,
+                  detail: `(${pair[0]}${pair[1]}) on ${pathStr}`,
                 },
               };
             }
@@ -1412,11 +1558,10 @@ const techniques = {
         for (const linkPair of techniques.combinations(strongLinks, 2)) {
           const [link1, link2] = linkPair;
 
-          // Find the common location (the base) and the two different locations (the peaks)
           const sharedLocs = new Set(link1.locs);
           const baseLoc = link2.locs.find((loc) => sharedLocs.has(loc));
 
-          if (baseLoc === undefined) continue; // No common location, not a skyscraper
+          if (baseLoc === undefined) continue;
 
           const peak1Loc = link1.locs.find((loc) => loc !== baseLoc);
           const peak2Loc = link2.locs.find((loc) => loc !== baseLoc);
@@ -1435,13 +1580,25 @@ const techniques = {
             }
           }
           if (removals.length > 0) {
+            // --- Format the Chain String ---
+            let link1Str = "";
+            let link2Str = "";
+            if (isRowBased) {
+              link1Str = `r${link1.line + 1}c${peak1Loc + 1}=r${link1.line + 1}c${baseLoc + 1}`;
+              link2Str = `r${link2.line + 1}c${baseLoc + 1}=r${link2.line + 1}c${peak2Loc + 1}`;
+            } else {
+              link1Str = `r${peak1Loc + 1}c${link1.line + 1}=r${baseLoc + 1}c${link1.line + 1}`;
+              link2Str = `r${baseLoc + 1}c${link2.line + 1}=r${peak2Loc + 1}c${link2.line + 1}`;
+            }
+
             return {
               change: true,
               type: "remove",
               cells: removals,
               hint: {
                 name: "Skyscraper",
-                mainInfo: `Digit ${num}`,
+                mainInfo: `Digit (${num})`,
+                detail: `(${num})(${link1Str})-(${link2Str})`,
               },
             };
           }
@@ -1450,9 +1607,9 @@ const techniques = {
       return { change: false };
     };
 
-    let result = skyscraperLogic(true); // Row-based
+    let result = skyscraperLogic(true);
     if (result.change) return result;
-    result = skyscraperLogic(false); // Column-based
+    result = skyscraperLogic(false);
     return result;
   },
 
@@ -1506,8 +1663,10 @@ const techniques = {
                 ) ===
                 techniques._getBoxIndex(colLinkCells[j][0], colLinkCells[j][1])
               ) {
-                const p1 = rowLinkCells[1 - i];
-                const p2 = colLinkCells[1 - j];
+                const p1 = rowLinkCells[1 - i]; // Outside row cell
+                const p2 = colLinkCells[1 - j]; // Outside col cell
+                const pBox1 = rowLinkCells[i]; // Box intersection cell 1
+                const pBox2 = colLinkCells[j]; // Box intersection cell 2
 
                 if (p1[0] === p2[0] && p1[1] === p2[1]) continue;
 
@@ -1518,13 +1677,18 @@ const techniques = {
                   }
                 }
                 if (removals.length > 0) {
+                  // --- Format the Chain String ---
+                  const link1Str = `r${p1[0] + 1}c${p1[1] + 1}=r${pBox1[0] + 1}c${pBox1[1] + 1}`;
+                  const link2Str = `r${pBox2[0] + 1}c${pBox2[1] + 1}=r${p2[0] + 1}c${p2[1] + 1}`;
+
                   return {
                     change: true,
                     type: "remove",
                     cells: removals,
                     hint: {
                       name: "2-String Kite",
-                      mainInfo: `Digit ${num}`,
+                      mainInfo: `Digit (${num})`,
+                      detail: `(${num})(${link1Str})-(${link2Str}). Removes (${num}) from intersection.`,
                     },
                   };
                 }
@@ -1537,7 +1701,6 @@ const techniques = {
     return { change: false };
   },
 
-  // Replace the existing turbotFish function
   turbotFish: (board, pencils) => {
     const turbotLogic = (isRowBased) => {
       for (let num = 1; num <= 9; num++) {
@@ -1588,15 +1751,22 @@ const techniques = {
                     }
                   }
                   if (removals.length > 0) {
-                    // --- ADDED: Define pattern cells for logging ---
-                    const patternCells = [pA, pB, pC, pD];
+                    // --- Format the Chain String (Mix of bp and rc) ---
+                    const p1BoxIndex =
+                      Math.floor(pA[0] % 3) * 3 + Math.floor(pA[1] % 3) + 1;
+                    const p2BoxIndex =
+                      Math.floor(pB[0] % 3) * 3 + Math.floor(pB[1] % 3) + 1;
+                    const link1Str = `b${b + 1}p${p1BoxIndex}=b${b + 1}p${p2BoxIndex}`;
+                    const link2Str = `r${pC[0] + 1}c${pC[1] + 1}=r${pD[0] + 1}c${pD[1] + 1}`;
+
                     return {
                       change: true,
                       type: "remove",
                       cells: removals,
                       hint: {
                         name: "Crane",
-                        mainInfo: `Digit ${num}`,
+                        mainInfo: `Digit (${num})`,
+                        detail: `(${num})(${link1Str})-(${link2Str})`,
                       },
                     };
                   }
@@ -1612,102 +1782,6 @@ const techniques = {
     let result = turbotLogic(true);
     if (result.change) return result;
     result = turbotLogic(false);
-    return result;
-  },
-
-  emptyRectangle: (board, pencils) => {
-    let result = techniques.groupedTurbotFish(board, pencils);
-    return result;
-  },
-
-  rectangleElimination: (board, pencils) => {
-    result = techniques.groupedKite(board, pencils);
-    return result;
-  },
-
-  groupedTurbotFish: (board, pencils) => {
-    const logic = (isRowVersion) => {
-      for (let num = 1; num <= 9; num++) {
-        for (let b = 0; b < 9; b++) {
-          const boxCells = techniques._getUnitCells("box", b);
-          const box_n_cells = boxCells.filter(([r, c]) =>
-            pencils[r][c].has(num),
-          );
-          if (box_n_cells.length < 2) continue;
-
-          const rows = new Set(box_n_cells.map((c) => c[0]));
-          const cols = new Set(box_n_cells.map((c) => c[1]));
-
-          if (rows.size === 1 || cols.size === 1) continue;
-
-          for (const r1 of rows) {
-            for (const c1 of cols) {
-              const coversAll = box_n_cells.every(
-                ([r, c]) => r === r1 || c === c1,
-              );
-              if (!coversAll) continue;
-
-              if (isRowVersion) {
-                for (let r2 = 0; r2 < 9; r2++) {
-                  if (Math.floor(r2 / 3) === Math.floor(r1 / 3)) continue;
-                  if (!pencils[r2][c1].has(num)) continue;
-
-                  const r2_locs = [];
-                  for (let c = 0; c < 9; c++)
-                    if (pencils[r2][c].has(num)) r2_locs.push(c);
-
-                  if (r2_locs.length === 2 && r2_locs.includes(c1)) {
-                    const c2 = r2_locs.find((c) => c !== c1);
-                    if (Math.floor(c1 / 3) === Math.floor(c2 / 3)) continue;
-                    if (pencils[r1][c2].has(num)) {
-                      return {
-                        change: true,
-                        type: "remove",
-                        cells: [{ r: r1, c: c2, num }],
-                        hint: {
-                          name: "Empty Rectangle",
-                          mainInfo: `Digit ${num}`,
-                        },
-                      };
-                    }
-                  }
-                }
-              } else {
-                // Column version
-                for (let c2 = 0; c2 < 9; c2++) {
-                  if (Math.floor(c2 / 3) === Math.floor(c1 / 3)) continue;
-                  if (!pencils[r1][c2].has(num)) continue;
-
-                  const c2_locs = [];
-                  for (let r = 0; r < 9; r++)
-                    if (pencils[r][c2].has(num)) c2_locs.push(r);
-
-                  if (c2_locs.length === 2 && c2_locs.includes(r1)) {
-                    const r2 = c2_locs.find((r) => r !== r1);
-                    if (Math.floor(r1 / 3) === Math.floor(r2 / 3)) continue;
-                    if (pencils[r2][c1].has(num)) {
-                      return {
-                        change: true,
-                        type: "remove",
-                        cells: [{ r: r2, c: c1, num }],
-                        hint: {
-                          name: "Empty Rectangle",
-                          mainInfo: `Digit ${num}`,
-                        },
-                      };
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      return { change: false };
-    };
-    let result = logic(true);
-    if (result.change) return result;
-    result = logic(false);
     return result;
   },
 
@@ -1747,13 +1821,37 @@ const techniques = {
             if (group.length < 3) continue;
 
             if (pencils[r2][c2].has(num)) {
+              // --- Build Grouped bXpY logic ---
+              const rowGroupCols = [
+                ...new Set(
+                  box_n_cells
+                    .filter(([r, c]) => r === r1)
+                    .map(([r, c]) => c + 1),
+                ),
+              ]
+                .sort((a, b) => a - b)
+                .join("");
+              const colGroupRows = [
+                ...new Set(
+                  box_n_cells
+                    .filter(([r, c]) => c === c1)
+                    .map(([r, c]) => r + 1),
+                ),
+              ]
+                .sort((a, b) => a - b)
+                .join("");
+
+              const link1Str = `r${r1 + 1}c${c2 + 1}=r${r1 + 1}c${rowGroupCols}`;
+              const link2Str = `r${colGroupRows}c${c1 + 1}=r${r2 + 1}c${c1 + 1}`;
+
               return {
                 change: true,
                 type: "remove",
                 cells: [{ r: r2, c: c2, num }],
                 hint: {
                   name: "Grouped 2-String Kite",
-                  mainInfo: `Digit ${num}`,
+                  mainInfo: `Digit (${num})`,
+                  detail: `(${num})(${link1Str})-(${link2Str}). Removes (${num}) from r${r2 + 1}c${c2 + 1}.`,
                 },
               };
             }
@@ -1762,6 +1860,156 @@ const techniques = {
       }
     }
     return { change: false };
+  },
+
+  groupedTurbotFish: (board, pencils) => {
+    const logic = (isRowVersion) => {
+      for (let num = 1; num <= 9; num++) {
+        for (let b = 0; b < 9; b++) {
+          const boxCells = techniques._getUnitCells("box", b);
+          const box_n_cells = boxCells.filter(([r, c]) =>
+            pencils[r][c].has(num),
+          );
+          if (box_n_cells.length < 2) continue;
+
+          const rows = new Set(box_n_cells.map((c) => c[0]));
+          const cols = new Set(box_n_cells.map((c) => c[1]));
+
+          if (rows.size === 1 || cols.size === 1) continue;
+
+          for (const r1 of rows) {
+            for (const c1 of cols) {
+              const coversAll = box_n_cells.every(
+                ([r, c]) => r === r1 || c === c1,
+              );
+              if (!coversAll) continue;
+
+              if (isRowVersion) {
+                for (let r2 = 0; r2 < 9; r2++) {
+                  if (Math.floor(r2 / 3) === Math.floor(r1 / 3)) continue;
+                  if (!pencils[r2][c1].has(num)) continue;
+
+                  const r2_locs = [];
+                  for (let c = 0; c < 9; c++)
+                    if (pencils[r2][c].has(num)) r2_locs.push(c);
+
+                  if (r2_locs.length === 2 && r2_locs.includes(c1)) {
+                    const c2 = r2_locs.find((c) => c !== c1);
+                    if (Math.floor(c1 / 3) === Math.floor(c2 / 3)) continue;
+                    if (pencils[r1][c2].has(num)) {
+                      // --- Build Grouped bXpY logic ---
+                      const groupCells = box_n_cells.filter(
+                        ([r, c]) => r === r1,
+                      );
+                      const baseCells = box_n_cells.filter(
+                        ([r, c]) => c === c1,
+                      );
+                      const pGroup = [
+                        ...new Set(
+                          groupCells.map(
+                            ([r, c]) =>
+                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                          ),
+                        ),
+                      ]
+                        .sort()
+                        .join("");
+                      const pBase = [
+                        ...new Set(
+                          baseCells.map(
+                            ([r, c]) =>
+                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                          ),
+                        ),
+                      ]
+                        .sort()
+                        .join("");
+
+                      const link1Str = `b${b + 1}p${pGroup}=b${b + 1}p${pBase}`;
+                      const link2Str = `r${r2 + 1}c${c1 + 1}=r${r2 + 1}c${c2 + 1}`;
+
+                      return {
+                        change: true,
+                        type: "remove",
+                        cells: [{ r: r1, c: c2, num }],
+                        hint: {
+                          name: "Empty Rectangle",
+                          mainInfo: `Digit (${num})`,
+                          detail: `(${num})(${link1Str})-(${link2Str})`,
+                        },
+                      };
+                    }
+                  }
+                }
+              } else {
+                // Column version
+                for (let c2 = 0; c2 < 9; c2++) {
+                  if (Math.floor(c2 / 3) === Math.floor(c1 / 3)) continue;
+                  if (!pencils[r1][c2].has(num)) continue;
+
+                  const c2_locs = [];
+                  for (let r = 0; r < 9; r++)
+                    if (pencils[r][c2].has(num)) c2_locs.push(r);
+
+                  if (c2_locs.length === 2 && c2_locs.includes(r1)) {
+                    const r2 = c2_locs.find((r) => r !== r1);
+                    if (Math.floor(r1 / 3) === Math.floor(r2 / 3)) continue;
+                    if (pencils[r2][c1].has(num)) {
+                      // --- Build Grouped bXpY logic ---
+                      const groupCells = box_n_cells.filter(
+                        ([r, c]) => c === c1,
+                      );
+                      const baseCells = box_n_cells.filter(
+                        ([r, c]) => r === r1,
+                      );
+                      const pGroup = [
+                        ...new Set(
+                          groupCells.map(
+                            ([r, c]) =>
+                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                          ),
+                        ),
+                      ]
+                        .sort()
+                        .join("");
+                      const pBase = [
+                        ...new Set(
+                          baseCells.map(
+                            ([r, c]) =>
+                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                          ),
+                        ),
+                      ]
+                        .sort()
+                        .join("");
+
+                      const link1Str = `b${b + 1}p${pGroup}=b${b + 1}p${pBase}`;
+                      const link2Str = `r${r1 + 1}c${c2 + 1}=r${r2 + 1}c${c2 + 1}`;
+
+                      return {
+                        change: true,
+                        type: "remove",
+                        cells: [{ r: r2, c: c1, num }],
+                        hint: {
+                          name: "Empty Rectangle",
+                          mainInfo: `Digit (${num})`,
+                          detail: `(${num})(${link1Str})-(${link2Str})`,
+                        },
+                      };
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      return { change: false };
+    };
+    let result = logic(true);
+    if (result.change) return result;
+    result = logic(false);
+    return result;
   },
 
   chuteRemotePair: (board, pencils) => {
@@ -1877,13 +2125,26 @@ const techniques = {
           const uniqueRemovals = Array.from(
             new Set(removals.map(JSON.stringify)),
           ).map(JSON.parse);
+          const missingCands = [];
+          if (!intersectionCandidates.has(x)) missingCands.push(x);
+          if (!intersectionCandidates.has(y)) missingCands.push(y);
+          const missingCandsStr = missingCands.sort().join("");
+
+          let intersectionStr = "";
+          if (isRowVersion) {
+            intersectionStr = `r${other_line + 1}c${other_box_start + 1}${other_box_start + 2}${other_box_start + 3}`;
+          } else {
+            intersectionStr = `r${other_box_start + 1}${other_box_start + 2}${other_box_start + 3}c${other_line + 1}`;
+          }
+
           return {
             change: true,
             type: "remove",
             cells: uniqueRemovals,
             hint: {
               name: "Chute Remote Pair",
-              mainInfo: `using Candidates ${x}/${y}`,
+              mainInfo: `Using digits (${x}${y})`,
+              detail: `Digits (${x}${y}) in r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1}. ${intersectionStr} not having (${missingCandsStr})`,
             },
           };
         }
@@ -1960,6 +2221,7 @@ const techniques = {
             hint: {
               name: "BUG+1",
               mainInfo: `Tri-value cell at r${r_plus1 + 1}c${c_plus1 + 1}`,
+              detail: `All digits appear exactly twice in all houses except for (${num})r${r_plus1 + 1}c${c_plus1 + 1}`,
             },
           };
         }
@@ -5050,6 +5312,65 @@ const techniques = {
     return "";
   },
 
+  _buildChainDetail: (chain, options) => {
+    const parts = [];
+    let lastDigit = null; // Track the digit of the previous link
+
+    for (let i = 0; i < chain.length - 1; i += 2) {
+      const A = chain[i];
+      const B = chain[i + 1];
+
+      if (A.digit !== B.digit) {
+        // In-cell strong link (Bivalue / Intra-cell)
+        const strA = techniques._fmtNode(A);
+        parts.push(`(${A.digit}=${B.digit})${strA}`);
+
+        // Reset lastDigit so the next inter-cell link explicitly declares its starting digit
+        lastDigit = null;
+      } else {
+        // Inter-cell strong link
+        const allCells = [...A.cells, ...B.cells];
+        const sameRow = allCells.every((c) => c[0] === allCells[0][0]);
+        const sameCol = allCells.every((c) => c[1] === allCells[0][1]);
+        const boxes = new Set(
+          allCells.map(([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3)),
+        );
+
+        // Use bp notation strictly if they share a box but do NOT exclusively share a line
+        const useBox = boxes.size === 1 && !sameRow && !sameCol;
+        const boxIndex = useBox ? [...boxes][0] : -1;
+
+        const getPoints = (cells) =>
+          [
+            ...new Set(
+              cells.map(
+                ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+              ),
+            ),
+          ]
+            .sort((a, b) => a - b)
+            .join("");
+
+        const strA = useBox
+          ? `b${boxIndex + 1}p${getPoints(A.cells)}`
+          : techniques._fmtNode(A);
+        const strB = useBox
+          ? `b${boxIndex + 1}p${getPoints(B.cells)}`
+          : techniques._fmtNode(B);
+
+        // Omit the digit prefix if it continues on the exact same digit
+        if (A.digit === lastDigit) {
+          parts.push(`(${strA}=${strB})`);
+        } else {
+          parts.push(`(${A.digit})(${strA}=${strB})`);
+        }
+
+        lastDigit = A.digit;
+      }
+    }
+    return parts.join("-");
+  },
+
   _createAICNode: (cells, digit) => {
     // assume at least one cell exists
     const [r0, c0] = cells[0];
@@ -5458,7 +5779,9 @@ const techniques = {
                 cells: elims,
                 hint: {
                   name: options.nameOverride || "Alternating Inference Chain",
-                  mainInfo: techniques._getHintInfo(chain, hintType),
+                  mainInfo: techniques._getHintInfo(chain, hintType) + "(Ring)",
+                  detail:
+                    techniques._buildChainDetail(chain, options) + "(Ring)",
                 },
               };
               return;
@@ -5514,9 +5837,8 @@ const techniques = {
                 cells: elims,
                 hint: {
                   name: options.nameOverride || "Alternating Inference Chain",
-                  mainInfo:
-                    techniques._getHintInfo(chain, hintType) +
-                    `${isContinuous ? " (Ring)" : ""}`,
+                  mainInfo: techniques._getHintInfo(chain, hintType),
+                  detail: techniques._buildChainDetail(chain, options),
                 },
               };
               return;
@@ -6028,11 +6350,51 @@ const techniques = {
             mainInfo = `Bivalue cell at r${pr + 1}c${pc + 1}`;
           }
 
+          // --- Format the Detail String ---
+          const rccStr = techniques._bits.maskToDigits(rccMask).join("");
+
+          // nonrcc reflects the actual target digits being eliminated
+          const nonRccStr = [...new Set(uniqueElims.map((e) => e.num))]
+            .sort((a, b) => a - b)
+            .join("");
+
+          const fmtALS = (als) => {
+            if (als.unitName.startsWith("Box")) {
+              const b = parseInt(als.unitName.split(" ")[1]);
+              const pts = [
+                ...new Set(
+                  als.cells.map(
+                    ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                  ),
+                ),
+              ]
+                .sort((a, b) => a - b)
+                .join("");
+              return `b${b}p${pts}`;
+            } else {
+              const rs = [...new Set(als.cells.map(([r, c]) => r + 1))]
+                .sort((a, b) => a - b)
+                .join("");
+              const cs = [...new Set(als.cells.map(([r, c]) => c + 1))]
+                .sort((a, b) => a - b)
+                .join("");
+              return `r${rs}c${cs}`;
+            }
+          };
+
+          const strA = fmtALS(A);
+          const strB = fmtALS(B);
+
+          let detail = `(${nonRccStr}=${rccStr})(${strA})-(${rccStr}=${nonRccStr})(${strB})`;
+          if (rccCount >= 2) {
+            detail += "-(Ring)";
+          }
+
           return {
             change: true,
             type: "remove",
             cells: uniqueElims,
-            hint: { name, mainInfo },
+            hint: { name, mainInfo, detail },
           };
         }
       }
@@ -6065,7 +6427,7 @@ const techniques = {
         const availArr = [...availableDigits];
 
         // REPLACE WITH THIS:
-        for (let size = 1; size < emptyCells.length - 1; size++) {
+        for (let size = 1; size < emptyCells.length; size++) {
           if (size >= availArr.length) continue;
           for (const subset of techniques.combinations(availArr, size)) {
             const subsetSet = new Set(subset);
@@ -6171,7 +6533,7 @@ const techniques = {
             const cands = pencils[cell[0]][cell[1]];
             const hasShared = sharedDigits.some((d) => cands.has(d));
 
-            // RCC (Restricted Common Cell): cell present in both AHS, not having any sharing candidate
+            // RCC (Restricted Common Cell): cell present in both AHS, not with any sharing candidate
             if (!hasShared) rccs.push(cell);
             else zs.push(cell);
           }
@@ -8281,7 +8643,7 @@ const techniques = {
                         cells: elims,
                         hint: {
                           name: name,
-                          mainInfo: `Digit ${num}`,
+                          mainInfo: `Digit (${num})`,
                         },
                       };
                     }

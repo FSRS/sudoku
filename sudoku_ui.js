@@ -1579,7 +1579,7 @@ function setupEventListeners() {
             }
             actionStr = groups.join(", ");
           }
-          message = `Concrete Hint: ${h.name} -> ${actionStr}`;
+          message = `${h.name}: ${h.detail || ""} => ${actionStr}`;
           color = "blue";
           hintClickCount = 0;
         }
@@ -4009,13 +4009,13 @@ async function evaluateBoardDifficulty(opts = {}) {
     },
     {
       name: "Grouped 2-String Kite",
-      func: techniques.rectangleElimination,
+      func: techniques.groupedKite,
       level: 5,
       score: 150,
     },
     {
       name: "Empty Rectangle",
-      func: techniques.emptyRectangle,
+      func: techniques.groupedTurbotFish,
       level: 5,
       score: 150,
     },
@@ -4225,12 +4225,13 @@ async function evaluateBoardDifficulty(opts = {}) {
             `%c${tech.level.toString().padStart(2)} ${emojiScale[tech.level]} ${tech.name.padEnd(27)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
             `color: ${logColor}; font-weight: bold;`,
           );
+          if (LOG_CANDIDATE_GRID) {
+            if (result.hint.detail) console.log(result.hint.detail);
+          }
           if (result.type === "place") {
-            console.log(
-              `Action: r${result.r + 1}c${result.c + 1}=${result.num}`,
-            );
+            console.log(`  r${result.r + 1}c${result.c + 1}=${result.num}`);
           } else if (result.type === "remove") {
-            console.log(`Action: Remove candidates:`);
+            console.log(`Remove candidates:`);
             result.cells.forEach(({ r, c, num }) => {
               console.log(`  - r${r + 1}c${c + 1}<>${num}`);
             });
