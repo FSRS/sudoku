@@ -5674,11 +5674,11 @@ const techniques = {
 
           const c1Str =
             c1Sources.size > 0
-              ? `C1 at ${Array.from(c1Sources).join(", ")}`
+              ? `C1 at ${Array.from(c1Sources).join(",")}`
               : "";
           const c2Str =
             c2Sources.size > 0
-              ? `C2 at ${Array.from(c2Sources).join(", ")}`
+              ? `C2 at ${Array.from(c2Sources).join(",")}`
               : "";
 
           // Join them together, filtering out any empty strings if a color is somehow missing
