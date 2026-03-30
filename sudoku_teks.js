@@ -8672,7 +8672,7 @@ const techniques = {
     return { change: false };
   },
   // --- CELL DEATH BLOSSOM ---
-  deathBlossom: (board, pencils) => {
+  cellDeathBlossom: (board, pencils) => {
     if (_alsCache.legnth === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
@@ -8781,6 +8781,7 @@ const techniques = {
 
       // Recursive Search
       const dfs = (startIndex, coveredMask, possibleElimMask, depth) => {
+        if (foundAny) return; // 1. Short-circuit at the top of the call
         // --- CHECK FOR ELIMINATION ---
         // Condition: All stem candidates are covered by the chosen petals
         if (coveredMask === stemMask && depth >= 2 && depth <= stemCount) {
@@ -8848,7 +8849,7 @@ const techniques = {
               }
             }
           }
-          // Do not return; continue searching for other valid combinations using this base
+          if (foundAny) return; // 2. Stop immediately if this combination yielded eliminations
         }
 
         // Pruning
@@ -8856,6 +8857,7 @@ const techniques = {
 
         // --- RECURSIVE STEP ---
         for (let i = startIndex; i < pool.length; i++) {
+          if (foundAny) return; // 3. Stop processing siblings if a deeper call succeeded
           const p = pool[i];
 
           // Deduplicate: Create a unique key for this set of ALS indices
@@ -8965,7 +8967,7 @@ const techniques = {
           type: "remove",
           cells: uniqueElims,
           hint: {
-            name: "Death Blossom",
+            name: "Cell Death Blossom",
             mainInfo: `Stem cell r${r + 1}c${c + 1}`,
             detail: detailStr,
           },
@@ -8975,6 +8977,339 @@ const techniques = {
 
     return { change: false };
   },
+
+  // --- REGION DEATH BLOSSOM ---
+  regionDeathBlossom: (board, pencils) => {
+    if (_alsCache.length === 0)
+      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
+
+    // --- Formatting Helper ---
+    const fmtALS = (als) => {
+      if (als.unitName && als.unitName.startsWith("Box")) {
+        const b = parseInt(als.unitName.split(" ")[1]);
+        const pts = [
+          ...new Set(
+            als.cells.map(
+              ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+            ),
+          ),
+        ]
+          .sort((a, b) => a - b)
+          .join("");
+        return `b${b}p${pts}`;
+      } else {
+        const rs = [...new Set(als.cells.map(([r, c]) => r + 1))]
+          .sort((a, b) => a - b)
+          .join("");
+        const cs = [...new Set(als.cells.map(([r, c]) => c + 1))]
+          .sort((a, b) => a - b)
+          .join("");
+        return `r${rs}c${cs}`;
+      }
+    };
+
+    // 1. Call Cache
+    const alses = _alsCache;
+
+    // 2. Precompute per-ALS per-digit peer masks
+    const alsDigitPeerMask = new Array(alses.length);
+    for (let i = 0; i < alses.length; i++) {
+      alsDigitPeerMask[i] = new Array(9).fill(0n);
+      for (let d = 1; d <= 9; d++) {
+        const dCells = alses[i].candidatePositions[d - 1];
+        if (dCells !== 0n) {
+          alsDigitPeerMask[i][d - 1] = techniques._findCommonPeersBS(dCells);
+        }
+      }
+    }
+
+    // 3. Collect Stem Regions (A digit appearing 3 to 6 times in a house)
+    const stems = [];
+    for (let d = 1; d <= 9; d++) {
+      for (let u = 0; u < 27; u++) {
+        let uType = u < 9 ? "row" : u < 18 ? "col" : "box";
+        let uIdx = u < 9 ? u : u < 18 ? u - 9 : u - 18;
+
+        const cells = techniques._getUnitCells(uType, uIdx);
+        const stemCells = [];
+        let stemMask = 0n;
+
+        for (const [r, c] of cells) {
+          if (pencils[r][c] && pencils[r][c].has(d)) {
+            stemCells.push({ r, c, id: r * 9 + c });
+            stemMask |= 1n << BigInt(r * 9 + c);
+          }
+        }
+
+        if (stemCells.length >= 3 && stemCells.length <= 6) {
+          stems.push({
+            digit: d,
+            uType,
+            uIdx,
+            cells: stemCells,
+            mask: stemMask,
+            count: stemCells.length,
+          });
+        }
+      }
+    }
+    // Sort stems by candidate count (ascending) to process simpler cases first
+    stems.sort((a, b) => a.count - b.count);
+
+    // 4. Process each Stem
+    for (const stem of stems) {
+      const {
+        digit: stemDigit,
+        cells: stemCells,
+        mask: stemMask,
+        count: stemCount,
+        uType,
+        uIdx,
+      } = stem;
+
+      // Build Pool of valid Petals (ALSs) for this stem
+      const pool = [];
+
+      for (let i = 0; i < alses.length; i++) {
+        const als = alses[i];
+
+        // 1. Check overlap: The petal must NOT contain the stem candidate itself
+        if ((als.candidatePositions[stemDigit - 1] & stemMask) !== 0n) continue;
+
+        let covers = 0;
+        // 2. Check coverage: The petal must see the specific stem cells using its stemDigit candidates
+        const peerMask = alsDigitPeerMask[i][stemDigit - 1];
+        if (peerMask !== 0n) {
+          for (let k = 0; k < stemCount; k++) {
+            if ((peerMask & (1n << BigInt(stemCells[k].id))) !== 0n) {
+              covers |= 1 << k;
+            }
+          }
+        }
+
+        if (covers === 0) continue;
+
+        // 3. Check Z candidates (ALS candidates excluding the stem digit)
+        const z = als.candidates & ~(1 << (stemDigit - 1));
+        if (z === 0) continue;
+
+        pool.push({ alsIdx: i, covers, z });
+      }
+
+      if (pool.length < 2) continue;
+
+      // DFS State
+      const chosen = [];
+      const seenCombos = new Set();
+      let foundAny = false;
+      const eliminations = [];
+      let detailStr = "";
+
+      // Target mask for complete coverage of all stem cells
+      const targetCoverMask = (1 << stemCount) - 1;
+
+      // Recursive Search
+      const dfs = (startIndex, coveredMask, possibleElimMask, depth) => {
+        if (foundAny) return;
+        // --- CHECK FOR ELIMINATION ---
+        if (
+          coveredMask === targetCoverMask &&
+          depth >= 2 &&
+          depth <= stemCount
+        ) {
+          if (possibleElimMask !== 0) {
+            const elimDigits = techniques._bits.maskToDigits(possibleElimMask);
+
+            for (const elimD of elimDigits) {
+              let intersectPeers = ~0n;
+              let first = true;
+              let empty = false;
+
+              for (const petal of chosen) {
+                const pm = alsDigitPeerMask[petal.alsIdx][elimD - 1];
+                if (pm === 0n) {
+                  empty = true;
+                  break;
+                }
+
+                if (first) {
+                  intersectPeers = pm;
+                  first = false;
+                } else {
+                  intersectPeers &= pm;
+                }
+
+                if (intersectPeers === 0n) {
+                  empty = true;
+                  break;
+                }
+              }
+
+              if (empty) continue;
+
+              // Eliminate elimD from any cell in intersectPeers that currently has it
+              let m = intersectPeers;
+              let idx = 0;
+              while (m !== 0n) {
+                if (m & 1n) {
+                  const rr = Math.floor(idx / 9);
+                  const cc = idx % 9;
+                  if (pencils[rr][cc] && pencils[rr][cc].has(elimD)) {
+                    eliminations.push({ r: rr, c: cc, num: elimD });
+
+                    // Capture the detail string exactly once when a valid combination is proven
+                    if (!foundAny) {
+                      foundAny = true;
+                      const parts = [];
+                      for (const petal of chosen) {
+                        const als = alses[petal.alsIdx];
+                        const covCells = [];
+                        for (let k = 0; k < stemCount; k++) {
+                          if ((petal.covers & (1 << k)) !== 0) {
+                            covCells.push(
+                              `${stemDigit}r${stemCells[k].r + 1}c${stemCells[k].c + 1}`,
+                            );
+                          }
+                        }
+                        const covStr = covCells.join(",");
+                        parts.push(
+                          `${covStr}-(${stemDigit}=${elimD})${fmtALS(als)}`,
+                        );
+                      }
+                      detailStr = parts.join(", ");
+                    }
+                  }
+                }
+                m >>= 1n;
+                idx++;
+              }
+            }
+          }
+          if (foundAny) return; // 2. Stop immediately if this combination yielded eliminations
+        }
+
+        // Pruning
+        if (depth >= stemCount) return;
+
+        // --- RECURSIVE STEP ---
+        for (let i = startIndex; i < pool.length; i++) {
+          if (foundAny) return; // 3. Stop processing siblings if a deeper call succeeded
+          const p = pool[i];
+
+          const indices = chosen.map((c) => c.alsIdx);
+          indices.push(p.alsIdx);
+          indices.sort((a, b) => a - b);
+          const key = indices.join(",");
+
+          if (seenCombos.has(key)) continue;
+
+          const newCovered = coveredMask | p.covers;
+          const newPossibleElim = possibleElimMask & p.z;
+
+          if (newPossibleElim === 0) {
+            seenCombos.add(key);
+            continue;
+          }
+
+          let validatedMask = 0;
+          const checkDigits = techniques._bits.maskToDigits(newPossibleElim);
+
+          for (const checkD of checkDigits) {
+            let inter = ~0n;
+            let first = true;
+            let invalid = false;
+
+            for (const c of chosen) {
+              const pm = alsDigitPeerMask[c.alsIdx][checkD - 1];
+              if (pm === 0n) {
+                invalid = true;
+                break;
+              }
+              if (first) {
+                inter = pm;
+                first = false;
+              } else {
+                inter &= pm;
+              }
+              if (inter === 0n) {
+                invalid = true;
+                break;
+              }
+            }
+            if (invalid) continue;
+
+            const pm = alsDigitPeerMask[p.alsIdx][checkD - 1];
+            if (pm === 0n) continue;
+            if (first) inter = pm;
+            else inter &= pm;
+            if (inter === 0n) continue;
+
+            let exists = false;
+            let m = inter;
+            let idx = 0;
+            while (m !== 0n) {
+              if (m & 1n) {
+                const rr = Math.floor(idx / 9);
+                const cc = idx % 9;
+                if (pencils[rr][cc] && pencils[rr][cc].has(checkD)) {
+                  exists = true;
+                  break;
+                }
+              }
+              m >>= 1n;
+              idx++;
+            }
+
+            if (exists) validatedMask |= 1 << (checkD - 1);
+          }
+
+          if (validatedMask === 0) {
+            seenCombos.add(key);
+            continue;
+          }
+
+          chosen.push(p);
+          dfs(i + 1, newCovered, validatedMask, depth + 1);
+          chosen.pop();
+
+          seenCombos.add(key);
+        }
+      };
+
+      // Start DFS for this stem
+      // possibleElimMask starts as all 9 digits EXCEPT the stemDigit
+      const initialPossibleElim = 0x1ff & ~(1 << (stemDigit - 1));
+      dfs(0, 0, initialPossibleElim, 0);
+
+      // If eliminations found for this stem, return immediately
+      if (foundAny && eliminations.length > 0) {
+        const uniqueElims = Array.from(
+          new Set(eliminations.map(JSON.stringify)),
+        ).map(JSON.parse);
+
+        const unitName =
+          uType === "row"
+            ? `Row ${uIdx + 1}`
+            : uType === "col"
+              ? `Col ${uIdx + 1}`
+              : `Box ${uIdx + 1}`;
+
+        return {
+          change: true,
+          type: "remove",
+          cells: uniqueElims,
+          hint: {
+            name: "Region Death Blossom",
+            mainInfo: `Stem digit (${stemDigit}) in ${unitName}`,
+            detail: detailStr,
+          },
+        };
+      }
+    }
+
+    return { change: false };
+  },
+
   _complexFishCore: (board, pencils, fishSize, isMutant) => {
     // Constants for Unit Types
     const U_ROW = 0,

@@ -4135,10 +4135,16 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 360,
     },
     {
-      name: "Death Blossom",
-      func: techniques.deathBlossom,
+      name: "Cell Death Blossom",
+      func: techniques.cellDeathBlossom,
       level: 10,
       score: 380,
+    },
+    {
+      name: "Region Death Blossom",
+      func: techniques.regionDeathBlossom,
+      level: 10,
+      score: 400,
     },
     {
       name: "Finned Franken Swordfish",
@@ -4223,7 +4229,10 @@ async function evaluateBoardDifficulty(opts = {}) {
             _alsLookup = {};
           }
           alsRccMapBuilt = true;
-        } else if (tech.name === "Death Blossom") {
+        } else if (
+          tech.name === "Cell Death Blossom" ||
+          tech.name === "Region Death Blossom"
+        ) {
           if (!alsCacheBuilt) _alsCache = [];
           alsCacheBuilt = true;
         } else if (tech.name === "Almost Hidden Set XZ-Rule") {
