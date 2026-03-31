@@ -2,7 +2,6 @@
 // Set this to 'true' to see detailed solver logs in the console.
 // Set this to 'false' for release to hide them.
 let IS_DEBUG_MODE = false;
-let LOG_CANDIDATE_GRID = false;
 // --- END: ADDED DEBUG FLAG ---
 
 const difficultyWords = [
@@ -78,7 +77,6 @@ const colorPalette600 = [
   "#7c3aed", // violet-600
   "#db2777", // pink-600
 ];
-
 
 const colorPalette800 = [
   "#991b1b", // red-800

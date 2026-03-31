@@ -4244,9 +4244,9 @@ async function evaluateBoardDifficulty(opts = {}) {
             `%c${tech.level.toString().padStart(2)} ${emojiScale[tech.level]} ${tech.name.padEnd(27)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
             `color: ${logColor}; font-weight: bold;`,
           );
-          if (LOG_CANDIDATE_GRID) {
-            if (result.hint.detail) console.log(result.hint.detail);
-          }
+
+          if (result.hint.detail) console.log(result.hint.detail);
+
           if (result.type === "place") {
             console.log(`  r${result.r + 1}c${result.c + 1}=${result.num}`);
           } else if (result.type === "remove") {
@@ -4280,9 +4280,7 @@ async function evaluateBoardDifficulty(opts = {}) {
           );
         }
         if (IS_DEBUG_MODE) {
-          if (LOG_CANDIDATE_GRID) {
-            logBoardState(virtualBoard, startingPencils);
-          }
+          logBoardState(virtualBoard, startingPencils);
           console.groupEnd();
         }
         progressMade = true;
