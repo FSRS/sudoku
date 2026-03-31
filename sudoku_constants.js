@@ -79,17 +79,6 @@ const colorPalette600 = [
   "#db2777", // pink-600
 ];
 
-// const colorPalette700 = [
-//   "#b91c1c", // red-700
-//   "#c2410c", // orange-700
-//   "#a16207", // yellow-700
-//   "#4d7c0f", // lime-700
-//   "#15803d", // green-700
-//   "#0e7490", // cyan-700
-//   "#1d4ed8", // blue-700
-//   "#6d28d9", // violet-700
-//   "#be185d", // pink-700
-// ];
 
 const colorPalette800 = [
   "#991b1b", // red-800
@@ -109,8 +98,8 @@ const levelTips = [
   "Lv. 2: Intersections, Pairs, Triples",
   "Lv. 3: Quads, X-Wing, Swordfish, XY-Wing, Remote Pair",
   "Lv. 4: BUG+1, Jellyfish, XYZ-Wing, W-Wing, Turbot-Fishes, Unique Rectangles",
-  "Lv. 5: BUG Lite, Grouped Turbot-Fishes, Simple Color, Almost Locked Pair/Triple, Hidden Rectangles",
-  "Lv. 6: Finned Fishes, X-Chain, XY-Chain, 3D Medusa, Firework, WXYZ-Wing, Sue de Coq",
+  "Lv. 5: BUG Lite, Grouped Turbot-Fishes, Almost Locked Pair/Triple, Hidden Rectangles",
+  "Lv. 6: Finned Fishes, X-Chain, XY-Chain, Firework, WXYZ-Wing, Sue de Coq",
   "Lv. 7: Grouped X-Chain, Alternating Inference Chain",
   "Lv. 8: Grouped Alternating Inference Chain, ALS-XZ",
   "Lv. 9: ALS-XY/W-Wing, AHS-XZ, AHS-XY/W-Wing",

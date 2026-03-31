@@ -4037,12 +4037,6 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 150,
     },
     {
-      name: "Simple Coloring",
-      func: techniques.simpleColoring,
-      level: 5,
-      score: 150,
-    },
-    {
       name: "Almost Locked Pair",
       func: techniques.almostLockedPair,
       level: 5,
@@ -4075,7 +4069,6 @@ async function evaluateBoardDifficulty(opts = {}) {
 
     { name: "X-Chain", func: techniques.xChain, level: 6, score: 200 },
     { name: "XY-Chain", func: techniques.xyChain, level: 6, score: 240 },
-    { name: "3D Medusa", func: techniques.medusa3D, level: 6, score: 200 },
     { name: "Firework", func: techniques.firework, level: 6, score: 240 },
     { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6, score: 200 },
     { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6, score: 240 },

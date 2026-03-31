@@ -1349,12 +1349,23 @@ const techniques = {
           );
           if (x_cells_in_unit.length === 0) continue;
 
-          // Check if every linking cell sees exactly one of the two base cells
-          const isGroupedLink = x_cells_in_unit.every(([r, c]) => {
-            const sees1 = techniques._sees([r, c], [cell1.r, cell1.c]);
-            const sees2 = techniques._sees([r, c], [cell2.r, cell2.c]);
-            return sees1 !== sees2; // XOR: must see one, but not both
-          });
+          // Relaxed Check: Every linking cell must see at least one of the two base cells (OR logic),
+          // AND both base cells must be seen by at least one linking cell.
+          let sees1Count = 0;
+          let sees2Count = 0;
+
+          const isGroupedLink =
+            x_cells_in_unit.every(([r, c]) => {
+              const sees1 = techniques._sees([r, c], [cell1.r, cell1.c]);
+              const sees2 = techniques._sees([r, c], [cell2.r, cell2.c]);
+
+              if (sees1) sees1Count++;
+              if (sees2) sees2Count++;
+
+              return sees1 || sees2; // Must see at least one
+            }) &&
+            sees1Count > 0 &&
+            sees2Count > 0; // Both wings must be connected
 
           if (isGroupedLink) {
             const removals = [];
@@ -5321,396 +5332,6 @@ const techniques = {
     return { change: false, type: null, cells: [] };
   },
 
-  // --- Unified Coloring / Medusa Helper ---
-
-  // Node ID helpers: (cellIndex * 9) + (digit - 1) => 0..728
-  _getCandId: (r, c, n) => (r * 9 + c) * 9 + (n - 1),
-
-  _parseCandId: (id) => {
-    const cellIdx = Math.floor(id / 9);
-    return { r: Math.floor(cellIdx / 9), c: cellIdx % 9, n: (id % 9) + 1 };
-  },
-
-  _buildColoringGraph: (pencils, singleDigit = null) => {
-    const graph = Array.from({ length: 729 }, () => []);
-    const addLink = (id1, id2) => {
-      graph[id1].push(id2);
-      graph[id2].push(id1);
-    };
-    const getCandId = techniques._getCandId;
-
-    // 1. Strong Links (Conjugate Pairs in Units)
-    const startD = singleDigit || 1;
-    const endD = singleDigit || 9;
-
-    for (let d = startD; d <= endD; d++) {
-      for (let i = 0; i < 27; i++) {
-        let unitType = i < 9 ? "row" : i < 18 ? "col" : "box";
-        let idx = i < 9 ? i : i < 18 ? i - 9 : i - 18;
-        const cells = techniques
-          ._getUnitCells(unitType, idx)
-          .filter(([r, c]) => pencils[r][c].has(d));
-
-        if (cells.length === 2) {
-          addLink(
-            getCandId(cells[0][0], cells[0][1], d),
-            getCandId(cells[1][0], cells[1][1], d),
-          );
-        }
-      }
-    }
-
-    // 2. Bivalue Cells (Strong Links between diff candidates in same cell)
-    // Only for 3D Medusa (singleDigit == null)
-    if (singleDigit === null) {
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          if (pencils[r][c].size === 2) {
-            const [d1, d2] = [...pencils[r][c]];
-            addLink(getCandId(r, c, d1), getCandId(r, c, d2));
-          }
-        }
-      }
-    }
-
-    return graph;
-  },
-
-  _applyColoringRules: (
-    componentNodes,
-    coloring,
-    pencils,
-    board,
-    isSimpleColoring,
-  ) => {
-    const parseCandId = techniques._parseCandId;
-    const getCandId = techniques._getCandId;
-    const bitFor = (d) => 1 << (d - 1);
-
-    // Helper: Eliminate entire color group and return context for the hint
-    const eliminateColor = (targetColor, rule, data) => {
-      const output = [];
-      for (const id of componentNodes) {
-        if (coloring[id] === targetColor) {
-          const { r, c, n } = parseCandId(id);
-          output.push({ r, c, num: n });
-        }
-      }
-      return { removals: output, rule, targetColor, data };
-    };
-
-    const killedMasks = [null, new Int32Array(81), new Int32Array(81)];
-    const cellColors = new Int8Array(81).fill(0);
-    const cellHasColor1 = new Int8Array(81).fill(0);
-    const cellHasColor2 = new Int8Array(81).fill(0);
-
-    for (const id of componentNodes) {
-      const color = coloring[id];
-      const { r, c, n } = parseCandId(id);
-      const cellId = r * 9 + c;
-      const digitBit = bitFor(n);
-
-      // --- Rule A: Invalid Color (Twice in Cell) ---
-      if (!isSimpleColoring) {
-        if (color === 1) {
-          if (cellHasColor1[cellId])
-            return eliminateColor(1, "A_Cell", { r, c });
-          cellHasColor1[cellId] = 1;
-        } else if (color === 2) {
-          if (cellHasColor2[cellId])
-            return eliminateColor(2, "A_Cell", { r, c });
-          cellHasColor2[cellId] = 1;
-        }
-      }
-
-      cellColors[cellId] |= color;
-      let pm = PEER_MAP[cellId];
-      let idx = 0;
-      while (pm !== 0n) {
-        if (pm & 1n) killedMasks[color][idx] |= digitBit;
-        pm >>= 1n;
-        idx++;
-      }
-    }
-
-    // --- Rule A: Invalid Color (Sees itself via Peers) ---
-    for (const id of componentNodes) {
-      const color = coloring[id];
-      const { r, c, n } = parseCandId(id);
-      const cellId = r * 9 + c;
-      const digitBit = bitFor(n);
-
-      if ((killedMasks[color][cellId] & digitBit) !== 0) {
-        return eliminateColor(color, "A_Peer", { r, c, n });
-      }
-    }
-
-    if (!isSimpleColoring) {
-      // --- Rule B: Bad Color (Empties Cell) ---
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          if (board[r][c] !== 0) continue;
-          const cellIdx = r * 9 + c;
-
-          let cellMask = 0;
-          for (const d of pencils[r][c]) cellMask |= bitFor(d);
-          if (cellMask === 0) continue;
-
-          if ((cellMask & ~killedMasks[1][cellIdx]) === 0)
-            return eliminateColor(1, "B_Cell", { r, c });
-          if ((cellMask & ~killedMasks[2][cellIdx]) === 0)
-            return eliminateColor(2, "B_Cell", { r, c });
-        }
-      }
-
-      // --- Rule B: Bad Color (Empties House) ---
-      for (let i = 0; i < 27; i++) {
-        let unitType = i < 9 ? "row" : i < 18 ? "col" : "box";
-        let idx = i < 9 ? i : i < 18 ? i - 9 : i - 18;
-        const cells = techniques._getUnitCells(unitType, idx);
-
-        for (let d = 1; d <= 9; d++) {
-          const dBit = bitFor(d);
-          let hasD = false;
-          let c1KillsAll = true;
-          let c2KillsAll = true;
-
-          for (const [hr, hc] of cells) {
-            if (board[hr][hc] !== 0 || !pencils[hr][hc].has(d)) continue;
-            hasD = true;
-            const hCellId = hr * 9 + hc;
-
-            const c1PlacesOther =
-              cellColors[hCellId] & 1 && coloring[getCandId(hr, hc, d)] !== 1;
-            const c1SeesD = (killedMasks[1][hCellId] & dBit) !== 0;
-            if (!c1PlacesOther && !c1SeesD) c1KillsAll = false;
-
-            const c2PlacesOther =
-              cellColors[hCellId] & 2 && coloring[getCandId(hr, hc, d)] !== 2;
-            const c2SeesD = (killedMasks[2][hCellId] & dBit) !== 0;
-            if (!c2PlacesOther && !c2SeesD) c2KillsAll = false;
-          }
-
-          if (hasD) {
-            if (c1KillsAll)
-              return eliminateColor(1, "B_House", { unitType, idx, d });
-            if (c2KillsAll)
-              return eliminateColor(2, "B_House", { unitType, idx, d });
-          }
-        }
-      }
-    }
-
-    // --- Rule C: Color Trap ---
-    const removals = [];
-    const trapDetails = [];
-
-    // Helper: Find exact node providing the color elimination for the hint
-    const findSource = (targetR, targetC, targetN, targetColor) => {
-      for (const id of componentNodes) {
-        if (coloring[id] !== targetColor) continue;
-        const { r, c, n } = parseCandId(id);
-        if (r === targetR && c === targetC && n !== targetN)
-          return `(${n})r${r + 1}c${c + 1}`; // Medusa cell
-        if (
-          n === targetN &&
-          (r === targetR ||
-            c === targetC ||
-            (Math.floor(r / 3) === Math.floor(targetR / 3) &&
-              Math.floor(c / 3) === Math.floor(targetC / 3)))
-        ) {
-          return `(${n})r${r + 1}c${c + 1}`; // Peer
-        }
-      }
-      return null;
-    };
-
-    const addTrap = (r, c, d) => {
-      removals.push({ r, c, num: d });
-      trapDetails.push({
-        r,
-        c,
-        num: d,
-        c1Source: findSource(r, c, d, 1),
-        c2Source: findSource(r, c, d, 2),
-      });
-    };
-
-    if (!isSimpleColoring) {
-      for (let i = 0; i < 81; i++) {
-        if (cellColors[i] === 3) {
-          const r = Math.floor(i / 9);
-          const c = i % 9;
-          for (const cand of pencils[r][c]) {
-            if (coloring[getCandId(r, c, cand)] === 0) addTrap(r, c, cand);
-          }
-        }
-      }
-    }
-
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        if (board[r][c] !== 0) continue;
-        const cellIdx = r * 9 + c;
-
-        for (const d of pencils[r][c]) {
-          if (coloring[getCandId(r, c, d)] !== 0) continue;
-
-          const dBit = bitFor(d);
-          const seesC1 = (killedMasks[1][cellIdx] & dBit) !== 0;
-          const seesC2 = (killedMasks[2][cellIdx] & dBit) !== 0;
-
-          if (seesC1 && seesC2) {
-            addTrap(r, c, d);
-            continue;
-          }
-
-          if (!isSimpleColoring) {
-            if (seesC1 && cellColors[cellIdx] & 2) addTrap(r, c, d);
-            else if (seesC2 && cellColors[cellIdx] & 1) addTrap(r, c, d);
-          }
-        }
-      }
-    }
-
-    if (removals.length > 0) return { removals, rule: "C", trapDetails };
-    return { removals: [] };
-  },
-
-  _solveColoring: (board, pencils, singleDigit = null) => {
-    // 1. Build Graph
-    const graph = techniques._buildColoringGraph(pencils, singleDigit);
-    const parseCandId = techniques._parseCandId;
-
-    const visited = new Int8Array(729).fill(0);
-    const coloring = new Int8Array(729).fill(0); // 0=None, 1=ColorA, 2=ColorB
-
-    // 2. BFS Components
-    for (let startId = 0; startId < 729; startId++) {
-      if (graph[startId].length === 0 || visited[startId]) continue;
-
-      const component = [];
-      const queue = [startId];
-      visited[startId] = 1;
-      coloring[startId] = 1;
-      component.push(startId);
-
-      let head = 0;
-      while (head < queue.length) {
-        const curr = queue[head++];
-        const currColor = coloring[curr];
-        const nextColor = 3 - currColor;
-
-        for (const neighbor of graph[curr]) {
-          if (coloring[neighbor] === 0) {
-            coloring[neighbor] = nextColor;
-            visited[neighbor] = 1;
-            component.push(neighbor);
-            queue.push(neighbor);
-          }
-        }
-      }
-
-      // 3. Apply Rules
-      const result = techniques._applyColoringRules(
-        component,
-        coloring,
-        pencils,
-        board,
-        singleDigit !== null,
-      );
-
-      // Clean up coloring for next component
-      for (const id of component) coloring[id] = 0;
-
-      if (result.removals && result.removals.length > 0) {
-        const unique = [];
-        const seen = new Set();
-        const uniqueTraps = []; // Keep track of unique trap hints
-
-        for (let i = 0; i < result.removals.length; i++) {
-          const r = result.removals[i];
-          const k = `${r.r},${r.c},${r.num}`;
-          if (!seen.has(k)) {
-            seen.add(k);
-            unique.push(r);
-            if (result.rule === "C") uniqueTraps.push(result.trapDetails[i]);
-          }
-        }
-
-        let name = singleDigit !== null ? "Simple Coloring" : "3D Medusa";
-        const startCand = parseCandId(startId);
-        let info =
-          singleDigit !== null
-            ? `Digit (${singleDigit})`
-            : `Start Color 1 with (${startCand.n})r${startCand.r + 1}c${startCand.c + 1}`;
-
-        // Construct the detail string
-        let detail = `Start Color C1 with (${startCand.n})r${startCand.r + 1}c${startCand.c + 1}. `;
-
-        if (result.rule === "A_Cell") {
-          detail += `Invalid Color C${result.targetColor} appeared twice in cell r${result.data.r + 1}c${result.data.c + 1}.`;
-        } else if (result.rule === "A_Peer") {
-          detail += `InvalidColor C${result.targetColor} for digit (${result.data.n}) sees itself at r${result.data.r + 1}c${result.data.c + 1}.`;
-        } else if (result.rule === "B_Cell") {
-          detail += `Bad Color C${result.targetColor} emptied cell r${result.data.r + 1}c${result.data.c + 1}.`;
-        } else if (result.rule === "B_House") {
-          const uType = result.data.unitType;
-          const uName =
-            uType === "row"
-              ? `Row ${result.data.idx + 1}`
-              : uType === "col"
-                ? `Col ${result.data.idx + 1}`
-                : `Box ${result.data.idx + 1}`;
-          detail += `Bad Color C${result.targetColor} removed all (${result.data.d}) in ${uName}.`;
-        } else if (result.rule === "C") {
-          const c1Sources = new Set();
-          const c2Sources = new Set();
-
-          for (const t of uniqueTraps) {
-            if (t.c1Source) c1Sources.add(t.c1Source);
-            if (t.c2Source) c2Sources.add(t.c2Source);
-          }
-
-          const c1Str =
-            c1Sources.size > 0
-              ? `C1 at ${Array.from(c1Sources).join(",")}`
-              : "";
-          const c2Str =
-            c2Sources.size > 0
-              ? `C2 at ${Array.from(c2Sources).join(",")}`
-              : "";
-
-          // Join them together, filtering out any empty strings if a color is somehow missing
-          detail += `Color Trap ${[c1Str, c2Str].filter(Boolean).join(", ")}`;
-        }
-
-        return {
-          change: true,
-          type: "remove",
-          cells: unique,
-          hint: { name, mainInfo: info, detail },
-        };
-      }
-    }
-
-    return { change: false };
-  },
-
-  // --- Wrapper Functions ---
-
-  simpleColoring: (board, pencils) => {
-    for (let d = 1; d <= 9; d++) {
-      const result = techniques._solveColoring(board, pencils, d);
-      if (result.change) return result;
-    }
-    return { change: false };
-  },
-
-  medusa3D: (board, pencils) => {
-    return techniques._solveColoring(board, pencils, null);
-  },
-
   // --- Unified AIC Helpers ---
   // --- 17-Bit ID Helpers ---
   // ID Format: [Digit:4] [Box:4] [Mask:9]
@@ -8763,8 +8384,9 @@ const techniques = {
 
         if (covers === 0) continue;
 
-        // 3. Check Z candidates (ALS candidates excluding Stem candidates)
-        const z = als.candidates & ~stemMask;
+        // FIX: Only exclude the candidates this specific petal covers, NOT the entire stemMask.
+        // This preserves the uncovered candidate (Z) inside the petal's possible eliminations.
+        const z = als.candidates & ~covers;
         if (z === 0) continue;
 
         pool.push({ alsIdx: i, covers, z });
@@ -8783,14 +8405,23 @@ const techniques = {
       const dfs = (startIndex, coveredMask, possibleElimMask, depth) => {
         if (foundAny) return; // 1. Short-circuit at the top of the call
         // --- CHECK FOR ELIMINATION ---
-        // Condition: All stem candidates are covered by the chosen petals
-        if (coveredMask === stemMask && depth >= 2 && depth <= stemCount) {
+        const uncoveredMask = stemMask & ~coveredMask;
+        const uncoveredCount = techniques._bits.popcount(uncoveredMask);
+
+        // Allow either full coverage (0) or exactly 1 uncovered candidate
+        if (uncoveredCount <= 1 && depth >= 2 && depth <= stemCount) {
           if (possibleElimMask !== 0) {
-            const elimDigits = techniques._bits.maskToDigits(possibleElimMask);
+            // If 1 uncovered, it MUST be the elimination target. Otherwise, check all possible.
+            const elimDigits =
+              uncoveredCount === 0
+                ? techniques._bits.maskToDigits(possibleElimMask)
+                : possibleElimMask & uncoveredMask
+                  ? techniques._bits.maskToDigits(uncoveredMask)
+                  : [];
 
             for (const d of elimDigits) {
               // Find intersection of peer masks for digit d across ALL chosen petals
-              let intersectPeers = ~0n; // Start with all ones
+              let intersectPeers = ~0n;
               let first = true;
               let empty = false;
 
@@ -8816,6 +8447,15 @@ const techniques = {
 
               if (empty) continue;
 
+              // NEW: If 1 candidate is uncovered, eliminations must ALSO see the stem cell
+              if (uncoveredCount === 1) {
+                const stemPeerMask = techniques._findCommonPeersBS(
+                  1n << BigInt(stemId),
+                );
+                intersectPeers &= stemPeerMask;
+                if (intersectPeers === 0n) continue;
+              }
+
               // Eliminate d from any cell in intersectPeers that currently has it
               let m = intersectPeers;
               let idx = 0;
@@ -8825,19 +8465,25 @@ const techniques = {
                   const cc = idx % 9;
                   if (pencils[rr][cc].has(d)) {
                     eliminations.push({ r: rr, c: cc, num: d });
-                    // Capture the detail string exactly once when a valid combination is proven
+
+                    // Capture the detail string exactly once
                     if (!foundAny) {
                       foundAny = true;
                       const parts = [];
+
+                      // Append the bare uncovered candidate if applicable
+                      if (uncoveredCount === 1) {
+                        parts.push(`${d}r${stem.r + 1}c${stem.c + 1}`);
+                      }
+
                       for (const petal of chosen) {
                         const als = alses[petal.alsIdx];
-                        // Get the stem candidates covered by this specific petal
                         const coveredDigits = techniques._bits.maskToDigits(
                           petal.covers & stemMask,
                         );
                         const covStr = coveredDigits.join("");
                         parts.push(
-                          `${covStr}r${r + 1}c${c + 1}-(${covStr}=${d})${fmtALS(als)}`,
+                          `${covStr}r${stem.r + 1}c${stem.c + 1}-(${covStr}=${d})${fmtALS(als)}`,
                         );
                       }
                       detailStr = parts.join(", ");
@@ -8881,17 +8527,16 @@ const techniques = {
           }
 
           // --- VALIDATION (Forward Checking) ---
-          // Ensure that for every digit in newPossibleElim, the intersection of peers
-          // (current chosen + new petal) is non-empty AND contains at least one target cell.
           let validatedMask = 0;
           const checkDigits = techniques._bits.maskToDigits(newPossibleElim);
 
+          // FIX: Removed the buggy currentUncovered bypass. The normal peer intersection
+          // perfectly validates the uncovered candidate now that p.z is fixed.
           for (const d of checkDigits) {
             let inter = ~0n;
             let first = true;
             let invalid = false;
 
-            // 1. Intersection with existing chosen petals
             for (const c of chosen) {
               const pm = alsDigitPeerMask[c.alsIdx][d - 1];
               if (pm === 0n) {
@@ -8911,14 +8556,12 @@ const techniques = {
             }
             if (invalid) continue;
 
-            // 2. Intersection with new petal
             const pm = alsDigitPeerMask[p.alsIdx][d - 1];
             if (pm === 0n) continue;
             if (first) inter = pm;
             else inter &= pm;
             if (inter === 0n) continue;
 
-            // 3. Ensure candidate exists in at least one cell in the intersection
             let exists = false;
             let m = inter;
             let idx = 0;
