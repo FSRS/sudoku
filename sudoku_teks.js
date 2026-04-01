@@ -6597,125 +6597,78 @@ const techniques = {
         const ahs1Str = formatAHS(ahs1);
         const ahs2Str = formatAHS(ahs2);
 
-        // ==========================================
-        // RING CASE: Doubly Linked (Restricted)
-        // ==========================================
+        const isRing =
+          rccs.length === 2 ||
+          rcds.length === 2 ||
+          (rccs.length === 1 && rcds.length === 1);
+        if (isRing) {
+          // ==========================================
+          // RING CASE: Doubly Linked (Restricted)
+          // ==========================================
 
-        // 1ARing. Doubly linked via 2 RCCs
-        if (rccs.length === 2) {
-          const [rcc1, rcc2] = rccs;
+          // 1ARing. Doubly linked via 2 RCCs
+          if (rccs.length === 2) {
+            const [rcc1, rcc2] = rccs;
 
-          // Remove off-AHS from RCCs
-          for (const rcc of rccs) {
+            // Remove off-AHS from RCCs
+            for (const rcc of rccs) {
+              for (const cand of pencils[rcc[0]][rcc[1]]) {
+                if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand))
+                  removals.push({ r: rcc[0], c: rcc[1], num: cand });
+              }
+            }
+
+            // Remove off-AHS digits on non-RCC cells for each AHS
+            for (const cell of ahs1.cells) {
+              if (cellEq(cell, rcc1) || cellEq(cell, rcc2)) continue;
+              for (const cand of pencils[cell[0]][cell[1]]) {
+                if (!ahs1.digits.has(cand))
+                  removals.push({ r: cell[0], c: cell[1], num: cand });
+              }
+            }
+            for (const cell of ahs2.cells) {
+              if (cellEq(cell, rcc1) || cellEq(cell, rcc2)) continue;
+              for (const cand of pencils[cell[0]][cell[1]]) {
+                if (!ahs2.digits.has(cand))
+                  removals.push({ r: cell[0], c: cell[1], num: cand });
+              }
+            }
+
+            if (removals.length > 0) {
+              const r1_a1 = fmtCell(rcc1[0], rcc1[1], ahs1),
+                r2_a1 = fmtCell(rcc2[0], rcc2[1], ahs1);
+              const r1_a2 = fmtCell(rcc1[0], rcc1[1], ahs2),
+                r2_a2 = fmtCell(rcc2[0], rcc2[1], ahs2);
+              const c_r1_a1 = getCands(rcc1[0], rcc1[1], ahs1),
+                c_r2_a1 = getCands(rcc2[0], rcc2[1], ahs1);
+              const c_r1_a2 = getCands(rcc1[0], rcc1[1], ahs2),
+                c_r2_a2 = getCands(rcc2[0], rcc2[1], ahs2);
+
+              const detail = `((${c_r2_a1})${r2_a1}=(${c_r1_a1})${r1_a1})${ahs1Str}-((${c_r1_a2})${r1_a2}=(${c_r2_a2})${r2_a2})${ahs2Str}-(Ring)`;
+              return {
+                change: true,
+                type: "remove",
+                cells: getUnique(removals),
+                hint: {
+                  name: "AHS-XZ Ring",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  detail: detail,
+                },
+              };
+            }
+          }
+          // 1 RCC case + 1 restricted common digit (Ring)
+          else if (rccs.length === 1 && rcds.length === 1) {
+            const rcc = rccs[0];
+            const rcd = rcds[0];
+
+            // Remove other than neither AHS digits from RCC
             for (const cand of pencils[rcc[0]][rcc[1]]) {
               if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand))
                 removals.push({ r: rcc[0], c: rcc[1], num: cand });
             }
-          }
 
-          // Remove off-AHS digits on non-RCC cells for each AHS
-          for (const cell of ahs1.cells) {
-            if (cellEq(cell, rcc1) || cellEq(cell, rcc2)) continue;
-            for (const cand of pencils[cell[0]][cell[1]]) {
-              if (!ahs1.digits.has(cand))
-                removals.push({ r: cell[0], c: cell[1], num: cand });
-            }
-          }
-          for (const cell of ahs2.cells) {
-            if (cellEq(cell, rcc1) || cellEq(cell, rcc2)) continue;
-            for (const cand of pencils[cell[0]][cell[1]]) {
-              if (!ahs2.digits.has(cand))
-                removals.push({ r: cell[0], c: cell[1], num: cand });
-            }
-          }
-
-          if (removals.length > 0) {
-            const r1_a1 = fmtCell(rcc1[0], rcc1[1], ahs1),
-              r2_a1 = fmtCell(rcc2[0], rcc2[1], ahs1);
-            const r1_a2 = fmtCell(rcc1[0], rcc1[1], ahs2),
-              r2_a2 = fmtCell(rcc2[0], rcc2[1], ahs2);
-            const c_r1_a1 = getCands(rcc1[0], rcc1[1], ahs1),
-              c_r2_a1 = getCands(rcc2[0], rcc2[1], ahs1);
-            const c_r1_a2 = getCands(rcc1[0], rcc1[1], ahs2),
-              c_r2_a2 = getCands(rcc2[0], rcc2[1], ahs2);
-
-            const detail = `((${c_r2_a1})${r2_a1}=(${c_r1_a1})${r1_a1})${ahs1Str}-((${c_r1_a2})${r1_a2}=(${c_r2_a2})${r2_a2})${ahs2Str}-(Ring)`;
-            return {
-              change: true,
-              type: "remove",
-              cells: getUnique(removals),
-              hint: {
-                name: "AHS-XZ Ring",
-                mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
-                detail: detail,
-              },
-            };
-          }
-        }
-        // 1 RCC case + 1 restricted common digit (Ring)
-        else if (rccs.length === 1 && rcds.length === 1) {
-          const rcc = rccs[0];
-          const rcd = rcds[0];
-
-          // Remove other than neither AHS digits from RCC
-          for (const cand of pencils[rcc[0]][rcc[1]]) {
-            if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand))
-              removals.push({ r: rcc[0], c: rcc[1], num: cand });
-          }
-
-          // Remove restricted common digit from commonly visible cells of exclusive cells
-          for (const c1 of rcd.exc1) {
-            for (const c2 of rcd.exc2) {
-              const peers = techniques._commonVisibleCells(c1, c2);
-              for (const p of peers) {
-                if (pencils[p[0]][p[1]].has(rcd.d))
-                  removals.push({ r: p[0], c: p[1], num: rcd.d });
-              }
-            }
-          }
-
-          // Remove off-AHS digits on cells that are neither rcc nor exclusive cells for each AHS
-          for (const cell of ahs1.cells) {
-            if (cellEq(cell, rcc) || rcd.exc1.some((c) => cellEq(c, cell)))
-              continue;
-            for (const cand of pencils[cell[0]][cell[1]]) {
-              if (!ahs1.digits.has(cand))
-                removals.push({ r: cell[0], c: cell[1], num: cand });
-            }
-          }
-          for (const cell of ahs2.cells) {
-            if (cellEq(cell, rcc) || rcd.exc2.some((c) => cellEq(c, cell)))
-              continue;
-            for (const cand of pencils[cell[0]][cell[1]]) {
-              if (!ahs2.digits.has(cand))
-                removals.push({ r: cell[0], c: cell[1], num: cand });
-            }
-          }
-
-          if (removals.length > 0) {
-            const c_rcc_a1 = getCands(rcc[0], rcc[1], ahs1);
-            const c_rcc_a2 = getCands(rcc[0], rcc[1], ahs2);
-            const detail = `((${rcd.d})${fmtCell(rcd.exc2[0][0], rcd.exc2[0][1], ahs2)}=(${rcd.d})${fmtCell(rcd.exc1[0][0], rcd.exc1[0][1], ahs1)})${ahs1Str}-((${c_rcc_a1})${fmtCell(rcc[0], rcc[1], ahs1)}=(${c_rcc_a2})${fmtCell(rcc[0], rcc[1], ahs2)})${ahs2Str}-(Ring)`;
-
-            return {
-              change: true,
-              type: "remove",
-              cells: getUnique(removals),
-              hint: {
-                name: "AHS-XZ Ring",
-                mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
-                detail: detail,
-              },
-            };
-          }
-        }
-        // 2 restricted common digits (Ring)
-        else if (rcds.length === 2) {
-          const rcd1 = rcds[0];
-          const rcd2 = rcds[1];
-
-          // Remove restricted common digits from commonly visible cells of exclusive cells
-          for (const rcd of [rcd1, rcd2]) {
+            // Remove restricted common digit from commonly visible cells of exclusive cells
             for (const c1 of rcd.exc1) {
               for (const c2 of rcd.exc2) {
                 const peers = techniques._commonVisibleCells(c1, c2);
@@ -6725,151 +6678,204 @@ const techniques = {
                 }
               }
             }
-          }
 
-          // Remove off-AHS digits on cells that are not exclusive cells for each AHS
-          for (const cell of ahs1.cells) {
-            if (
-              rcd1.exc1.some((c) => cellEq(c, cell)) ||
-              rcd2.exc1.some((c) => cellEq(c, cell))
-            )
-              continue;
-            for (const cand of pencils[cell[0]][cell[1]]) {
-              if (!ahs1.digits.has(cand))
-                removals.push({ r: cell[0], c: cell[1], num: cand });
-            }
-          }
-          for (const cell of ahs2.cells) {
-            if (
-              rcd1.exc2.some((c) => cellEq(c, cell)) ||
-              rcd2.exc2.some((c) => cellEq(c, cell))
-            )
-              continue;
-            for (const cand of pencils[cell[0]][cell[1]]) {
-              if (!ahs2.digits.has(cand))
-                removals.push({ r: cell[0], c: cell[1], num: cand });
-            }
-          }
-
-          if (removals.length > 0) {
-            const detail = `((${rcd2.d})${fmtCell(rcd2.exc2[0][0], rcd2.exc2[0][1], ahs2)}=(${rcd2.d})${fmtCell(rcd2.exc1[0][0], rcd2.exc1[0][1], ahs1)})${ahs1Str}-((${rcd1.d})${fmtCell(rcd1.exc1[0][0], rcd1.exc1[0][1], ahs1)}=(${rcd1.d})${fmtCell(rcd1.exc2[0][0], rcd1.exc2[0][1], ahs2)})${ahs2Str}-(Ring)`;
-
-            return {
-              change: true,
-              type: "remove",
-              cells: getUnique(removals),
-              hint: {
-                name: "AHS-XZ Ring",
-                mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
-                detail: detail,
-              },
-            };
-          }
-        }
-
-        // ==========================================
-        // NOT-RING CASE: Singly Linked
-        // ==========================================
-
-        // Singly linked by RCC
-        if (rccs.length === 1) {
-          let foundDetail = "";
-          const rcc = rccs[0];
-
-          // Elimination via Z
-          if (zs.length >= 1) {
-            for (const z of zs) {
-              for (const cand of pencils[z[0]][z[1]]) {
-                if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand))
-                  removals.push({ r: z[0], c: z[1], num: cand });
+            // Remove off-AHS digits on cells that are neither rcc nor exclusive cells for each AHS
+            for (const cell of ahs1.cells) {
+              if (cellEq(cell, rcc) || rcd.exc1.some((c) => cellEq(c, cell)))
+                continue;
+              for (const cand of pencils[cell[0]][cell[1]]) {
+                if (!ahs1.digits.has(cand))
+                  removals.push({ r: cell[0], c: cell[1], num: cand });
               }
             }
-            if (removals.length > 0 && !foundDetail) {
-              const z = zs[0];
-              foundDetail = `((${getCands(z[0], z[1], ahs1)})${fmtCell(z[0], z[1], ahs1)}=(${getCands(rcc[0], rcc[1], ahs1)})${fmtCell(rcc[0], rcc[1], ahs1)})${ahs1Str}-((${getCands(rcc[0], rcc[1], ahs2)})${fmtCell(rcc[0], rcc[1], ahs2)}=(${getCands(z[0], z[1], ahs2)})${fmtCell(z[0], z[1], ahs2)})${ahs2Str}`;
+            for (const cell of ahs2.cells) {
+              if (cellEq(cell, rcc) || rcd.exc2.some((c) => cellEq(c, cell)))
+                continue;
+              for (const cand of pencils[cell[0]][cell[1]]) {
+                if (!ahs2.digits.has(cand))
+                  removals.push({ r: cell[0], c: cell[1], num: cand });
+              }
+            }
+
+            if (removals.length > 0) {
+              const c_rcc_a1 = getCands(rcc[0], rcc[1], ahs1);
+              const c_rcc_a2 = getCands(rcc[0], rcc[1], ahs2);
+              const detail = `((${rcd.d})${fmtCell(rcd.exc2[0][0], rcd.exc2[0][1], ahs2)}=(${rcd.d})${fmtCell(rcd.exc1[0][0], rcd.exc1[0][1], ahs1)})${ahs1Str}-((${c_rcc_a1})${fmtCell(rcc[0], rcc[1], ahs1)}=(${c_rcc_a2})${fmtCell(rcc[0], rcc[1], ahs2)})${ahs2Str}-(Ring)`;
+
+              return {
+                change: true,
+                type: "remove",
+                cells: getUnique(removals),
+                hint: {
+                  name: "AHS-XZ Ring",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  detail: detail,
+                },
+              };
             }
           }
+          // 2 restricted common digits (Ring)
+          else if (rcds.length === 2) {
+            const rcd1 = rcds[0];
+            const rcd2 = rcds[1];
 
-          // Elimination via ZCD
-          if (zcds.length >= 1) {
-            for (const zcd of zcds) {
-              for (const c1 of zcd.exc1) {
-                for (const c2 of zcd.exc2) {
+            // Remove restricted common digits from commonly visible cells of exclusive cells
+            for (const rcd of [rcd1, rcd2]) {
+              for (const c1 of rcd.exc1) {
+                for (const c2 of rcd.exc2) {
                   const peers = techniques._commonVisibleCells(c1, c2);
                   for (const p of peers) {
-                    if (pencils[p[0]][p[1]].has(zcd.d))
-                      removals.push({ r: p[0], c: p[1], num: zcd.d });
+                    if (pencils[p[0]][p[1]].has(rcd.d))
+                      removals.push({ r: p[0], c: p[1], num: rcd.d });
                   }
                 }
               }
-              if (removals.length > 0 && !foundDetail) {
-                foundDetail = `((${zcd.d})${fmtCell(zcd.exc1[0][0], zcd.exc1[0][1], ahs1)}=(${getCands(rcc[0], rcc[1], ahs1)})${fmtCell(rcc[0], rcc[1], ahs1)})${ahs1Str}-((${getCands(rcc[0], rcc[1], ahs2)})${fmtCell(rcc[0], rcc[1], ahs2)}=(${zcd.d})${fmtCell(zcd.exc2[0][0], zcd.exc2[0][1], ahs2)})${ahs2Str}`;
+            }
+
+            // Remove off-AHS digits on cells that are not exclusive cells for each AHS
+            for (const cell of ahs1.cells) {
+              if (
+                rcd1.exc1.some((c) => cellEq(c, cell)) ||
+                rcd2.exc1.some((c) => cellEq(c, cell))
+              )
+                continue;
+              for (const cand of pencils[cell[0]][cell[1]]) {
+                if (!ahs1.digits.has(cand))
+                  removals.push({ r: cell[0], c: cell[1], num: cand });
               }
             }
-          }
-
-          if (removals.length > 0) {
-            return {
-              change: true,
-              type: "remove",
-              cells: getUnique(removals),
-              hint: {
-                name: "AHS-XZ",
-                mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
-                detail: foundDetail,
-              },
-            };
-          }
-        }
-
-        // Singly linked by RCD
-        if (rcds.length === 1) {
-          let foundDetail = "";
-          const rcd = rcds[0];
-
-          // Elimination via Z
-          if (zs.length >= 1) {
-            for (const z of zs) {
-              for (const cand of pencils[z[0]][z[1]]) {
-                if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand))
-                  removals.push({ r: z[0], c: z[1], num: cand });
+            for (const cell of ahs2.cells) {
+              if (
+                rcd1.exc2.some((c) => cellEq(c, cell)) ||
+                rcd2.exc2.some((c) => cellEq(c, cell))
+              )
+                continue;
+              for (const cand of pencils[cell[0]][cell[1]]) {
+                if (!ahs2.digits.has(cand))
+                  removals.push({ r: cell[0], c: cell[1], num: cand });
               }
             }
-            if (removals.length > 0 && !foundDetail) {
-              const z = zs[0];
-              foundDetail = `((${getCands(z[0], z[1], ahs1)})${fmtCell(z[0], z[1], ahs1)}=(${rcd.d})${fmtCell(rcd.exc1[0][0], rcd.exc1[0][1], ahs1)})${ahs1Str}-((${rcd.d})${fmtCell(rcd.exc2[0][0], rcd.exc2[0][1], ahs2)}=(${getCands(z[0], z[1], ahs2)})${fmtCell(z[0], z[1], ahs2)})${ahs2Str}`;
+
+            if (removals.length > 0) {
+              const detail = `((${rcd2.d})${fmtCell(rcd2.exc2[0][0], rcd2.exc2[0][1], ahs2)}=(${rcd2.d})${fmtCell(rcd2.exc1[0][0], rcd2.exc1[0][1], ahs1)})${ahs1Str}-((${rcd1.d})${fmtCell(rcd1.exc1[0][0], rcd1.exc1[0][1], ahs1)}=(${rcd1.d})${fmtCell(rcd1.exc2[0][0], rcd1.exc2[0][1], ahs2)})${ahs2Str}-(Ring)`;
+
+              return {
+                change: true,
+                type: "remove",
+                cells: getUnique(removals),
+                hint: {
+                  name: "AHS-XZ Ring",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  detail: detail,
+                },
+              };
             }
           }
+        } else {
+          // ==========================================
+          // NOT-RING CASE: Singly Linked
+          // ==========================================
 
-          // Elimination via ZCD
-          if (zcds.length >= 1) {
-            for (const zcd of zcds) {
-              for (const c1 of zcd.exc1) {
-                for (const c2 of zcd.exc2) {
-                  const peers = techniques._commonVisibleCells(c1, c2);
-                  for (const p of peers) {
-                    if (pencils[p[0]][p[1]].has(zcd.d))
-                      removals.push({ r: p[0], c: p[1], num: zcd.d });
-                  }
+          // Singly linked by RCC
+          if (rccs.length === 1) {
+            let foundDetail = "";
+            const rcc = rccs[0];
+
+            // Elimination via Z
+            if (zs.length >= 1) {
+              for (const z of zs) {
+                for (const cand of pencils[z[0]][z[1]]) {
+                  if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand))
+                    removals.push({ r: z[0], c: z[1], num: cand });
                 }
               }
               if (removals.length > 0 && !foundDetail) {
-                foundDetail = `((${zcd.d})${fmtCell(zcd.exc1[0][0], zcd.exc1[0][1], ahs1)}=(${rcd.d})${fmtCell(rcd.exc1[0][0], rcd.exc1[0][1], ahs1)})${ahs1Str}-((${rcd.d})${fmtCell(rcd.exc2[0][0], rcd.exc2[0][1], ahs2)}=(${zcd.d})${fmtCell(zcd.exc2[0][0], zcd.exc2[0][1], ahs2)})${ahs2Str}`;
+                const z = zs[0];
+                foundDetail = `((${getCands(z[0], z[1], ahs1)})${fmtCell(z[0], z[1], ahs1)}=(${getCands(rcc[0], rcc[1], ahs1)})${fmtCell(rcc[0], rcc[1], ahs1)})${ahs1Str}-((${getCands(rcc[0], rcc[1], ahs2)})${fmtCell(rcc[0], rcc[1], ahs2)}=(${getCands(z[0], z[1], ahs2)})${fmtCell(z[0], z[1], ahs2)})${ahs2Str}`;
               }
+            }
+
+            // Elimination via ZCD
+            if (zcds.length >= 1) {
+              for (const zcd of zcds) {
+                for (const c1 of zcd.exc1) {
+                  for (const c2 of zcd.exc2) {
+                    const peers = techniques._commonVisibleCells(c1, c2);
+                    for (const p of peers) {
+                      if (pencils[p[0]][p[1]].has(zcd.d))
+                        removals.push({ r: p[0], c: p[1], num: zcd.d });
+                    }
+                  }
+                }
+                if (removals.length > 0 && !foundDetail) {
+                  foundDetail = `((${zcd.d})${fmtCell(zcd.exc1[0][0], zcd.exc1[0][1], ahs1)}=(${getCands(rcc[0], rcc[1], ahs1)})${fmtCell(rcc[0], rcc[1], ahs1)})${ahs1Str}-((${getCands(rcc[0], rcc[1], ahs2)})${fmtCell(rcc[0], rcc[1], ahs2)}=(${zcd.d})${fmtCell(zcd.exc2[0][0], zcd.exc2[0][1], ahs2)})${ahs2Str}`;
+                }
+              }
+            }
+
+            if (removals.length > 0) {
+              return {
+                change: true,
+                type: "remove",
+                cells: getUnique(removals),
+                hint: {
+                  name: "AHS-XZ",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  detail: foundDetail,
+                },
+              };
             }
           }
 
-          if (removals.length > 0) {
-            return {
-              change: true,
-              type: "remove",
-              cells: getUnique(removals),
-              hint: {
-                name: "AHS-XZ",
-                mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
-                detail: foundDetail,
-              },
-            };
+          // Singly linked by RCD
+          if (rcds.length === 1) {
+            let foundDetail = "";
+            const rcd = rcds[0];
+
+            // Elimination via Z
+            if (zs.length >= 1) {
+              for (const z of zs) {
+                for (const cand of pencils[z[0]][z[1]]) {
+                  if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand))
+                    removals.push({ r: z[0], c: z[1], num: cand });
+                }
+              }
+              if (removals.length > 0 && !foundDetail) {
+                const z = zs[0];
+                foundDetail = `((${getCands(z[0], z[1], ahs1)})${fmtCell(z[0], z[1], ahs1)}=(${rcd.d})${fmtCell(rcd.exc1[0][0], rcd.exc1[0][1], ahs1)})${ahs1Str}-((${rcd.d})${fmtCell(rcd.exc2[0][0], rcd.exc2[0][1], ahs2)}=(${getCands(z[0], z[1], ahs2)})${fmtCell(z[0], z[1], ahs2)})${ahs2Str}`;
+              }
+            }
+
+            // Elimination via ZCD
+            if (zcds.length >= 1) {
+              for (const zcd of zcds) {
+                for (const c1 of zcd.exc1) {
+                  for (const c2 of zcd.exc2) {
+                    const peers = techniques._commonVisibleCells(c1, c2);
+                    for (const p of peers) {
+                      if (pencils[p[0]][p[1]].has(zcd.d))
+                        removals.push({ r: p[0], c: p[1], num: zcd.d });
+                    }
+                  }
+                }
+                if (removals.length > 0 && !foundDetail) {
+                  foundDetail = `((${zcd.d})${fmtCell(zcd.exc1[0][0], zcd.exc1[0][1], ahs1)}=(${rcd.d})${fmtCell(rcd.exc1[0][0], rcd.exc1[0][1], ahs1)})${ahs1Str}-((${rcd.d})${fmtCell(rcd.exc2[0][0], rcd.exc2[0][1], ahs2)}=(${zcd.d})${fmtCell(zcd.exc2[0][0], zcd.exc2[0][1], ahs2)})${ahs2Str}`;
+                }
+              }
+            }
+
+            if (removals.length > 0) {
+              return {
+                change: true,
+                type: "remove",
+                cells: getUnique(removals),
+                hint: {
+                  name: "AHS-XZ",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  detail: foundDetail,
+                },
+              };
+            }
           }
         }
       }
