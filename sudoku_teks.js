@@ -6482,6 +6482,43 @@ const techniques = {
     const getUnique = (arr) =>
       Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
 
+    // 1. Formats the full AHS container (e.g., b1p123 or r1c123)
+    const formatAHS = (ahs) => {
+      if (ahs.type === "box") {
+        const pts = [
+          ...new Set(
+            ahs.cells.map(
+              ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+            ),
+          ),
+        ]
+          .sort((a, b) => a - b)
+          .join("");
+        return `b${ahs.idx + 1}p${pts}`;
+      } else {
+        const rs = [...new Set(ahs.cells.map(([r, c]) => r + 1))]
+          .sort((a, b) => a - b)
+          .join("");
+        const cs = [...new Set(ahs.cells.map(([r, c]) => c + 1))]
+          .sort((a, b) => a - b)
+          .join("");
+        return `r${rs}c${cs}`;
+      }
+    };
+
+    // 2. Formats the individual cell into 'rc' or 'bp' depending on the AHS type
+    const fmtCell = (r, c, ahs) => {
+      if (ahs.type === "box") {
+        const p = Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1;
+        return `b${ahs.idx + 1}p${p}`;
+      }
+      return `r${r + 1}c${c + 1}`;
+    };
+
+    // 3. Filters the cell's pencil marks to ONLY show candidates that are part of the AHS
+    const getCands = (r, c, ahs) =>
+      [...pencils[r][c]].filter((d) => ahs.digits.has(d)).join("");
+
     // 1. Collect or Retrieve AHSes
     _ahsCache = [];
     const ahses = techniques._collectAllAHS(board, pencils);
@@ -6509,21 +6546,24 @@ const techniques = {
           ahs2.cells.some((c2) => c1[0] === c2[0] && c1[1] === c2[1]),
         );
 
+        const rccs = [];
+        const zs = [];
+        for (const cell of commonCells) {
+          const cands = pencils[cell[0]][cell[1]];
+          const hasShared = sharedDigits.some((d) => cands.has(d));
+
+          // RCC (Restricted Common Cell): cell present in both AHS, not with any sharing candidate
+          if (!hasShared) rccs.push(cell);
+          else zs.push(cell);
+        }
+
+        const removals = [];
+
+        const ahs1Str = formatAHS(ahs1);
+        const ahs2Str = formatAHS(ahs2);
+
         // 3-1. Share >= 2 common cells
         if (commonCells.length >= 2) {
-          const rccs = [];
-          const zs = [];
-          for (const cell of commonCells) {
-            const cands = pencils[cell[0]][cell[1]];
-            const hasShared = sharedDigits.some((d) => cands.has(d));
-
-            // RCC (Restricted Common Cell): cell present in both AHS, not with any sharing candidate
-            if (!hasShared) rccs.push(cell);
-            else zs.push(cell);
-          }
-
-          const removals = [];
-
           if (rccs.length >= 2) {
             // 4A. Doubly linked (weak link on cell)
             for (const rcc of rccs) {
@@ -6541,6 +6581,19 @@ const techniques = {
               }
             }
             if (removals.length > 0) {
+              const rcc1 = rccs[0],
+                rcc2 = rccs[1];
+              const r1_a1 = fmtCell(rcc1[0], rcc1[1], ahs1),
+                r2_a1 = fmtCell(rcc2[0], rcc2[1], ahs1);
+              const r1_a2 = fmtCell(rcc1[0], rcc1[1], ahs2),
+                r2_a2 = fmtCell(rcc2[0], rcc2[1], ahs2);
+              // Uses getCands() to pull the AHS digits for the RCC cells
+              const c_r1_a1 = getCands(rcc1[0], rcc1[1], ahs1),
+                c_r2_a1 = getCands(rcc2[0], rcc2[1], ahs1);
+              const c_r1_a2 = getCands(rcc1[0], rcc1[1], ahs2),
+                c_r2_a2 = getCands(rcc2[0], rcc2[1], ahs2);
+
+              const detail = `((${c_r2_a1})${r2_a1}=(${c_r1_a1})${r1_a1})${ahs1Str}-((${c_r1_a2})${r1_a2}=(${c_r2_a2})${r2_a2})${ahs2Str}-(Ring)`;
               return {
                 change: true,
                 type: "remove",
@@ -6548,11 +6601,13 @@ const techniques = {
                 hint: {
                   name: "AHS-XZ",
                   mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  detail: detail,
                 },
               };
             }
           } else if (rccs.length === 1) {
             // 4B. Singly linked (weak link on cell)
+            // 4B1. Chain ends on same cell
             for (const z of zs) {
               for (const cand of pencils[z[0]][z[1]]) {
                 if (!ahs1.digits.has(cand) && !ahs2.digits.has(cand)) {
@@ -6561,6 +6616,14 @@ const techniques = {
               }
             }
             if (removals.length > 0) {
+              const rcc = rccs[0];
+              const z = zs[0];
+              const c_z_a1 = getCands(z[0], z[1], ahs1);
+              const c_rcc_a1 = getCands(rcc[0], rcc[1], ahs1);
+              const c_rcc_a2 = getCands(rcc[0], rcc[1], ahs2);
+              const c_z_a2 = getCands(z[0], z[1], ahs2);
+
+              const detail = `((${c_z_a1})${fmtCell(z[0], z[1], ahs1)}=(${c_rcc_a1})${fmtCell(rcc[0], rcc[1], ahs1)})${ahs1Str}-((${c_rcc_a2})${fmtCell(rcc[0], rcc[1], ahs2)}=(${c_z_a2})${fmtCell(z[0], z[1], ahs2)})${ahs2Str}`;
               return {
                 change: true,
                 type: "remove",
@@ -6568,13 +6631,14 @@ const techniques = {
                 hint: {
                   name: "AHS-XZ",
                   mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  detail: detail,
                 },
               };
             }
           }
         }
         // 3-2. Share < 2 common cells but share >= 2 candidates
-        else if (sharedDigits.length >= 2) {
+        if (sharedDigits.length >= 2) {
           for (let dIdx1 = 0; dIdx1 < sharedDigits.length; dIdx1++) {
             for (let dIdx2 = dIdx1 + 1; dIdx2 < sharedDigits.length; dIdx2++) {
               const d1 = sharedDigits[dIdx1];
@@ -6618,7 +6682,7 @@ const techniques = {
               }
 
               if (foundD1 && foundD2) {
-                // 4C. Doubly linked (weak link on region)
+                // Doubly linked (weak link on region)
                 const removals = [];
 
                 // Remove d1 from common peers
@@ -6666,6 +6730,15 @@ const techniques = {
                 }
 
                 if (removals.length > 0) {
+                  const ahs1Str = formatAHS(ahs1);
+                  const ahs2Str = formatAHS(ahs2);
+                  const c1_d1 = foundD1[0],
+                    c2_d1 = foundD1[1];
+                  const c1_d2 = foundD2[0],
+                    c2_d2 = foundD2[1];
+                  // Uses 'd1' and 'd2' directly because exclusiveCellsMap guarantees
+                  // they are the only AHS digits in those specific cells.
+                  const detail = `((${d1})${fmtCell(c1_d1[0], c1_d1[1], ahs1)}=(${d2})${fmtCell(c1_d2[0], c1_d2[1], ahs1)})${ahs1Str}-((${d2})${fmtCell(c2_d2[0], c2_d2[1], ahs2)}=(${d1})${fmtCell(c2_d1[0], c2_d1[1], ahs2)})${ahs2Str}-(Ring)`;
                   return {
                     change: true,
                     type: "remove",
@@ -6673,6 +6746,54 @@ const techniques = {
                     hint: {
                       name: "AHS-XZ",
                       mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                      detail: detail,
+                    },
+                  };
+                }
+              }
+            }
+          }
+        }
+        if (rccs.length === 1) {
+          // 3-3. AHS 1 and AHS 2 have a separate cell that only have a shared candidate (exclusiveCells) among their AHS candidate each.
+          const rcc = rccs[0];
+          for (const d of sharedDigits) {
+            const exc1 = ahs1.exclusiveCellsMap.get(d) || [];
+            const exc2 = ahs2.exclusiveCellsMap.get(d) || [];
+
+            for (const c1 of exc1) {
+              if (commonCells.some((cc) => cc[0] === c1[0] && cc[1] === c1[1]))
+                continue;
+              for (const c2 of exc2) {
+                if (
+                  commonCells.some((cc) => cc[0] === c2[0] && cc[1] === c2[1])
+                )
+                  continue;
+
+                const peers = techniques._commonVisibleCells(c1, c2);
+                let found4c = false;
+                for (const p of peers) {
+                  if (pencils[p[0]][p[1]].has(d)) {
+                    removals.push({ r: p[0], c: p[1], num: d });
+                    found4c = true;
+                  }
+                }
+
+                if (found4c) {
+                  // Uses 'd' directly for the exclusive cell, because exclusive cells by definition
+                  // only contain one AHS candidate. Uses getCands for the RCC cell.
+                  const c_rcc_a1 = getCands(rcc[0], rcc[1], ahs1);
+                  const c_rcc_a2 = getCands(rcc[0], rcc[1], ahs2);
+
+                  const detail = `((${d})${fmtCell(c1[0], c1[1], ahs1)}=(${c_rcc_a1})${fmtCell(rcc[0], rcc[1], ahs1)})${ahs1Str}-((${c_rcc_a2})${fmtCell(rcc[0], rcc[1], ahs2)}=(${d})${fmtCell(c2[0], c2[1], ahs2)})${ahs2Str}`;
+                  return {
+                    change: true,
+                    type: "remove",
+                    cells: getUnique(removals),
+                    hint: {
+                      name: "AHS-XZ",
+                      mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                      detail: detail,
                     },
                   };
                 }
@@ -6684,7 +6805,6 @@ const techniques = {
     }
     return { change: false };
   },
-
   // --- AHS RCC MAP BUILDER ---
   _buildAhsRccMap: (ahses, pencils) => {
     const rccMap = new Map();
@@ -6720,6 +6840,36 @@ const techniques = {
     const getUnique = (arr) =>
       Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
     const cellEq = (c1, c2) => c1[0] === c2[0] && c1[1] === c2[1];
+
+    const formatAHS = (ahs) => {
+      if (ahs.type === "box") {
+        const pts = [
+          ...new Set(
+            ahs.cells.map(
+              ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+            ),
+          ),
+        ]
+          .sort((a, b) => a - b)
+          .join("");
+        return `b${ahs.idx + 1}p${pts}`;
+      } else {
+        const rs = [...new Set(ahs.cells.map(([r, c]) => r + 1))]
+          .sort((a, b) => a - b)
+          .join("");
+        const cs = [...new Set(ahs.cells.map(([r, c]) => c + 1))]
+          .sort((a, b) => a - b)
+          .join("");
+        return `r${rs}c${cs}`;
+      }
+    };
+    const fmtCell = (r, c, ahs) => {
+      if (ahs.type === "box")
+        return `b${ahs.idx + 1}p${Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1}`;
+      return `r${r + 1}c${c + 1}`;
+    };
+    const getCands = (r, c, ahs) =>
+      [...pencils[r][c]].filter((d) => ahs.digits.has(d)).join("");
 
     // Utilize AHS cache
     const ahses = techniques._collectAllAHS(board, pencils);
@@ -6761,6 +6911,7 @@ const techniques = {
 
                 let isRing = false;
                 let removals = [];
+                let detailStr = "";
 
                 // Helpers bound strictly to the current r1 and r2 iteration
                 const processNonRcc = (ahs, rccList, label) => {
@@ -6802,6 +6953,8 @@ const techniques = {
                 if (validR3) {
                   isRing = true;
 
+                  detailStr = `((${getCands(validR3[0], validR3[1], ahs1)})${fmtCell(validR3[0], validR3[1], ahs1)}=(${getCands(r1[0], r1[1], ahs1)})${fmtCell(r1[0], r1[1], ahs1)})${formatAHS(ahs1)}-((${getCands(r1[0], r1[1], ahs2)})${fmtCell(r1[0], r1[1], ahs2)}=(${getCands(r2[0], r2[1], ahs2)})${fmtCell(r2[0], r2[1], ahs2)})${formatAHS(ahs2)}-((${getCands(r2[0], r2[1], ahs3)})${fmtCell(r2[0], r2[1], ahs3)}=(${getCands(validR3[0], validR3[1], ahs3)})${fmtCell(validR3[0], validR3[1], ahs3)})${formatAHS(ahs3)}-(Ring)`;
+
                   // Process only the chosen r1, r2, and validR3
                   processRcc([r1], ahs1, ahs2);
                   processRcc([r2], ahs2, ahs3);
@@ -6836,6 +6989,8 @@ const techniques = {
                           isRing = true;
                           ringFound = true;
 
+                          detailStr = `((${d})${fmtCell(c1[0], c1[1], ahs1)}=(${getCands(r1[0], r1[1], ahs1)})${fmtCell(r1[0], r1[1], ahs1)})${formatAHS(ahs1)}-((${getCands(r1[0], r1[1], ahs2)})${fmtCell(r1[0], r1[1], ahs2)}=(${getCands(r2[0], r2[1], ahs2)})${fmtCell(r2[0], r2[1], ahs2)})${formatAHS(ahs2)}-((${getCands(r2[0], r2[1], ahs3)})${fmtCell(r2[0], r2[1], ahs3)}=(${d})${fmtCell(c3[0], c3[1], ahs3)})${formatAHS(ahs3)}-(Ring)`;
+
                           // remove all candidates but d from c1
                           for (const cand of pencils[c1[0]][c1[1]]) {
                             if (cand !== d) {
@@ -6845,6 +7000,8 @@ const techniques = {
                         } else if (techniques._sees(c1, c3)) {
                           isRing = true;
                           ringFound = true;
+
+                          detailStr = `((${d})${fmtCell(c1[0], c1[1], ahs1)}=(${getCands(r1[0], r1[1], ahs1)})${fmtCell(r1[0], r1[1], ahs1)})${formatAHS(ahs1)}-((${getCands(r1[0], r1[1], ahs2)})${fmtCell(r1[0], r1[1], ahs2)}=(${getCands(r2[0], r2[1], ahs2)})${fmtCell(r2[0], r2[1], ahs2)})${formatAHS(ahs2)}-((${getCands(r2[0], r2[1], ahs3)})${fmtCell(r2[0], r2[1], ahs3)}=(${d})${fmtCell(c3[0], c3[1], ahs3)})${formatAHS(ahs3)}-(Ring)`;
 
                           const cPeers = cellEq(c1, c3)
                             ? Array.from({ length: 81 }, (_, idx) => [
@@ -6889,6 +7046,7 @@ const techniques = {
                       hint: {
                         name: "Almost Hidden Set XY-Ring",
                         mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1}, ${ahs2.type} ${ahs2.idx + 1}, ${ahs3.type} ${ahs3.idx + 1}`,
+                        detail: detailStr,
                       },
                     };
                   }
@@ -6909,6 +7067,9 @@ const techniques = {
                   for (const cand of pencils[c[0]][c[1]]) {
                     if (!unionDigits.has(cand)) {
                       removals.push({ r: c[0], c: c[1], num: cand });
+                      if (!detailStr) {
+                        detailStr = `((${getCands(c[0], c[1], ahs1)})${fmtCell(c[0], c[1], ahs1)}=(${getCands(r1[0], r1[1], ahs1)})${fmtCell(r1[0], r1[1], ahs1)})${formatAHS(ahs1)}-((${getCands(r1[0], r1[1], ahs2)})${fmtCell(r1[0], r1[1], ahs2)}=(${getCands(r2[0], r2[1], ahs2)})${fmtCell(r2[0], r2[1], ahs2)})${formatAHS(ahs2)}-((${getCands(r2[0], r2[1], ahs3)})${fmtCell(r2[0], r2[1], ahs3)}=(${getCands(c[0], c[1], ahs3)})${fmtCell(c[0], c[1], ahs3)})${formatAHS(ahs3)}`;
+                      }
                       found4A = true;
                     }
                   }
@@ -6935,6 +7096,9 @@ const techniques = {
                       for (const p of cPeers) {
                         if (pencils[p[0]][p[1]].has(d)) {
                           removals.push({ r: p[0], c: p[1], num: d });
+                          if (!detailStr) {
+                            detailStr = `((${d})${fmtCell(c1[0], c1[1], ahs1)}=(${getCands(r1[0], r1[1], ahs1)})${fmtCell(r1[0], r1[1], ahs1)})${formatAHS(ahs1)}-((${getCands(r1[0], r1[1], ahs2)})${fmtCell(r1[0], r1[1], ahs2)}=(${getCands(r2[0], r2[1], ahs2)})${fmtCell(r2[0], r2[1], ahs2)})${formatAHS(ahs2)}-((${getCands(r2[0], r2[1], ahs3)})${fmtCell(r2[0], r2[1], ahs3)}=(${d})${fmtCell(c3[0], c3[1], ahs3)})${formatAHS(ahs3)}`;
+                          }
                           found4B = true;
                         }
                       }
@@ -6951,6 +7115,7 @@ const techniques = {
                     hint: {
                       name: "Almost Hidden Set XY-Wing",
                       mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1}, ${ahs2.type} ${ahs2.idx + 1}, ${ahs3.type} ${ahs3.idx + 1}`,
+                      detail: detailStr,
                     },
                   };
                 }
