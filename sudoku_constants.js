@@ -105,33 +105,33 @@ const levelTips = [
 ];
 
 const PALETTES = {
-  // Optimized for Dark Backgrounds (Lighter, Pastels)
+  // Optimized for Dark Backgrounds (Lighter, Pastels, High Luminosity)
   dark: [
-    "#f5f5f5", // 0: Whiteish
-    "#d4f8d4", // 1: Pale Green
-    "#69f0ae", // 2: Vibrant Green
-    "#ccff90", // 3: Lime
-    "#ffff00", // 4: Yellow
-    "#ffc107", // 5: Amber
-    "#ff9800", // 6: Orange
-    "#ff5722", // 7: Deep Orange
-    "#f44336", // 8: Red
-    "#d500f9", // 9: Magenta
-    "#651fff", // 10: Violet
+    "#f5f5f5", // 0: Whiteish (Unchanged)
+    "#d4f8d4", // 1: Pale Green (Unchanged)
+    "#69f0ae", // 2: Vibrant Green (Unchanged)
+    "#ccff90", // 3: Lime (Unchanged)
+    "#ffff8d", // 4: Pale Yellow (Softened from pure #ffff00 to reduce glare)
+    "#ffd54f", // 5: Light Amber (Lightened for better contrast)
+    "#ffb74d", // 6: Soft Orange (Lightened)
+    "#ff8a65", // 7: Peach/Deep Orange (Lightened significantly)
+    "#e57373", // 8: Soft Red/Salmon (Lightened to prevent bleeding into black)
+    "#ea80fc", // 9: Bright Lavender/Magenta (Lightened)
+    "#b388ff", // 10: Periwinkle/Violet (Lightened significantly for readability)
   ],
-  // Optimized for Light Backgrounds (Darker, Saturated)
+  // Optimized for Light Backgrounds (Darker, Saturated, High Contrast)
   light: [
-    "#424242", // 0: Dark Grey (instead of white)
-    "#2e7d32", // 1: Forest Green
-    "#00c853", // 2: Green
-    "#9e9d24", // 3: Lime 800 (Brighter Olive)
-    "#f9a825", // 4: Yellow 800 (Rich Dark Yellow)
-    "#ff8f00", // 5: Amber 800  (Vibrant Golden)
-    "#ef6c00", // 6: Orange 800 (Clearly Orange, not Red)
-    "#d32f2f", // 7: Red 700    (Classic Bright Red)
-    "#880e4f", // 8: Pink 900   (Deep Burgundy/Maroon)
-    "#aa00ff", // 9: Purple
-    "#6200ea", // 10: Deep Indigo
+    "#424242", // 0: Dark Grey (Unchanged - Great contrast)
+    "#2e7d32", // 1: Forest Green (Unchanged)
+    "#008c3a", // 2: Deep Emerald (Darkened from #00c853 for readability)
+    "#827717", // 3: Lime 900 (Darkened from Lime 800 to a deeper olive)
+    "#f57f17", // 4: Yellow 900 (Darkened to a deep, brownish-gold)
+    "#ff6f00", // 5: Amber 900 (Deepened for better contrast)
+    "#e65100", // 6: Orange 900 (Darkened to ensure it stands out clearly)
+    "#d32f2f", // 7: Red 700 (Unchanged - Great contrast)
+    "#880e4f", // 8: Pink 900 (Unchanged - Great contrast)
+    "#aa00ff", // 9: Purple (Unchanged)
+    "#6200ea", // 10: Deep Indigo (Unchanged)
   ],
 };
 
