@@ -2023,147 +2023,6 @@ const techniques = {
     return result;
   },
 
-  chuteRemotePair: (board, pencils) => {
-    let result = techniques._runChuteLogic(board, pencils, true); // Rows
-    if (result.change) return result;
-    result = techniques._runChuteLogic(board, pencils, false); // Columns
-    return result;
-  },
-
-  _runChuteLogic: (board, pencils, isRowVersion) => {
-    for (let chuteIndex = 0; chuteIndex < 3; chuteIndex++) {
-      const bivalueCells = [];
-      const chuteRange = [
-        chuteIndex * 3,
-        chuteIndex * 3 + 1,
-        chuteIndex * 3 + 2,
-      ];
-
-      for (const i of chuteRange) {
-        for (let j = 0; j < 9; j++) {
-          const [r, c] = isRowVersion ? [i, j] : [j, i];
-          if (pencils[r][c].size === 2) {
-            bivalueCells.push({ r, c, cands: pencils[r][c] });
-          }
-        }
-      }
-
-      if (bivalueCells.length < 2) continue;
-
-      for (const pair of techniques.combinations(bivalueCells, 2)) {
-        const [cell1, cell2] = pair;
-        if (techniques._sees([cell1.r, cell1.c], [cell2.r, cell2.c])) continue;
-
-        const cands1Str = [...cell1.cands].sort().join("");
-        const cands2Str = [...cell2.cands].sort().join("");
-        if (cands1Str !== cands2Str) continue;
-
-        const [x, y] = [...cell1.cands];
-        const intersectionCandidates = new Set();
-        let other_line, other_box_start;
-
-        if (isRowVersion) {
-          const pair_rows = new Set([cell1.r, cell2.r]);
-          other_line = chuteRange.find((r) => !pair_rows.has(r));
-
-          const chute_boxes = new Set([
-            chuteIndex * 3,
-            chuteIndex * 3 + 1,
-            chuteIndex * 3 + 2,
-          ]);
-          const pair_boxes = new Set([
-            techniques._getBoxIndex(cell1.r, cell1.c),
-            techniques._getBoxIndex(cell2.r, cell2.c),
-          ]);
-          const other_box_index = [...chute_boxes].find(
-            (b) => !pair_boxes.has(b),
-          );
-          if (other_box_index === undefined) continue;
-          other_box_start = (other_box_index % 3) * 3;
-
-          for (let c = other_box_start; c < other_box_start + 3; c++) {
-            pencils[other_line][c].forEach((cand) =>
-              intersectionCandidates.add(cand),
-            );
-            if (board[other_line][c] !== 0)
-              intersectionCandidates.add(board[other_line][c]);
-          }
-        } else {
-          // Column version
-          const pair_cols = new Set([cell1.c, cell2.c]);
-          other_line = chuteRange.find((c) => !pair_cols.has(c));
-
-          const chute_boxes = new Set([
-            chuteIndex,
-            chuteIndex + 3,
-            chuteIndex + 6,
-          ]);
-          const pair_boxes = new Set([
-            techniques._getBoxIndex(cell1.r, cell1.c),
-            techniques._getBoxIndex(cell2.r, cell2.c),
-          ]);
-          const other_box_index = [...chute_boxes].find(
-            (b) => !pair_boxes.has(b),
-          );
-          if (other_box_index === undefined) continue;
-          other_box_start = Math.floor(other_box_index / 3) * 3;
-
-          for (let r = other_box_start; r < other_box_start + 3; r++) {
-            pencils[r][other_line].forEach((cand) =>
-              intersectionCandidates.add(cand),
-            );
-            if (board[r][other_line] !== 0)
-              intersectionCandidates.add(board[r][other_line]);
-          }
-        }
-
-        const removals = [];
-        const commonSeers = techniques._commonVisibleCells(
-          [cell1.r, cell1.c],
-          [cell2.r, cell2.c],
-        );
-        if (!intersectionCandidates.has(x)) {
-          for (const [r, c] of commonSeers) {
-            if (pencils[r][c].has(y)) removals.push({ r, c, num: y });
-          }
-        }
-        if (!intersectionCandidates.has(y)) {
-          for (const [r, c] of commonSeers) {
-            if (pencils[r][c].has(x)) removals.push({ r, c, num: x });
-          }
-        }
-        if (removals.length > 0) {
-          const uniqueRemovals = Array.from(
-            new Set(removals.map(JSON.stringify)),
-          ).map(JSON.parse);
-          const missingCands = [];
-          if (!intersectionCandidates.has(x)) missingCands.push(x);
-          if (!intersectionCandidates.has(y)) missingCands.push(y);
-          const missingCandsStr = missingCands.sort().join("");
-
-          let intersectionStr = "";
-          if (isRowVersion) {
-            intersectionStr = `r${other_line + 1}c${other_box_start + 1}${other_box_start + 2}${other_box_start + 3}`;
-          } else {
-            intersectionStr = `r${other_box_start + 1}${other_box_start + 2}${other_box_start + 3}c${other_line + 1}`;
-          }
-
-          return {
-            change: true,
-            type: "remove",
-            cells: uniqueRemovals,
-            hint: {
-              name: "Chute Remote Pair",
-              mainInfo: `Using digits (${x}${y})`,
-              detail: `Digits (${x}${y}) in r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1}. ${intersectionStr} not having (${missingCandsStr})`,
-            },
-          };
-        }
-      }
-    }
-    return { change: false };
-  },
-
   bugPlusOne: (board, pencils) => {
     const unsolvedCells = [];
     const bivalueCells = [];
@@ -8339,13 +8198,13 @@ const techniques = {
       }
     }
 
-    // 3. Collect Stem Cells (Cells with 3 to 6 candidates)
+    // 3. Collect Stem Cells (Cells with 3 to 5 candidates)
     const stems = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         const mask = techniques._bits.maskFromSet(pencils[r][c]);
         const count = techniques._bits.popcount(mask);
-        if (count >= 3 && count <= 6) {
+        if (count >= 3 && count <= 5) {
           stems.push({ r, c, mask, count, id: r * 9 + c });
         }
       }
@@ -8666,7 +8525,7 @@ const techniques = {
       }
     }
 
-    // 3. Collect Stem Regions (A digit appearing 3 to 6 times in a house)
+    // 3. Collect Stem Regions (A digit appearing 3 to 5 times in a house)
     const stems = [];
     for (let d = 1; d <= 9; d++) {
       for (let u = 0; u < 27; u++) {
@@ -8684,7 +8543,7 @@ const techniques = {
           }
         }
 
-        if (stemCells.length >= 3 && stemCells.length <= 6) {
+        if (stemCells.length >= 3 && stemCells.length <= 5) {
           stems.push({
             digit: d,
             uType,

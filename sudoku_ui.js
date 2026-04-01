@@ -3968,12 +3968,6 @@ async function evaluateBoardDifficulty(opts = {}) {
       score: 160,
     },
     {
-      name: "Chute Remote Pair",
-      func: (b, p) => techniques.chuteRemotePair(b, p),
-      level: 4,
-      score: 120,
-    },
-    {
       name: "XYZ-Wing",
       func: (b, p) => techniques.xyzWing(b, p),
       level: 4,
