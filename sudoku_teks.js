@@ -270,19 +270,22 @@ const techniques = {
         break;
       }
     }
+    const isBox = unitName.includes("Box");
+    const position = isBox
+      ? `b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
+      : `r${r + 1}c${c + 1}`;
+    const detail = `Last digit (${missingNum}) in ${unitName} at ${position}`;
+
     return {
       change: true,
       type: "place",
-      r: r,
-      c: c,
+      r,
+      c,
       num: missingNum,
       hint: {
         name: "Full House",
         mainInfo: unitName,
-        detail:
-          unitName.slice(0.3) == "Box"
-            ? `Last digit (${missingNum}) in ${unitName} at b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
-            : `Last digit (${missingNum}) in ${unitName} at r${r + 1}c${c + 1}`,
+        detail,
       },
     };
   },
@@ -335,6 +338,12 @@ const techniques = {
 
           if (possibleCells.length === 1) {
             const [r, c] = possibleCells[0];
+            const isBox = label === "Box";
+            const position = isBox
+              ? `b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
+              : `r${r + 1}c${c + 1}`;
+            const unitLabel = `${label} ${i + 1}`;
+            const detail = `Only cell ${position} with digit (${num}) in ${unitLabel}`;
 
             return {
               change: true,
@@ -344,12 +353,8 @@ const techniques = {
               num,
               hint: {
                 name: "Hidden Single",
-                // 3. Use 'label' and 'i' directly
-                mainInfo: `${label} ${i + 1}`,
-                detail:
-                  label == "Box"
-                    ? `Only cell b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1} with digit (${num}) in ${label} ${i + 1}`
-                    : `Only cell  r${r + 1}c${c + 1} with digit (${num}) in ${label} ${i + 1}`,
+                mainInfo: unitLabel,
+                detail,
               },
             };
           }
