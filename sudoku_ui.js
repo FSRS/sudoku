@@ -4121,6 +4121,12 @@ async function evaluateBoardDifficulty(opts = {}) {
       level: 10,
       score: 360,
     },
+    // {
+    //   name: "Almost Hidden Set Chain",
+    //   func: techniques.ahsChain,
+    //   level: 10,
+    //   score: 370,
+    // },
     {
       name: "Cell Death Blossom",
       func: techniques.cellDeathBlossom,
