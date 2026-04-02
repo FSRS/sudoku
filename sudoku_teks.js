@@ -7118,16 +7118,14 @@ const techniques = {
         lastEdge.type === "rcc" ? lastEdge.cell : lastEdge.excTo;
 
       let removals = [];
+      let finalDetailStr = "";
+      let finalIsRing = false;
 
       // 1. Common Cell check (Ends meet at a shared cell)
       const commonCells = firstAhs.cells.filter((c) =>
         lastAhs.cells.some((c2) => cellEq(c, c2)),
       );
 
-      let finalDetailStr = "";
-      let finalIsRing = false;
-
-      // Filter out cells used internally by the chain to form the overlapping group
       const validCommonCells = commonCells.filter(
         (c) => !cellEq(c, firstUsedCell) && !cellEq(c, lastUsedCell),
       );
@@ -7156,7 +7154,6 @@ const techniques = {
             removals.push(...localRemovals);
             if (!finalIsRing) {
               finalIsRing = true;
-              // Pass the full validCommonCells array for grouped notation!
               finalDetailStr = buildDetailStr(
                 path,
                 validCommonCells,
@@ -7170,7 +7167,6 @@ const techniques = {
         } else if (cellRemoved) {
           removals.push(...localRemovals);
           if (!finalDetailStr) {
-            // Pass the full validCommonCells array for grouped notation!
             finalDetailStr = buildDetailStr(
               path,
               validCommonCells,
@@ -7181,11 +7177,6 @@ const techniques = {
             );
           }
         }
-      }
-
-      // Return accumulated results from all common cells
-      if (removals.length > 0) {
-        return makeResult(removals, finalDetailStr, finalIsRing, path);
       }
 
       // 2. RCD check (Ends meet via Exclusive Cells with the same digit)
@@ -7204,22 +7195,30 @@ const techniques = {
               if (cellEq(exc2, lastUsedCell)) continue;
 
               const sees = techniques._sees(exc1, exc2);
+              let localRemovals = [];
+
               if (sees && !cellEq(exc1, exc2)) {
                 // Ring formed via visible exclusive cells
                 const peers = techniques._commonVisibleCells(exc1, exc2);
                 for (const p of peers) {
                   if (pencils[p[0]][p[1]].has(d))
-                    removals.push({ r: p[0], c: p[1], num: d });
+                    localRemovals.push({ r: p[0], c: p[1], num: d });
                 }
-                processRingEdges(path, removals);
+                processRingEdges(path, localRemovals);
 
-                if (removals.length > 0) {
-                  return makeResult(
-                    removals,
-                    buildDetailStr(path, null, d, exc1, exc2, true),
-                    true,
-                    path,
-                  );
+                if (localRemovals.length > 0) {
+                  removals.push(...localRemovals);
+                  if (!finalIsRing) {
+                    finalIsRing = true;
+                    finalDetailStr = buildDetailStr(
+                      path,
+                      null,
+                      d,
+                      exc1,
+                      exc2,
+                      true,
+                    );
+                  }
                 }
               } else if (!cellEq(exc1, exc2)) {
                 // Not a ring
@@ -7227,22 +7226,32 @@ const techniques = {
                 let removed = false;
                 for (const p of peers) {
                   if (pencils[p[0]][p[1]].has(d)) {
-                    removals.push({ r: p[0], c: p[1], num: d });
+                    localRemovals.push({ r: p[0], c: p[1], num: d });
                     removed = true;
                   }
                 }
                 if (removed) {
-                  return makeResult(
-                    removals,
-                    buildDetailStr(path, null, d, exc1, exc2, false),
-                    false,
-                    path,
-                  );
+                  removals.push(...localRemovals);
+                  if (!finalDetailStr) {
+                    finalDetailStr = buildDetailStr(
+                      path,
+                      null,
+                      d,
+                      exc1,
+                      exc2,
+                      false,
+                    );
+                  }
                 }
               }
             }
           }
         }
+      }
+
+      // Final Evaluation: Return ALL accumulated removals across BOTH checks
+      if (removals.length > 0) {
+        return makeResult(removals, finalDetailStr, finalIsRing, path);
       }
 
       return null;
