@@ -6973,9 +6973,51 @@ const techniques = {
     let foundResult = null;
 
     const buildDetailStr = (path, cCell, endD, endExc1, endExcLast, isRing) => {
-      const getStr = (cell, isRcd, d, ahs) => {
-        if (isRcd) return `(${d})${fmtCell(cell[0], cell[1], ahs)}`;
-        return `(${getCands(cell[0], cell[1], ahs)})${fmtCell(cell[0], cell[1], ahs)}`;
+      // Helper to format grouped cells exactly like AHS formats its full cells
+      const formatGrouped = (cells, ahs) => {
+        if (ahs.type === "box") {
+          const pts = [
+            ...new Set(
+              cells.map(
+                ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+              ),
+            ),
+          ]
+            .sort((a, b) => a - b)
+            .join("");
+          return `b${ahs.idx + 1}p${pts}`;
+        } else {
+          const rs = [...new Set(cells.map(([r, c]) => r + 1))]
+            .sort((a, b) => a - b)
+            .join("");
+          const cs = [...new Set(cells.map(([r, c]) => c + 1))]
+            .sort((a, b) => a - b)
+            .join("");
+          return `r${rs}c${cs}`;
+        }
+      };
+
+      const getStr = (cellData, isRcd, d, ahs) => {
+        if (isRcd) return `(${d})${fmtCell(cellData[0], cellData[1], ahs)}`;
+
+        // Check if cellData is an array of cells (Grouped cells)
+        if (Array.isArray(cellData) && Array.isArray(cellData[0])) {
+          if (cellData.length === 1) {
+            return `(${getCands(cellData[0][0], cellData[0][1], ahs)})${fmtCell(cellData[0][0], cellData[0][1], ahs)}`;
+          }
+          // Pool candidates across all grouped cells that belong to this AHS
+          const unionCands = new Set();
+          for (const [r, c] of cellData) {
+            for (const cand of pencils[r][c]) {
+              if (ahs.digits.has(cand)) unionCands.add(cand);
+            }
+          }
+          const candStr = [...unionCands].sort((a, b) => a - b).join("");
+          return `(${candStr})${formatGrouped(cellData, ahs)}`;
+        }
+
+        // Single cell fallback
+        return `(${getCands(cellData[0], cellData[1], ahs)})${fmtCell(cellData[0], cellData[1], ahs)}`;
       };
 
       const parts = [];
@@ -6987,7 +7029,7 @@ const techniques = {
         // Determine IN link for this AHS
         if (i === 0) {
           if (cCell) {
-            inCell = cCell;
+            inCell = cCell; // Can now be an array of valid common cells
             inIsRcd = false;
           } else {
             inCell = endExc1;
@@ -7009,7 +7051,7 @@ const techniques = {
         // Determine OUT link for this AHS
         if (i === path.length - 1) {
           if (cCell) {
-            outCell = cCell;
+            outCell = cCell; // Can now be an array of valid common cells
             outIsRcd = false;
           } else {
             outCell = endExcLast;
@@ -7081,42 +7123,69 @@ const techniques = {
       const commonCells = firstAhs.cells.filter((c) =>
         lastAhs.cells.some((c2) => cellEq(c, c2)),
       );
-      for (const c of commonCells) {
-        if (cellEq(c, firstUsedCell) || cellEq(c, lastUsedCell)) continue;
 
+      let finalDetailStr = "";
+      let finalIsRing = false;
+
+      // Filter out cells used internally by the chain to form the overlapping group
+      const validCommonCells = commonCells.filter(
+        (c) => !cellEq(c, firstUsedCell) && !cellEq(c, lastUsedCell),
+      );
+
+      for (const c of validCommonCells) {
         const min = Math.min(firstAhsIdx, lastAhsIdx);
         const max = Math.max(firstAhsIdx, lastAhsIdx);
         const isRcc = (_ahsRccMap.get(`${min}-${max}`) || []).some((r) =>
           cellEq(r, c),
         );
         const union = new Set([...firstAhs.digits, ...lastAhs.digits]);
-        let removed = false;
+
+        let localRemovals = [];
+        let cellRemoved = false;
 
         for (const cand of pencils[c[0]][c[1]]) {
           if (!union.has(cand)) {
-            removals.push({ r: c[0], c: c[1], num: cand });
-            removed = true;
+            localRemovals.push({ r: c[0], c: c[1], num: cand });
+            cellRemoved = true;
           }
         }
 
         if (isRcc) {
-          processRingEdges(path, removals);
-          if (removals.length > 0) {
-            return makeResult(
-              removals,
-              buildDetailStr(path, c, null, null, null, true),
-              true,
+          processRingEdges(path, localRemovals);
+          if (localRemovals.length > 0) {
+            removals.push(...localRemovals);
+            if (!finalIsRing) {
+              finalIsRing = true;
+              // Pass the full validCommonCells array for grouped notation!
+              finalDetailStr = buildDetailStr(
+                path,
+                validCommonCells,
+                null,
+                null,
+                null,
+                true,
+              );
+            }
+          }
+        } else if (cellRemoved) {
+          removals.push(...localRemovals);
+          if (!finalDetailStr) {
+            // Pass the full validCommonCells array for grouped notation!
+            finalDetailStr = buildDetailStr(
               path,
+              validCommonCells,
+              null,
+              null,
+              null,
+              false,
             );
           }
-        } else if (removed) {
-          return makeResult(
-            removals,
-            buildDetailStr(path, c, null, null, null, false),
-            false,
-            path,
-          );
         }
+      }
+
+      // Return accumulated results from all common cells
+      if (removals.length > 0) {
+        return makeResult(removals, finalDetailStr, finalIsRing, path);
       }
 
       // 2. RCD check (Ends meet via Exclusive Cells with the same digit)
