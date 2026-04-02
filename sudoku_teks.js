@@ -7187,17 +7187,26 @@ const techniques = {
         title += isRing ? `Chain (Ring)` : `Chain (Len)`;
       }
 
+      // --- NEW HINT LOGIC ---
+      // Remove the optional -(Ring) suffix, then split the chain by hyphens
+      const detailParts = detailStr.replace(/-\(Ring\)$/, "").split("-");
+      let infoStr = "";
+
+      if (path.length === 3) {
+        // Pivot is the middle AHS (index 1)
+        infoStr = `Pivot AHS: -${detailParts[1]}-`;
+      } else {
+        // Start is the first AHS (index 0)
+        infoStr = `Start with ${detailParts[0]}-`;
+      }
+
       return {
         change: true,
         type: "remove",
         cells: getUnique(removals),
         hint: {
           name: title,
-          mainInfo:
-            "AHSes on " +
-            path
-              .map((n) => `${ahses[n.ahsIdx].type} ${ahses[n.ahsIdx].idx + 1}`)
-              .join(", "),
+          mainInfo: infoStr, // <--- Replaced the array map with the new formatted string
           detail: detailStr,
         },
       };
