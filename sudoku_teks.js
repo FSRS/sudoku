@@ -1325,14 +1325,6 @@ const techniques = {
       const cands2Str = [...cell2.cands].sort().join("");
       if (cands1Str !== cands2Str) continue;
 
-      // Base cells must not be in the same band or stack
-      if (
-        Math.floor(cell1.r / 3) === Math.floor(cell2.r / 3) ||
-        Math.floor(cell1.c / 3) === Math.floor(cell2.c / 3)
-      ) {
-        continue;
-      }
-
       const [x, y] = [...cell1.cands];
 
       for (const linkDigit of [x, y]) {
