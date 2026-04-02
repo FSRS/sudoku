@@ -6225,7 +6225,7 @@ const techniques = {
     return elims;
   },
 
-  // --- ALS-XZ & WXYZ-WING ---
+  // --- Almost Locked Set XZ-Rule & WXYZ-WING ---
   alsXZ: (board, pencils, wxyzOnly = false) => {
     // Reset cache at the start
     _alsCache = [];
@@ -6248,7 +6248,7 @@ const techniques = {
       // We want 'j' to iterate over the WXYZ part (starting where XY ends)
       innerLoopStartBase = alsesXY.length;
     } else {
-      // Standard ALS-XZ: Compare everything (Size 1 to 8) against everything
+      // Standard Almost Locked Set XZ-Rule: Compare everything (Size 1 to 8) against everything
       alses = techniques._collectAllALS(board, pencils, 1, 8);
       _alsCache = alses;
       outerLoopLimit = alses.length;
@@ -6331,7 +6331,7 @@ const techniques = {
             new Set(elims.map(JSON.stringify)),
           ).map(JSON.parse);
 
-          let name = "ALS-XZ";
+          let name = "Almost Locked Set XZ-Rule";
           let mainInfo = `ALSes on ${A.unitName} and ${B.unitName} (${
             rccCount === 1 ? "Singly" : "Doubly"
           } linked)`;
@@ -6718,8 +6718,8 @@ const techniques = {
                 type: "remove",
                 cells: getUnique(removals),
                 hint: {
-                  name: "AHS-XZ Ring",
-                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  name: "Almost Hidden Set XZ-Rule",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Doubly Linked)`,
                   detail: detail,
                 },
               };
@@ -6775,8 +6775,8 @@ const techniques = {
                 type: "remove",
                 cells: getUnique(removals),
                 hint: {
-                  name: "AHS-XZ Ring",
-                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  name: "Almost Hidden Set XZ-Rule",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Doubly Linked)`,
                   detail: detail,
                 },
               };
@@ -6784,7 +6784,7 @@ const techniques = {
           }
           // 2 restricted common digits (Ring)
           else if (rcds.length === 2) {
-            // Redundant with ALS-XZ Ring (Exclusive cells + Complementaty ALS from another ALS)
+            // Redundant with Almost Locked Set XZ-Rule Ring (Exclusive cells + Complementaty ALS from another ALS)
           }
         } else {
           // ==========================================
@@ -6834,8 +6834,8 @@ const techniques = {
                 type: "remove",
                 cells: getUnique(removals),
                 hint: {
-                  name: "AHS-XZ",
-                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  name: "Almost Hidden Set XZ-Rule",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Singly Linked)`,
                   detail: foundDetail,
                 },
               };
@@ -6885,8 +6885,8 @@ const techniques = {
                 type: "remove",
                 cells: getUnique(removals),
                 hint: {
-                  name: "AHS-XZ",
-                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  name: "Almost Hidden Set XZ-Rule",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Singly Linked)`,
                   detail: foundDetail,
                 },
               };
@@ -7342,9 +7342,9 @@ const techniques = {
     return { change: false };
   },
 
-  // --- AHS XY-WING / RING ---
+  // --- Almost Hidden Set XY-Wing / RING ---
   ahsXYWing: (board, pencils) => {
-    // XY-Wing is strictly an AHS Chain of length 3
+    // XY-Wing is strictly an Almost Hidden Set Chain of length 3
     return techniques._ahsChainCore(board, pencils, 3, 3);
   },
 
@@ -7684,7 +7684,7 @@ const techniques = {
     }
     return { change: false };
   },
-  // --- ALS CHAIN SUPPORT STRUCTURES ---
+  // --- Almost Locked Set Chain SUPPORT STRUCTURES ---
 
   /**
    * Helper: Calculates the bitwise intersection of peers for a set of cells (given as a BigInt mask).
@@ -7785,7 +7785,7 @@ const techniques = {
   },
 
   /**
-   * Core DFS logic for ALS Chains.
+   * Core DFS logic for Almost Locked Set Chains.
    * Supports both Ring (Continuous Loop) and Linear Chain eliminations.
    * Corresponds to C++: als_chain_core
    */
@@ -7794,7 +7794,7 @@ const techniques = {
     pencils,
     minLen,
     maxLen,
-    nameOverride = "ALS Chain",
+    nameOverride = "Almost Locked Set Chain",
   ) => {
     let eliminations = [];
     let found = false;
@@ -7975,9 +7975,9 @@ const techniques = {
       // --- Hint Construction ---
       let info = `Length ${minLen} Chain found`;
 
-      // Specific Format for ALS XY-Wing (Length 3 Linear Chain)
+      // Specific Format for Almost Locked Set XY-Wing (Length 3 Linear Chain)
       if (
-        nameOverride === "ALS XY-Wing" &&
+        nameOverride === "Almost Locked Set XY-Wing" &&
         successPath &&
         successPath.length === 3
       ) {
@@ -8066,7 +8066,7 @@ const techniques = {
     return { change: false };
   },
   /**
-   * ALS XY-Wing Wrapper
+   * Almost Locked Set XY-Wing Wrapper
    * Length 3 chain (ALS A - ALS B - ALS C)
    * Corresponds to C++: als_xy_wing()
    */
@@ -8076,7 +8076,13 @@ const techniques = {
     techniques._buildAlsDigitCommonPeers();
     techniques._buildAlsRccMap();
 
-    return techniques._alsChainCore(board, pencils, 3, 3, "ALS XY-Wing");
+    return techniques._alsChainCore(
+      board,
+      pencils,
+      3,
+      3,
+      "Almost Locked Set XY-Wing",
+    );
   },
 
   alsChain: (board, pencils) => {
@@ -8086,10 +8092,16 @@ const techniques = {
       techniques._buildAlsDigitCommonPeers();
       techniques._buildAlsRccMap();
     }
-    return techniques._alsChainCore(board, pencils, 4, 5, "ALS Chain");
+    return techniques._alsChainCore(
+      board,
+      pencils,
+      4,
+      5,
+      "Almost Locked Set Chain",
+    );
   },
 
-  // --- ALS W-WING & HELPERS ---
+  // --- Almost Locked Set W-Wing & HELPERS ---
 
   _digitRowMasks: [],
   _digitColMasks: [],
@@ -8495,14 +8507,15 @@ const techniques = {
           }
 
           // Fallback just in case edge combinations slip through
-          if (!detail) detail = `ALS W-Wing on ${A.unitName} and ${B.unitName}`;
+          if (!detail)
+            detail = `Almost Locked Set W-Wing on ${A.unitName} and ${B.unitName}`;
 
           return {
             change: true,
             type: "remove",
             cells: uniqueElims,
             hint: {
-              name: "ALS W-Wing",
+              name: "Almost Locked Set W-Wing",
               mainInfo: `${A.unitName} and ${B.unitName}`,
               detail: detail,
             },

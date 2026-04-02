@@ -4241,7 +4241,7 @@ async function evaluateBoardDifficulty(opts = {}) {
         if (IS_DEBUG_MODE) {
           const logColor = getThemeColor(tech.level);
           console.groupCollapsed(
-            `%c${tech.level.toString().padStart(2)} ${emojiScale[tech.level]} ${result.hint.name.padEnd(32)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
+            `%c${tech.level.toString().padStart(2)} ${emojiScale[tech.level]} ${result.hint.name.padEnd(36)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
             `color: ${logColor}; font-weight: bold;`,
           );
 
