@@ -6237,6 +6237,7 @@ const techniques = {
     if (wxyzOnly) {
       // Optimization for WXYZ: Compare Size 1 (XY) only against Size 3 (WXYZ)
       const alsesXY = techniques._collectAllALS(board, pencils, 1, 1);
+      _alsCache = [];
       const alsesWXYZ = techniques._collectAllALS(board, pencils, 3, 3);
 
       // Merge into one array: [ ...XYs, ...WXYZs ]
