@@ -1100,7 +1100,7 @@ const techniques = {
                 hint: {
                   name: "XY-Wing",
                   mainInfo: `Pivot at r${pivot.r + 1}c${pivot.c + 1}`,
-                  detail: `Digits (${allCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${pincer1.r + 1}c${pincer1.c + 1} and r${pincer2.r + 1}c${pincer2.c + 1}.`,
+                  detail: `Digits (${allCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${pincer1.r + 1}c${pincer1.c + 1} and r${pincer2.r + 1}c${pincer2.c + 1}`,
                 },
               };
             }
@@ -1179,7 +1179,7 @@ const techniques = {
               hint: {
                 name: "XYZ-Wing",
                 mainInfo: `Pivot at r${pivot.r + 1}c${pivot.c + 1}`,
-                detail: `Digits (${pivotCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${wing1.r + 1}c${wing1.c + 1} and r${wing2.r + 1}c${wing2.c + 1}.`,
+                detail: `Digits (${pivotCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${wing1.r + 1}c${wing1.c + 1} and r${wing2.r + 1}c${wing2.c + 1}`,
               },
             };
           }
@@ -1443,7 +1443,7 @@ const techniques = {
                 hint: {
                   name: "Grouped W-Wing",
                   mainInfo: `Using digits (${elimDigit}${linkDigit})`,
-                  detail: `Digits (${elimDigit}${linkDigit}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot by pivot ${Math.floor(u / 9) == 0 ? "r" : Math.floor(u / 9) == 1 ? "c" : "b"}${(u % 9) + 1} as ${strongLinkDetail}.`,
+                  detail: `Digits (${elimDigit}${linkDigit}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot by pivot ${Math.floor(u / 9) == 0 ? "r" : Math.floor(u / 9) == 1 ? "c" : "b"}${(u % 9) + 1} as ${strongLinkDetail}`,
                 },
               };
             }
@@ -1703,7 +1703,7 @@ const techniques = {
                     hint: {
                       name: "2-String Kite",
                       mainInfo: `Digit (${num})`,
-                      detail: `(${num})(${link1Str})-(${link2Str}). Removes (${num}) from intersection.`,
+                      detail: `(${num})(${link1Str})-(${link2Str})`,
                     },
                   };
                 }
@@ -1866,7 +1866,7 @@ const techniques = {
                 hint: {
                   name: "Grouped 2-String Kite",
                   mainInfo: `Digit (${num})`,
-                  detail: `(${num})(${link1Str})-(${link2Str}). Removes (${num}) from r${r2 + 1}c${c2 + 1}.`,
+                  detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
               };
             }
@@ -4077,7 +4077,7 @@ const techniques = {
                     hint: {
                       name: "Unique Loop Type 6",
                       mainInfo: `using Digits (${baseDigitsStr})`,
-                      detail: `${detailPrefix}, Exclude a specific placement of (${u}) on Unique Loop removing all guardians.`,
+                      detail: `${detailPrefix}, Exclude a specific placement of (${u}) on Unique Loop removing all guardians`,
                     },
                   };
                 }
@@ -4892,9 +4892,7 @@ const techniques = {
 
                       const overlapMask = A.mask & B.mask;
                       if (overlapMask > 0) {
-                        detailStr += `, (${maskToDigitsStr(overlapMask)}) appears twice.`;
-                      } else {
-                        detailStr += `.`;
+                        detailStr += `, (${maskToDigitsStr(overlapMask)}) appears twice`;
                       }
 
                       return {
@@ -5689,17 +5687,19 @@ const techniques = {
     };
 
     let result = { change: false };
+    let currentTargetLen = bivalueOnly ? 8 : 6; // Set up scope for Iterative Deepening
 
     // --- DFS Traversal ---
     const dfs = (chain, visited, hasGrouped) => {
       if (result.change) return;
-      if (chain.length > maxLength) return;
+
+      // Strict depth limit to guarantee shortest chain first
+      if (chain.length > currentTargetLen) return;
 
       const shouldCheck = !options.useGrouped || hasGrouped;
       if (
         shouldCheck &&
-        chain.length % 2 === 0 &&
-        chain.length >= 6 &&
+        chain.length === currentTargetLen && // Only check at exact target depth
         chain[0].key > chain[chain.length - 1].key
       ) {
         const start = chain[0];
@@ -5754,19 +5754,18 @@ const techniques = {
                 cells: elims,
                 hint: {
                   name: options.nameOverride || "Alternating Inference Chain",
-                  mainInfo: techniques._getHintInfo(chain, hintType) + "(Ring)",
+                  mainInfo:
+                    techniques._getHintInfo(chain, hintType) + " (Ring)",
                   detail:
-                    techniques._buildChainDetail(chain, options) + "(Ring)",
+                    techniques._buildChainDetail(chain, options) + "-(Ring)",
                 },
               };
               return;
             }
           }
 
-          // --- Standard Check: Discontinuous Chain (Length >= 6) ---
+          // --- Standard Check: Discontinuous Chain ---
           if (!isContinuous) {
-            // Note: If it was continuous, we returned above. So this is strictly discontinuous.
-
             if (start.digit === end.digit) {
               // Type 1: Start(d) ... End(d) => mutual peers != d
               const peers = _getCommonPeers(start, end);
@@ -5840,12 +5839,24 @@ const techniques = {
       }
     };
 
-    // Iterate start nodes
-    for (const key of strongLinks.keys()) {
-      if (result.change) break;
-      const startNode = nodeMap.get(key);
-      if (startNode) {
-        dfs([startNode], new Set([key]), startNode.count > 1);
+    // --- Iterative Deepening Framework ---
+    // Start at length 6, incrementing by 2 up to maxLength to guarantee the shortest chain first.
+    for (
+      currentTargetLen = bivalueOnly ? 8 : 6;
+      currentTargetLen <= maxLength;
+      currentTargetLen += 2
+    ) {
+      for (const key of strongLinks.keys()) {
+        if (result.change) break;
+        const startNode = nodeMap.get(key);
+        if (startNode) {
+          dfs([startNode], new Set([key]), startNode.count > 1);
+        }
+      }
+
+      // Exit loop early if a chain was found at this depth
+      if (result.change) {
+        break;
       }
     }
 
@@ -5955,7 +5966,7 @@ const techniques = {
       singleDigit: false,
       useGrouped: false,
       bivalueOnly: false,
-      maxLength: 16,
+      maxLength: 20,
       hintType: "strongLink",
     }),
 
@@ -5964,7 +5975,7 @@ const techniques = {
       singleDigit: false,
       useGrouped: true,
       bivalueOnly: false,
-      maxLength: 16,
+      maxLength: 20,
       hintType: "strongLink",
       nameOverride: "Grouped Alternating Inference Chain",
     }),
@@ -7262,7 +7273,7 @@ const techniques = {
       if (path.length === 3) {
         title += isRing ? "XY-Ring" : "XY-Wing";
       } else {
-        title += isRing ? `Chain (Ring)` : `Chain (Len)`;
+        title += isRing ? `Chain (Ring)` : `Chain`;
       }
 
       // --- NEW HINT LOGIC ---
