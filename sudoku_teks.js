@@ -306,6 +306,8 @@ const techniques = {
         mainInfo: unitName,
         detail,
         applyVisuals: () => {
+          highlightedDigit = missingNum;
+          highlightState = 1;
           const type = unitName.substring(0, 3).toLowerCase();
           const idx = parseInt(unitName.match(/\d+/)[0]) - 1;
           techniques._getUnitCells(type, idx).forEach(([ur, uc]) => {
@@ -339,15 +341,8 @@ const techniques = {
             applyVisuals: () => {
               highlightedDigit = null;
               highlightState = 0;
-              const type = unitName.substring(0, 3).toLowerCase();
-              const idx = parseInt(unitName.match(/\d+/)[0]) - 1;
-              techniques._getUnitCells(type, idx).forEach(([ur, uc]) => {
-                boardState[ur][uc].cellColor = cellColorPalette[7]; // House cell color 8
-              });
-              boardState[r][c].pencilColors.set(
-                missingNum,
-                candidateColorPalette[5],
-              ); // Placeable cand color 6
+              boardState[r][c].cellColor = cellColorPalette[7]; // Cell color 8
+              boardState[r][c].pencilColors.set(num, candidateColorPalette[5]); // Placeable cand color 6
             },
           };
         }
@@ -398,18 +393,24 @@ const techniques = {
                 name: "Hidden Single",
                 mainInfo: unitLabel,
                 detail,
-                applyVisuals: () => {
-                  highlightedDigit = num;
-                  highlightState = 1;
-                  unit.forEach(
-                    ([ur, uc]) =>
-                      (boardState[ur][uc].cellColor = cellColorPalette[7]),
-                  ); // House color 8
-                  boardState[r][c].pencilColors.set(
-                    num,
-                    candidateColorPalette[5],
-                  ); // Cand color 6
-                },
+              },
+              applyVisuals: () => {
+                highlightedDigit = num;
+                highlightState = 1;
+
+                // Color the entire unit (house)
+                unit.forEach(([ur, uc]) => {
+                  boardState[ur][uc].cellColor = cellColorPalette[7]; // House color 8
+                });
+
+                // Highlight the specific target cell distinctly over the house
+                boardState[r][c].cellColor = cellColorPalette[6]; // Target cell color 7
+
+                // Highlight the placed candidate
+                boardState[r][c].pencilColors.set(
+                  num,
+                  candidateColorPalette[5], // Cand color 6
+                );
               },
             };
           }
