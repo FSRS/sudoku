@@ -6245,7 +6245,8 @@ const techniques = {
     };
 
     let result = { change: false };
-    let currentTargetLen = bivalueOnly ? 8 : 6; // Set up scope for Iterative Deepening
+    let currentTargetLen = bivalueOnly ? 8 : 6;
+    let foundPathAtTargetLen = false;
 
     // --- DFS Traversal ---
     const dfs = (chain, visited, hasGrouped) => {
@@ -6254,12 +6255,18 @@ const techniques = {
       // Strict depth limit to guarantee shortest chain first
       if (chain.length > currentTargetLen) return;
 
+      const reachedTarget =
+        chain.length === currentTargetLen &&
+        chain[0].key > chain[chain.length - 1].key;
+
+      if (reachedTarget) {
+        foundPathAtTargetLen = true;
+      }
+
       const shouldCheck = !options.useGrouped || hasGrouped;
-      if (
-        shouldCheck &&
-        chain.length === currentTargetLen && // Only check at exact target depth
-        chain[0].key > chain[chain.length - 1].key
-      ) {
+
+      if (shouldCheck && reachedTarget) {
+        // <--- USE THE VARIABLES HERE
         const start = chain[0];
         const end = chain[chain.length - 1];
 
@@ -6581,6 +6588,8 @@ const techniques = {
       currentTargetLen <= maxLength;
       currentTargetLen += 2
     ) {
+      foundPathAtTargetLen = false; // <--- RESET FLAG FOR THIS DEPTH
+
       for (const key of strongLinks.keys()) {
         if (result.change) break;
         const startNode = nodeMap.get(key);
@@ -6591,6 +6600,11 @@ const techniques = {
 
       // Exit loop early if a chain was found at this depth
       if (result.change) {
+        break;
+      }
+
+      // If no chain met the length and key criteria at this depth, longer depths are impossible.
+      if (!foundPathAtTargetLen) {
         break;
       }
     }
@@ -9546,6 +9560,100 @@ const techniques = {
           if (!detail)
             detail = `Almost Locked Set W-Wing on ${A.unitName} and ${B.unitName}`;
 
+          // --- PREPARE SNAP NODES FOR VISUALS ---
+          const targetDigitsArray = [
+            ...new Set(uniqueElims.map((e) => e.num)),
+          ].sort((a, b) => a - b);
+          const zDigit =
+            targetDigitsArray.length > 0 ? targetDigitsArray[0] : 0;
+
+          const getVGroups = (vrcc) => {
+            const { d, uType, uIdx } = vrcc;
+            const unitCells = [];
+            for (let i = 0; i < 9; i++) {
+              if (uType === 0) unitCells.push([uIdx, i]);
+              else if (uType === 1) unitCells.push([i, uIdx]);
+              else
+                unitCells.push([
+                  Math.floor(uIdx / 3) * 3 + Math.floor(i / 3),
+                  (uIdx % 3) * 3 + (i % 3),
+                ]);
+            }
+            const d_cells = unitCells.filter(
+              ([r, c]) => pencils[r][c] && pencils[r][c].has(d),
+            );
+
+            // Nodes in covered unit are classified based on visibility from ALS1 and ALS2
+            const group1 = d_cells.filter(
+              ([r, c]) =>
+                A.candMap[d] &&
+                A.candMap[d].every((ac) => techniques._sees([r, c], ac)),
+            );
+            const group2 = d_cells.filter(
+              ([r, c]) =>
+                B.candMap[d] &&
+                B.candMap[d].every((bc) => techniques._sees([r, c], bc)),
+            );
+            return { group1, group2 };
+          };
+
+          let isRing = false;
+          let snap_nodes = [];
+
+          if (rccCount === 1) {
+            // 1 VRCC (Singly Linked)
+            if (virtualRccs.length === 1) {
+              const v = virtualRccs[0];
+              const { group1, group2 } = getVGroups(v);
+              snap_nodes.push({
+                cells: A.candMap[zDigit] || [],
+                digit: zDigit,
+              });
+              snap_nodes.push({ cells: A.candMap[v.d] || [], digit: v.d });
+              snap_nodes.push({ cells: group1, digit: v.d });
+              snap_nodes.push({ cells: group2, digit: v.d });
+              snap_nodes.push({ cells: B.candMap[v.d] || [], digit: v.d });
+              snap_nodes.push({
+                cells: B.candMap[zDigit] || [],
+                digit: zDigit,
+              });
+            }
+          } else if (rccCount === 2) {
+            // 1 VRCC and 1 Real RCC (Ring)
+            if (virtualRccs.length === 1 && realRccs.length === 1) {
+              isRing = true;
+              const v = virtualRccs[0];
+              const r = realRccs[0];
+              const { group1, group2 } = getVGroups(v);
+              snap_nodes.push({ cells: A.candMap[r] || [], digit: r });
+              snap_nodes.push({ cells: A.candMap[v.d] || [], digit: v.d });
+              snap_nodes.push({ cells: group1, digit: v.d });
+              snap_nodes.push({ cells: group2, digit: v.d });
+              snap_nodes.push({ cells: B.candMap[v.d] || [], digit: v.d });
+              snap_nodes.push({ cells: B.candMap[r] || [], digit: r });
+            }
+            // 2 VRCCs (Ring)
+            else if (virtualRccs.length === 2) {
+              isRing = true;
+              const v1 = virtualRccs[0];
+              const v2 = virtualRccs[1];
+              const g1 = getVGroups(v1);
+              const g2 = getVGroups(v2);
+
+              snap_nodes.push({ cells: A.candMap[v2.d] || [], digit: v2.d });
+              snap_nodes.push({ cells: A.candMap[v1.d] || [], digit: v1.d });
+              snap_nodes.push({ cells: g1.group1, digit: v1.d });
+              snap_nodes.push({ cells: g1.group2, digit: v1.d });
+              snap_nodes.push({ cells: B.candMap[v1.d] || [], digit: v1.d });
+              snap_nodes.push({ cells: B.candMap[v2.d] || [], digit: v2.d });
+              snap_nodes.push({ cells: g2.group2, digit: v2.d });
+              snap_nodes.push({ cells: g2.group1, digit: v2.d });
+            }
+          }
+
+          const snap_A_cells = A.cells.map(([r, c]) => [r, c]);
+          const snap_B_cells = B.cells.map(([r, c]) => [r, c]);
+
           return {
             change: true,
             type: "remove",
@@ -9555,12 +9663,124 @@ const techniques = {
               mainInfo: `${A.unitName} and ${B.unitName}`,
               detail: detail,
             },
+            applyVisuals: () => {
+              highlightedDigit = null;
+              highlightState = 0;
+
+              // Color the 2 ALSes (Color 7 and 8)
+              snap_A_cells.forEach(
+                ([r, c]) => (boardState[r][c].cellColor = cellColorPalette[6]),
+              );
+              snap_B_cells.forEach(
+                ([r, c]) => (boardState[r][c].cellColor = cellColorPalette[7]),
+              );
+
+              uniqueElims.forEach((el) =>
+                boardState[el.r][el.c].pencilColors.set(
+                  el.num,
+                  candidateColorPalette[0],
+                ),
+              );
+
+              const getClosestCells = (cellsA, cellsB) => {
+                if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
+                  return null;
+                let minD = Infinity;
+                let bestA = cellsA[0];
+                let bestB = cellsB[0];
+                for (const a of cellsA) {
+                  for (const b of cellsB) {
+                    const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                    if (d < minD) {
+                      minD = d;
+                      bestA = a;
+                      bestB = b;
+                    }
+                  }
+                }
+                return [bestA, bestB];
+              };
+
+              const drawGroup = (cells, digit, colorIdx) => {
+                if (cells.length > 1) {
+                  for (let k = 0; k < cells.length - 1; k++) {
+                    drawnLines.push({
+                      r1: cells[k][0],
+                      c1: cells[k][1],
+                      n1: digit,
+                      r2: cells[k + 1][0],
+                      c2: cells[k + 1][1],
+                      n2: digit,
+                      color: lineColorPalette[colorIdx],
+                      style: "solid",
+                    });
+                  }
+                }
+              };
+
+              for (let k = 0; k < snap_nodes.length; k++) {
+                const node = snap_nodes[k];
+                // Alternate between candidate colors 5 and 6
+                const colorIdx = k % 2 === 0 ? 4 : 5;
+
+                node.cells.forEach(([r, c]) => {
+                  boardState[r][c].pencilColors.set(
+                    node.digit,
+                    candidateColorPalette[colorIdx],
+                  );
+                });
+
+                drawGroup(node.cells, node.digit, colorIdx);
+
+                if (k < snap_nodes.length - 1) {
+                  const nextNode = snap_nodes[k + 1];
+                  const closest = getClosestCells(node.cells, nextNode.cells);
+                  if (closest) {
+                    // Logic seamlessly handles solid for intra, dash for inter links inherently.
+                    const isInner = k % 2 === 0;
+                    drawnLines.push({
+                      r1: closest[0][0],
+                      c1: closest[0][1],
+                      n1: node.digit,
+                      r2: closest[1][0],
+                      c2: closest[1][1],
+                      n2: nextNode.digit,
+                      color: lineColorPalette[0],
+                      style: isInner ? "solid" : "dash",
+                    });
+                  }
+                }
+              }
+
+              // Ring dash connection for ends
+              if (isRing && snap_nodes.length > 1) {
+                const firstNode = snap_nodes[0];
+                const lastNode = snap_nodes[snap_nodes.length - 1];
+                const closest = getClosestCells(
+                  lastNode.cells,
+                  firstNode.cells,
+                );
+                if (closest) {
+                  drawnLines.push({
+                    r1: closest[0][0],
+                    c1: closest[0][1],
+                    n1: lastNode.digit,
+                    r2: closest[1][0],
+                    c2: closest[1][1],
+                    n2: firstNode.digit,
+                    color: lineColorPalette[0],
+                    style: "dash",
+                  });
+                }
+              }
+            },
           };
         }
       }
     }
     return { change: false };
   },
+
   // --- CELL DEATH BLOSSOM ---
   cellDeathBlossom: (board, pencils) => {
     if (_alsCache.legnth === 0)
@@ -9667,6 +9887,7 @@ const techniques = {
       const chosen = []; // Stack of currently selected petals
       const seenCombos = new Set(); // For deduplication (String key)
       let foundAny = false;
+      let successChosen = [];
       const eliminations = [];
       let detailStr = "";
 
@@ -9738,6 +9959,7 @@ const techniques = {
                     // Capture the detail string exactly once
                     if (!foundAny) {
                       foundAny = true;
+                      successChosen = [...chosen];
                       const parts = [];
 
                       // Append the bare uncovered candidate if applicable
@@ -9882,6 +10104,127 @@ const techniques = {
             name: "Cell Death Blossom",
             mainInfo: `Stem cell r${r + 1}c${c + 1}`,
             detail: detailStr,
+          },
+          applyVisuals: () => {
+            highlightedDigit = null;
+            highlightState = 0;
+
+            const alsColors = [6, 7, 2, 3, 4, 5];
+            const targets = [...new Set(uniqueElims.map((e) => e.num))];
+
+            const drawGroup = (cells, digit, colorIdx) => {
+              if (cells.length > 1) {
+                for (let k = 0; k < cells.length - 1; k++) {
+                  drawnLines.push({
+                    r1: cells[k][0],
+                    c1: cells[k][1],
+                    n1: digit,
+                    r2: cells[k + 1][0],
+                    c2: cells[k + 1][1],
+                    n2: digit,
+                    color: lineColorPalette[colorIdx],
+                    style: "solid",
+                  });
+                }
+              }
+            };
+
+            const getClosestCells = (cellsA, cellsB) => {
+              if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
+                return null;
+              let minD = Infinity;
+              let bestA = cellsA[0];
+              let bestB = cellsB[0];
+              for (const a of cellsA) {
+                for (const b of cellsB) {
+                  const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                  if (d < minD) {
+                    minD = d;
+                    bestA = a;
+                    bestB = b;
+                  }
+                }
+              }
+              return [bestA, bestB];
+            };
+
+            successChosen.forEach((petal, i) => {
+              const als = alses[petal.alsIdx];
+              const cColor = alsColors[i % 6];
+
+              // Color petal ALS
+              als.cells.forEach(([ar, ac]) => {
+                boardState[ar][ac].cellColor = cellColorPalette[cColor];
+              });
+
+              // Process stem candidates covered by this petal
+              const coveredDigits = techniques._bits.maskToDigits(
+                petal.covers & stemMask,
+              );
+              coveredDigits.forEach((p) => {
+                // Highlight stem candidate
+                boardState[stem.r][stem.c].pencilColors.set(
+                  p,
+                  candidateColorPalette[cColor],
+                );
+
+                const pNodes = als.cells.filter(([ar, ac]) =>
+                  boardState[ar][ac].pencils.has(p),
+                );
+                // Draw p-nodes intra link in color 5
+                drawGroup(pNodes, p, 4);
+
+                // Inter link: stem to closest p-node
+                const closestStemToP = getClosestCells(
+                  [[stem.r, stem.c]],
+                  pNodes,
+                );
+                if (closestStemToP) {
+                  drawnLines.push({
+                    r1: stem.r,
+                    c1: stem.c,
+                    n1: p,
+                    r2: closestStemToP[1][0],
+                    c2: closestStemToP[1][1],
+                    n2: p,
+                    color: lineColorPalette[0],
+                    style: "dash",
+                  });
+                }
+
+                // Intra link: p-node to z-node inside Petal ALS
+                targets.forEach((z) => {
+                  if ((petal.z & (1 << (z - 1))) !== 0) {
+                    const zNodes = als.cells.filter(([ar, ac]) =>
+                      boardState[ar][ac].pencils.has(z),
+                    );
+                    drawGroup(zNodes, z, 4); // Draw z-nodes intra link in color 5
+
+                    const closest = getClosestCells(pNodes, zNodes);
+                    if (closest) {
+                      drawnLines.push({
+                        r1: closest[0][0],
+                        c1: closest[0][1],
+                        n1: p,
+                        r2: closest[1][0],
+                        c2: closest[1][1],
+                        n2: z,
+                        color: lineColorPalette[0],
+                        style: "solid",
+                      });
+                    }
+                  }
+                });
+              });
+            });
+
+            // Color eliminations
+            uniqueElims.forEach((el) => {
+              boardState[el.r][el.c].pencilColors.set(
+                el.num,
+                candidateColorPalette[0],
+              );
+            });
           },
         };
       }
@@ -10072,6 +10415,7 @@ const techniques = {
                     // Capture the detail string exactly once when a valid combination is proven
                     if (!foundAny) {
                       foundAny = true;
+                      successChosen = [...chosen];
                       const parts = [];
                       for (const petal of chosen) {
                         const als = alses[petal.alsIdx];
@@ -10214,6 +10558,129 @@ const techniques = {
             name: "Region Death Blossom",
             mainInfo: `Stem digit (${stemDigit}) in ${unitName}`,
             detail: detailStr,
+          },
+          applyVisuals: () => {
+            highlightedDigit = stemDigit;
+            highlightState = 1;
+
+            const alsColors = [6, 7, 2, 3, 4, 5];
+            const targets = [...new Set(uniqueElims.map((e) => e.num))];
+
+            const drawGroup = (cells, digit, colorIdx) => {
+              if (cells.length > 1) {
+                for (let k = 0; k < cells.length - 1; k++) {
+                  drawnLines.push({
+                    r1: cells[k][0],
+                    c1: cells[k][1],
+                    n1: digit,
+                    r2: cells[k + 1][0],
+                    c2: cells[k + 1][1],
+                    n2: digit,
+                    color: lineColorPalette[colorIdx],
+                    style: "solid",
+                  });
+                }
+              }
+            };
+
+            const getClosestCells = (cellsA, cellsB) => {
+              if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
+                return null;
+              let minD = Infinity;
+              let bestA = cellsA[0];
+              let bestB = cellsB[0];
+              for (const a of cellsA) {
+                for (const b of cellsB) {
+                  const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                  if (d < minD) {
+                    minD = d;
+                    bestA = a;
+                    bestB = b;
+                  }
+                }
+              }
+              return [bestA, bestB];
+            };
+
+            successChosen.forEach((petal, i) => {
+              const als = alses[petal.alsIdx];
+              const cColor = alsColors[i % 6];
+
+              // Color petal ALS
+              als.cells.forEach(([ar, ac]) => {
+                boardState[ar][ac].cellColor = cellColorPalette[cColor];
+              });
+
+              // Find stem cells covered by this petal
+              for (let k = 0; k < stemCount; k++) {
+                if ((petal.covers & (1 << k)) !== 0) {
+                  const sCell = stemCells[k];
+                  const p = stemDigit;
+
+                  // Highlight stem candidate
+                  boardState[sCell.r][sCell.c].pencilColors.set(
+                    p,
+                    candidateColorPalette[cColor],
+                  );
+
+                  const pNodes = als.cells.filter(([ar, ac]) =>
+                    boardState[ar][ac].pencils.has(p),
+                  );
+                  // Draw p-nodes intra link in color 5
+                  drawGroup(pNodes, p, 4);
+
+                  // Inter link: stem to closest p-node
+                  const closestStemToP = getClosestCells(
+                    [[sCell.r, sCell.c]],
+                    pNodes,
+                  );
+                  if (closestStemToP) {
+                    drawnLines.push({
+                      r1: sCell.r,
+                      c1: sCell.c,
+                      n1: p,
+                      r2: closestStemToP[1][0],
+                      c2: closestStemToP[1][1],
+                      n2: p,
+                      color: lineColorPalette[0],
+                      style: "dash",
+                    });
+                  }
+
+                  // Intra link: p-node to z-node inside Petal ALS
+                  targets.forEach((z) => {
+                    if ((petal.z & (1 << (z - 1))) !== 0) {
+                      const zNodes = als.cells.filter(([ar, ac]) =>
+                        boardState[ar][ac].pencils.has(z),
+                      );
+                      drawGroup(zNodes, z, 4);
+
+                      const closest = getClosestCells(pNodes, zNodes);
+                      if (closest) {
+                        drawnLines.push({
+                          r1: closest[0][0],
+                          c1: closest[0][1],
+                          n1: p,
+                          r2: closest[1][0],
+                          c2: closest[1][1],
+                          n2: z,
+                          color: lineColorPalette[0],
+                          style: "solid",
+                        });
+                      }
+                    }
+                  });
+                }
+              }
+            });
+
+            // Color eliminations
+            uniqueElims.forEach((el) => {
+              boardState[el.r][el.c].pencilColors.set(
+                el.num,
+                candidateColorPalette[0],
+              );
+            });
           },
         };
       }
