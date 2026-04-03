@@ -1534,6 +1534,15 @@ function setupEventListeners() {
         } else if (hintClickCount === 2) {
           message = `Hint: ${h.name} - ${h.mainInfo || ""}`;
         } else {
+          // --- BEGIN VISUAL HINT LOGIC ---
+          clearAllColors();
+          if (currentHintData.applyVisuals) {
+            currentHintData.applyVisuals();
+            renderBoard();
+            renderLines();
+          }
+          // --- END VISUAL HINT LOGIC ---
+
           let actionStr = "";
           if (type === "place") {
             actionStr = `r${r + 1}c${c + 1} = ${num}`;
@@ -1590,6 +1599,29 @@ function setupEventListeners() {
     } else {
       showMessage("Hint not found!", "orange");
     }
+  };
+
+  // Helper to color a house (row, col, or box)
+  const colorHouse = (unitName, colorIdx) => {
+    const type = unitName.substring(0, 3).toLowerCase();
+    const idx = parseInt(unitName.match(/\d+/)[0]) - 1;
+    let cells = [];
+    if (type === "row") {
+      for (let c = 0; c < 9; c++) cells.push([idx, c]);
+    } else if (type === "col") {
+      for (let r = 0; r < 9; r++) cells.push([r, idx]);
+    } else if (type === "box") {
+      const rStart = Math.floor(idx / 3) * 3;
+      const cStart = (idx % 3) * 3;
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          cells.push([rStart + r, cStart + c]);
+        }
+      }
+    }
+    cells.forEach(([r, c]) => {
+      boardState[r][c].cellColor = cellColorPalette[colorIdx];
+    });
   };
 
   // 3. Update the main button listener
@@ -4065,6 +4097,7 @@ async function evaluateBoardDifficulty(opts = {}) {
     { name: "XY-Chain", func: techniques.xyChain, level: 6, score: 240 },
     { name: "Firework", func: techniques.firework, level: 6, score: 240 },
     { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6, score: 200 },
+
     { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6, score: 240 },
     {
       name: "Grouped X-Chain",

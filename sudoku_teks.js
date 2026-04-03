@@ -177,6 +177,18 @@ const techniques = {
           mainInfo: `at r${newpr + 1}c${newpc + 1}`,
           detail: `Concrete number (${newd})r${newr}c${newc}`,
         },
+        applyVisuals: () => {
+          highlightedDigit = null;
+          highlightState = 0;
+
+          boardState[newr][newc].cellColor = cellColorPalette[7]; // Color 8
+          uniqueRemovals.forEach((el) =>
+            boardState[el.r][el.c].pencilColors.set(
+              el.num,
+              candidateColorPalette[0],
+            ),
+          ); // Color 1
+        },
       };
     }
     return { change: false };
@@ -293,6 +305,17 @@ const techniques = {
         name: "Full House",
         mainInfo: unitName,
         detail,
+        applyVisuals: () => {
+          const type = unitName.substring(0, 3).toLowerCase();
+          const idx = parseInt(unitName.match(/\d+/)[0]) - 1;
+          techniques._getUnitCells(type, idx).forEach(([ur, uc]) => {
+            boardState[ur][uc].cellColor = cellColorPalette[7]; // House cell color 8
+          });
+          boardState[r][c].pencilColors.set(
+            missingNum,
+            candidateColorPalette[5],
+          ); // Placeable cand color 6
+        },
       },
     };
   },
@@ -312,6 +335,19 @@ const techniques = {
               name: "Naked Single",
               mainInfo: `at r${r + 1}c${c + 1}`,
               detail: `Only remaining digit (${num}) at r${r + 1}c${c + 1}`,
+            },
+            applyVisuals: () => {
+              highlightedDigit = null;
+              highlightState = 0;
+              const type = unitName.substring(0, 3).toLowerCase();
+              const idx = parseInt(unitName.match(/\d+/)[0]) - 1;
+              techniques._getUnitCells(type, idx).forEach(([ur, uc]) => {
+                boardState[ur][uc].cellColor = cellColorPalette[7]; // House cell color 8
+              });
+              boardState[r][c].pencilColors.set(
+                missingNum,
+                candidateColorPalette[5],
+              ); // Placeable cand color 6
             },
           };
         }
@@ -362,6 +398,18 @@ const techniques = {
                 name: "Hidden Single",
                 mainInfo: unitLabel,
                 detail,
+                applyVisuals: () => {
+                  highlightedDigit = num;
+                  highlightState = 1;
+                  unit.forEach(
+                    ([ur, uc]) =>
+                      (boardState[ur][uc].cellColor = cellColorPalette[7]),
+                  ); // House color 8
+                  boardState[r][c].pencilColors.set(
+                    num,
+                    candidateColorPalette[5],
+                  ); // Cand color 6
+                },
               },
             };
           }
@@ -473,6 +521,27 @@ const techniques = {
                     mainInfo: `Intersection of ${lineType} ${line_idx + 1} and Box ${b + 1}`,
                     detail: `${cellStr} together have digits (${[...union].join("")}) on intersection of ${lineType} ${line_idx + 1} and Box ${b + 1}`,
                   },
+                  applyVisuals: () => {
+                    highlightedDigit = null;
+                    highlightState = 0;
+                    combo.forEach(([cr, cc]) => {
+                      boardState[cr][cc].cellColor = cellColorPalette[6]; // Subset cell color 7
+                      union.forEach((cand) => {
+                        if (pencils[cr][cc].has(cand)) {
+                          boardState[cr][cc].pencilColors.set(
+                            cand,
+                            candidateColorPalette[4],
+                          ); // Subset cand color 5
+                        }
+                      });
+                    });
+                    removals.forEach((el) =>
+                      boardState[el.r][el.c].pencilColors.set(
+                        el.num,
+                        candidateColorPalette[0],
+                      ),
+                    ); // Color 1
+                  },
                 };
               }
             }
@@ -540,6 +609,22 @@ const techniques = {
                     mainInfo: `Intersection of Box ${boxIdx + 1} and ${lineName} ${lineIdx + 1}`,
                     detail: `All cells with digit (${num}) in Box ${boxIdx + 1} ${cellStr} are also in ${lineName} ${lineIdx + 1}`,
                   },
+                  applyVisuals: () => {
+                    highlightedDigit = num;
+                    highlightState = 1;
+                    boxCellsWithNum.forEach(([cr, cc]) =>
+                      boardState[cr][cc].pencilColors.set(
+                        num,
+                        candidateColorPalette[4],
+                      ),
+                    ); // Pointing/claiming cand color 5
+                    removals.forEach((el) =>
+                      boardState[el.r][el.c].pencilColors.set(
+                        el.num,
+                        candidateColorPalette[0],
+                      ),
+                    ); // Color 1
+                  },
                 };
               }
             }
@@ -604,6 +689,22 @@ const techniques = {
                     name: "Claiming",
                     mainInfo: `Intersection of ${lineName} ${i + 1} and Box ${targetBoxIdx + 1}`,
                     detail: `All cells with digit (${num}) in ${lineName} ${i + 1} ${cellStr} are also in Box ${targetBoxIdx + 1}`,
+                  },
+                  applyVisuals: () => {
+                    highlightedDigit = num;
+                    highlightState = 1;
+                    boxCellsWithNum.forEach(([cr, cc]) =>
+                      boardState[cr][cc].pencilColors.set(
+                        num,
+                        candidateColorPalette[4],
+                      ),
+                    ); // Pointing/claiming cand color 5
+                    removals.forEach((el) =>
+                      boardState[el.r][el.c].pencilColors.set(
+                        el.num,
+                        candidateColorPalette[0],
+                      ),
+                    ); // Color 1
                   },
                 };
               }
@@ -694,6 +795,27 @@ const techniques = {
                   }`,
                   mainInfo: `${unitName}`,
                   detail: `${cellStr} together have digits (${[...union].sort().join("")}) in ${unitName}`,
+                },
+                applyVisuals: () => {
+                  highlightedDigit = null;
+                  highlightState = 0;
+                  cellGroup.forEach(([cr, cc]) => {
+                    boardState[cr][cc].cellColor = cellColorPalette[6]; // Subset cell color 7
+                    union.forEach((cand) => {
+                      if (boardState[cr][cc].pencils.has(cand)) {
+                        boardState[cr][cc].pencilColors.set(
+                          cand,
+                          candidateColorPalette[4],
+                        ); // Subset cand color 5
+                      }
+                    });
+                  });
+                  removals.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  ); // Color 1
                 },
               };
             }
@@ -792,6 +914,27 @@ const techniques = {
                   mainInfo: `${unitName}`,
                   detail: `All cells with digits (${digitsStr}) in ${unitName} are ${cellStr}`,
                 },
+                applyVisuals: () => {
+                  highlightedDigit = null;
+                  highlightState = 0;
+                  cells.forEach(([cr, cc]) => {
+                    boardState[cr][cc].cellColor = cellColorPalette[6]; // Subset cell color 7
+                    numGroupSet.forEach((cand) => {
+                      if (boardState[cr][cc].pencils.has(cand)) {
+                        boardState[cr][cc].pencilColors.set(
+                          cand,
+                          candidateColorPalette[4],
+                        ); // Subset cand color 5
+                      }
+                    });
+                  });
+                  removals.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  ); // Color 1
+                },
               };
             }
           }
@@ -865,6 +1008,38 @@ const techniques = {
                         : "Jellyfish",
                   mainInfo: `Digit (${num})`,
                   detail: `Digit (${num}), Base ${baseStr}, Cover ${coverStr}`,
+                },
+                applyVisuals: () => {
+                  highlightedDigit = num;
+                  highlightState = 1;
+                  // Color cover cells first (Color 8)
+                  allSecondaryIndices.forEach((secIdx) => {
+                    for (let p = 0; p < 9; p++) {
+                      const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
+                      boardState[cr][cc].cellColor = cellColorPalette[7];
+                    }
+                  });
+                  // Color base cells over cover (Color 7)
+                  primaryLineIndices.forEach((primIdx) => {
+                    for (let p = 0; p < 9; p++) {
+                      const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
+                      boardState[cr][cc].cellColor = cellColorPalette[6];
+
+                      // FIX: Use boardState.pencils instead of local pencils
+                      if (boardState[cr][cc].pencils.has(num)) {
+                        boardState[cr][cc].pencilColors.set(
+                          num,
+                          candidateColorPalette[6],
+                        ); // Candidate Color 7
+                      }
+                    }
+                  });
+                  removals.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  ); // Color 1
                 },
               };
             }
@@ -1035,6 +1210,40 @@ const techniques = {
                 mainInfo: `Digit (${num})`,
                 detail: `Digit (${num}), Base ${baseStr}, Cover ${coverStr}, Fin (${finStr})`,
               },
+              applyVisuals: () => {
+                highlightedDigit = num;
+                highlightState = 1;
+                coverBaseSet.forEach((secIdx) => {
+                  for (let p = 0; p < 9; p++) {
+                    const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
+                    boardState[cr][cc].cellColor = cellColorPalette[7]; // Cover 8
+                  }
+                });
+                baseLineIndices.forEach((primIdx) => {
+                  for (let p = 0; p < 9; p++) {
+                    const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
+                    boardState[cr][cc].cellColor = cellColorPalette[6]; // Base 7
+
+                    // FIX: Use boardState.pencils instead of local pencils
+                    if (boardState[cr][cc].pencils.has(num)) {
+                      boardState[cr][cc].pencilColors.set(
+                        num,
+                        candidateColorPalette[6],
+                      ); // Candidate Color 7
+                    }
+                  }
+                });
+                fins.forEach(
+                  ([fr, fc]) =>
+                    (boardState[fr][fc].cellColor = cellColorPalette[8]),
+                ); // Fin 9
+                removals.forEach((el) =>
+                  boardState[el.r][el.c].pencilColors.set(
+                    el.num,
+                    candidateColorPalette[0],
+                  ),
+                ); // Color 1
+              },
             };
           }
         }
@@ -1101,6 +1310,21 @@ const techniques = {
                   name: "XY-Wing",
                   mainInfo: `Pivot at r${pivot.r + 1}c${pivot.c + 1}`,
                   detail: `Digits (${allCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${pincer1.r + 1}c${pincer1.c + 1} and r${pincer2.r + 1}c${pincer2.c + 1}`,
+                },
+                applyVisuals: () => {
+                  highlightedDigit = null;
+                  highlightState = 2;
+                  boardState[pivot.r][pivot.c].cellColor = cellColorPalette[6]; // Cell Color 7
+                  boardState[pincer1.r][pincer1.c].cellColor =
+                    cellColorPalette[7]; // Cell Color 8
+                  boardState[pincer2.r][pincer2.c].cellColor =
+                    cellColorPalette[7]; // Cell Color 8
+                  removals.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  );
                 },
               };
             }
@@ -1180,6 +1404,19 @@ const techniques = {
                 name: "XYZ-Wing",
                 mainInfo: `Pivot at r${pivot.r + 1}c${pivot.c + 1}`,
                 detail: `Digits (${pivotCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${wing1.r + 1}c${wing1.c + 1} and r${wing2.r + 1}c${wing2.c + 1}`,
+              },
+              applyVisuals: () => {
+                highlightedDigit = null;
+                highlightState = 2;
+                boardState[pivot.r][pivot.c].cellColor = cellColorPalette[6]; // Cell Color 7
+                boardState[wing1.r][wing1.c].cellColor = cellColorPalette[7]; // Cell Color 8
+                boardState[wing2.r][wing2.c].cellColor = cellColorPalette[7]; // Cell Color 8
+                removals.forEach((el) =>
+                  boardState[el.r][el.c].pencilColors.set(
+                    el.num,
+                    candidateColorPalette[0],
+                  ),
+                );
               },
             };
           }
@@ -1289,7 +1526,6 @@ const techniques = {
             }
 
             const strongLinkDetail = `(${x})(${linkStr1}=${linkStr2})`;
-
             return {
               change: true,
               type: "remove",
@@ -1298,6 +1534,28 @@ const techniques = {
                 name: "W-Wing",
                 mainInfo: `Using digits (${y}${x})`,
                 detail: `Digits (${y}${x}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot ${unit.type.slice(0, 1)}${unit.index + 1} as ${strongLinkDetail}`,
+              },
+              applyVisuals: () => {
+                highlightedDigit = null;
+                highlightState = 2;
+                boardState[cell1.r][cell1.c].cellColor = cellColorPalette[6]; // Wing color 7
+                boardState[cell2.r][cell2.c].cellColor = cellColorPalette[6]; // Wing color 7
+                boardState[link1[0]][link1[1]].cellColor = cellColorPalette[7]; // House cell color 8
+                boardState[link2[0]][link2[1]].cellColor = cellColorPalette[7]; // House cell color 8
+                boardState[link1[0]][link1[1]].pencilColors.set(
+                  x,
+                  candidateColorPalette[4],
+                ); // House cand color 5
+                boardState[link2[0]][link2[1]].pencilColors.set(
+                  x,
+                  candidateColorPalette[4],
+                ); // House cand color 5
+                removals.forEach((el) =>
+                  boardState[el.r][el.c].pencilColors.set(
+                    el.num,
+                    candidateColorPalette[0],
+                  ),
+                );
               },
             };
           }
@@ -1445,6 +1703,25 @@ const techniques = {
                   mainInfo: `Using digits (${elimDigit}${linkDigit})`,
                   detail: `Digits (${elimDigit}${linkDigit}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot by pivot ${Math.floor(u / 9) == 0 ? "r" : Math.floor(u / 9) == 1 ? "c" : "b"}${(u % 9) + 1} as ${strongLinkDetail}`,
                 },
+                applyVisuals: () => {
+                  highlightedDigit = null;
+                  highlightState = 2;
+                  boardState[cell1.r][cell1.c].cellColor = cellColorPalette[6]; // Wing color 7
+                  boardState[cell2.r][cell2.c].cellColor = cellColorPalette[6]; // Wing color 7
+                  [...group1, ...group2].forEach(([r, c]) => {
+                    boardState[r][c].cellColor = cellColorPalette[7]; // House cell color 8
+                    boardState[r][c].pencilColors.set(
+                      linkDigit,
+                      candidateColorPalette[4],
+                    ); // House cand color 5
+                  });
+                  removals.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  );
+                },
               };
             }
           }
@@ -1522,6 +1799,33 @@ const techniques = {
                   name: "Remote Pair",
                   mainInfo: `using digits (${pair[0]}${pair[1]})`,
                   detail: `(${pair[0]}${pair[1]}) on ${pathStr}`,
+                },
+                applyVisuals: () => {
+                  highlightedDigit = null;
+                  highlightState = 2;
+                  path.forEach((node, idx) => {
+                    const r = node[0];
+                    const c = node[1];
+                    const isEven = idx % 2 === 0;
+                    // Alternate Cell Color 7 and 8
+                    boardState[r][c].cellColor =
+                      cellColorPalette[isEven ? 6 : 7];
+                    // Opposite alternate Candidate Color 5 and 6
+                    boardState[r][c].pencilColors.set(
+                      pair[0],
+                      candidateColorPalette[isEven ? 4 : 5],
+                    );
+                    boardState[r][c].pencilColors.set(
+                      pair[1],
+                      candidateColorPalette[isEven ? 5 : 4],
+                    );
+                  });
+                  removals.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  );
                 },
               };
             }
@@ -1606,6 +1910,14 @@ const techniques = {
               link2Str = `r${baseLoc + 1}c${link2.line + 1}=r${peak2Loc + 1}c${link2.line + 1}`;
             }
 
+            // Reconstruct the two base coordinate nodes for the visual representation
+            const base1 = isRowBased
+              ? [link1.line, baseLoc]
+              : [baseLoc, link1.line];
+            const base2 = isRowBased
+              ? [link2.line, baseLoc]
+              : [baseLoc, link2.line];
+
             return {
               change: true,
               type: "remove",
@@ -1614,6 +1926,48 @@ const techniques = {
                 name: "Skyscraper",
                 mainInfo: `Digit (${num})`,
                 detail: `(${num})(${link1Str})-(${link2Str})`,
+              },
+              applyVisuals: () => {
+                highlightedDigit = num;
+                highlightState = 1;
+
+                const visualNodes = [
+                  { cells: [p1] },
+                  { cells: [base1] },
+                  { cells: [base2] },
+                  { cells: [p2] },
+                ];
+
+                visualNodes.forEach((node, idx) => {
+                  node.cells.forEach(([cr, cc]) => {
+                    const colorIdx = idx % 2 === 0 ? 5 : 4;
+                    boardState[cr][cc].pencilColors.set(
+                      num,
+                      candidateColorPalette[colorIdx],
+                    );
+                  });
+                });
+                removals.forEach((el) =>
+                  boardState[el.r][el.c].pencilColors.set(
+                    el.num,
+                    candidateColorPalette[0],
+                  ),
+                );
+
+                for (let i = 0; i < visualNodes.length - 1; i++) {
+                  const u = visualNodes[i].cells[0];
+                  const v = visualNodes[i + 1].cells[0];
+                  drawnLines.push({
+                    r1: u[0],
+                    c1: u[1],
+                    n1: num,
+                    r2: v[0],
+                    c2: v[1],
+                    n2: num,
+                    color: lineColorPalette[0],
+                    style: i % 2 === 0 ? "solid" : "dash",
+                  });
+                }
               },
             };
           }
@@ -1705,6 +2059,47 @@ const techniques = {
                       mainInfo: `Digit (${num})`,
                       detail: `(${num})(${link1Str})-(${link2Str})`,
                     },
+                    applyVisuals: () => {
+                      highlightedDigit = num;
+                      highlightState = 1;
+                      const visualNodes = [
+                        { cells: [p1] },
+                        { cells: [pBox1] },
+                        { cells: [pBox2] },
+                        { cells: [p2] },
+                      ];
+
+                      visualNodes.forEach((node, idx) => {
+                        node.cells.forEach(([cr, cc]) => {
+                          const colorIdx = idx % 2 === 0 ? 5 : 4;
+                          boardState[cr][cc].pencilColors.set(
+                            num,
+                            candidateColorPalette[colorIdx],
+                          );
+                        });
+                      });
+                      removals.forEach((el) =>
+                        boardState[el.r][el.c].pencilColors.set(
+                          el.num,
+                          candidateColorPalette[0],
+                        ),
+                      );
+
+                      for (let i = 0; i < visualNodes.length - 1; i++) {
+                        const u = visualNodes[i].cells[0];
+                        const v = visualNodes[i + 1].cells[0];
+                        drawnLines.push({
+                          r1: u[0],
+                          c1: u[1],
+                          n1: num,
+                          r2: v[0],
+                          c2: v[1],
+                          n2: num,
+                          color: lineColorPalette[0],
+                          style: i % 2 === 0 ? "solid" : "dash",
+                        });
+                      }
+                    },
                   };
                 }
               }
@@ -1782,6 +2177,47 @@ const techniques = {
                         name: "Crane",
                         mainInfo: `Digit (${num})`,
                         detail: `(${num})(${link1Str})-(${link2Str})`,
+                      },
+                      applyVisuals: () => {
+                        highlightedDigit = num;
+                        highlightState = 1;
+                        const visualNodes = [
+                          { cells: [pA] },
+                          { cells: [pB] },
+                          { cells: [pC] },
+                          { cells: [pD] },
+                        ];
+
+                        visualNodes.forEach((node, idx) => {
+                          node.cells.forEach(([cr, cc]) => {
+                            const colorIdx = idx % 2 === 0 ? 5 : 4;
+                            boardState[cr][cc].pencilColors.set(
+                              num,
+                              candidateColorPalette[colorIdx],
+                            );
+                          });
+                        });
+                        removals.forEach((el) =>
+                          boardState[el.r][el.c].pencilColors.set(
+                            el.num,
+                            candidateColorPalette[0],
+                          ),
+                        );
+
+                        for (let i = 0; i < visualNodes.length - 1; i++) {
+                          const u = visualNodes[i].cells[0];
+                          const v = visualNodes[i + 1].cells[0];
+                          drawnLines.push({
+                            r1: u[0],
+                            c1: u[1],
+                            n1: num,
+                            r2: v[0],
+                            c2: v[1],
+                            n2: num,
+                            color: lineColorPalette[0],
+                            style: i % 2 === 0 ? "solid" : "dash",
+                          });
+                        }
                       },
                     };
                   }
@@ -1868,6 +2304,83 @@ const techniques = {
                   mainInfo: `Digit (${num})`,
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
+                applyVisuals: () => {
+                  highlightedDigit = num;
+                  highlightState = 1;
+
+                  const group1 = box_n_cells.filter(([r, c]) => r === r1);
+                  const group2 = box_n_cells.filter(([r, c]) => c === c1);
+                  const visualNodes = [
+                    { cells: [[r1, c2]] },
+                    { cells: group1 },
+                    { cells: group2 },
+                    { cells: [[r2, c1]] },
+                  ];
+
+                  visualNodes.forEach((node, idx) => {
+                    node.cells.forEach(([cr, cc]) => {
+                      const colorIdx = idx % 2 === 0 ? 5 : 4;
+                      boardState[cr][cc].pencilColors.set(
+                        num,
+                        candidateColorPalette[colorIdx],
+                      );
+                    });
+                  });
+                  boardState[r2][c2].pencilColors.set(
+                    num,
+                    candidateColorPalette[0],
+                  ); // Removal
+
+                  const drawGroup = (node, idx) => {
+                    if (node.cells.length > 1) {
+                      const colorIdx = idx % 2 === 0 ? 5 : 4; // Dynamically match candidate color
+                      for (let i = 0; i < node.cells.length - 1; i++) {
+                        drawnLines.push({
+                          r1: node.cells[i][0],
+                          c1: node.cells[i][1],
+                          n1: num,
+                          r2: node.cells[i + 1][0],
+                          c2: node.cells[i + 1][1],
+                          n2: num,
+                          color: lineColorPalette[colorIdx],
+                          style: "solid",
+                        });
+                      }
+                    }
+                  };
+                  const getClosestCells = (nodeA, nodeB) => {
+                    let minD = Infinity;
+                    let bestA = nodeA.cells[0];
+                    let bestB = nodeB.cells[0];
+                    for (const a of nodeA.cells)
+                      for (const b of nodeB.cells) {
+                        const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                        if (d < minD) {
+                          minD = d;
+                          bestA = a;
+                          bestB = b;
+                        }
+                      }
+                    return [bestA, bestB];
+                  };
+                  for (let i = 0; i < visualNodes.length - 1; i++) {
+                    const u = visualNodes[i];
+                    const v = visualNodes[i + 1];
+                    if (i === 0) drawGroup(u, 0);
+                    drawGroup(v, i + 1);
+                    const [cA, cB] = getClosestCells(u, v);
+                    drawnLines.push({
+                      r1: cA[0],
+                      c1: cA[1],
+                      n1: num,
+                      r2: cB[0],
+                      c2: cB[1],
+                      n2: num,
+                      color: lineColorPalette[0],
+                      style: i % 2 === 0 ? "solid" : "dash",
+                    });
+                  }
+                },
               };
             }
           }
@@ -1899,119 +2412,165 @@ const techniques = {
               );
               if (!coversAll) continue;
 
-              if (isRowVersion) {
-                for (let r2 = 0; r2 < 9; r2++) {
-                  if (Math.floor(r2 / 3) === Math.floor(r1 / 3)) continue;
-                  if (!pencils[r2][c1].has(num)) continue;
+              // --- MERGED LOGIC ---
+              for (let idx2 = 0; idx2 < 9; idx2++) {
+                const unit1 = isRowVersion ? r1 : c1;
+                if (Math.floor(idx2 / 3) === Math.floor(unit1 / 3)) continue;
 
-                  const r2_locs = [];
-                  for (let c = 0; c < 9; c++)
-                    if (pencils[r2][c].has(num)) r2_locs.push(c);
+                // Base of the strong link outside the box
+                const br = isRowVersion ? idx2 : r1;
+                const bc = isRowVersion ? c1 : idx2;
+                if (!pencils[br][bc].has(num)) continue;
 
-                  if (r2_locs.length === 2 && r2_locs.includes(c1)) {
-                    const c2 = r2_locs.find((c) => c !== c1);
-                    if (Math.floor(c1 / 3) === Math.floor(c2 / 3)) continue;
-                    if (pencils[r1][c2].has(num)) {
-                      // --- Build Grouped bXpY logic ---
-                      const groupCells = box_n_cells.filter(
-                        ([r, c]) => r === r1,
-                      );
-                      const baseCells = box_n_cells.filter(
-                        ([r, c]) => c === c1,
-                      );
-                      const pGroup = [
-                        ...new Set(
-                          groupCells.map(
-                            ([r, c]) =>
-                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                          ),
-                        ),
-                      ]
-                        .sort()
-                        .join("");
-                      const pBase = [
-                        ...new Set(
-                          baseCells.map(
-                            ([r, c]) =>
-                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                          ),
-                        ),
-                      ]
-                        .sort()
-                        .join("");
-
-                      const link1Str = `b${b + 1}p${pGroup}=b${b + 1}p${pBase}`;
-                      const link2Str = `r${r2 + 1}c${c1 + 1}=r${r2 + 1}c${c2 + 1}`;
-
-                      return {
-                        change: true,
-                        type: "remove",
-                        cells: [{ r: r1, c: c2, num }],
-                        hint: {
-                          name: "Empty Rectangle",
-                          mainInfo: `Digit (${num})`,
-                          detail: `(${num})(${link1Str})-(${link2Str})`,
-                        },
-                      };
-                    }
-                  }
+                // Scan the row (idx2 = r2) or column (idx2 = c2)
+                const locs = [];
+                for (let i = 0; i < 9; i++) {
+                  const tr = isRowVersion ? idx2 : i;
+                  const tc = isRowVersion ? i : idx2;
+                  if (pencils[tr][tc].has(num))
+                    locs.push(isRowVersion ? tc : tr);
                 }
-              } else {
-                // Column version
-                for (let c2 = 0; c2 < 9; c2++) {
-                  if (Math.floor(c2 / 3) === Math.floor(c1 / 3)) continue;
-                  if (!pencils[r1][c2].has(num)) continue;
 
-                  const c2_locs = [];
-                  for (let r = 0; r < 9; r++)
-                    if (pencils[r][c2].has(num)) c2_locs.push(r);
+                const expectedBaseLoc = isRowVersion ? c1 : r1;
+                if (locs.length === 2 && locs.includes(expectedBaseLoc)) {
+                  const targetLoc = locs.find((l) => l !== expectedBaseLoc);
+                  if (
+                    Math.floor(targetLoc / 3) ===
+                    Math.floor(expectedBaseLoc / 3)
+                  )
+                    continue;
 
-                  if (c2_locs.length === 2 && c2_locs.includes(r1)) {
-                    const r2 = c2_locs.find((r) => r !== r1);
-                    if (Math.floor(r1 / 3) === Math.floor(r2 / 3)) continue;
-                    if (pencils[r2][c1].has(num)) {
-                      // --- Build Grouped bXpY logic ---
-                      const groupCells = box_n_cells.filter(
-                        ([r, c]) => c === c1,
-                      );
-                      const baseCells = box_n_cells.filter(
-                        ([r, c]) => r === r1,
-                      );
-                      const pGroup = [
-                        ...new Set(
-                          groupCells.map(
-                            ([r, c]) =>
-                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                          ),
+                  // Resolve absolute r2, c2 coordinates
+                  const r2 = isRowVersion ? idx2 : targetLoc;
+                  const c2 = isRowVersion ? targetLoc : idx2;
+
+                  // Resolve absolute elimination cell
+                  const elimR = isRowVersion ? r1 : r2;
+                  const elimC = isRowVersion ? c2 : c1;
+
+                  if (pencils[elimR][elimC].has(num)) {
+                    // --- Build Grouped bXpY logic ---
+                    const groupCells = box_n_cells.filter(([r, c]) =>
+                      isRowVersion ? r === r1 : c === c1,
+                    );
+                    const baseCells = box_n_cells.filter(([r, c]) =>
+                      isRowVersion ? c === c1 : r === r1,
+                    );
+
+                    const pGroup = [
+                      ...new Set(
+                        groupCells.map(
+                          ([r, c]) =>
+                            Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
                         ),
-                      ]
-                        .sort()
-                        .join("");
-                      const pBase = [
-                        ...new Set(
-                          baseCells.map(
-                            ([r, c]) =>
-                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                          ),
+                      ),
+                    ]
+                      .sort()
+                      .join("");
+                    const pBase = [
+                      ...new Set(
+                        baseCells.map(
+                          ([r, c]) =>
+                            Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
                         ),
-                      ]
-                        .sort()
-                        .join("");
+                      ),
+                    ]
+                      .sort()
+                      .join("");
 
-                      const link1Str = `b${b + 1}p${pGroup}=b${b + 1}p${pBase}`;
-                      const link2Str = `r${r1 + 1}c${c2 + 1}=r${r2 + 1}c${c2 + 1}`;
+                    const link1Str = `b${b + 1}p${pGroup}=b${b + 1}p${pBase}`;
+                    const link2Str = isRowVersion
+                      ? `r${r2 + 1}c${c1 + 1}=r${r2 + 1}c${c2 + 1}`
+                      : `r${r1 + 1}c${c2 + 1}=r${r2 + 1}c${c2 + 1}`;
 
-                      return {
-                        change: true,
-                        type: "remove",
-                        cells: [{ r: r2, c: c1, num }],
-                        hint: {
-                          name: "Empty Rectangle",
-                          mainInfo: `Digit (${num})`,
-                          detail: `(${num})(${link1Str})-(${link2Str})`,
-                        },
-                      };
-                    }
+                    return {
+                      change: true,
+                      type: "remove",
+                      cells: [{ r: elimR, c: elimC, num }],
+                      hint: {
+                        name: "Empty Rectangle",
+                        mainInfo: `Digit (${num})`,
+                        detail: `(${num})(${link1Str})-(${link2Str})`,
+                      },
+                      applyVisuals: () => {
+                        highlightedDigit = num;
+                        highlightState = 1;
+
+                        const visualNodes = [
+                          { cells: groupCells },
+                          { cells: baseCells },
+                          { cells: isRowVersion ? [[r2, c1]] : [[r1, c2]] },
+                          { cells: [[r2, c2]] },
+                        ];
+
+                        visualNodes.forEach((node, idx) => {
+                          node.cells.forEach(([cr, cc]) => {
+                            const colorIdx = idx % 2 === 0 ? 5 : 4;
+                            boardState[cr][cc].pencilColors.set(
+                              num,
+                              candidateColorPalette[colorIdx],
+                            );
+                          });
+                        });
+                        boardState[elimR][elimC].pencilColors.set(
+                          num,
+                          candidateColorPalette[0],
+                        ); // Removal
+
+                        const drawGroup = (node, idx) => {
+                          if (node.cells.length > 1) {
+                            const colorIdx = idx % 2 === 0 ? 5 : 4; // Dynamically match candidate color
+                            for (let i = 0; i < node.cells.length - 1; i++) {
+                              drawnLines.push({
+                                r1: node.cells[i][0],
+                                c1: node.cells[i][1],
+                                n1: num,
+                                r2: node.cells[i + 1][0],
+                                c2: node.cells[i + 1][1],
+                                n2: num,
+                                color: lineColorPalette[colorIdx],
+                                style: "solid",
+                              });
+                            }
+                          }
+                        };
+
+                        const getClosestCells = (nodeA, nodeB) => {
+                          let minD = Infinity;
+                          let bestA = nodeA.cells[0];
+                          let bestB = nodeB.cells[0];
+                          for (const a of nodeA.cells)
+                            for (const b of nodeB.cells) {
+                              const d =
+                                Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                              if (d < minD) {
+                                minD = d;
+                                bestA = a;
+                                bestB = b;
+                              }
+                            }
+                          return [bestA, bestB];
+                        };
+
+                        for (let i = 0; i < visualNodes.length - 1; i++) {
+                          const u = visualNodes[i];
+                          const v = visualNodes[i + 1];
+                          if (i === 0) drawGroup(u, 0);
+                          drawGroup(v, i + 1);
+                          const [cA, cB] = getClosestCells(u, v);
+                          drawnLines.push({
+                            r1: cA[0],
+                            c1: cA[1],
+                            n1: num,
+                            r2: cB[0],
+                            c2: cB[1],
+                            n2: num,
+                            color: lineColorPalette[0],
+                            style: i % 2 === 0 ? "solid" : "dash",
+                          });
+                        }
+                      },
+                    };
                   }
                 }
               }
@@ -2021,6 +2580,7 @@ const techniques = {
       }
       return { change: false };
     };
+
     let result = logic(true);
     if (result.change) return result;
     result = logic(false);
@@ -5748,6 +6308,10 @@ const techniques = {
             }
 
             if (elims.length > 0) {
+              // VERY IMPORTANT: Clone the chain for the visual callback so it survives DFS backtracking
+              const visualChain = [...chain];
+              const visualElims = [...elims];
+
               result = {
                 change: true,
                 type: "remove",
@@ -5758,6 +6322,91 @@ const techniques = {
                     techniques._getHintInfo(chain, hintType) + " (Ring)",
                   detail:
                     techniques._buildChainDetail(chain, options) + "-(Ring)",
+                },
+                applyVisuals: () => {
+                  if (singleDigit) {
+                    highlightedDigit = visualChain[0].digit;
+                    highlightState = 1;
+                  } else if (bivalueOnly) {
+                    highlightedDigit = null;
+                    highlightState = 2;
+                  } else {
+                    highlightedDigit = null;
+                    highlightState = 0;
+                  }
+
+                  visualChain.forEach((node, idx) => {
+                    node.cells.forEach(([cr, cc]) => {
+                      const colorIdx = idx % 2 === 0 ? 5 : 4;
+                      boardState[cr][cc].pencilColors.set(
+                        node.digit,
+                        candidateColorPalette[colorIdx],
+                      );
+                    });
+                  });
+
+                  visualElims.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  );
+
+                  const drawGroup = (node) => {
+                    if (node.cells.length > 1) {
+                      for (let i = 0; i < node.cells.length - 1; i++) {
+                        drawnLines.push({
+                          r1: node.cells[i][0],
+                          c1: node.cells[i][1],
+                          n1: node.digit,
+                          r2: node.cells[i + 1][0],
+                          c2: node.cells[i + 1][1],
+                          n2: node.digit,
+                          color: lineColorPalette[4],
+                          style: "solid",
+                        });
+                      }
+                    }
+                  };
+
+                  const getClosestCells = (nodeA, nodeB) => {
+                    let minD = Infinity;
+                    let bestA = nodeA.cells[0];
+                    let bestB = nodeB.cells[0];
+                    for (const a of nodeA.cells) {
+                      for (const b of nodeB.cells) {
+                        const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                        if (d < minD) {
+                          minD = d;
+                          bestA = a;
+                          bestB = b;
+                        }
+                      }
+                    }
+                    return [bestA, bestB];
+                  };
+
+                  const fullChain = [...visualChain, visualChain[0]];
+                  for (let i = 0; i < fullChain.length - 1; i++) {
+                    const u = fullChain[i];
+                    const v = fullChain[i + 1];
+
+                    if (i === 0) drawGroup(u, 0);
+                    if (i < visualChain.length)
+                      drawGroup(v, (i + 1) % visualChain.length); // Handle wrap around index
+
+                    const [cA, cB] = getClosestCells(u, v);
+                    drawnLines.push({
+                      r1: cA[0],
+                      c1: cA[1],
+                      n1: u.digit,
+                      r2: cB[0],
+                      c2: cB[1],
+                      n2: v.digit,
+                      color: lineColorPalette[0],
+                      style: i % 2 === 0 ? "solid" : "dash",
+                    });
+                  }
                 },
               };
               return;
@@ -5805,6 +6454,10 @@ const techniques = {
             }
 
             if (elims.length > 0) {
+              // VERY IMPORTANT: Clone the chain for the visual callback so it survives DFS backtracking
+              const visualChain = [...chain];
+              const visualElims = [...elims];
+
               result = {
                 change: true,
                 type: "remove",
@@ -5813,6 +6466,90 @@ const techniques = {
                   name: options.nameOverride || "Alternating Inference Chain",
                   mainInfo: techniques._getHintInfo(chain, hintType),
                   detail: techniques._buildChainDetail(chain, options),
+                },
+                applyVisuals: () => {
+                  if (singleDigit) {
+                    highlightedDigit = visualChain[0].digit;
+                    highlightState = 1;
+                  } else if (bivalueOnly) {
+                    highlightedDigit = null;
+                    highlightState = 2;
+                  } else {
+                    highlightedDigit = null;
+                    highlightState = 0;
+                  }
+
+                  visualChain.forEach((node, idx) => {
+                    node.cells.forEach(([cr, cc]) => {
+                      const colorIdx = idx % 2 === 0 ? 5 : 4;
+                      boardState[cr][cc].pencilColors.set(
+                        node.digit,
+                        candidateColorPalette[colorIdx],
+                      );
+                    });
+                  });
+
+                  visualElims.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  );
+
+                  const drawGroup = (node, idx) => {
+                    if (node.cells.length > 1) {
+                      const colorIdx = idx % 2 === 0 ? 5 : 4; // Dynamically match candidate color
+                      for (let i = 0; i < node.cells.length - 1; i++) {
+                        drawnLines.push({
+                          r1: node.cells[i][0],
+                          c1: node.cells[i][1],
+                          n1: node.digit,
+                          r2: node.cells[i + 1][0],
+                          c2: node.cells[i + 1][1],
+                          n2: node.digit,
+                          color: lineColorPalette[colorIdx],
+                          style: "solid",
+                        });
+                      }
+                    }
+                  };
+
+                  const getClosestCells = (nodeA, nodeB) => {
+                    let minD = Infinity;
+                    let bestA = nodeA.cells[0];
+                    let bestB = nodeB.cells[0];
+                    for (const a of nodeA.cells) {
+                      for (const b of nodeB.cells) {
+                        const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                        if (d < minD) {
+                          minD = d;
+                          bestA = a;
+                          bestB = b;
+                        }
+                      }
+                    }
+                    return [bestA, bestB];
+                  };
+
+                  for (let i = 0; i < visualChain.length - 1; i++) {
+                    const u = visualChain[i];
+                    const v = visualChain[i + 1];
+
+                    if (i === 0) drawGroup(u, 0);
+                    drawGroup(v, i + 1);
+
+                    const [cA, cB] = getClosestCells(u, v);
+                    drawnLines.push({
+                      r1: cA[0],
+                      c1: cA[1],
+                      n1: u.digit,
+                      r2: cB[0],
+                      c2: cB[1],
+                      n2: v.digit,
+                      color: lineColorPalette[0],
+                      style: i % 2 === 0 ? "solid" : "dash",
+                    });
+                  }
                 },
               };
               return;
@@ -6402,11 +7139,181 @@ const techniques = {
           const base = `(${linkA})(${alsARef})-(${linkB})(${alsBRef})`;
           const detail = isSingly ? base : `${base}-(Ring)`;
 
+          // --- CAPTURE SNAPSHOT before returning result ---
+          const snap_rccDigits = techniques._bits.maskToDigits(rccMask);
+          const snap_A_cells = A.cells.map(([r, c]) => [r, c]);
+          const snap_B_cells = B.cells.map(([r, c]) => [r, c]);
+
+          // For each node, capture which cells have which digit RIGHT NOW:
+          const snap_nodes = (() => {
+            const nodes = [];
+            if (rccCount === 1) {
+              const rcc = snap_rccDigits[0];
+              const targetDigits = [...new Set(uniqueElims.map((e) => e.num))];
+              const z =
+                targetDigits.length > 0
+                  ? targetDigits[0]
+                  : techniques._bits.maskToDigits(commonMask & ~rccMask)[0];
+              nodes.push({
+                cells: snap_A_cells.filter(([r, c]) => pencils[r][c].has(z)),
+                digit: z,
+              });
+              nodes.push({
+                cells: snap_A_cells.filter(([r, c]) => pencils[r][c].has(rcc)),
+                digit: rcc,
+              });
+              nodes.push({
+                cells: snap_B_cells.filter(([r, c]) => pencils[r][c].has(rcc)),
+                digit: rcc,
+              });
+              nodes.push({
+                cells: snap_B_cells.filter(([r, c]) => pencils[r][c].has(z)),
+                digit: z,
+              });
+            } else if (rccCount === 2) {
+              const rcc1 = snap_rccDigits[0],
+                rcc2 = snap_rccDigits[1];
+              nodes.push({
+                cells: snap_A_cells.filter(([r, c]) => pencils[r][c].has(rcc1)),
+                digit: rcc1,
+              });
+              nodes.push({
+                cells: snap_A_cells.filter(([r, c]) => pencils[r][c].has(rcc2)),
+                digit: rcc2,
+              });
+              nodes.push({
+                cells: snap_B_cells.filter(([r, c]) => pencils[r][c].has(rcc2)),
+                digit: rcc2,
+              });
+              nodes.push({
+                cells: snap_B_cells.filter(([r, c]) => pencils[r][c].has(rcc1)),
+                digit: rcc1,
+              });
+            }
+            return nodes;
+          })();
+
           return {
             change: true,
             type: "remove",
             cells: uniqueElims,
             hint: { name, mainInfo, detail },
+            applyVisuals: () => {
+              highlightedDigit = null;
+              highlightState = 0;
+
+              const nodes = snap_nodes;
+
+              const alsColors = [6, 7, 2, 3, 4, 5]; // Color loop
+              A.cells.forEach(
+                ([r, c]) =>
+                  (boardState[r][c].cellColor = cellColorPalette[alsColors[0]]),
+              );
+              B.cells.forEach(
+                ([r, c]) =>
+                  (boardState[r][c].cellColor = cellColorPalette[alsColors[1]]),
+              );
+
+              // Color elimination candidate in color 1
+              uniqueElims.forEach((el) =>
+                boardState[el.r][el.c].pencilColors.set(
+                  el.num,
+                  candidateColorPalette[0],
+                ),
+              );
+
+              const getClosestCells = (cellsA, cellsB) => {
+                if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
+                  return null;
+                let minD = Infinity;
+                let bestA = cellsA[0];
+                let bestB = cellsB[0];
+                for (const a of cellsA) {
+                  for (const b of cellsB) {
+                    const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                    if (d < minD) {
+                      minD = d;
+                      bestA = a;
+                      bestB = b;
+                    }
+                  }
+                }
+                return [bestA, bestB];
+              };
+
+              const drawGroup = (cells, digit, colorIdx) => {
+                if (cells.length > 1) {
+                  for (let k = 0; k < cells.length - 1; k++) {
+                    drawnLines.push({
+                      r1: cells[k][0],
+                      c1: cells[k][1],
+                      n1: digit,
+                      r2: cells[k + 1][0],
+                      c2: cells[k + 1][1],
+                      n2: digit,
+                      color: lineColorPalette[colorIdx], // Color matching candidate
+                      style: "solid",
+                    });
+                  }
+                }
+              };
+
+              for (let k = 0; k < nodes.length; k++) {
+                const node = nodes[k];
+                const colorIdx = k % 2 === 0 ? 4 : 5; // Alternating color 5 and 6
+
+                // Color candidates
+                node.cells.forEach(([r, c]) =>
+                  boardState[r][c].pencilColors.set(
+                    node.digit,
+                    candidateColorPalette[colorIdx],
+                  ),
+                );
+
+                // Color grouped candidates' links with the same candidate color
+                drawGroup(node.cells, node.digit, colorIdx);
+
+                // Connect adjacent nodes
+                if (k < nodes.length - 1) {
+                  const nextNode = nodes[k + 1];
+                  const closest = getClosestCells(node.cells, nextNode.cells);
+                  if (closest) {
+                    const isInner = k % 2 === 0;
+                    drawnLines.push({
+                      r1: closest[0][0],
+                      c1: closest[0][1],
+                      n1: node.digit,
+                      r2: closest[1][0],
+                      c2: closest[1][1],
+                      n2: nextNode.digit,
+                      color: lineColorPalette[0], // Solid/Dash in Color 1
+                      style: isInner ? "solid" : "dash", // Inner ALS solid, intra ALS dash
+                    });
+                  }
+                }
+              }
+
+              if (rccCount === 2 || !isSingly) {
+                const firstNode = nodes[0];
+                const lastNode = nodes[nodes.length - 1];
+                const closest = getClosestCells(
+                  lastNode.cells,
+                  firstNode.cells,
+                );
+                if (closest) {
+                  drawnLines.push({
+                    r1: closest[0][0],
+                    c1: closest[0][1],
+                    n1: lastNode.digit,
+                    r2: closest[1][0],
+                    c2: closest[1][1],
+                    n2: firstNode.digit,
+                    color: lineColorPalette[0],
+                    style: "dash", // Ring in dash Color 1
+                  });
+                }
+              }
+            },
           };
         }
       }
@@ -6957,27 +7864,12 @@ const techniques = {
       const key = `${min}-${max}`;
       const edges = [];
 
+      // ONLY use RCCs to connect adjacent AHSs
       const rccs = _ahsRccMap.get(key) || [];
       for (const rcc of rccs) edges.push({ type: "rcc", cell: rcc });
 
-      const rcds = _ahsRcdMap.get(key) || [];
-      for (const rcd of rcds) {
-        if (fromIdx === min) {
-          edges.push({
-            type: "rcd",
-            d: rcd.d,
-            excFrom: rcd.exc1[0],
-            excTo: rcd.exc2[0],
-          });
-        } else {
-          edges.push({
-            type: "rcd",
-            d: rcd.d,
-            excFrom: rcd.exc2[0],
-            excTo: rcd.exc1[0],
-          });
-        }
-      }
+      // RCD block removed here so chains cannot be constructed with them.
+
       return edges;
     };
 
@@ -7096,21 +7988,11 @@ const techniques = {
         const aFrom = ahses[pathArray[i - 1].ahsIdx];
         const aTo = ahses[pathArray[i].ahsIdx];
 
-        if (edge.type === "rcc") {
-          const union = new Set([...aFrom.digits, ...aTo.digits]);
-          for (const cand of pencils[edge.cell[0]][edge.cell[1]]) {
-            if (!union.has(cand))
-              removals.push({ r: edge.cell[0], c: edge.cell[1], num: cand });
-          }
-        } else if (edge.type === "rcd") {
-          const peers = techniques._commonVisibleCells(
-            edge.excFrom,
-            edge.excTo,
-          );
-          for (const p of peers) {
-            if (pencils[p[0]][p[1]].has(edge.d))
-              removals.push({ r: p[0], c: p[1], num: edge.d });
-          }
+        // Cleaned up: Edges are exclusively RCCs now
+        const union = new Set([...aFrom.digits, ...aTo.digits]);
+        for (const cand of pencils[edge.cell[0]][edge.cell[1]]) {
+          if (!union.has(cand))
+            removals.push({ r: edge.cell[0], c: edge.cell[1], num: cand });
         }
       }
     };
@@ -7121,12 +8003,9 @@ const techniques = {
       const firstAhs = ahses[firstAhsIdx];
       const lastAhs = ahses[lastAhsIdx];
 
-      const firstEdge = path[1].edge;
-      const lastEdge = path[path.length - 1].edge;
-      const firstUsedCell =
-        firstEdge.type === "rcc" ? firstEdge.cell : firstEdge.excFrom;
-      const lastUsedCell =
-        lastEdge.type === "rcc" ? lastEdge.cell : lastEdge.excTo;
+      // Cleaned up: Because the chain only uses RCCs, we can access .cell directly
+      const firstUsedCell = path[1].edge.cell;
+      const lastUsedCell = path[path.length - 1].edge.cell;
 
       let removals = [];
       let finalDetailStr = "";
@@ -7191,68 +8070,67 @@ const techniques = {
       }
 
       // 2. RCD check (Ends meet via Exclusive Cells with the same digit)
-      const allRcds = path.slice(1).every((n) => n.edge.type === "rcd");
-      if (!allRcds) {
-        const sharedDigits = [...firstAhs.digits].filter((d) =>
-          lastAhs.digits.has(d),
-        );
-        for (const d of sharedDigits) {
-          const excFirsts = firstAhs.exclusiveCellsMap.get(d) || [];
-          const excLasts = lastAhs.exclusiveCellsMap.get(d) || [];
+      // Cleaned up: Removed `allRcds` wrapper because the path consists of 0 RCDs
+      const sharedDigits = [...firstAhs.digits].filter((d) =>
+        lastAhs.digits.has(d),
+      );
 
-          for (const exc1 of excFirsts) {
-            if (cellEq(exc1, firstUsedCell)) continue;
-            for (const exc2 of excLasts) {
-              if (cellEq(exc2, lastUsedCell)) continue;
+      for (const d of sharedDigits) {
+        const excFirsts = firstAhs.exclusiveCellsMap.get(d) || [];
+        const excLasts = lastAhs.exclusiveCellsMap.get(d) || [];
 
-              const sees = techniques._sees(exc1, exc2);
-              let localRemovals = [];
+        for (const exc1 of excFirsts) {
+          if (cellEq(exc1, firstUsedCell)) continue;
+          for (const exc2 of excLasts) {
+            if (cellEq(exc2, lastUsedCell)) continue;
 
-              if (sees && !cellEq(exc1, exc2)) {
-                // Ring formed via visible exclusive cells
-                const peers = techniques._commonVisibleCells(exc1, exc2);
-                for (const p of peers) {
-                  if (pencils[p[0]][p[1]].has(d))
-                    localRemovals.push({ r: p[0], c: p[1], num: d });
+            const sees = techniques._sees(exc1, exc2);
+            let localRemovals = [];
+
+            if (sees && !cellEq(exc1, exc2)) {
+              // Ring formed via visible exclusive cells
+              const peers = techniques._commonVisibleCells(exc1, exc2);
+              for (const p of peers) {
+                if (pencils[p[0]][p[1]].has(d))
+                  localRemovals.push({ r: p[0], c: p[1], num: d });
+              }
+              processRingEdges(path, localRemovals);
+
+              if (localRemovals.length > 0) {
+                removals.push(...localRemovals);
+                if (!finalIsRing) {
+                  finalIsRing = true;
+                  finalDetailStr = buildDetailStr(
+                    path,
+                    null,
+                    d,
+                    exc1,
+                    exc2,
+                    true,
+                  );
                 }
-                processRingEdges(path, localRemovals);
-
-                if (localRemovals.length > 0) {
-                  removals.push(...localRemovals);
-                  if (!finalIsRing) {
-                    finalIsRing = true;
-                    finalDetailStr = buildDetailStr(
-                      path,
-                      null,
-                      d,
-                      exc1,
-                      exc2,
-                      true,
-                    );
-                  }
+              }
+            } else if (!cellEq(exc1, exc2)) {
+              // Not a ring
+              const peers = techniques._commonVisibleCells(exc1, exc2);
+              let removed = false;
+              for (const p of peers) {
+                if (pencils[p[0]][p[1]].has(d)) {
+                  localRemovals.push({ r: p[0], c: p[1], num: d });
+                  removed = true;
                 }
-              } else if (!cellEq(exc1, exc2)) {
-                // Not a ring
-                const peers = techniques._commonVisibleCells(exc1, exc2);
-                let removed = false;
-                for (const p of peers) {
-                  if (pencils[p[0]][p[1]].has(d)) {
-                    localRemovals.push({ r: p[0], c: p[1], num: d });
-                    removed = true;
-                  }
-                }
-                if (removed) {
-                  removals.push(...localRemovals);
-                  if (!finalDetailStr) {
-                    finalDetailStr = buildDetailStr(
-                      path,
-                      null,
-                      d,
-                      exc1,
-                      exc2,
-                      false,
-                    );
-                  }
+              }
+              if (removed) {
+                removals.push(...localRemovals);
+                if (!finalDetailStr) {
+                  finalDetailStr = buildDetailStr(
+                    path,
+                    null,
+                    d,
+                    exc1,
+                    exc2,
+                    false,
+                  );
                 }
               }
             }
@@ -7267,7 +8145,6 @@ const techniques = {
 
       return null;
     };
-
     const makeResult = (removals, detailStr, isRing, path) => {
       let title = "Almost Hidden Set ";
       if (path.length === 3) {
@@ -7327,11 +8204,8 @@ const techniques = {
         for (const edge of edges) {
           const lastEdge = path[path.length - 1].edge;
           if (lastEdge) {
-            // Enforce Collision Rule
-            const cellIn =
-              lastEdge.type === "rcc" ? lastEdge.cell : lastEdge.excTo;
-            const cellOut = edge.type === "rcc" ? edge.cell : edge.excFrom;
-            if (cellEq(cellIn, cellOut)) continue;
+            // Cleaned up: Collision Rule now strictly checks RCC cells
+            if (cellEq(lastEdge.cell, edge.cell)) continue;
           }
 
           visited.add(nextIdx);
@@ -8062,6 +8936,43 @@ const techniques = {
         }
       }
 
+      // Deep capture necessary properties to avoid relying on global _alsLookup in UI callback
+      const visualPath = successPath.map((step) => ({
+        viaDigit: step.viaDigit,
+        alsCells: [..._alsLookup[step.hash].cells],
+      }));
+      const v_isRingResult = isRingResult;
+      const v_successTarget = successTarget;
+      const v_successClosingRcc = successClosingRcc;
+
+      const snap_nodes = (() => {
+        const nodes = [];
+        visualPath.forEach((step, i) => {
+          const d_in =
+            i === 0
+              ? v_isRingResult
+                ? v_successClosingRcc
+                : v_successTarget
+              : step.viaDigit;
+          const d_out =
+            i === visualPath.length - 1
+              ? v_isRingResult
+                ? v_successClosingRcc
+                : v_successTarget
+              : visualPath[i + 1].viaDigit;
+
+          nodes.push({
+            cells: step.alsCells.filter(([r, c]) => pencils[r][c].has(d_in)),
+            digit: d_in,
+          });
+          nodes.push({
+            cells: step.alsCells.filter(([r, c]) => pencils[r][c].has(d_out)),
+            digit: d_out,
+          });
+        });
+        return nodes;
+      })();
+
       return {
         change: true,
         type: "remove",
@@ -8071,11 +8982,127 @@ const techniques = {
           mainInfo: info,
           detail: detail,
         },
+        applyVisuals: () => {
+          highlightedDigit = null;
+          highlightState = 0;
+
+          const alsColors = [6, 7, 2, 3, 4, 5]; // Color loop
+
+          visualPath.forEach((step, i) => {
+            // Color ALS cells
+            step.alsCells.forEach(([r, c]) => {
+              if (!boardState[r][c].cellColor) {
+                boardState[r][c].cellColor = cellColorPalette[alsColors[i % 6]];
+              }
+            });
+          });
+
+          // Color elimination candidate in color 1
+          uniqueElims.forEach((el) =>
+            boardState[el.r][el.c].pencilColors.set(
+              el.num,
+              candidateColorPalette[0],
+            ),
+          );
+
+          const nodes = snap_nodes;
+
+          const getClosestCells = (cellsA, cellsB) => {
+            if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
+              return null;
+            let minD = Infinity;
+            let bestA = cellsA[0];
+            let bestB = cellsB[0];
+            for (const a of cellsA) {
+              for (const b of cellsB) {
+                const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                if (d < minD) {
+                  minD = d;
+                  bestA = a;
+                  bestB = b;
+                }
+              }
+            }
+            return [bestA, bestB];
+          };
+
+          const drawGroup = (cells, digit, colorIdx) => {
+            if (cells.length > 1) {
+              for (let k = 0; k < cells.length - 1; k++) {
+                drawnLines.push({
+                  r1: cells[k][0],
+                  c1: cells[k][1],
+                  n1: digit,
+                  r2: cells[k + 1][0],
+                  c2: cells[k + 1][1],
+                  n2: digit,
+                  color: lineColorPalette[colorIdx], // Color matching candidate
+                  style: "solid",
+                });
+              }
+            }
+          };
+
+          for (let k = 0; k < nodes.length; k++) {
+            const node = nodes[k];
+            const colorIdx = k % 2 === 0 ? 4 : 5; // Alternating candidate color 5 and 6
+
+            // Color candidate nodes
+            node.cells.forEach(([r, c]) =>
+              boardState[r][c].pencilColors.set(
+                node.digit,
+                candidateColorPalette[colorIdx],
+              ),
+            );
+
+            // Connect grouped candidates' links with the same candidate color
+            drawGroup(node.cells, node.digit, colorIdx);
+
+            // Connect adjacent nodes
+            if (k < nodes.length - 1) {
+              const nextNode = nodes[k + 1];
+              const closest = getClosestCells(node.cells, nextNode.cells);
+              if (closest) {
+                const isInner = k % 2 === 0;
+                drawnLines.push({
+                  r1: closest[0][0],
+                  c1: closest[0][1],
+                  n1: node.digit,
+                  r2: closest[1][0],
+                  c2: closest[1][1],
+                  n2: nextNode.digit,
+                  color: lineColorPalette[0], // Solid/Dash in Color 1
+                  style: isInner ? "solid" : "dash", // Inner ALS solid, intra ALS dash
+                });
+              }
+            }
+          }
+
+          // Ring connection
+          if (v_isRingResult && nodes.length > 1) {
+            const firstNode = nodes[0];
+            const lastNode = nodes[nodes.length - 1];
+            const closest = getClosestCells(lastNode.cells, firstNode.cells);
+            if (closest) {
+              drawnLines.push({
+                r1: closest[0][0],
+                c1: closest[0][1],
+                n1: lastNode.digit,
+                r2: closest[1][0],
+                c2: closest[1][1],
+                n2: firstNode.digit,
+                color: lineColorPalette[0],
+                style: "dash", // Ring in dash Color 1
+              });
+            }
+          }
+        },
       };
     }
 
     return { change: false };
   },
+
   /**
    * Almost Locked Set XY-Wing Wrapper
    * Length 3 chain (ALS A - ALS B - ALS C)
@@ -9642,6 +10669,67 @@ const techniques = {
                           name: fishName,
                           mainInfo: `Digit (${num})`,
                           detail: detailStr,
+                        },
+                        applyVisuals: () => {
+                          highlightedDigit = num;
+                          highlightState = 1;
+
+                          const uTypeToName = (t) =>
+                            t === U_ROW ? "row" : t === U_COL ? "col" : "box";
+
+                          // Color Cover Units (Color 8)
+                          [
+                            finalCoverUnits[ca],
+                            finalCoverUnits[cbx],
+                            finalCoverUnits[cc],
+                          ].forEach((u) => {
+                            techniques
+                              ._getUnitCells(uTypeToName(u.type), u.index)
+                              .forEach(([cr, cc]) => {
+                                boardState[cr][cc].cellColor =
+                                  cellColorPalette[7];
+                              });
+                          });
+
+                          // Color Base Units over Cover Units (Color 7)
+                          [baseUnits[ia], baseUnits[ib], baseUnits[ic]].forEach(
+                            (u) => {
+                              techniques
+                                ._getUnitCells(uTypeToName(u.type), u.index)
+                                .forEach(([cr, cc]) => {
+                                  boardState[cr][cc].cellColor =
+                                    cellColorPalette[6];
+
+                                  // FIX: Use boardState.pencils instead of local pencils
+                                  if (boardState[cr][cc].pencils.has(num)) {
+                                    boardState[cr][cc].pencilColors.set(
+                                      num,
+                                      candidateColorPalette[6],
+                                    ); // Candidate Color 7
+                                  }
+                                });
+                            },
+                          );
+                          // Color Fins over Base/Cover (Color 9)
+                          let mF = allFinsMask; // BigInt mask for all fins
+                          let idxF = 0;
+                          while (mF !== 0n) {
+                            if (mF & 1n) {
+                              boardState[Math.floor(idxF / 9)][
+                                idxF % 9
+                              ].cellColor = cellColorPalette[8];
+                            }
+                            mF >>= 1n;
+                            idxF++;
+                          }
+
+                          // Color Eliminations (Color 1)
+                          elims.forEach((el) =>
+                            boardState[el.r][el.c].pencilColors.set(
+                              el.num,
+                              candidateColorPalette[0],
+                            ),
+                          );
                         },
                       };
                     }
