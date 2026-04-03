@@ -305,19 +305,16 @@ const techniques = {
         name: "Full House",
         mainInfo: unitName,
         detail,
-        applyVisuals: () => {
-          highlightedDigit = missingNum;
-          highlightState = 1;
-          const type = unitName.substring(0, 3).toLowerCase();
-          const idx = parseInt(unitName.match(/\d+/)[0]) - 1;
-          techniques._getUnitCells(type, idx).forEach(([ur, uc]) => {
-            boardState[ur][uc].cellColor = cellColorPalette[7]; // House cell color 8
-          });
-          boardState[r][c].pencilColors.set(
-            missingNum,
-            candidateColorPalette[5],
-          ); // Placeable cand color 6
-        },
+      },
+      applyVisuals: () => {
+        highlightedDigit = missingNum;
+        highlightState = 1;
+        const type = unitName.substring(0, 3).toLowerCase();
+        const idx = parseInt(unitName.match(/\d+/)[0]) - 1;
+        techniques._getUnitCells(type, idx).forEach(([ur, uc]) => {
+          boardState[ur][uc].cellColor = cellColorPalette[7]; // House cell color 8
+        });
+        boardState[r][c].pencilColors.set(missingNum, candidateColorPalette[5]); // Placeable cand color 6
       },
     };
   },
