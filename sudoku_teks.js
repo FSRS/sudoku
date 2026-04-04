@@ -333,7 +333,7 @@ const techniques = {
             hint: {
               name: "Naked Single",
               mainInfo: `at r${r + 1}c${c + 1}`,
-              detail: `Only remaining digit (${num}) at r${r + 1}c${c + 1}`,
+              detail: `Only digit (${num}) remains at r${r + 1}c${c + 1}`,
             },
             applyVisuals: () => {
               highlightedDigit = null;
@@ -7306,7 +7306,7 @@ const techniques = {
           const alsARef = fmtALS(A);
           const alsBRef = fmtALS(B);
 
-          const base = `(${linkA})(${alsARef})-(${linkB})(${alsBRef})`;
+          const base = `(${linkA})${alsARef}-(${linkB})${alsBRef}`;
           const detail = isSingly ? base : `${base}-(Ring)`;
 
           // --- CAPTURE SNAPSHOT before returning result ---
@@ -7884,28 +7884,6 @@ const techniques = {
 
               const detail = `((${c_r2_a1})${r2_a1}=(${c_r1_a1})${r1_a1})${ahs1Str}-((${c_r1_a2})${r1_a2}=(${c_r2_a2})${r2_a2})${ahs2Str}-(Ring)`;
               const uniqueElims = getUnique(removals);
-              const nodes = [
-                {
-                  r: rcc2[0],
-                  c: rcc2[1],
-                  cands: getCandsArr(rcc2[0], rcc2[1], ahs1),
-                },
-                {
-                  r: rcc1[0],
-                  c: rcc1[1],
-                  cands: getCandsArr(rcc1[0], rcc1[1], ahs1),
-                },
-                {
-                  r: rcc1[0],
-                  c: rcc1[1],
-                  cands: getCandsArr(rcc1[0], rcc1[1], ahs2),
-                },
-                {
-                  r: rcc2[0],
-                  c: rcc2[1],
-                  cands: getCandsArr(rcc2[0], rcc2[1], ahs2),
-                },
-              ];
 
               return {
                 change: true,
@@ -8174,8 +8152,18 @@ const techniques = {
   },
 
   _ahsChainCore: (board, pencils, minLength, maxLength) => {
-    const getUnique = (arr) =>
-      Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
+    // UPDATED: Custom unique filter that prioritizes "cell" source eliminations
+    const getUnique = (arr) => {
+      const map = new Map();
+      arr.forEach((el) => {
+        const key = `${el.r},${el.c},${el.num}`;
+        if (!map.has(key) || el.source === "cell") {
+          map.set(key, el);
+        }
+      });
+      return Array.from(map.values());
+    };
+
     const cellEq = (c1, c2) => c1 && c2 && c1[0] === c2[0] && c1[1] === c2[1];
 
     const formatAHS = (ahs) => {
@@ -8289,8 +8277,8 @@ const techniques = {
             const inAHS = chain.some((ahs) =>
               ahs.cells.some(([ar, ac]) => ar === el.r && ac === el.c),
             );
-            // Only color the cell background if the elimination is inside the AHS (common cell)
-            if (inAHS) {
+            // UPDATED: Only color the cell background if the elimination is inside the AHS AND via a common cell rule
+            if (inAHS && el.source === "cell") {
               boardState[el.r][el.c].cellColor = cellColorPalette[0]; // Cell Color 1
             }
           }
@@ -8431,7 +8419,12 @@ const techniques = {
         const union = new Set([...aFrom.digits, ...aTo.digits]);
         for (const cand of pencils[edge.cell[0]][edge.cell[1]]) {
           if (!union.has(cand))
-            removals.push({ r: edge.cell[0], c: edge.cell[1], num: cand });
+            removals.push({
+              r: edge.cell[0],
+              c: edge.cell[1],
+              num: cand,
+              source: "cell",
+            }); // UPDATED
         }
       }
     };
@@ -8473,7 +8466,7 @@ const techniques = {
 
         for (const cand of pencils[c[0]][c[1]]) {
           if (!union.has(cand)) {
-            localRemovals.push({ r: c[0], c: c[1], num: cand });
+            localRemovals.push({ r: c[0], c: c[1], num: cand, source: "cell" }); // UPDATED
             cellRemoved = true;
           }
         }
@@ -8534,7 +8527,12 @@ const techniques = {
               const peers = techniques._commonVisibleCells(exc1, exc2);
               for (const p of peers) {
                 if (pencils[p[0]][p[1]].has(d))
-                  localRemovals.push({ r: p[0], c: p[1], num: d });
+                  localRemovals.push({
+                    r: p[0],
+                    c: p[1],
+                    num: d,
+                    source: "digit",
+                  }); // UPDATED
               }
               processRingEdges(path, localRemovals);
 
@@ -8561,7 +8559,12 @@ const techniques = {
               let removed = false;
               for (const p of peers) {
                 if (pencils[p[0]][p[1]].has(d)) {
-                  localRemovals.push({ r: p[0], c: p[1], num: d });
+                  localRemovals.push({
+                    r: p[0],
+                    c: p[1],
+                    num: d,
+                    source: "digit",
+                  }); // UPDATED
                   removed = true;
                 }
               }

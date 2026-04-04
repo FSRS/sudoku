@@ -292,6 +292,19 @@ function updateButtonLabels() {
   exptModeBtn.textContent =
     (isExperimentalMode ? "Expt!" : "Expt.") + exptShortcut;
 
+  const toggleSolverBtn = document.getElementById("toggle-solver-mode-btn");
+  if (toggleSolverBtn) {
+    if (isSolverMode) {
+      toggleSolverBtn.textContent = isMobile
+        ? "Exit Solver Mode"
+        : "Exit Solver Mode (S)";
+    } else {
+      toggleSolverBtn.textContent = isMobile
+        ? "Solver Mode"
+        : "Enter Solver Mode (S)";
+    }
+  }
+
   // --- UPDATED LOGIC START ---
   if (isExperimentalMode) {
     // 1. Add active class
@@ -3408,8 +3421,8 @@ function enterSolverModeUI() {
   const isMobile = window.innerWidth <= 550;
   if (toggleBtn)
     toggleBtn.textContent = isMobile
-      ? "Exit Solver Mode (S)"
-      : "Exit Solver Mode";
+      ? "Exit Solver Mode"
+      : "Exit Solver Mode  (S)";
 
   setupTimelineDragging();
   buildSolverTimeline();
