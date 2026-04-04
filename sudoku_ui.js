@@ -3772,6 +3772,7 @@ function buildSolverSummary() {
           count: 0,
           level: step.level,
           baseScore: step.score,
+          rank: step.rank,
         };
       }
       counts[step.techName].count++;
@@ -3779,7 +3780,7 @@ function buildSolverSummary() {
   });
 
   const sortedTechs = Object.keys(counts).sort(
-    (a, b) => counts[a].level - counts[b].level,
+    (a, b) => counts[a].rank - counts[b].rank,
   );
   let maxLevel = 0; // Fallback tracker
 
@@ -4888,12 +4889,12 @@ async function evaluateBoardDifficulty(opts = {}) {
           type: "step",
           techName: tech.name,
           level: tech.level,
-          score: tech.score, // ADD THIS LINE TO SAVE THE BASE SCORE
+          score: tech.score,
+          rank: techniqueOrder.indexOf(tech), // <-- NEW: Capture the array index
           result: result,
           board: cloneVirtualBoard(virtualBoard),
           pencils: cloneVirtualPencils(startingPencils),
         });
-
         evaluatedScore += tech.score;
         if (IS_DEBUG_MODE) {
           const logColor = getThemeColor(tech.level);

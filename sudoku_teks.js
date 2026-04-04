@@ -552,202 +552,170 @@ const techniques = {
   },
 
   intersection: (board, pencils) => {
-    // --- 1. Pointing (Box -> Line) ---
-    for (let boxIdx = 0; boxIdx < 9; boxIdx++) {
-      for (let num = 1; num <= 9; num++) {
-        const boxCellsWithNum = [];
-        const boxCells = techniques._getUnitCells("box", boxIdx);
-        for (const [r, c] of boxCells) {
-          if (pencils[r][c].has(num)) boxCellsWithNum.push([r, c]);
-        }
-
-        if (boxCellsWithNum.length > 1) {
+    for (const is_pointing of [true, false]) {
+      // Pointing: outer loop = box (0-8), inner = row-or-col orientation
+      // Claiming: outer loop = line index (0-8), inner = row-or-col orientation
+      for (let primaryIdx = 0; primaryIdx < 9; primaryIdx++) {
+        for (let num = 1; num <= 9; num++) {
           for (const isRow of [true, false]) {
-            // Check if all cells share the same row (if isRow) or col (if !isRow)
-            const lineIdxs = new Set(
-              boxCellsWithNum.map(([r, c]) => (isRow ? r : c)),
-            );
+            // ── Collect candidates in the "source" unit ──────────────────────
+            let sourceCellsWithNum = [];
 
-            if (lineIdxs.size === 1) {
-              const lineIdx = [...lineIdxs][0];
-              const removals = [];
-
+            if (is_pointing) {
+              // Source = box[primaryIdx]; find cells that share a row or col
+              const boxCells = techniques._getUnitCells("box", primaryIdx);
+              for (const [r, c] of boxCells) {
+                if (pencils[r][c].has(num)) sourceCellsWithNum.push([r, c]);
+              }
+            } else {
+              // Source = row or col [primaryIdx]
               for (let peer = 0; peer < 9; peer++) {
-                const r = isRow ? lineIdx : peer;
-                const c = isRow ? peer : lineIdx;
-                // Calculate the box index for the current peer cell
-                const cellBoxIdx = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+                const r = isRow ? primaryIdx : peer;
+                const c = isRow ? peer : primaryIdx;
+                if (pencils[r][c].has(num)) sourceCellsWithNum.push([r, c]);
+              }
+            }
 
-                // If the cell is outside the pointing box and has the pencil mark
-                if (cellBoxIdx !== boxIdx && pencils[r][c].has(num)) {
+            if (sourceCellsWithNum.length < 2) continue;
+
+            // ── Check confinement to one "secondary" unit ─────────────────────
+            // Pointing: secondary = row or col  →  check all share same row/col index
+            // Claiming: secondary = box         →  check all share same box index
+            const secondaryIdxs = is_pointing
+              ? new Set(sourceCellsWithNum.map(([r, c]) => (isRow ? r : c)))
+              : new Set(
+                  sourceCellsWithNum.map(
+                    ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
+                  ),
+                );
+
+            if (secondaryIdxs.size !== 1) continue;
+            const secondaryIdx = [...secondaryIdxs][0];
+
+            // ── Collect removals from the "target" unit ───────────────────────
+            // Pointing: eliminate from the row/col OUTSIDE the source box
+            // Claiming: eliminate from the box OUTSIDE the source row/col
+            const removals = [];
+
+            if (is_pointing) {
+              for (let peer = 0; peer < 9; peer++) {
+                const r = isRow ? secondaryIdx : peer;
+                const c = isRow ? peer : secondaryIdx;
+                const cellBoxIdx = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+                if (cellBoxIdx !== primaryIdx && pencils[r][c].has(num)) {
                   removals.push({ r, c, num });
                 }
               }
-
-              if (removals.length > 0) {
-                const lineName = isRow ? "Row" : "Col";
-                // Convert to bXpY format using _getPointIndex math (1-indexed)
-                const points = [
-                  ...new Set(
-                    boxCellsWithNum.map(
-                      ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                    ),
-                  ),
-                ]
-                  .sort()
-                  .join("");
-                const cellStr = `b${boxIdx + 1}p${points}`;
-
-                return {
-                  change: true,
-                  type: "remove",
-                  cells: removals,
-                  hint: {
-                    name: "Pointing",
-                    mainInfo: `Intersection of Box ${boxIdx + 1} and ${lineName} ${lineIdx + 1}`,
-                    detail: `All cells with digit (${num}) in Box ${boxIdx + 1} ${cellStr} are also in ${lineName} ${lineIdx + 1}`,
-                  },
-                  applyVisuals: () => {
-                    highlightedDigit = num;
-                    highlightState = 1;
-
-                    // 2. Color intersection (Cell Color 8) and off-intersection line
-                    const lineCells = techniques._getUnitCells(
-                      isRow ? "row" : "col",
-                      lineIdx,
-                    );
-                    lineCells.forEach(([cr, cc]) => {
-                      boardState[cr][cc].cellColor = cellColorPalette[7];
-                    });
-
-                    // 1. Color all box cells as off-intersection first
-                    boxCells.forEach(([cr, cc]) => {
-                      boardState[cr][cc].cellColor = cellColorPalette[6];
-                    });
-
-                    // 3. Color candidate only in cells that actually have the digit
-                    boxCellsWithNum.forEach(([cr, cc]) => {
-                      boardState[cr][cc].pencilColors.set(
-                        num,
-                        candidateColorPalette[4],
-                      );
-                    });
-
-                    // 4. Eliminations (Cand Color 1)
-                    removals.forEach((el) =>
-                      boardState[el.r][el.c].pencilColors.set(
-                        el.num,
-                        candidateColorPalette[0],
-                      ),
-                    );
-                  },
-                };
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // --- 2. Claiming (Line -> Box) ---
-    for (let i = 0; i < 9; i++) {
-      for (let num = 1; num <= 9; num++) {
-        for (const isRow of [true, false]) {
-          const lineCellsWithNum = [];
-
-          for (let peer = 0; peer < 9; peer++) {
-            const r = isRow ? i : peer;
-            const c = isRow ? peer : i;
-            if (pencils[r][c].has(num)) lineCellsWithNum.push([r, c]);
-          }
-
-          if (lineCellsWithNum.length > 1) {
-            // Check if all these line cells belong to the same box
-            const boxIdxs = new Set(
-              lineCellsWithNum.map(
-                ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
-              ),
-            );
-
-            if (boxIdxs.size === 1) {
-              const targetBoxIdx = [...boxIdxs][0];
-              const removals = [];
-              const boxCells = techniques._getUnitCells("box", targetBoxIdx);
-
+            } else {
+              const boxCells = techniques._getUnitCells("box", secondaryIdx);
               for (const [r, c] of boxCells) {
-                const isOutsideLine = isRow ? r !== i : c !== i;
-
-                // If the cell is in the claimed box but outside the claiming line
+                const isOutsideLine = isRow
+                  ? r !== primaryIdx
+                  : c !== primaryIdx;
                 if (isOutsideLine && pencils[r][c].has(num)) {
                   removals.push({ r, c, num });
                 }
               }
-
-              if (removals.length > 0) {
-                const lineName = isRow ? "Row" : "Col";
-                const rows = [
-                  ...new Set(lineCellsWithNum.map(([r, c]) => r + 1)),
-                ]
-                  .sort()
-                  .join("");
-                const cols = [
-                  ...new Set(lineCellsWithNum.map(([r, c]) => c + 1)),
-                ]
-                  .sort()
-                  .join("");
-                const cellStr = `r${rows}c${cols}`;
-
-                return {
-                  change: true,
-                  type: "remove",
-                  cells: removals,
-                  hint: {
-                    name: "Claiming",
-                    mainInfo: `Intersection of ${lineName} ${i + 1} and Box ${targetBoxIdx + 1}`,
-                    detail: `All cells with digit (${num}) in ${lineName} ${i + 1} ${cellStr} are also in Box ${targetBoxIdx + 1}`,
-                  },
-                  applyVisuals: () => {
-                    highlightedDigit = num;
-                    highlightState = 1;
-
-                    // 2. Color intersection (Cell Color 8) and off-intersection box
-                    boxCells.forEach(([cr, cc]) => {
-                      boardState[cr][cc].cellColor = cellColorPalette[7];
-                    });
-                    // 1. Color all line cells as off-intersection first (Cell Color 7)
-                    const lineCells = techniques._getUnitCells(
-                      isRow ? "row" : "col",
-                      i,
-                    );
-
-                    lineCells.forEach(([cr, cc]) => {
-                      boardState[cr][cc].cellColor = cellColorPalette[6];
-                    });
-
-                    // 3. Color candidate only in cells that actually have the digit
-                    lineCellsWithNum.forEach(([cr, cc]) => {
-                      boardState[cr][cc].pencilColors.set(
-                        num,
-                        candidateColorPalette[4],
-                      );
-                    });
-
-                    // 4. Eliminations (Cand Color 1)
-                    removals.forEach((el) =>
-                      boardState[el.r][el.c].pencilColors.set(
-                        el.num,
-                        candidateColorPalette[0],
-                      ),
-                    );
-                  },
-                };
-              }
             }
+
+            if (removals.length === 0) continue;
+
+            // ── Build hint strings ────────────────────────────────────────────
+            const lineName = isRow ? "Row" : "Col";
+
+            const hintName = is_pointing ? "Pointing" : "Claiming";
+            const mainInfo = is_pointing
+              ? `Intersection of Box ${primaryIdx + 1} and ${lineName} ${secondaryIdx + 1}`
+              : `Intersection of ${lineName} ${primaryIdx + 1} and Box ${secondaryIdx + 1}`;
+
+            let cellStr;
+            if (is_pointing) {
+              const points = [
+                ...new Set(
+                  sourceCellsWithNum.map(
+                    ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+                  ),
+                ),
+              ]
+                .sort()
+                .join("");
+              cellStr = `b${primaryIdx + 1}p${points}`;
+            } else {
+              const rows = [...new Set(sourceCellsWithNum.map(([r]) => r + 1))]
+                .sort()
+                .join("");
+              const cols = [
+                ...new Set(sourceCellsWithNum.map(([, c]) => c + 1)),
+              ]
+                .sort()
+                .join("");
+              cellStr = `r${rows}c${cols}`;
+            }
+
+            const detail = is_pointing
+              ? `All cells with digit (${num}) in Box ${primaryIdx + 1} ${cellStr} are also in ${lineName} ${secondaryIdx + 1}`
+              : `All cells with digit (${num}) in ${lineName} ${primaryIdx + 1} ${cellStr} are also in Box ${secondaryIdx + 1}`;
+
+            // ── Capture loop variables for the closure ────────────────────────
+            const _sourceCellsWithNum = sourceCellsWithNum;
+            const _primaryIdx = primaryIdx;
+            const _secondaryIdx = secondaryIdx;
+            const _isRow = isRow;
+            const _is_pointing = is_pointing;
+            const _removals = removals;
+
+            return {
+              change: true,
+              type: "remove",
+              cells: removals,
+              hint: { name: hintName, mainInfo, detail },
+              applyVisuals: () => {
+                highlightedDigit = num;
+                highlightState = 1;
+
+                const boxIdx = _is_pointing ? _primaryIdx : _secondaryIdx;
+                const lineIdx = _is_pointing ? _secondaryIdx : _primaryIdx;
+
+                const boxCells = techniques._getUnitCells("box", boxIdx);
+                const lineCells = techniques._getUnitCells(
+                  _isRow ? "row" : "col",
+                  lineIdx,
+                );
+
+                // Pointing: line is Cell Color 8, box is Cell Color 7
+                // Claiming: box  is Cell Color 8, line is Cell Color 7
+                const [color8Cells, color7Cells] = _is_pointing
+                  ? [lineCells, boxCells]
+                  : [boxCells, lineCells];
+
+                color8Cells.forEach(([cr, cc]) => {
+                  boardState[cr][cc].cellColor = cellColorPalette[7];
+                });
+                color7Cells.forEach(([cr, cc]) => {
+                  boardState[cr][cc].cellColor = cellColorPalette[6];
+                });
+
+                // Highlight the source candidates
+                _sourceCellsWithNum.forEach(([cr, cc]) => {
+                  boardState[cr][cc].pencilColors.set(
+                    num,
+                    candidateColorPalette[4],
+                  );
+                });
+
+                // Mark eliminations
+                _removals.forEach((el) =>
+                  boardState[el.r][el.c].pencilColors.set(
+                    el.num,
+                    candidateColorPalette[0],
+                  ),
+                );
+              },
+            };
           }
         }
       }
     }
-
     return { change: false };
   },
 
