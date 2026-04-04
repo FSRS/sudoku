@@ -3653,13 +3653,15 @@ function renderSolverStep(index) {
   const list = document.getElementById("solver-summary-list");
   Array.from(list.children).forEach((row) => {
     if (row.dataset.tech === step.techName) {
+      const isDark = document.documentElement.classList.contains("dark");
+
       // Apply highlight
-      row.style.backgroundColor = document.documentElement.classList.contains(
-        "dark",
-      )
+      row.style.backgroundColor = isDark
         ? "rgba(255,255,255,0.15)"
-        : "rgba(0,0,0,0.1)";
-      row.style.filter = "brightness(1.2)";
+        : "rgba(0,0,0,0.04)"; // Extremely faint, barely-there gray for light mode
+
+      // Remove brightness filter in light mode to keep colored text (like yellow) pure and readable
+      row.style.filter = isDark ? "brightness(1.2)" : "none";
 
       // Auto-scroll to center the row smoothly
       const listRect = list.getBoundingClientRect();
@@ -3685,7 +3687,6 @@ function renderSolverStep(index) {
       row.style.filter = "none";
     }
   });
-
   // Apply Board State
   boardState = cloneToBoardState(step.board, step.pencils);
   drawnLines = [];

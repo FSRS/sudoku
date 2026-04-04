@@ -1210,7 +1210,7 @@ const techniques = {
                       : "Jellyfish"
                 }`,
                 mainInfo: `Digit (${num})`,
-                detail: `Digit (${num}), Base ${baseStr}, Cover ${coverStr}, Fin (${finStr})`,
+                detail: `Digit (${num}), Base ${baseStr}, Cover ${coverStr}, Fin ${finStr}`,
               },
               applyVisuals: () => {
                 highlightedDigit = num;
