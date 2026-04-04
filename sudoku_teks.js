@@ -314,7 +314,7 @@ const techniques = {
         techniques._getUnitCells(type, idx).forEach(([ur, uc]) => {
           boardState[ur][uc].cellColor = cellColorPalette[7]; // House cell color 8
         });
-        boardState[r][c].pencilColors.set(missingNum, candidateColorPalette[5]); // Placeable cand color 6
+        boardState[r][c].pencilColors.set(missingNum, candidateColorPalette[3]);
       },
     };
   },
@@ -339,7 +339,7 @@ const techniques = {
               highlightedDigit = null;
               highlightState = 0;
               boardState[r][c].cellColor = cellColorPalette[7]; // Cell color 8
-              boardState[r][c].pencilColors.set(num, candidateColorPalette[5]); // Placeable cand color 6
+              boardState[r][c].pencilColors.set(num, candidateColorPalette[3]);
             },
           };
         }
@@ -406,7 +406,7 @@ const techniques = {
                 // Highlight the placed candidate
                 boardState[r][c].pencilColors.set(
                   num,
-                  candidateColorPalette[5], // Cand color 6
+                  candidateColorPalette[3],
                 );
               },
             };
@@ -1312,11 +1312,44 @@ const techniques = {
                 applyVisuals: () => {
                   highlightedDigit = null;
                   highlightState = 2;
+
+                  // Color the cells
                   boardState[pivot.r][pivot.c].cellColor = cellColorPalette[6]; // Cell Color 7
                   boardState[pincer1.r][pincer1.c].cellColor =
                     cellColorPalette[7]; // Cell Color 8
                   boardState[pincer2.r][pincer2.c].cellColor =
                     cellColorPalette[7]; // Cell Color 8
+
+                  // Elimination candidate (z) in wings -> Candidate Color 8
+                  boardState[pincer1.r][pincer1.c].pencilColors.set(
+                    z,
+                    candidateColorPalette[7],
+                  );
+                  boardState[pincer2.r][pincer2.c].pencilColors.set(
+                    z,
+                    candidateColorPalette[7],
+                  );
+
+                  // First other digit (x) -> Candidate Color 5
+                  boardState[pivot.r][pivot.c].pencilColors.set(
+                    x,
+                    candidateColorPalette[4],
+                  );
+                  boardState[pincer1.r][pincer1.c].pencilColors.set(
+                    x,
+                    candidateColorPalette[4],
+                  );
+
+                  // Second other digit (y) -> Candidate Color 6
+                  boardState[pivot.r][pivot.c].pencilColors.set(
+                    y,
+                    candidateColorPalette[5],
+                  );
+                  boardState[pincer2.r][pincer2.c].pencilColors.set(
+                    y,
+                    candidateColorPalette[5],
+                  );
+
                   removals.forEach((el) =>
                     boardState[el.r][el.c].pencilColors.set(
                       el.num,
@@ -1406,9 +1439,54 @@ const techniques = {
               applyVisuals: () => {
                 highlightedDigit = null;
                 highlightState = 2;
+
+                // Color the cells
                 boardState[pivot.r][pivot.c].cellColor = cellColorPalette[6]; // Cell Color 7
                 boardState[wing1.r][wing1.c].cellColor = cellColorPalette[7]; // Cell Color 8
                 boardState[wing2.r][wing2.c].cellColor = cellColorPalette[7]; // Cell Color 8
+
+                // Find the other two digits distinct from 'z'
+                const x = [...wing1.cands].find((c) => c !== z);
+                const y = [...wing2.cands].find((c) => c !== z);
+
+                // Elimination candidate (z) in pivot and wings -> Candidate Color 8
+                boardState[pivot.r][pivot.c].pencilColors.set(
+                  z,
+                  candidateColorPalette[7],
+                );
+                boardState[wing1.r][wing1.c].pencilColors.set(
+                  z,
+                  candidateColorPalette[7],
+                );
+                boardState[wing2.r][wing2.c].pencilColors.set(
+                  z,
+                  candidateColorPalette[7],
+                );
+
+                // First other digit (x) -> Candidate Color 5
+                if (x !== undefined) {
+                  boardState[pivot.r][pivot.c].pencilColors.set(
+                    x,
+                    candidateColorPalette[4],
+                  );
+                  boardState[wing1.r][wing1.c].pencilColors.set(
+                    x,
+                    candidateColorPalette[4],
+                  );
+                }
+
+                // Second other digit (y) -> Candidate Color 6
+                if (y !== undefined) {
+                  boardState[pivot.r][pivot.c].pencilColors.set(
+                    y,
+                    candidateColorPalette[5],
+                  );
+                  boardState[wing2.r][wing2.c].pencilColors.set(
+                    y,
+                    candidateColorPalette[5],
+                  );
+                }
+
                 removals.forEach((el) =>
                   boardState[el.r][el.c].pencilColors.set(
                     el.num,
@@ -1424,7 +1502,8 @@ const techniques = {
     return { change: false };
   },
 
-  wWing: (board, pencils) => {
+  // --- Unified Helper for W-Wing & Grouped W-Wing ---
+  _wWingCore: (board, pencils, isGrouped) => {
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -1438,160 +1517,32 @@ const techniques = {
     for (const pair of techniques.combinations(bivalueCells, 2)) {
       const [cell1, cell2] = pair;
       if (cell1.cands.size !== 2 || cell2.cands.size !== 2) continue;
-      const cands1 = [...cell1.cands].sort();
-      const cands2 = [...cell2.cands].sort();
+
+      const cands1 = [...cell1.cands].sort((a, b) => a - b);
+      const cands2 = [...cell2.cands].sort((a, b) => a - b);
       if (cands1[0] !== cands2[0] || cands1[1] !== cands2[1]) continue;
       if (techniques._sees([cell1.r, cell1.c], [cell2.r, cell2.c])) continue;
 
       const [x, y] = cands1;
-      // Strong link on x, eliminate y
-      let result = techniques._findWWingElimination(
-        board,
-        pencils,
-        cell1,
-        cell2,
-        x,
-        y,
-      );
-      if (result.change) return result;
-      // Strong link on y, eliminate x
-      result = techniques._findWWingElimination(
-        board,
-        pencils,
-        cell1,
-        cell2,
-        y,
-        x,
-      );
-      if (result.change) return result;
-    }
-    return { change: false };
-  },
 
-  _findWWingElimination: (board, pencils, cell1, cell2, x, y) => {
-    const units = [];
-    const unitTypes = ["row", "col", "box"];
-
-    // Track the unit type and index so we can format the strong link later
-    for (const type of unitTypes) {
-      for (let i = 0; i < 9; i++) {
-        units.push({
-          type: type,
-          index: i,
-          cells: techniques._getUnitCells(type, i),
-        });
-      }
-    }
-
-    for (const unit of units) {
-      const x_cells = unit.cells.filter(([r, c]) => pencils[r][c].has(x));
-      if (x_cells.length === 2) {
-        const [link1, link2] = x_cells;
-        const sees_l1_c1 = techniques._sees(link1, [cell1.r, cell1.c]);
-        const sees_l1_c2 = techniques._sees(link1, [cell2.r, cell2.c]);
-        const sees_l2_c1 = techniques._sees(link2, [cell1.r, cell1.c]);
-        const sees_l2_c2 = techniques._sees(link2, [cell2.r, cell2.c]);
-
-        if (
-          (sees_l1_c1 && sees_l2_c2 && !sees_l1_c2 && !sees_l2_c1) ||
-          (sees_l1_c2 && sees_l2_c1 && !sees_l1_c1 && !sees_l2_c2)
-        ) {
-          const removals = [];
-          const commonSeers = techniques._commonVisibleCells(
-            [cell1.r, cell1.c],
-            [cell2.r, cell2.c],
-          );
-          for (const [r, c] of commonSeers) {
-            if (pencils[r][c].has(y)) {
-              removals.push({ r, c, num: y });
-            }
-          }
-          if (removals.length > 0) {
-            // --- Format the strong link based on unit type ---
-            let linkStr1 = "";
-            let linkStr2 = "";
-
-            if (unit.type === "box") {
-              const p1 =
-                Math.floor(link1[0] % 3) * 3 + Math.floor(link1[1] % 3) + 1;
-              const p2 =
-                Math.floor(link2[0] % 3) * 3 + Math.floor(link2[1] % 3) + 1;
-              linkStr1 = `b${unit.index + 1}p${p1}`;
-              linkStr2 = `b${unit.index + 1}p${p2}`;
-            } else {
-              linkStr1 = `r${link1[0] + 1}c${link1[1] + 1}`;
-              linkStr2 = `r${link2[0] + 1}c${link2[1] + 1}`;
-            }
-
-            const strongLinkDetail = `(${x})(${linkStr1}=${linkStr2})`;
-            return {
-              change: true,
-              type: "remove",
-              cells: removals,
-              hint: {
-                name: "W-Wing",
-                mainInfo: `Using digits (${y}${x})`,
-                detail: `Digits (${y}${x}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot ${unit.type.slice(0, 1)}${unit.index + 1} as ${strongLinkDetail}`,
-              },
-              applyVisuals: () => {
-                highlightedDigit = null;
-                highlightState = 2;
-                boardState[cell1.r][cell1.c].cellColor = cellColorPalette[6]; // Wing color 7
-                boardState[cell2.r][cell2.c].cellColor = cellColorPalette[6]; // Wing color 7
-                boardState[link1[0]][link1[1]].cellColor = cellColorPalette[7]; // House cell color 8
-                boardState[link2[0]][link2[1]].cellColor = cellColorPalette[7]; // House cell color 8
-                boardState[link1[0]][link1[1]].pencilColors.set(
-                  x,
-                  candidateColorPalette[4],
-                ); // House cand color 5
-                boardState[link2[0]][link2[1]].pencilColors.set(
-                  x,
-                  candidateColorPalette[4],
-                ); // House cand color 5
-                removals.forEach((el) =>
-                  boardState[el.r][el.c].pencilColors.set(
-                    el.num,
-                    candidateColorPalette[0],
-                  ),
-                );
-              },
-            };
-          }
-        }
-      }
-    }
-    return { change: false };
-  },
-
-  groupedWWing: (board, pencils) => {
-    const bivalueCells = [];
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        if (pencils[r][c].size === 2) {
-          bivalueCells.push({ r, c, cands: pencils[r][c] });
-        }
-      }
-    }
-    if (bivalueCells.length < 2) return { change: false };
-
-    for (const pair of techniques.combinations(bivalueCells, 2)) {
-      const [cell1, cell2] = pair;
-
-      const cands1Str = [...cell1.cands].sort().join("");
-      const cands2Str = [...cell2.cands].sort().join("");
-      if (cands1Str !== cands2Str) continue;
-
-      const [x, y] = [...cell1.cands];
-
+      // Test both possible linking digits
       for (const linkDigit of [x, y]) {
         const elimDigit = linkDigit === x ? y : x;
 
-        // Check all 27 units for a grouped strong link
+        // Check all 27 units for a (grouped) strong link
         for (let u = 0; u < 27; u++) {
-          let unit;
-          if (u < 9) unit = techniques._getUnitCells("row", u);
-          else if (u < 18) unit = techniques._getUnitCells("col", u - 9);
-          else unit = techniques._getUnitCells("box", u - 18);
+          let unitType, unitIndex, unit;
+          if (u < 9) {
+            unitType = "row";
+            unitIndex = u;
+          } else if (u < 18) {
+            unitType = "col";
+            unitIndex = u - 9;
+          } else {
+            unitType = "box";
+            unitIndex = u - 18;
+          }
+          unit = techniques._getUnitCells(unitType, unitIndex);
 
           // The linking unit must not contain either of the base cells
           if (
@@ -1609,124 +1560,143 @@ const techniques = {
           );
           if (x_cells_in_unit.length === 0) continue;
 
-          // Relaxed Check: Every linking cell must see at least one of the two base cells (OR logic),
-          // AND both base cells must be seen by at least one linking cell.
-          let sees1Count = 0;
-          let sees2Count = 0;
+          // If not grouped, we strictly require exactly 2 candidates forming the link
+          if (!isGrouped && x_cells_in_unit.length !== 2) continue;
 
-          const isGroupedLink =
-            x_cells_in_unit.every(([r, c]) => {
-              const sees1 = techniques._sees([r, c], [cell1.r, cell1.c]);
-              const sees2 = techniques._sees([r, c], [cell2.r, cell2.c]);
+          const group1 = [];
+          const group2 = [];
+          let isValid = true;
 
-              if (sees1) sees1Count++;
-              if (sees2) sees2Count++;
+          for (const [r, c] of x_cells_in_unit) {
+            const sees1 = techniques._sees([r, c], [cell1.r, cell1.c]);
+            const sees2 = techniques._sees([r, c], [cell2.r, cell2.c]);
 
-              return sees1 || sees2; // Must see at least one
-            }) &&
-            sees1Count > 0 &&
-            sees2Count > 0; // Both wings must be connected
-
-          if (isGroupedLink) {
-            const removals = [];
-            const commonPeers = techniques._commonVisibleCells(
-              [cell1.r, cell1.c],
-              [cell2.r, cell2.c],
-            );
-            for (const [r, c] of commonPeers) {
-              if (pencils[r][c].has(elimDigit)) {
-                removals.push({ r, c, num: elimDigit });
+            if (!isGrouped) {
+              // Standard W-Wing: Link cells must see EXACTLY ONE of the wings
+              if (sees1 === sees2) {
+                isValid = false;
+                break;
               }
+              if (sees1) group1.push([r, c]);
+              if (sees2) group2.push([r, c]);
+            } else {
+              // Grouped W-Wing: Link cells must see AT LEAST ONE wing
+              if (!sees1 && !sees2) {
+                isValid = false;
+                break;
+              }
+              if (sees1) group1.push([r, c]);
+              if (sees2) group2.push([r, c]);
             }
-            if (removals.length > 0) {
-              // --- Split linking cells into Group 1 and Group 2 ---
-              const group1 = x_cells_in_unit.filter(([r, c]) =>
-                techniques._sees([r, c], [cell1.r, cell1.c]),
-              );
-              const group2 = x_cells_in_unit.filter(([r, c]) =>
-                techniques._sees([r, c], [cell2.r, cell2.c]),
-              );
+          }
 
-              let linkStr1 = "";
-              let linkStr2 = "";
+          // Both groups must be populated with at least one connecting cell
+          if (!isValid || group1.length === 0 || group2.length === 0) continue;
 
-              // --- Format string based on unit type (0-8 Row, 9-17 Col, 18-26 Box) ---
-              if (u >= 18) {
-                const boxIdx = u - 18 + 1;
-                const pts1 = [
+          const removals = [];
+          const commonPeers = techniques._commonVisibleCells(
+            [cell1.r, cell1.c],
+            [cell2.r, cell2.c],
+          );
+          for (const [r, c] of commonPeers) {
+            if (pencils[r][c].has(elimDigit)) {
+              removals.push({ r, c, num: elimDigit });
+            }
+          }
+
+          if (removals.length > 0) {
+            const formatGroup = (cells, uType, uIdx) => {
+              if (uType === "box") {
+                const pts = [
                   ...new Set(
-                    group1.map(
+                    cells.map(
                       ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
                     ),
                   ),
                 ]
-                  .sort()
+                  .sort((a, b) => a - b)
                   .join("");
-                const pts2 = [
-                  ...new Set(
-                    group2.map(
-                      ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                    ),
-                  ),
-                ]
-                  .sort()
-                  .join("");
-                linkStr1 = `b${boxIdx}p${pts1}`;
-                linkStr2 = `b${boxIdx}p${pts2}`;
+                return `b${uIdx + 1}p${pts}`;
               } else {
-                const r1 = [...new Set(group1.map(([r, c]) => r + 1))]
-                  .sort()
+                const rs = [...new Set(cells.map(([r, c]) => r + 1))]
+                  .sort((a, b) => a - b)
                   .join("");
-                const c1 = [...new Set(group1.map(([r, c]) => c + 1))]
-                  .sort()
+                const cs = [...new Set(cells.map(([r, c]) => c + 1))]
+                  .sort((a, b) => a - b)
                   .join("");
-                const r2 = [...new Set(group2.map(([r, c]) => r + 1))]
-                  .sort()
-                  .join("");
-                const c2 = [...new Set(group2.map(([r, c]) => c + 1))]
-                  .sort()
-                  .join("");
-                linkStr1 = `r${r1}c${c1}`;
-                linkStr2 = `r${r2}c${c2}`;
+                return `r${rs}c${cs}`;
               }
+            };
 
-              const strongLinkDetail = `(${linkDigit})(${linkStr1}=${linkStr2})`;
+            const linkStr1 = formatGroup(group1, unitType, unitIndex);
+            const linkStr2 = formatGroup(group2, unitType, unitIndex);
+            const strongLinkDetail = `(${linkDigit})(${linkStr1}=${linkStr2})`;
 
-              return {
-                change: true,
-                type: "remove",
-                cells: removals,
-                hint: {
-                  name: "Grouped W-Wing",
-                  mainInfo: `Using digits (${elimDigit}${linkDigit})`,
-                  detail: `Digits (${elimDigit}${linkDigit}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot by pivot ${Math.floor(u / 9) == 0 ? "r" : Math.floor(u / 9) == 1 ? "c" : "b"}${(u % 9) + 1} as ${strongLinkDetail}`,
-                },
-                applyVisuals: () => {
-                  highlightedDigit = null;
-                  highlightState = 2;
-                  boardState[cell1.r][cell1.c].cellColor = cellColorPalette[6]; // Wing color 7
-                  boardState[cell2.r][cell2.c].cellColor = cellColorPalette[6]; // Wing color 7
-                  [...group1, ...group2].forEach(([r, c]) => {
-                    boardState[r][c].cellColor = cellColorPalette[7]; // House cell color 8
-                    boardState[r][c].pencilColors.set(
-                      linkDigit,
-                      candidateColorPalette[4],
-                    ); // House cand color 5
-                  });
-                  removals.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
-                      el.num,
-                      candidateColorPalette[0],
-                    ),
-                  );
-                },
-              };
-            }
+            return {
+              change: true,
+              type: "remove",
+              cells: removals,
+              hint: {
+                name: isGrouped ? "Grouped W-Wing" : "W-Wing",
+                mainInfo: `Using digits (${elimDigit}${linkDigit})`,
+                detail: `Digits (${elimDigit}${linkDigit}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot ${unitType.slice(0, 1)}${unitIndex + 1} as ${strongLinkDetail}`,
+              },
+              applyVisuals: () => {
+                highlightedDigit = null;
+                highlightState = 2;
+
+                boardState[cell1.r][cell1.c].cellColor = cellColorPalette[6]; // Wing color 7
+                boardState[cell2.r][cell2.c].cellColor = cellColorPalette[6]; // Wing color 7
+
+                // Covered digit on wing cells (Candidate Color 6)
+                boardState[cell1.r][cell1.c].pencilColors.set(
+                  linkDigit,
+                  candidateColorPalette[5],
+                );
+                boardState[cell2.r][cell2.c].pencilColors.set(
+                  linkDigit,
+                  candidateColorPalette[5],
+                );
+
+                // Elimination digit on wing cells (Candidate Color 8)
+                boardState[cell1.r][cell1.c].pencilColors.set(
+                  elimDigit,
+                  candidateColorPalette[7],
+                );
+                boardState[cell2.r][cell2.c].pencilColors.set(
+                  elimDigit,
+                  candidateColorPalette[7],
+                );
+
+                [...group1, ...group2].forEach(([r, c]) => {
+                  boardState[r][c].cellColor = cellColorPalette[7]; // House cell color 8
+                  boardState[r][c].pencilColors.set(
+                    linkDigit,
+                    candidateColorPalette[4],
+                  ); // House cand color 5
+                });
+
+                removals.forEach((el) =>
+                  boardState[el.r][el.c].pencilColors.set(
+                    el.num,
+                    candidateColorPalette[0],
+                  ),
+                );
+              },
+            };
           }
         }
       }
     }
     return { change: false };
+  },
+
+  wWing: (board, pencils) => {
+    return techniques._wWingCore(board, pencils, false);
+  },
+
+  groupedWWing: (board, pencils) => {
+    return techniques._wWingCore(board, pencils, true);
   },
 
   remotePair: (board, pencils) => {
@@ -2655,6 +2625,25 @@ const techniques = {
               mainInfo: `Tri-value cell at r${r_plus1 + 1}c${c_plus1 + 1}`,
               detail: `All digits appear exactly twice in all houses except for (${num})r${r_plus1 + 1}c${c_plus1 + 1}`,
             },
+            applyVisuals: () => {
+              highlightedDigit = null;
+              highlightState = 2; // Highlight bivalue cells
+
+              // Color trivalue cell and its target candidate
+              boardState[r_plus1][c_plus1].cellColor = cellColorPalette[7]; // Color 8
+              boardState[r_plus1][c_plus1].pencilColors.set(
+                num,
+                candidateColorPalette[3],
+              ); // Color 4
+
+              // Removable candidates in color 1
+              removals.forEach((el) =>
+                boardState[el.r][el.c].pencilColors.set(
+                  el.num,
+                  candidateColorPalette[0],
+                ),
+              );
+            },
           };
         }
       }
@@ -2759,6 +2748,88 @@ const techniques = {
       return `r${rows}c${cols}`;
     };
 
+    const getURVisuals = (type, cells, d1, d2, removals, extraData = {}) => {
+      return () => {
+        highlightState = type === 4 || type === 6 ? 1 : 0;
+        highlightedDigit =
+          type === 4 || type === 6 ? extraData.restrictedDigit : null;
+
+        cells.forEach(([cr, cc]) => {
+          boardState[cr][cc].cellColor = cellColorPalette[7];
+          if (boardState[cr][cc].pencils.has(d1))
+            boardState[cr][cc].pencilColors.set(d1, candidateColorPalette[2]);
+          if (boardState[cr][cc].pencils.has(d2))
+            boardState[cr][cc].pencilColors.set(d2, candidateColorPalette[2]);
+          boardState[cr][cc].pencils.forEach((cand) => {
+            if (cand !== d1 && cand !== d2)
+              boardState[cr][cc].pencilColors.set(
+                cand,
+                candidateColorPalette[3],
+              );
+          });
+        });
+
+        if (type === 3) {
+          extraData.subsetCells.forEach(([cr, cc]) => {
+            boardState[cr][cc].cellColor = cellColorPalette[6];
+            boardState[cr][cc].pencils.forEach((cand) => {
+              if (extraData.subsetCands.has(cand))
+                boardState[cr][cc].pencilColors.set(
+                  cand,
+                  candidateColorPalette[4],
+                );
+            });
+          });
+        }
+
+        if (type === 4) {
+          drawnLines.push({
+            r1: extraData.e1[0],
+            c1: extraData.e1[1],
+            n1: extraData.restrictedDigit,
+            r2: extraData.e2[0],
+            c2: extraData.e2[1],
+            n2: extraData.restrictedDigit,
+            color: lineColorPalette[0],
+            style: "solid",
+          });
+        }
+
+        if (type === 6) {
+          const u = extraData.restrictedDigit;
+          const rows = [...new Set(cells.map((c) => c[0]))];
+          const cols = [...new Set(cells.map((c) => c[1]))];
+          drawnLines.push({
+            r1: rows[0],
+            c1: cols[0],
+            n1: u,
+            r2: rows[0],
+            c2: cols[1],
+            n2: u,
+            color: lineColorPalette[0],
+            style: "solid",
+          });
+          drawnLines.push({
+            r1: rows[1],
+            c1: cols[0],
+            n1: u,
+            r2: rows[1],
+            c2: cols[1],
+            n2: u,
+            color: lineColorPalette[0],
+            style: "solid",
+          });
+        }
+
+        removals.forEach((el) =>
+          boardState[el.r][el.c].pencilColors.set(
+            el.num,
+            candidateColorPalette[0],
+          ),
+        );
+      };
+    };
+
     for (const rect of rects) {
       const { cells, digits } = rect;
       const [d1, d2] = digits;
@@ -2783,6 +2854,13 @@ const techniques = {
               mainInfo: `using Digits (${d1}${d2})`,
               detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}`,
             },
+            applyVisuals: getURVisuals(
+              1,
+              cells,
+              d1,
+              d2,
+              uniqueRemovals(removals),
+            ),
           };
       }
 
@@ -2823,6 +2901,13 @@ const techniques = {
                   mainInfo: `using Digits (${d1}${d2})`,
                   detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}`,
                 },
+                applyVisuals: getURVisuals(
+                  extraCells.length === 2 ? 2 : 5,
+                  cells,
+                  d1,
+                  d2,
+                  uniqueRemovals(removals),
+                ),
               };
           }
         }
@@ -2865,7 +2950,11 @@ const techniques = {
                     }
                   }
                   if (removals.length > 0)
-                    return { removals: uniqueRemovals(removals), chosen };
+                    return {
+                      removals: uniqueRemovals(removals),
+                      chosen,
+                      union,
+                    };
                 }
               }
             }
@@ -2913,6 +3002,14 @@ const techniques = {
                   mainInfo: `using Digits (${d1}${d2})`,
                   detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}, Exrta cells for vitrual naked subset ${subsetStr}`,
                 },
+                applyVisuals: getURVisuals(
+                  3,
+                  cells,
+                  d1,
+                  d2,
+                  uniqueRemovals(res.removals),
+                  { subsetCells: res.chosen, subsetCands: res.union },
+                ), // Changed union to res.unions
               };
             }
           }
@@ -2967,6 +3064,14 @@ const techniques = {
                     mainInfo: `using Digits (${d1}${d2})`,
                     detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}, Restricted guardians and base (${u}) in ${lineStr}`,
                   },
+                  applyVisuals: getURVisuals(
+                    4,
+                    cells,
+                    d1,
+                    d2,
+                    uniqueRemovals(removals),
+                    { restrictedDigit: u, e1: [e1r, e1c], e2: [e2r, e2c] },
+                  ),
                 };
               }
             }
@@ -3006,6 +3111,14 @@ const techniques = {
                     mainInfo: `using Digits (${d1}${d2})`,
                     detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}. Exclude a specific placement of (${u}) on UR removing all guardians`,
                   },
+                  applyVisuals: getURVisuals(
+                    6,
+                    cells,
+                    d1,
+                    d2,
+                    uniqueRemovals(removals),
+                    { restrictedDigit: u },
+                  ),
                 };
             }
           }
@@ -3076,6 +3189,43 @@ const techniques = {
       let removals = [];
       let caseInfo = "";
       const strongLinks = [];
+      const visualLinks = []; // Track strong lines
+
+      const checkStrong = (d, type, idx, p1, p2) => {
+        const isStrong = techniques._isStrongLink(
+          pencils,
+          d,
+          type,
+          idx,
+          p1,
+          p2,
+        );
+        if (isStrong) {
+          if (type === "row")
+            visualLinks.push({
+              r1: idx,
+              c1: p1,
+              n1: d,
+              r2: idx,
+              c2: p2,
+              n2: d,
+              color: lineColorPalette[0],
+              style: "solid",
+            });
+          else
+            visualLinks.push({
+              r1: p1,
+              c1: idx,
+              n1: d,
+              r2: p2,
+              c2: idx,
+              n2: d,
+              color: lineColorPalette[0],
+              style: "solid",
+            });
+        }
+        return isStrong;
+      };
 
       const addRemoval = (r, c, num) => {
         if (pencils[r][c] && pencils[r][c].has(num)) {
@@ -3093,59 +3243,55 @@ const techniques = {
 
         if (row_aligned) {
           caseInfo = "Case 2: Row-Aligned";
-          if (techniques._isStrongLink(pencils, d1, "row", e1r, e1c, e2c)) {
+          if (checkStrong(d1, "row", e1r, e1c, e2c)) {
             addRemoval(e1r, e1c, d2);
             addRemoval(e2r, e2c, d2);
             strongLinks.push(`(${d1})r${e1r + 1}`);
-          } else if (
-            techniques._isStrongLink(pencils, d2, "row", e1r, e1c, e2c)
-          ) {
+          } else if (checkStrong(d2, "row", e1r, e1c, e2c)) {
             addRemoval(e1r, e1c, d1);
             addRemoval(e2r, e2c, d1);
             strongLinks.push(`(${d2})r${e1r + 1}`);
           }
-          if (techniques._isStrongLink(pencils, d1, "col", f1c, f1r, e1r)) {
+          if (checkStrong(d1, "col", f1c, f1r, e1r)) {
             addRemoval(e2r, f2c, d2);
             strongLinks.push(`(${d1})c${f1c + 1}`);
           }
-          if (techniques._isStrongLink(pencils, d2, "col", f1c, f1r, e1r)) {
+          if (checkStrong(d2, "col", f1c, f1r, e1r)) {
             addRemoval(e2r, f2c, d1);
             strongLinks.push(`(${d2})c${f1c + 1}`);
           }
-          if (techniques._isStrongLink(pencils, d1, "col", f2c, f2r, e2r)) {
+          if (checkStrong(d1, "col", f2c, f2r, e2r)) {
             addRemoval(e2r, f1c, d2);
             strongLinks.push(`(${d1})c${f2c + 1}`);
           }
-          if (techniques._isStrongLink(pencils, d2, "col", f2c, f2r, e2r)) {
+          if (checkStrong(d2, "col", f2c, f2r, e2r)) {
             addRemoval(e2r, f1c, d1);
             strongLinks.push(`(${d2})c${f2c + 1}`);
           }
         } else if (col_aligned) {
           caseInfo = "Case 2: Col-Aligned";
-          if (techniques._isStrongLink(pencils, d1, "col", e1c, e1r, e2r)) {
+          if (checkStrong(d1, "col", e1c, e1r, e2r)) {
             addRemoval(e1r, e1c, d2);
             addRemoval(e2r, e2c, d2);
             strongLinks.push(`(${d1})c${e1c + 1}`);
-          } else if (
-            techniques._isStrongLink(pencils, d2, "col", e1c, e1r, e2r)
-          ) {
+          } else if (checkStrong(d2, "col", e1c, e1r, e2r)) {
             addRemoval(e1r, e1c, d1);
             addRemoval(e2r, e2c, d1);
             strongLinks.push(`(${d2})c${e1c + 1}`);
           }
-          if (techniques._isStrongLink(pencils, d1, "row", f1r, f1c, e1c)) {
+          if (checkStrong(d1, "row", f1r, f1c, e1c)) {
             addRemoval(f2r, e1c, d2);
             strongLinks.push(`(${d1})r${f1r + 1}`);
           }
-          if (techniques._isStrongLink(pencils, d2, "row", f1r, f1c, e1c)) {
+          if (checkStrong(d2, "row", f1r, f1c, e1c)) {
             addRemoval(f2r, e1c, d1);
             strongLinks.push(`(${d2})r${f1r + 1}`);
           }
-          if (techniques._isStrongLink(pencils, d1, "row", f2r, f2c, e2c)) {
+          if (checkStrong(d1, "row", f2r, f2c, e2c)) {
             addRemoval(f1r, e1c, d2);
             strongLinks.push(`(${d1})r${f2r + 1}`);
           }
-          if (techniques._isStrongLink(pencils, d2, "row", f2r, f2c, e2c)) {
+          if (checkStrong(d2, "row", f2r, f2c, e2c)) {
             addRemoval(f1r, e1c, d1);
             strongLinks.push(`(${d2})r${f2r + 1}`);
           }
@@ -3155,71 +3301,15 @@ const techniques = {
           const floor1 = [e1r, e2c],
             floor2 = [e2r, e1c];
 
-          const r_f1_bi_d1 = techniques._isStrongLink(
-            pencils,
-            d1,
-            "row",
-            floor1[0],
-            floor1[1],
-            e1c,
-          );
-          const c_f1_bi_d1 = techniques._isStrongLink(
-            pencils,
-            d1,
-            "col",
-            floor1[1],
-            floor1[0],
-            e2r,
-          );
-          const r_f2_bi_d1 = techniques._isStrongLink(
-            pencils,
-            d1,
-            "row",
-            floor2[0],
-            floor2[1],
-            e2c,
-          );
-          const c_f2_bi_d1 = techniques._isStrongLink(
-            pencils,
-            d1,
-            "col",
-            floor2[1],
-            floor2[0],
-            e1r,
-          );
+          const r_f1_bi_d1 = checkStrong(d1, "row", floor1[0], floor1[1], e1c);
+          const c_f1_bi_d1 = checkStrong(d1, "col", floor1[1], floor1[0], e2r);
+          const r_f2_bi_d1 = checkStrong(d1, "row", floor2[0], floor2[1], e2c);
+          const c_f2_bi_d1 = checkStrong(d1, "col", floor2[1], floor2[0], e1r);
 
-          const r_f1_bi_d2 = techniques._isStrongLink(
-            pencils,
-            d2,
-            "row",
-            floor1[0],
-            floor1[1],
-            e1c,
-          );
-          const c_f1_bi_d2 = techniques._isStrongLink(
-            pencils,
-            d2,
-            "col",
-            floor1[1],
-            floor1[0],
-            e2r,
-          );
-          const r_f2_bi_d2 = techniques._isStrongLink(
-            pencils,
-            d2,
-            "row",
-            floor2[0],
-            floor2[1],
-            e2c,
-          );
-          const c_f2_bi_d2 = techniques._isStrongLink(
-            pencils,
-            d2,
-            "col",
-            floor2[1],
-            floor2[0],
-            e1r,
-          );
+          const r_f1_bi_d2 = checkStrong(d2, "row", floor1[0], floor1[1], e1c);
+          const c_f1_bi_d2 = checkStrong(d2, "col", floor1[1], floor1[0], e2r);
+          const r_f2_bi_d2 = checkStrong(d2, "row", floor2[0], floor2[1], e2c);
+          const c_f2_bi_d2 = checkStrong(d2, "col", floor2[1], floor2[0], e1r);
 
           if (r_f1_bi_d1) {
             addRemoval(floor2[0], floor1[1], d1);
@@ -3266,70 +3356,17 @@ const techniques = {
         const diagCell = extraCells.find(([r, c]) => r !== fr && c !== fc);
         if (diagCell) {
           const [other_r, other_c] = diagCell;
-          const r_floor_bi_d1 = techniques._isStrongLink(
-            pencils,
-            d1,
-            "row",
-            fr,
-            fc,
-            other_c,
-          );
-          const c_floor_bi_d1 = techniques._isStrongLink(
-            pencils,
-            d1,
-            "col",
-            fc,
-            fr,
-            other_r,
-          );
-          const r_other_bi_d1 = techniques._isStrongLink(
-            pencils,
-            d1,
-            "row",
-            other_r,
-            fc,
-            other_c,
-          );
-          const c_other_bi_d1 = techniques._isStrongLink(
-            pencils,
-            d1,
-            "col",
-            other_c,
-            fr,
-            other_r,
-          );
-          const r_floor_bi_d2 = techniques._isStrongLink(
-            pencils,
-            d2,
-            "row",
-            fr,
-            fc,
-            other_c,
-          );
-          const c_floor_bi_d2 = techniques._isStrongLink(
-            pencils,
-            d2,
-            "col",
-            fc,
-            fr,
-            other_r,
-          );
-          const r_other_bi_d2 = techniques._isStrongLink(
-            pencils,
-            d2,
-            "row",
-            other_r,
-            fc,
-            other_c,
-          );
-          const c_other_bi_d2 = techniques._isStrongLink(
-            pencils,
-            d2,
-            "col",
-            other_c,
-            fr,
-            other_r,
-          );
+
+          const r_floor_bi_d1 = checkStrong(d1, "row", fr, fc, other_c);
+          const c_floor_bi_d1 = checkStrong(d1, "col", fc, fr, other_r);
+          const r_other_bi_d1 = checkStrong(d1, "row", other_r, fc, other_c);
+          const c_other_bi_d1 = checkStrong(d1, "col", other_c, fr, other_r);
+
+          const r_floor_bi_d2 = checkStrong(d2, "row", fr, fc, other_c);
+          const c_floor_bi_d2 = checkStrong(d2, "col", fc, fr, other_r);
+          const r_other_bi_d2 = checkStrong(d2, "row", other_r, fc, other_c);
+          const c_other_bi_d2 = checkStrong(d2, "col", other_c, fr, other_r);
+
           if (r_other_bi_d1 && (r_floor_bi_d1 || c_other_bi_d1)) {
             addRemoval(other_r, other_c, d2);
             strongLinks.push(`(${d1})r${other_r + 1}`);
@@ -3404,12 +3441,44 @@ const techniques = {
               mainInfo: `using Digits (${d1}${d2})`,
               detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${guardiansStr}, Bivalue cells ${bivalueStr}, Conjugate pairs ${uniqueLinks}`,
             },
+            applyVisuals: () => {
+              highlightState = 0;
+              highlightedDigit = null;
+              cells.forEach(([cr, cc]) => {
+                boardState[cr][cc].cellColor = cellColorPalette[7];
+                if (boardState[cr][cc].pencils.has(d1))
+                  boardState[cr][cc].pencilColors.set(
+                    d1,
+                    candidateColorPalette[2],
+                  );
+                if (boardState[cr][cc].pencils.has(d2))
+                  boardState[cr][cc].pencilColors.set(
+                    d2,
+                    candidateColorPalette[2],
+                  );
+                boardState[cr][cc].pencils.forEach((cand) => {
+                  if (cand !== d1 && cand !== d2)
+                    boardState[cr][cc].pencilColors.set(
+                      cand,
+                      candidateColorPalette[3],
+                    );
+                });
+              });
+              visualLinks.forEach((link) => drawnLines.push(link));
+              uniqueRemovals.forEach((el) =>
+                boardState[el.r][el.c].pencilColors.set(
+                  el.num,
+                  candidateColorPalette[0],
+                ),
+              );
+            },
           };
         }
       }
     }
     return { change: false };
   },
+
   _findHiddenRectangles: (pencils) => {
     const rects = [];
     for (let d1 = 1; d1 <= 8; d1++) {
@@ -3768,6 +3837,119 @@ const techniques = {
         .join(",");
     };
 
+    const getEURVisuals = (type, cells, digits, removals, extraData = {}) => {
+      return () => {
+        highlightState = type === 4 || type === 6 ? 1 : 0;
+        highlightedDigit =
+          type === 4 || type === 6 ? extraData.restrictedDigit : null;
+
+        const core_digits = new Set(digits);
+        cells.forEach(([cr, cc]) => {
+          boardState[cr][cc].cellColor = cellColorPalette[7];
+          boardState[cr][cc].pencils.forEach((cand) => {
+            if (core_digits.has(cand))
+              boardState[cr][cc].pencilColors.set(
+                cand,
+                candidateColorPalette[2],
+              );
+            else
+              boardState[cr][cc].pencilColors.set(
+                cand,
+                candidateColorPalette[3],
+              );
+          });
+        });
+
+        if (type === 3) {
+          extraData.subsetCells.forEach(([cr, cc]) => {
+            boardState[cr][cc].cellColor = cellColorPalette[6];
+            boardState[cr][cc].pencils.forEach((cand) => {
+              if (extraData.subsetCands.has(cand))
+                boardState[cr][cc].pencilColors.set(
+                  cand,
+                  candidateColorPalette[4],
+                );
+            });
+          });
+        }
+
+        if (type === 4) {
+          drawnLines.push({
+            r1: extraData.e1[0],
+            c1: extraData.e1[1],
+            n1: extraData.restrictedDigit,
+            r2: extraData.e2[0],
+            c2: extraData.e2[1],
+            n2: extraData.restrictedDigit,
+            color: lineColorPalette[0],
+            style: "solid",
+          });
+        }
+
+        if (type === 6) {
+          const u = extraData.restrictedDigit;
+          const rows = [...new Set(cells.map((c) => c[0]))].sort(
+            (a, b) => a - b,
+          );
+          const cols = [...new Set(cells.map((c) => c[1]))].sort(
+            (a, b) => a - b,
+          );
+          if (extraData.is_3x2) {
+            // 3x2: bilocated in cols
+            drawnLines.push({
+              r1: rows[0],
+              c1: cols[0],
+              n1: u,
+              r2: rows[2],
+              c2: cols[0],
+              n2: u,
+              color: lineColorPalette[0],
+              style: "solid",
+            });
+            drawnLines.push({
+              r1: rows[0],
+              c1: cols[1],
+              n1: u,
+              r2: rows[2],
+              c2: cols[1],
+              n2: u,
+              color: lineColorPalette[0],
+              style: "solid",
+            });
+          } else {
+            // 2x3: bilocated in rows
+            drawnLines.push({
+              r1: rows[0],
+              c1: cols[0],
+              n1: u,
+              r2: rows[0],
+              c2: cols[2],
+              n2: u,
+              color: lineColorPalette[0],
+              style: "solid",
+            });
+            drawnLines.push({
+              r1: rows[1],
+              c1: cols[0],
+              n1: u,
+              r2: rows[1],
+              c2: cols[2],
+              n2: u,
+              color: lineColorPalette[0],
+              style: "solid",
+            });
+          }
+        }
+
+        removals.forEach((el) =>
+          boardState[el.r][el.c].pencilColors.set(
+            el.num,
+            candidateColorPalette[0],
+          ),
+        );
+      };
+    };
+
     for (const er of ers) {
       const { cells, digits, is_3x2 } = er;
       const core_digits = new Set(digits);
@@ -3796,6 +3978,12 @@ const techniques = {
               mainInfo: `Digits (${baseDigitsStr})`,
               detail: detailPrefix,
             },
+            applyVisuals: getEURVisuals(
+              1,
+              cells,
+              digits,
+              uniqueRemovals(removals),
+            ),
           };
         }
       }
@@ -3840,6 +4028,12 @@ const techniques = {
                 mainInfo: `Digits (${baseDigitsStr})`,
                 detail: detailPrefix,
               },
+              applyVisuals: getEURVisuals(
+                2,
+                cells,
+                digits,
+                uniqueRemovals(removals),
+              ),
             };
           }
         }
@@ -3913,7 +4107,7 @@ const techniques = {
                     }
                   }
                   if (local_removals.length > 0)
-                    return { removals: local_removals, chosen };
+                    return { removals: local_removals, chosen, union };
                 }
               }
             }
@@ -3936,6 +4130,13 @@ const techniques = {
                   mainInfo: `Digits (${baseDigitsStr})`,
                   detail: `${detailPrefix}, Subset cells: ${subsetStr}`,
                 },
+                applyVisuals: getEURVisuals(
+                  3,
+                  cells,
+                  digits,
+                  uniqueRemovals(res.removals),
+                  { subsetCells: res.chosen, subsetCands: res.union },
+                ),
               };
             }
           }
@@ -4017,6 +4218,13 @@ const techniques = {
                     mainInfo: `Digits (${baseDigitsStr})`,
                     detail: `${detailPrefix}, Restricted base (${d}) in ${restrictedCellsStr}`,
                   },
+                  applyVisuals: getEURVisuals(
+                    4,
+                    cells,
+                    digits,
+                    uniqueRemovals(removals),
+                    { restrictedDigit: d, e1: [e1r, e1c], e2: [e2r, e2c] },
+                  ),
                 };
               }
             }
@@ -4082,6 +4290,13 @@ const techniques = {
                     mainInfo: `Digits (${baseDigitsStr})`,
                     detail: `${detailPrefix}, Exclude a specific placement of (${d}) on ER removing all guardians`,
                   },
+                  applyVisuals: getEURVisuals(
+                    6,
+                    cells,
+                    digits,
+                    uniqueRemovals(removals),
+                    { restrictedDigit: d, is_3x2 },
+                  ),
                 };
               }
             }
@@ -4328,6 +4543,87 @@ const techniques = {
         .join(",");
     };
 
+    const getULVisuals = (type, cells, digits, removals, extraData = {}) => {
+      return () => {
+        highlightState = type === 4 || type === 6 ? 1 : 0;
+        highlightedDigit =
+          type === 4 || type === 6 ? extraData.restrictedDigit : null;
+
+        const core_digits = new Set(digits);
+        cells.forEach(([cr, cc]) => {
+          boardState[cr][cc].cellColor = cellColorPalette[7];
+          boardState[cr][cc].pencils.forEach((cand) => {
+            if (core_digits.has(cand))
+              boardState[cr][cc].pencilColors.set(
+                cand,
+                candidateColorPalette[2],
+              );
+            else
+              boardState[cr][cc].pencilColors.set(
+                cand,
+                candidateColorPalette[3],
+              );
+          });
+        });
+
+        if (type === 3) {
+          extraData.subsetCells.forEach(([cr, cc]) => {
+            boardState[cr][cc].cellColor = cellColorPalette[6];
+            boardState[cr][cc].pencils.forEach((cand) => {
+              if (extraData.subsetCands.has(cand))
+                boardState[cr][cc].pencilColors.set(
+                  cand,
+                  candidateColorPalette[4],
+                );
+            });
+          });
+        }
+
+        if (type === 4) {
+          drawnLines.push({
+            r1: extraData.e1[0],
+            c1: extraData.e1[1],
+            n1: extraData.restrictedDigit,
+            r2: extraData.e2[0],
+            c2: extraData.e2[1],
+            n2: extraData.restrictedDigit,
+            color: lineColorPalette[0],
+            style: "solid",
+          });
+        }
+
+        if (type === 6) {
+          const u = extraData.restrictedDigit;
+          const rows = [...new Set(cells.map((c) => c[0]))];
+          rows.forEach((r) => {
+            const req_locs = cells
+              .filter((cell) => cell[0] === r)
+              .map((cell) => cell[1])
+              .sort((a, b) => a - b);
+            if (req_locs.length === 2) {
+              drawnLines.push({
+                r1: r,
+                c1: req_locs[0],
+                n1: u,
+                r2: r,
+                c2: req_locs[1],
+                n2: u,
+                color: lineColorPalette[0],
+                style: "solid",
+              });
+            }
+          });
+        }
+
+        removals.forEach((el) =>
+          boardState[el.r][el.c].pencilColors.set(
+            el.num,
+            candidateColorPalette[0],
+          ),
+        );
+      };
+    };
+
     for (const hex of hexagons) {
       const { cells, digits } = hex;
       const [d1, d2] = digits;
@@ -4358,6 +4654,12 @@ const techniques = {
               mainInfo: `using Digits (${baseDigitsStr})`,
               detail: detailPrefix,
             },
+            applyVisuals: getULVisuals(
+              1,
+              cells,
+              digits,
+              uniqueRemovals(removals),
+            ),
           };
         }
       }
@@ -4403,6 +4705,12 @@ const techniques = {
                 mainInfo: `using Digits (${baseDigitsStr})`,
                 detail: detailPrefix,
               },
+              applyVisuals: getULVisuals(
+                extra_cells.length === 2 ? 2 : 5,
+                cells,
+                digits,
+                uniqueRemovals(removals),
+              ),
             };
           }
         }
@@ -4469,7 +4777,7 @@ const techniques = {
                     }
                   }
                   if (local_removals.length > 0)
-                    return { removals: local_removals, chosen };
+                    return { removals: local_removals, chosen, union };
                 }
               }
             }
@@ -4492,6 +4800,13 @@ const techniques = {
                   mainInfo: `using Digits (${baseDigitsStr})`,
                   detail: `${detailPrefix}, Subset cells: ${subsetStr}`,
                 },
+                applyVisuals: getULVisuals(
+                  3,
+                  cells,
+                  digits,
+                  uniqueRemovals(res.removals),
+                  { subsetCells: res.chosen, subsetCands: res.union },
+                ),
               };
             }
           }
@@ -4557,8 +4872,19 @@ const techniques = {
                   hint: {
                     name: "Unique Loop Type 4",
                     mainInfo: `using Digits (${baseDigitsStr})`,
-                    detail: `${detailPrefix}, Restricted base (${other_d}) in ${restrictedCellsStr}`,
+                    detail: `${detailPrefix}, Restricted base (${d}) in ${restrictedCellsStr}`,
                   },
+                  applyVisuals: getULVisuals(
+                    4,
+                    cells,
+                    digits,
+                    uniqueRemovals(removals),
+                    {
+                      restrictedDigit: d,
+                      e1: [e1r, e1c],
+                      e2: [e2r, e2c],
+                    },
+                  ),
                 };
               }
             }
@@ -4637,6 +4963,13 @@ const techniques = {
                       mainInfo: `using Digits (${baseDigitsStr})`,
                       detail: `${detailPrefix}, Exclude a specific placement of (${u}) on Unique Loop removing all guardians`,
                     },
+                    applyVisuals: getULVisuals(
+                      6,
+                      cells,
+                      digits,
+                      uniqueRemovals(removals),
+                      { restrictedDigit: u },
+                    ),
                   };
                 }
               }
@@ -4648,7 +4981,10 @@ const techniques = {
     return { change: false };
   },
 
-  almostLockedPair: (board, pencils) => {
+  // --- Unified Helper for Almost Locked Pair & Triple ---
+  _almostLockedSets: (board, pencils, size) => {
+    const numBaseCells = size - 1;
+
     // --- Format Helpers for Hints ---
     const formatRC = (cells) => {
       if (!cells || cells.length === 0) return "";
@@ -4684,278 +5020,7 @@ const techniques = {
         .join("");
       return `b${boxIdx + 1}p${points}`;
     };
-    // Helper: Remove candidates v1/v2 from a list of cells
-    const removeCandidates = (
-      cellsToRemove,
-      v1,
-      v2,
-      ignoreR,
-      ignoreC,
-      ignoreBox,
-      ignoreLine,
-      isRow,
-    ) => {
-      const removals = [];
-      for (const [r, c] of cellsToRemove) {
-        if (r === ignoreR && c === ignoreC) continue;
-        if (ignoreBox !== -1 && techniques._getBoxIndex(r, c) === ignoreBox)
-          continue;
-        if (ignoreLine !== -1 && (isRow ? r === ignoreLine : c === ignoreLine))
-          continue;
 
-        if (pencils[r][c].has(v1)) removals.push({ r, c, num: v1 });
-        if (pencils[r][c].has(v2)) removals.push({ r, c, num: v2 });
-      }
-      return removals;
-    };
-
-    // Helper: Remove all candidates EXCEPT v1/v2 from a specific cell
-    const cleanExtraCell = (r, c, v1, v2) => {
-      const removals = [];
-      for (const cand of pencils[r][c]) {
-        if (cand !== v1 && cand !== v2) {
-          removals.push({ r, c, num: cand });
-        }
-      }
-      return removals;
-    };
-
-    // Iterate 6 Chutes: 0-2 (Rows), 3-5 (Cols)
-    for (let chute = 0; chute < 6; chute++) {
-      const isRow = chute < 3;
-      const bandIdx = chute % 3;
-      const chuteLines = [bandIdx * 3, bandIdx * 3 + 1, bandIdx * 3 + 2];
-
-      const chuteBoxes = [];
-      for (let i = 0; i < 3; i++) {
-        chuteBoxes.push(isRow ? bandIdx * 3 + i : i * 3 + bandIdx);
-      }
-
-      // 1. Find bivalue cells in this chute
-      for (const lineIdx of chuteLines) {
-        const lineCells = techniques._getUnitCells(
-          isRow ? "row" : "col",
-          lineIdx,
-        );
-
-        for (const [r, c] of lineCells) {
-          // Check for Bivalue Cell
-          if (board[r][c] !== 0 || pencils[r][c].size !== 2) continue;
-
-          const [v1, v2] = [...pencils[r][c]];
-          const currentBox = techniques._getBoxIndex(r, c);
-
-          // --- 2A & 3A: Line-to-Box Logic ---
-          for (const targetBox of chuteBoxes) {
-            if (targetBox === currentBox) continue;
-
-            const boxCells = techniques._getUnitCells("box", targetBox);
-
-            // Refinement: The target box must not contain a concrete v1 or v2
-            let hasConcrete = false;
-            for (const [br, bc] of boxCells) {
-              if (board[br][bc] === v1 || board[br][bc] === v2) {
-                hasConcrete = true;
-                break;
-              }
-            }
-            if (hasConcrete) continue;
-
-            // Find distribution of v1 and v2 in the target box
-            const inIntersection = [];
-            const outsideIntersection = [];
-
-            for (const [br, bc] of boxCells) {
-              if (board[br][bc] !== 0) continue;
-
-              const hasV1 = pencils[br][bc].has(v1);
-              const hasV2 = pencils[br][bc].has(v2);
-
-              if (!hasV1 && !hasV2) continue;
-
-              const isIntersect = isRow ? br === r : bc === c;
-              if (isIntersect) {
-                inIntersection.push({ r: br, c: bc, hasV1, hasV2 });
-              } else {
-                outsideIntersection.push({ r: br, c: bc, hasV1, hasV2 });
-              }
-            }
-
-            // Condition: Candidates appear in intersection, AND exactly one cell outside intersection.
-            // That one extra cell MUST contain BOTH candidates.
-            if (inIntersection.length > 0 && outsideIntersection.length === 1) {
-              const extra = outsideIntersection[0];
-
-              const elims = [];
-
-              // Elimination 1: Remove OTHER candidates from the extra cell
-              elims.push(...cleanExtraCell(extra.r, extra.c, v1, v2));
-
-              // Elimination 2: Remove bivalue candidates from the Line
-              // (excluding the bivalue cell itself and the target box intersection)
-              elims.push(
-                ...removeCandidates(
-                  lineCells,
-                  v1,
-                  v2,
-                  r,
-                  c,
-                  targetBox,
-                  -1,
-                  isRow,
-                ),
-              );
-
-              if (elims.length > 0) {
-                const digitsStr = [v1, v2].sort((a, b) => a - b).join("");
-                const alsStr = formatRC([{ r, c }]);
-                const intStr = formatRC(inIntersection);
-                const outStr = formatBP(outsideIntersection, targetBox);
-
-                return {
-                  change: true,
-                  type: "remove",
-                  cells: elims,
-                  hint: {
-                    name: "Almost Locked Pair",
-                    mainInfo: `using ${isRow ? "Row" : "Col"} ${lineIdx + 1} and Box ${targetBox + 1}`,
-                    detail: `ALS (${digitsStr})${alsStr}, Intersection ${intStr}, Off-intersection ${outStr}`,
-                  },
-                };
-              }
-            }
-          }
-
-          // --- 2B & 3B: Box-to-Line Logic ---
-          for (const targetLine of chuteLines) {
-            if (targetLine === lineIdx) continue;
-
-            const targetLineCells = techniques._getUnitCells(
-              isRow ? "row" : "col",
-              targetLine,
-            );
-
-            // Refinement: The target line must not contain a concrete v1 or v2
-            let hasConcrete = false;
-            for (const [tr, tc] of targetLineCells) {
-              if (board[tr][tc] === v1 || board[tr][tc] === v2) {
-                hasConcrete = true;
-                break;
-              }
-            }
-            if (hasConcrete) continue;
-
-            // Find distribution of v1 and v2 in the target line
-            const inIntersection = [];
-            const outsideIntersection = [];
-
-            for (const [tr, tc] of targetLineCells) {
-              if (board[tr][tc] !== 0) continue;
-
-              const hasV1 = pencils[tr][tc].has(v1);
-              const hasV2 = pencils[tr][tc].has(v2);
-
-              if (!hasV1 && !hasV2) continue;
-
-              const isIntersect =
-                techniques._getBoxIndex(tr, tc) === currentBox;
-              if (isIntersect) {
-                inIntersection.push({ r: tr, c: tc, hasV1, hasV2 });
-              } else {
-                outsideIntersection.push({ r: tr, c: tc, hasV1, hasV2 });
-              }
-            }
-
-            // Condition: Candidates appear in intersection, AND exactly one cell outside intersection.
-            if (inIntersection.length > 0 && outsideIntersection.length === 1) {
-              const extra = outsideIntersection[0];
-
-              const elims = [];
-
-              // Elimination 1: Remove OTHER candidates from the extra cell
-              elims.push(...cleanExtraCell(extra.r, extra.c, v1, v2));
-
-              // Elimination 2: Remove bivalue candidates from the Box
-              // (excluding the bivalue cell itself and the target line intersection)
-              const currentBoxCells = techniques._getUnitCells(
-                "box",
-                currentBox,
-              );
-              elims.push(
-                ...removeCandidates(
-                  currentBoxCells,
-                  v1,
-                  v2,
-                  r,
-                  c,
-                  -1,
-                  targetLine,
-                  isRow,
-                ),
-              );
-
-              if (elims.length > 0) {
-                const digitsStr = [v1, v2].sort((a, b) => a - b).join("");
-                const alsStr = formatBP([{ r, c }], currentBox);
-                const intStr = formatRC(inIntersection);
-                const outStr = formatRC(outsideIntersection);
-
-                return {
-                  change: true,
-                  type: "remove",
-                  cells: elims,
-                  hint: {
-                    name: "Almost Locked Pair",
-                    mainInfo: `using ${isRow ? "Row" : "Col"} ${targetLine + 1} and Box ${currentBox + 1}`,
-                    detail: `ALS (${digitsStr})${alsStr}, Intersection ${intStr}, Off-intersection ${outStr}`,
-                  },
-                };
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return { change: false };
-  },
-
-  almostLockedTriple: (board, pencils) => {
-    // --- Format Helpers for Hints ---
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      if (norm.length === 1) return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
-      if (norm.every((c) => c[0] === norm[0][0])) {
-        return `r${norm[0][0] + 1}c${norm
-          .map((c) => c[1] + 1)
-          .sort()
-          .join("")}`;
-      }
-      if (norm.every((c) => c[1] === norm[0][1])) {
-        return `r${norm
-          .map((c) => c[0] + 1)
-          .sort()
-          .join("")}c${norm[0][1] + 1}`;
-      }
-      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
-
-    const formatBP = (cells, boxIdx) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      const points = norm
-        .map((c) => (c[0] % 3) * 3 + (c[1] % 3) + 1)
-        .sort((a, b) => a - b)
-        .join("");
-      return `b${boxIdx + 1}p${points}`;
-    };
     // Helper: Remove all candidates EXCEPT those in V from a list of cells
     const cleanExtraCells = (cellsToClean, V) => {
       const removals = [];
@@ -4988,231 +5053,192 @@ const techniques = {
       const isRow = chute < 3;
       const bandIdx = chute % 3;
       const chuteLines = [bandIdx * 3, bandIdx * 3 + 1, bandIdx * 3 + 2];
-
       const chuteBoxes = [];
       for (let i = 0; i < 3; i++) {
         chuteBoxes.push(isRow ? bandIdx * 3 + i : i * 3 + bandIdx);
       }
 
-      // --- 2A & 3A: Line-to-Box Logic ---
-      for (const lineIdx of chuteLines) {
-        const lineCells = techniques._getUnitCells(
-          isRow ? "row" : "col",
-          lineIdx,
-        );
-        const emptyLineCells = lineCells.filter(([r, c]) => board[r][c] === 0);
+      // Merge Line-to-Box and Box-to-Line using a boolean
+      for (const isLineToBox of [true, false]) {
+        const baseUnits = isLineToBox ? chuteLines : chuteBoxes;
+        const targetUnits = isLineToBox ? chuteBoxes : chuteLines;
+        const baseType = isLineToBox ? (isRow ? "row" : "col") : "box";
+        const targetType = isLineToBox ? "box" : isRow ? "row" : "col";
 
-        if (emptyLineCells.length < 3) continue;
+        for (const baseIdx of baseUnits) {
+          const baseCellsAll = techniques._getUnitCells(baseType, baseIdx);
+          const emptyBaseCells = baseCellsAll.filter(
+            ([r, c]) => board[r][c] === 0,
+          );
 
-        // Select 2 cells from the line
-        for (const pair of techniques.combinations(emptyLineCells, 2)) {
-          const [c1, c2] = pair;
-          const V = new Set([
-            ...pencils[c1[0]][c1[1]],
-            ...pencils[c2[0]][c2[1]],
-          ]);
+          // Need exactly size-1 base cells to form the pattern
+          if (emptyBaseCells.length < numBaseCells) continue;
 
-          // Condition: Candidates union is exactly size 3
-          if (V.size !== 3) continue;
+          // Select combinations from base unit
+          for (const baseCells of techniques.combinations(
+            emptyBaseCells,
+            numBaseCells,
+          )) {
+            const V = new Set();
+            baseCells.forEach(([r, c]) => {
+              for (const v of pencils[r][c]) V.add(v);
+            });
 
-          const currentBox1 = techniques._getBoxIndex(c1[0], c1[1]);
-          const currentBox2 = techniques._getBoxIndex(c2[0], c2[1]);
+            // Condition: Candidates union is exactly 'size'
+            if (V.size !== size) continue;
 
-          for (const targetBox of chuteBoxes) {
-            if (targetBox === currentBox1 || targetBox === currentBox2)
-              continue;
+            const baseTargetIndices = new Set();
+            baseCells.forEach(([r, c]) => {
+              if (targetType === "box")
+                baseTargetIndices.add(techniques._getBoxIndex(r, c));
+              else baseTargetIndices.add(isRow ? r : c);
+            });
 
-            const boxCells = techniques._getUnitCells("box", targetBox);
+            for (const targetIdx of targetUnits) {
+              if (baseTargetIndices.has(targetIdx)) continue; // Skip if any base cell is in the target unit
 
-            // Refinement: Target box must not contain concrete digits from the triple
-            let hasConcrete = false;
-            for (const [br, bc] of boxCells) {
-              if (V.has(board[br][bc])) {
-                hasConcrete = true;
-                break;
-              }
-            }
-            if (hasConcrete) continue;
+              const targetCells = techniques._getUnitCells(
+                targetType,
+                targetIdx,
+              );
 
-            const inIntersection = [];
-            const outsideIntersection = [];
-
-            for (const [br, bc] of boxCells) {
-              if (board[br][bc] !== 0) continue;
-
-              let hasV = false;
-              for (const v of V) {
-                if (pencils[br][bc].has(v)) {
-                  hasV = true;
+              // Refinement: Target unit must not contain concrete digits from V
+              let hasConcrete = false;
+              for (const [tr, tc] of targetCells) {
+                if (V.has(board[tr][tc])) {
+                  hasConcrete = true;
                   break;
                 }
               }
-              if (!hasV) continue;
+              if (hasConcrete) continue;
 
-              const isIntersect = isRow ? br === lineIdx : bc === lineIdx;
-              if (isIntersect) {
-                inIntersection.push({ r: br, c: bc });
-              } else {
-                outsideIntersection.push({ r: br, c: bc });
-              }
-            }
+              const inIntersection = [];
+              const outsideIntersection = [];
 
-            // Condition: Appears in intersection AND exactly two extra cells
-            if (inIntersection.length > 0 && outsideIntersection.length === 2) {
-              const elims = [];
+              for (const [tr, tc] of targetCells) {
+                if (board[tr][tc] !== 0) continue;
 
-              // Elimination 1: Remove OTHER candidates from the two extra cells
-              elims.push(...cleanExtraCells(outsideIntersection, V));
+                let hasV = false;
+                for (const v of V) {
+                  if (pencils[tr][tc].has(v)) {
+                    hasV = true;
+                    break;
+                  }
+                }
+                if (!hasV) continue;
 
-              // Elimination 2: Remove triple candidates from the rest of the Line
-              const ignoreSet = new Set([
-                `${c1[0]},${c1[1]}`,
-                `${c2[0]},${c2[1]}`,
-              ]);
-              for (const { r, c } of inIntersection) ignoreSet.add(`${r},${c}`);
+                let isIntersect = false;
+                if (baseType === "box") {
+                  isIntersect = techniques._getBoxIndex(tr, tc) === baseIdx;
+                } else {
+                  isIntersect = (isRow ? tr : tc) === baseIdx;
+                }
 
-              elims.push(
-                ...removeCandidates(
-                  lineCells.filter(([r, c]) => board[r][c] === 0),
-                  V,
-                  ignoreSet,
-                ),
-              );
-              if (elims.length > 0) {
-                const uniqueElims = Array.from(
-                  new Set(elims.map(JSON.stringify)),
-                ).map(JSON.parse);
-
-                const digitsStr = Array.from(V)
-                  .sort((a, b) => a - b)
-                  .join("");
-                const alsStr = formatRC([c1, c2]);
-                const intStr = formatRC(inIntersection);
-                const outStr = formatBP(outsideIntersection, targetBox);
-
-                return {
-                  change: true,
-                  type: "remove",
-                  cells: uniqueElims,
-                  hint: {
-                    name: "Almost Locked Triple",
-                    mainInfo: `using ${isRow ? "Row" : "Col"} ${lineIdx + 1} and Box ${targetBox + 1}`,
-                    detail: `ALS (${digitsStr})${alsStr}, Intersection ${intStr}, Off-intersection ${outStr}`,
-                  },
-                };
-              }
-            }
-          }
-        }
-      }
-
-      // --- 2B & 3B: Box-to-Line Logic ---
-      for (const boxIdx of chuteBoxes) {
-        const boxCells = techniques._getUnitCells("box", boxIdx);
-        const emptyBoxCells = boxCells.filter(([r, c]) => board[r][c] === 0);
-
-        if (emptyBoxCells.length < 3) continue;
-
-        // Select 2 cells from the box
-        for (const pair of techniques.combinations(emptyBoxCells, 2)) {
-          const [c1, c2] = pair;
-          const V = new Set([
-            ...pencils[c1[0]][c1[1]],
-            ...pencils[c2[0]][c2[1]],
-          ]);
-
-          // Condition: Candidates union is exactly size 3
-          if (V.size !== 3) continue;
-
-          const currentLine1 = isRow ? c1[0] : c1[1];
-          const currentLine2 = isRow ? c2[0] : c2[1];
-
-          for (const targetLine of chuteLines) {
-            if (targetLine === currentLine1 || targetLine === currentLine2)
-              continue;
-
-            const lineCells = techniques._getUnitCells(
-              isRow ? "row" : "col",
-              targetLine,
-            );
-
-            // Refinement: Target line must not contain concrete digits from the triple
-            let hasConcrete = false;
-            for (const [tr, tc] of lineCells) {
-              if (V.has(board[tr][tc])) {
-                hasConcrete = true;
-                break;
-              }
-            }
-            if (hasConcrete) continue;
-
-            const inIntersection = [];
-            const outsideIntersection = [];
-
-            for (const [tr, tc] of lineCells) {
-              if (board[tr][tc] !== 0) continue;
-
-              let hasV = false;
-              for (const v of V) {
-                if (pencils[tr][tc].has(v)) {
-                  hasV = true;
-                  break;
+                if (isIntersect) {
+                  inIntersection.push({ r: tr, c: tc });
+                } else {
+                  outsideIntersection.push({ r: tr, c: tc });
                 }
               }
-              if (!hasV) continue;
 
-              const isIntersect = techniques._getBoxIndex(tr, tc) === boxIdx;
-              if (isIntersect) {
-                inIntersection.push({ r: tr, c: tc });
-              } else {
-                outsideIntersection.push({ r: tr, c: tc });
-              }
-            }
+              // Condition: Candidates appear in intersection, AND exactly size-1 cells outside intersection.
+              if (
+                inIntersection.length > 0 &&
+                outsideIntersection.length === numBaseCells
+              ) {
+                const elims = [];
 
-            // Condition: Appears in intersection AND exactly two extra cells
-            if (inIntersection.length > 0 && outsideIntersection.length === 2) {
-              const elims = [];
+                // Elimination 1: Remove OTHER candidates from the extra cells outside the intersection
+                elims.push(...cleanExtraCells(outsideIntersection, V));
 
-              // Elimination 1: Remove OTHER candidates from the two extra cells
-              elims.push(...cleanExtraCells(outsideIntersection, V));
+                // Elimination 2: Remove V candidates from the Base Unit
+                // (excluding the base cells themselves and the target unit intersection)
+                const ignoreSet = new Set();
+                baseCells.forEach(([r, c]) => ignoreSet.add(`${r},${c}`));
+                inIntersection.forEach(({ r, c }) =>
+                  ignoreSet.add(`${r},${c}`),
+                );
 
-              // Elimination 2: Remove triple candidates from the rest of the Box
-              const ignoreSet = new Set([
-                `${c1[0]},${c1[1]}`,
-                `${c2[0]},${c2[1]}`,
-              ]);
-              for (const { r, c } of inIntersection) ignoreSet.add(`${r},${c}`);
+                elims.push(...removeCandidates(emptyBaseCells, V, ignoreSet));
 
-              elims.push(
-                ...removeCandidates(
-                  boxCells.filter(([r, c]) => board[r][c] === 0),
-                  V,
-                  ignoreSet,
-                ),
-              );
+                if (elims.length > 0) {
+                  const uniqueElims = Array.from(
+                    new Set(elims.map(JSON.stringify)),
+                  ).map(JSON.parse);
 
-              if (elims.length > 0) {
-                const uniqueElims = Array.from(
-                  new Set(elims.map(JSON.stringify)),
-                ).map(JSON.parse);
+                  const digitsStr = Array.from(V)
+                    .sort((a, b) => a - b)
+                    .join("");
+                  const alsStr =
+                    baseType === "box"
+                      ? formatBP(baseCells, baseIdx)
+                      : formatRC(baseCells);
+                  const intStr = formatRC(inIntersection);
+                  const outStr =
+                    targetType === "box"
+                      ? formatBP(outsideIntersection, targetIdx)
+                      : formatRC(outsideIntersection);
 
-                const digitsStr = Array.from(V)
-                  .sort((a, b) => a - b)
-                  .join("");
-                const alsStr = formatBP([c1, c2], boxIdx);
-                const intStr = formatRC(inIntersection);
-                const outStr = formatRC(outsideIntersection);
+                  const techName =
+                    size === 2 ? "Almost Locked Pair" : "Almost Locked Triple";
+                  const mainInfo = `using ${isRow ? "Row" : "Col"} ${isLineToBox ? baseIdx + 1 : targetIdx + 1} and Box ${isLineToBox ? targetIdx + 1 : baseIdx + 1}`;
 
-                return {
-                  change: true,
-                  type: "remove",
-                  cells: uniqueElims,
-                  hint: {
-                    name: "Almost Locked Triple",
-                    mainInfo: `using ${isRow ? "Row" : "Col"} ${targetLine + 1} and Box ${boxIdx + 1}`,
-                    detail: `ALS (${digitsStr})${alsStr}, Intersection ${intStr}, Off-intersection ${outStr}`,
-                  },
-                };
+                  return {
+                    change: true,
+                    type: "remove",
+                    cells: uniqueElims,
+                    hint: {
+                      name: techName,
+                      mainInfo: mainInfo,
+                      detail: `ALS (${digitsStr})${alsStr}, Intersection ${intStr}, Off-intersection ${outStr}`,
+                    },
+                    applyVisuals: () => {
+                      highlightedDigit = null;
+                      highlightState = 0;
+                      const digits = [...V];
+
+                      baseCells.forEach(([cr, cc]) => {
+                        boardState[cr][cc].cellColor = cellColorPalette[6];
+                        digits.forEach((d) => {
+                          if (boardState[cr][cc].pencils.has(d))
+                            boardState[cr][cc].pencilColors.set(
+                              d,
+                              candidateColorPalette[4],
+                            );
+                        });
+                      });
+
+                      inIntersection.forEach(({ r: cr, c: cc }) => {
+                        boardState[cr][cc].cellColor = cellColorPalette[7];
+                        digits.forEach((d) => {
+                          if (boardState[cr][cc].pencils.has(d))
+                            boardState[cr][cc].pencilColors.set(
+                              d,
+                              candidateColorPalette[4],
+                            );
+                        });
+                      });
+
+                      outsideIntersection.forEach(({ r: cr, c: cc }) => {
+                        boardState[cr][cc].cellColor = cellColorPalette[8];
+                        digits.forEach((d) => {
+                          if (boardState[cr][cc].pencils.has(d))
+                            boardState[cr][cc].pencilColors.set(
+                              d,
+                              candidateColorPalette[4],
+                            );
+                        });
+                      });
+
+                      uniqueElims.forEach((el) =>
+                        boardState[el.r][el.c].pencilColors.set(
+                          el.num,
+                          candidateColorPalette[0],
+                        ),
+                      );
+                    },
+                  };
+                }
               }
             }
           }
@@ -5221,6 +5247,14 @@ const techniques = {
     }
 
     return { change: false };
+  },
+
+  almostLockedPair: (board, pencils) => {
+    return techniques._almostLockedSets(board, pencils, 2);
+  },
+
+  almostLockedTriple: (board, pencils) => {
+    return techniques._almostLockedSets(board, pencils, 3);
   },
 
   sueDeCoq: (board, pencils) => {
@@ -5461,6 +5495,81 @@ const techniques = {
                           name: hintName,
                           mainInfo: `Intersecting ${lineName} ${lineIdx + 1} and Box ${boxNum}`,
                           detail: detailStr,
+                        },
+                        applyVisuals: () => {
+                          highlightedDigit = null;
+                          highlightState = 0;
+
+                          // 1. Color pattern cells
+                          // Intersection (Color 8)
+                          C.forEach(
+                            ([r, c]) =>
+                              (boardState[r][c].cellColor =
+                                cellColorPalette[7]),
+                          );
+                          // Off-intersection line (Color 9)
+                          aCells.forEach(
+                            ([r, c]) =>
+                              (boardState[r][c].cellColor =
+                                cellColorPalette[8]),
+                          );
+                          // Off-intersection box (Color 7)
+                          bCells.forEach(
+                            ([r, c]) =>
+                              (boardState[r][c].cellColor =
+                                cellColorPalette[6]),
+                          );
+
+                          // 2. Identify candidate digit subsets
+                          const lineOnlyMask = A.mask & ~overlapMask;
+                          const boxOnlyMask = B.mask & ~overlapMask;
+                          const intOnlyMask = V_mask & ~(A.mask | B.mask);
+
+                          const overlapDigits =
+                            techniques._bits.maskToDigits(overlapMask);
+                          const lineOnlyDigits =
+                            techniques._bits.maskToDigits(lineOnlyMask);
+                          const boxOnlyDigits =
+                            techniques._bits.maskToDigits(boxOnlyMask);
+                          const intOnlyDigits =
+                            techniques._bits.maskToDigits(intOnlyMask);
+
+                          const allPatternCells = [...C, ...aCells, ...bCells];
+
+                          const colorCellCands = (
+                            cells,
+                            digits,
+                            colorIndex,
+                          ) => {
+                            cells.forEach(([r, c]) => {
+                              digits.forEach((d) => {
+                                if (boardState[r][c].pencils.has(d)) {
+                                  boardState[r][c].pencilColors.set(
+                                    d,
+                                    candidateColorPalette[colorIndex],
+                                  );
+                                }
+                              });
+                            });
+                          };
+
+                          // 3. Color candidates within pattern
+                          // Both line and box off-intersection (Candidate Color 3)
+                          colorCellCands(allPatternCells, overlapDigits, 2);
+                          // Only in line off-intersection (Candidate Color 7)
+                          colorCellCands(allPatternCells, lineOnlyDigits, 6);
+                          // Only in box off-intersection (Candidate Color 5)
+                          colorCellCands(allPatternCells, boxOnlyDigits, 4);
+                          // Only in intersection (Candidate Color 6)
+                          colorCellCands(allPatternCells, intOnlyDigits, 5);
+
+                          // 4. Color Eliminations (Candidate Color 1)
+                          eliminations.forEach((el) =>
+                            boardState[el.r][el.c].pencilColors.set(
+                              el.num,
+                              candidateColorPalette[0],
+                            ),
+                          );
                         },
                       };
                     }
@@ -5723,8 +5832,8 @@ const techniques = {
                                 }
 
                                 if (eliminations.length) {
-                                  const ahsDigits =
-                                    maskToDigits(candMask).join("");
+                                  const ahsDigitArr = maskToDigits(candMask);
+                                  const ahsDigits = ahsDigitArr.join("");
                                   const rowAhsStr = formatRC(rowAhsCells);
                                   const colAhsStr = formatRC(colAhsCells);
 
@@ -5736,6 +5845,51 @@ const techniques = {
                                       name: "Firework",
                                       mainInfo: `using Row ${rIdx + 1} and Col ${cIdx + 1}`,
                                       detail: `AHS (${ahsDigits})${rowAhsStr} and (${ahsDigits})${colAhsStr}`,
+                                    },
+                                    applyVisuals: () => {
+                                      highlightedDigit = null;
+                                      highlightState = 0;
+
+                                      // Color Row AHS (Cell Color 7)
+                                      rowAhsCells.forEach(([r, c]) => {
+                                        boardState[r][c].cellColor =
+                                          cellColorPalette[6];
+                                        ahsDigitArr.forEach((d) => {
+                                          if (boardState[r][c].pencils.has(d)) {
+                                            boardState[r][c].pencilColors.set(
+                                              d,
+                                              candidateColorPalette[4],
+                                            ); // AHS candidate Color 5
+                                          }
+                                        });
+                                      });
+
+                                      // Color Col AHS (Cell Color 9) & Intersection (Cell Color 8)
+                                      colAhsCells.forEach(([r, c]) => {
+                                        const isIntersect = rowAhsCells.some(
+                                          ([rr, cc]) => rr === r && cc === c,
+                                        );
+                                        boardState[r][c].cellColor = isIntersect
+                                          ? cellColorPalette[7]
+                                          : cellColorPalette[8];
+
+                                        ahsDigitArr.forEach((d) => {
+                                          if (boardState[r][c].pencils.has(d)) {
+                                            boardState[r][c].pencilColors.set(
+                                              d,
+                                              candidateColorPalette[4],
+                                            ); // AHS candidate Color 5
+                                          }
+                                        });
+                                      });
+
+                                      // Color Eliminations (Candidate Color 1)
+                                      eliminations.forEach((el) => {
+                                        boardState[el.r][el.c].pencilColors.set(
+                                          el.num,
+                                          candidateColorPalette[0],
+                                        );
+                                      });
                                     },
                                   };
                                 }
