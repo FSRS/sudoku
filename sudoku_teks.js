@@ -610,18 +610,36 @@ const techniques = {
                   applyVisuals: () => {
                     highlightedDigit = num;
                     highlightState = 1;
-                    boxCellsWithNum.forEach(([cr, cc]) =>
+
+                    // 2. Color intersection (Cell Color 8) and off-intersection line
+                    const lineCells = techniques._getUnitCells(
+                      isRow ? "row" : "col",
+                      lineIdx,
+                    );
+                    lineCells.forEach(([cr, cc]) => {
+                      boardState[cr][cc].cellColor = cellColorPalette[7];
+                    });
+
+                    // 1. Color all box cells as off-intersection first
+                    boxCells.forEach(([cr, cc]) => {
+                      boardState[cr][cc].cellColor = cellColorPalette[6];
+                    });
+
+                    // 3. Color candidate only in cells that actually have the digit
+                    boxCellsWithNum.forEach(([cr, cc]) => {
                       boardState[cr][cc].pencilColors.set(
                         num,
                         candidateColorPalette[4],
-                      ),
-                    ); // Pointing/claiming cand color 5
+                      );
+                    });
+
+                    // 4. Eliminations (Cand Color 1)
                     removals.forEach((el) =>
                       boardState[el.r][el.c].pencilColors.set(
                         el.num,
                         candidateColorPalette[0],
                       ),
-                    ); // Color 1
+                    );
                   },
                 };
               }
@@ -691,18 +709,36 @@ const techniques = {
                   applyVisuals: () => {
                     highlightedDigit = num;
                     highlightState = 1;
-                    boxCellsWithNum.forEach(([cr, cc]) =>
+
+                    // 2. Color intersection (Cell Color 8) and off-intersection box
+                    boxCells.forEach(([cr, cc]) => {
+                      boardState[cr][cc].cellColor = cellColorPalette[7];
+                    });
+                    // 1. Color all line cells as off-intersection first (Cell Color 7)
+                    const lineCells = techniques._getUnitCells(
+                      isRow ? "row" : "col",
+                      i,
+                    );
+
+                    lineCells.forEach(([cr, cc]) => {
+                      boardState[cr][cc].cellColor = cellColorPalette[6];
+                    });
+
+                    // 3. Color candidate only in cells that actually have the digit
+                    lineCellsWithNum.forEach(([cr, cc]) => {
                       boardState[cr][cc].pencilColors.set(
                         num,
                         candidateColorPalette[4],
-                      ),
-                    ); // Pointing/claiming cand color 5
+                      );
+                    });
+
+                    // 4. Eliminations (Cand Color 1)
                     removals.forEach((el) =>
                       boardState[el.r][el.c].pencilColors.set(
                         el.num,
                         candidateColorPalette[0],
                       ),
-                    ); // Color 1
+                    );
                   },
                 };
               }
@@ -714,7 +750,6 @@ const techniques = {
 
     return { change: false };
   },
-
   nakedSubset: (board, pencils, size) => {
     const unitTypes = [
       { name: "box", label: "Box" },
