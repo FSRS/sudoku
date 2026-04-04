@@ -3607,13 +3607,20 @@ function renderSolverStep(index) {
   let msgColor = "blue";
 
   if (step.type === "summary") {
-    msg = `Summary: Evaluated Level ${step.level}, Score: ${step.score}`;
+    const isBruteForce =
+      solverSteps[solverSteps.length - 1].type === "bruteforce";
+
+    if (isBruteForce) {
+      msg = `Summary: Evaluated Level 11, Score: ?`;
+    } else {
+      msg = `Summary: Evaluated Level ${step.level}, Score: ${step.score}`;
+    }
     msgColor = "gray";
   } else if (step.type === "done") {
     msg = `Puzzle Fully Solved!`;
     msgColor = "green";
   } else if (step.type === "bruteforce") {
-    msg = `Requires Brute Force. Showing Solution.`;
+    msg = `Sorry! Built-in techniques failed to solve this. Showing Solution.`;
     msgColor = "red";
   } else if (step.type === "step") {
     const h = step.result.hint;
