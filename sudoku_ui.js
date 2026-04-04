@@ -1620,6 +1620,20 @@ function setupEventListeners() {
       showMessage("The Sudoku is already solved!", "green");
       return;
     }
+    let emptyCount = 0;
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (boardState[r][c].value === 0) emptyCount++;
+      }
+    }
+    if (emptyCount <= 3) {
+      showMessage(
+        "Hints and Solver Mode are disabled for trivial states.",
+        "orange",
+      );
+      return;
+    }
+
     if (currentLampColor === "gray") {
       showMessage("No hint available for an invalid puzzle.", "red");
       return;
@@ -3399,7 +3413,7 @@ function enterSolverModeUI() {
   renderSolverStep(0);
 }
 
-function solve() {
+async function solve() {
   if (!initialPuzzleString) {
     showMessage("Error: No initial puzzle loaded.", "red");
     return;
@@ -3410,6 +3424,46 @@ function solve() {
     showMessage(
       "Solver mode is unavailable for puzzles without a unique solution.",
       "red",
+    );
+    return;
+  }
+
+  let emptyCount = 0;
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      if (boardState[r][c].value === 0) emptyCount++;
+    }
+  }
+
+  // If fully solved correctly: skip popups, do NOT lose star, and start from beginning
+  if (emptyCount === 0 && isBoardIdenticalToSolution()) {
+    const originalState = cloneBoardState(boardState);
+
+    // Temporarily clear to initial state without saving to history
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (!boardState[r][c].isGiven) {
+          boardState[r][c].value = 0;
+          boardState[r][c].pencils.clear();
+        }
+      }
+    }
+
+    currentEvaluationId++;
+    showMessage("Evaluating from beginning...", "blue");
+    await evaluateBoardDifficulty({ waitForFrame: false });
+
+    // Restore state memory so exiting solver mode works flawlessly
+    boardState = originalState;
+    enterSolverModeUI();
+    return;
+  }
+
+  // If nearly solved (<= 3 empty cells) but not fully correct/completed
+  if (emptyCount <= 3) {
+    showMessage(
+      "Puzzle is nearly complete. Hints and Solver Mode are disabled for trivial states.",
+      "orange",
     );
     return;
   }

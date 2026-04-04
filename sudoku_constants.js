@@ -107,24 +107,24 @@ const levelTips = [
 const PALETTES = {
   // Optimized for Dark Backgrounds (Lighter, Pastels, High Luminosity)
   dark: [
-    "#f5f5f5", // 0: Whiteish (Unchanged)
-    "#d4f8d4", // 1: Pale Green (Unchanged)
-    "#69f0ae", // 2: Vibrant Green (Unchanged)
-    "#ccff90", // 3: Lime (Unchanged)
-    "#ffff8d", // 4: Pale Yellow (Softened from pure #ffff00 to reduce glare)
-    "#ffd54f", // 5: Light Amber (Lightened for better contrast)
-    "#ffb74d", // 6: Soft Orange (Lightened)
-    "#ff8a65", // 7: Peach/Deep Orange (Lightened significantly)
-    "#e57373", // 8: Soft Red/Salmon (Lightened to prevent bleeding into black)
-    "#ea80fc", // 9: Bright Lavender/Magenta (Lightened)
-    "#b388ff", // 10: Periwinkle/Violet (Lightened significantly for readability)
+    "#e0e0e0", // 0: Off-white/Silver (Slightly dimmed to allow colors to pop)
+    "#a7ffeb", // 1: Teal/Mint (Higher saturation than Pale Green, clearly distinct)
+    "#69f0ae", // 2: Vibrant Green
+    "#beff5e", // 3: Electric Lime
+    "#ffff8d", // 4: Pale Yellow
+    "#ffd54f", // 5: Light Amber
+    "#ffb74d", // 6: Soft Orange
+    "#ff8a65", // 7: Peach
+    "#e57373", // 8: Soft Red
+    "#ea80fc", // 9: Bright Lavender
+    "#b388ff", // 10: Periwinkle
   ],
   // Optimized for Light Backgrounds (Darker, Saturated, High Contrast)
   light: [
-    "#424242", // 0: Dark Grey (Unchanged - Great contrast)
-    "#2e7d32", // 1: Forest Green (Unchanged)
-    "#008c3a", // 2: Deep Emerald (Darkened from #00c853 for readability)
-    "#827717", // 3: Lime 900 (Darkened from Lime 800 to a deeper olive)
+    "#616161", // 0: Medium-Dark Grey (Lightened to distinguish from deep colors)
+    "#2e7d32", // 1: Forest Green
+    "#008c3a", // 2: Deep Emerald
+    "#afb42b", // 3: Citrine/Mustard Lime (More yellow-pigment to pop against grey)
     "#f57f17", // 4: Yellow 900 (Darkened to a deep, brownish-gold)
     "#ff6f00", // 5: Amber 900 (Deepened for better contrast)
     "#e65100", // 6: Orange 900 (Darkened to ensure it stands out clearly)
