@@ -750,6 +750,7 @@ const techniques = {
 
     return { change: false };
   },
+
   nakedSubset: (board, pencils, size) => {
     const unitTypes = [
       { name: "box", label: "Box" },

@@ -65,6 +65,9 @@
       ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
       "Courier New", monospace;
     --color-red-600: oklch(57.7% 0.245 27.325);
+    --color-green-300: oklch(87.1% 0.15 152);
+    --color-green-400: oklch(79.2% 0.18 151);
+    --color-green-500: oklch(70.4% 0.191 150);
     --color-green-600: oklch(62.7% 0.194 149.214);
     --color-green-700: oklch(52.7% 0.154 150.069);
     --color-blue-300: oklch(76.58% 0.138 256.12);
@@ -1055,8 +1058,8 @@ button:disabled:hover {
 
 /* Message Area for displaying information to the user */
 #message-area {
-  min-height: 2.5rem;
-  max-height: 5rem;
+  min-height: 3rem;
+  max-height: 6rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1325,15 +1328,21 @@ button:disabled:hover {
 }
 
 /* --- Component: Modals --- */
+/* --- Component: Modals --- */
 #candidate-modal,
 #date-modal {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 50;
 }
-#resume-modal {
+
+#resume-modal,
+#hint-confirm-modal,
+#solver-confirm-modal,
+#solver-first-time-modal {
   background-color: rgba(0, 0, 0, 0.5);
-  z-index: 100; /* Increased to 100 to match the HTML intent and beat pencil marks (30) */
+  z-index: 100; /* Beats pencil marks (z-index: 30) */
 }
+
 #hint-confirm-modal {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 100; /* Increased to 100 to match the HTML intent and beat pencil marks (30) */
@@ -1496,13 +1505,22 @@ html.dark {
   }
 
   /* Use light green text for contrast against the dark background */
+  .text-green-600 {
+    color: var(--color-green-400);
+  }
+
+  /* Bright text for the Expt ON state */
   .text-green-800 {
-    color: #4ade80; /* green-400 */
+    color: #4ade80 !important; /* bright green-400 */
   }
 
   /* Darken the border so it's not a glowing neon line */
   .border-green-300 {
     border-color: #14532d; /* green-900 */
+  }
+
+  .text-blue-500 {
+    color: var(--color-blue-300);
   }
 
   /* Subtle hover effect */
@@ -1686,16 +1704,19 @@ html.dark {
   }
   #date-cancel-btn,
   #close-modal-btn,
-  #hint-cancel-btn {
+  #hint-cancel-btn,
+  #solver-cancel-btn,
+  #solver-first-time-cancel-btn {
     background-color: #4b5563;
     color: #e5e7eb;
   }
   #date-cancel-btn:hover,
   #close-modal-btn:hover,
-  #hint-cancel-btn:hover {
+  #hint-cancel-btn:hover,
+  #solver-cancel-btn:hover,
+  #solver-first-time-cancel-btn:hover {
     background-color: #374151;
   }
-
   /* --- Forms & Misc UI --- */
   select {
     background-color: #374151;

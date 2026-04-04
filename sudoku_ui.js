@@ -52,11 +52,17 @@ let lastValidLampColor = "white";
 let currentEvaluationId = 0;
 let currentLampLevel = null;
 
+// NEW: SOLVER MODE STATE
+let solverSteps = [];
+let currentSolverStep = 0;
+let isSolverMode = false;
+
 let drawSubMode = "solid"; // "solid" or "dash"
 let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
 let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
 let lineColorPalette = []; // Specific palette for lines
 let hadUsedHint = false;
+let hadUsedSolver = false;
 
 const lastUsedColors = {
   draw: { solid: null, dash: null },
@@ -357,22 +363,25 @@ function addSudokuCoachLink(puzzleString) {
   if (!container) return;
   container.innerHTML = "";
   if (!puzzleString) return;
-  const puzzleForLink = puzzleString.replace(/\./g, "0");
-  const solverUrl = `https://sudoku.coach/en/solver/${puzzleForLink}`;
-  const link = document.createElement("a");
-  link.href = solverUrl;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  link.dataset.tooltip =
-    "Open this puzzle in the Sudoku Coach solver in a new tab (Ctrl+E).";
+
+  const btn = document.createElement("button");
+  btn.id = "toggle-solver-mode-btn";
+  btn.dataset.tooltip = "Toggle interactive GUI Solver Mode (S).";
   const isMobile = window.innerWidth <= 550;
-  link.textContent = isMobile
-    ? "Export to SC Solver"
-    : "Export to Sudoku Coach Solver (Ctrl+E)";
-  link.className =
+  btn.textContent = isMobile ? "Solver Mode" : "Enter Solver Mode (S)";
+  btn.className =
     "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600";
-  container.appendChild(link);
-  attachTooltipEvents(link); // Attach events to this newly created element
+
+  btn.addEventListener("click", () => {
+    if (isSolverMode) {
+      exitSolverMode();
+    } else {
+      solve(); // Enter solver mode
+    }
+  });
+
+  container.appendChild(btn);
+  attachTooltipEvents(btn);
 }
 
 function initBoardState() {
@@ -1323,6 +1332,9 @@ function setupEventListeners() {
   initTheme();
   updateColorPalettes();
 
+  gridContainer.style.userSelect = "none";
+  gridContainer.addEventListener("dragstart", (e) => e.preventDefault());
+
   loadExperimentalModePreference();
   gridContainer.addEventListener("click", handleCellClick);
   modeSelector.addEventListener("click", (e) => handleModeChange(e));
@@ -1713,12 +1725,109 @@ function setupEventListeners() {
       requestAnimationFrame(updatePreview);
     }
   });
+
+  // NEW: Solver Navigation Bindings
+  document.getElementById("solver-prev-btn").addEventListener("click", () => {
+    if (currentSolverStep > 0) renderSolverStep(currentSolverStep - 1);
+  });
+  document.getElementById("solver-next-btn").addEventListener("click", () => {
+    if (currentSolverStep < solverSteps.length - 1)
+      renderSolverStep(currentSolverStep + 1);
+  });
+  document;
+
+  // NEW: Solver First-Time Modal Bindings
+  const solverFirstTimeModal = document.getElementById(
+    "solver-first-time-modal",
+  );
+  const solverFirstTimeConfirmBtn = document.getElementById(
+    "solver-first-time-confirm-btn",
+  );
+  const solverFirstTimeCancelBtn = document.getElementById(
+    "solver-first-time-cancel-btn",
+  );
+
+  solverFirstTimeConfirmBtn.addEventListener("click", () => {
+    solverFirstTimeModal.classList.add("hidden");
+    solverFirstTimeModal.classList.remove("flex");
+    hadUsedSolver = true;
+    hadUsedHint = true; // Set hint flag to true so they lose the "Star"
+    proceedToSolverMode();
+  });
+
+  solverFirstTimeCancelBtn.addEventListener("click", () => {
+    solverFirstTimeModal.classList.add("hidden");
+    solverFirstTimeModal.classList.remove("flex");
+  });
+
+  // NEW: Solver Modal Bindings
+  document.getElementById("solver-cancel-btn").addEventListener("click", () => {
+    const modal = document.getElementById("solver-confirm-modal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  });
+
+  document
+    .getElementById("solver-current-btn")
+    .addEventListener("click", () => {
+      const modal = document.getElementById("solver-confirm-modal");
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+      enterSolverModeUI();
+    });
+
+  document
+    .getElementById("solver-beginning-btn")
+    .addEventListener("click", async () => {
+      const modal = document.getElementById("solver-confirm-modal");
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+
+      // Triggers full wipe of user board data
+      clearUserBoard();
+      // Cancels the async eval that clearUserBoard() triggers silently
+      currentEvaluationId++;
+
+      showMessage("Evaluating from beginning...", "blue");
+      // Start our own tracked evaluation & await it
+      await evaluateBoardDifficulty({ waitForFrame: false });
+      enterSolverModeUI();
+    });
 }
 
 function handleKeyDown(e) {
   const key = e.key;
   const key_lower = e.key.toLowerCase();
   const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+  if (isSolverMode) {
+    if ((key_lower === "s" || key_lower === "q") && !isCtrlOrCmd) {
+      const toggleBtn = document.getElementById("toggle-solver-mode-btn");
+      if (toggleBtn) toggleBtn.click();
+      return;
+    }
+    if (key_lower === "d" && !isCtrlOrCmd) {
+      formatToggleBtn.click();
+      return;
+    }
+    if (key === "ArrowLeft") {
+      e.preventDefault();
+      if (currentSolverStep > 0) renderSolverStep(currentSolverStep - 1);
+      return;
+    }
+    if (key === "ArrowRight") {
+      e.preventDefault();
+      if (currentSolverStep < solverSteps.length - 1)
+        renderSolverStep(currentSolverStep + 1);
+      return;
+    }
+
+    // Disable all other shortcuts (except standard browser controls like copy/reload/inspect)
+    if (!isCtrlOrCmd || !["c", "v", "r", "i"].includes(key_lower)) {
+      e.preventDefault();
+    }
+    return;
+  }
 
   if (isCtrlOrCmd && key_lower === "c") {
     if (
@@ -1920,7 +2029,8 @@ function handleKeyDown(e) {
     return;
   }
   if (key_lower === "s" && !isCtrlOrCmd) {
-    solveBtn.click();
+    const toggleBtn = document.getElementById("toggle-solver-mode-btn");
+    if (toggleBtn) toggleBtn.click();
     return;
   }
   if (key_lower === "e" && !isCtrlOrCmd) {
@@ -2699,6 +2809,12 @@ function autoPencil() {
 async function loadPuzzle(puzzleString, puzzleData = null) {
   if (autoPencilTipTimer) clearTimeout(autoPencilTipTimer);
   if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
+
+  // FORCE EXIT SOLVER MODE IF ACTIVE
+  if (isSolverMode) {
+    exitSolverMode();
+  }
+
   techniqueResultCache.clear();
   vagueHintMessage = "";
   lampTimestamps = {};
@@ -2719,6 +2835,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   isLoadingSavedGame = false;
   lastValidScore = 0;
   hadUsedHint = false;
+  hadUsedSolver = false;
 
   // -- 1. Parse Puzzle String --
   const isMultiLine = puzzleString.includes("|") && puzzleString.includes("\n");
@@ -3253,54 +3370,497 @@ function validateBoard() {
   return allValid;
 }
 
-function solve() {
-  if (!isSolvePending) {
-    showMessage(
-      "This will reveal the solution. Click again to solve.",
-      "orange",
-    );
-    isSolvePending = true;
+function enterSolverModeUI() {
+  if (solverSteps.length === 0) {
+    showMessage("Evaluation in progress or failed!", "orange");
     return;
   }
+
+  stopTimer();
+
+  isSolverMode = true;
+  document.getElementById("action-buttons-container").classList.add("hidden");
+  document.getElementById("solver-bar-container").classList.remove("hidden");
+  document.getElementById("solver-bar-container").classList.add("flex");
+
+  // HIDE Top UI Elements
+  document.getElementById("mode-selector").classList.add("hidden");
+  document.getElementById("mode-selector").classList.remove("flex");
+  document.getElementById("number-pad").classList.add("hidden");
+  document.getElementById("number-pad").classList.remove("grid");
+
+  // Update toggle button text
+  const toggleBtn = document.getElementById("toggle-solver-mode-btn");
+  if (toggleBtn) toggleBtn.textContent = "Exit Solver Mode (S)";
+
+  setupTimelineDragging();
+  buildSolverTimeline();
+  buildSolverSummary();
+  renderSolverStep(0);
+}
+
+function solve() {
   if (!initialPuzzleString) {
     showMessage("Error: No initial puzzle loaded.", "red");
-    isSolvePending = false;
     return;
   }
 
-  const initialBoard = Array(9)
-    .fill(null)
-    .map(() => Array(9).fill(0));
-  for (let i = 0; i < 81; i++) {
-    const char = initialPuzzleString[i];
-    if (char !== "." && char !== "0") {
-      initialBoard[Math.floor(i / 9)][i % 9] = parseInt(char);
+  // 1. Refuse entering solver mode if the puzzle does not have a unique solution
+  if (currentLampColor === "gray") {
+    showMessage(
+      "Solver mode is unavailable for puzzles without a unique solution.",
+      "red",
+    );
+    return;
+  }
+
+  // 2. First-time confirmation popup
+  if (!hadUsedSolver) {
+    const firstTimeModal = document.getElementById("solver-first-time-modal");
+    firstTimeModal.classList.remove("hidden");
+    firstTimeModal.classList.add("flex");
+    return;
+  }
+
+  proceedToSolverMode();
+}
+
+function proceedToSolverMode() {
+  // Check if any progress/drawings exist
+  let hasUserInput = false;
+  if (drawnLines.length > 0) hasUserInput = true;
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = boardState[r][c];
+      if (
+        !cell.isGiven &&
+        (cell.value !== 0 ||
+          cell.pencils.size > 0 ||
+          cell.cellColor !== null ||
+          cell.pencilColors.size > 0)
+      ) {
+        hasUserInput = true;
+        break;
+      }
     }
+    if (hasUserInput) break;
   }
-  const validity = checkPuzzleUniqueness(initialBoard);
-  if (!validity.isValid) {
-    showMessage(`${validity.message}`, "red");
+
+  // If blank, proceed immediately
+  if (!hasUserInput) {
+    enterSolverModeUI();
     return;
   }
 
-  isSolvingViaButton = true; // Prevent saveState from saving progress
+  const modal = document.getElementById("solver-confirm-modal");
+  const textEl = document.getElementById("solver-confirm-text");
+  const currentBtn = document.getElementById("solver-current-btn");
+
+  if (currentLampColor === "black") {
+    textEl.innerHTML =
+      "Incorrect progress has been made.<br><span class='font-bold text-red-500'>The solver will start from the beginning.</span>";
+    currentBtn.style.display = "none"; // Hide 'Current State' option
+  } else {
+    textEl.innerHTML =
+      "You have made progress.<br>Where do you want the solver to start from?";
+    currentBtn.style.display = "block";
+  }
+
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function exitSolverMode() {
+  isSolverMode = false;
+  document
+    .getElementById("action-buttons-container")
+    .classList.remove("hidden");
+  document.getElementById("solver-bar-container").classList.add("hidden");
+  document.getElementById("solver-bar-container").classList.remove("flex");
+
+  // SHOW Top UI Elements
+  document.getElementById("mode-selector").classList.remove("hidden");
+  document.getElementById("mode-selector").classList.add("flex");
+  document.getElementById("number-pad").classList.remove("hidden");
+  document.getElementById("number-pad").classList.add("grid");
+
+  // Restore toggle button text
+  const toggleBtn = document.getElementById("toggle-solver-mode-btn");
+  if (toggleBtn) {
+    const isMobile = window.innerWidth <= 550;
+    toggleBtn.textContent = isMobile ? "Solver Mode" : "Enter Solver Mode (S)";
+  }
+
+  // Revert back to user history
+  if (historyIndex >= 0) {
+    const historyEntry = history[historyIndex];
+    boardState = cloneBoardState(historyEntry.boardState);
+    drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || []));
+  }
+  showMessage("Exited Solver Mode", "gray");
+  renderBoard();
+  renderLines();
+
+  if (!timerInterval && currentPuzzleKey) {
+    startTimer(currentElapsedTime);
+  }
+}
+
+function buildSolverTimeline() {
+  const timeline = document.getElementById("solver-timeline");
+  timeline.innerHTML = "";
+
+  solverSteps.forEach((step) => {
+    const segment = document.createElement("div");
+    // Force CSS flex constraints so colors map uniformly
+    segment.style.flex = "1 1 0%";
+    segment.style.height = "100%";
+    segment.style.minWidth = "0";
+
+    let bgColor = document.documentElement.classList.contains("dark")
+      ? "#111827"
+      : "#000000";
+    if (step.type === "step") bgColor = getThemeColor(step.level);
+    else if (step.type === "done")
+      bgColor = "#22c55e"; // green
+    else if (step.type === "bruteforce")
+      bgColor = "#ef4444"; // red
+    else if (step.type === "summary") bgColor = "#6b7280"; // gray
+
+    segment.style.backgroundColor = bgColor;
+    timeline.appendChild(segment);
+  });
+}
+
+function renderSolverStep(index) {
+  if (index < 0 || index >= solverSteps.length) return;
+  currentSolverStep = index;
+  const step = solverSteps[index];
+
+  // UI Updates - Applying strict left padding for alignment
+  const curStr = String(index + 1).padStart(3, " ");
+  const totStr = String(solverSteps.length).padStart(2, " ");
+  document.getElementById("solver-step-fraction").textContent =
+    `${curStr}/ ${totStr}`;
+
+  // Position the Focus Bar
+  const focusBar = document.getElementById("solver-focus-bar");
+  if (focusBar) {
+    const percentage = ((index + 0.5) / solverSteps.length) * 100;
+    focusBar.style.left = `${percentage}%`;
+  }
+
+  // Highlight active segment visually
+  const timeline = document.getElementById("solver-timeline");
+  Array.from(timeline.children).forEach((child, i) => {
+    if (i === index) {
+      child.style.filter = "brightness(1.5)";
+      child.style.opacity = "1";
+    } else {
+      child.style.filter = "none";
+      child.style.opacity = "0.75";
+    }
+  });
+
+  const list = document.getElementById("solver-summary-list");
+  Array.from(list.children).forEach((row) => {
+    if (row.dataset.tech === step.techName) {
+      // Apply highlight
+      row.style.backgroundColor = document.documentElement.classList.contains(
+        "dark",
+      )
+        ? "rgba(255,255,255,0.15)"
+        : "rgba(0,0,0,0.1)";
+      row.style.filter = "brightness(1.2)";
+
+      // Auto-scroll to center the row smoothly
+      const listRect = list.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+
+      // Add a small 5px buffer to prevent jittering boundaries
+      if (
+        rowRect.top < listRect.top + 5 ||
+        rowRect.bottom > listRect.bottom - 5
+      ) {
+        // Calculate the exact scroll distance needed using viewport coordinates
+        const distanceToCenter =
+          rowRect.top - listRect.top - listRect.height / 2 + rowRect.height / 2;
+
+        list.scrollBy({
+          top: distanceToCenter,
+          behavior: "smooth",
+        });
+      }
+    } else {
+      // Remove highlight from others
+      row.style.backgroundColor = "transparent";
+      row.style.filter = "none";
+    }
+  });
+
+  // Apply Board State
+  boardState = cloneToBoardState(step.board, step.pencils);
+  drawnLines = [];
+  drawingState = null;
+
+  let msg = "";
+  let msgColor = "blue";
+
+  if (step.type === "summary") {
+    msg = `Summary: Evaluated Level ${step.level}, Score: ${step.score}`;
+    msgColor = "gray";
+  } else if (step.type === "done") {
+    msg = `Puzzle Fully Solved!`;
+    msgColor = "green";
+  } else if (step.type === "bruteforce") {
+    msg = `Requires Brute Force. Showing Solution.`;
+    msgColor = "red";
+  } else if (step.type === "step") {
+    const h = step.result.hint;
+    const { r, c, num, type } = step.result;
+
+    let actionStr = "";
+    if (type === "place") {
+      actionStr = `r${r + 1}c${c + 1} = ${num}`;
+    } else {
+      const cells = step.result.cells || [];
+      const removalsByDigit = new Map();
+      cells.forEach((cell) => {
+        if (!removalsByDigit.has(cell.num)) removalsByDigit.set(cell.num, []);
+        removalsByDigit.get(cell.num).push({ r: cell.r, c: cell.c });
+      });
+      const groups = [];
+      const sortedDigits = Array.from(removalsByDigit.keys()).sort(
+        (a, b) => a - b,
+      );
+      for (const d of sortedDigits) {
+        const cellGroup = removalsByDigit.get(d);
+        cellGroup.sort((a, b) => a.r - b.r || a.c - b.c);
+        let locStr = "";
+        const firstR = cellGroup[0].r;
+        const firstC = cellGroup[0].c;
+        if (cellGroup.every((c) => c.r === firstR)) {
+          locStr = `r${firstR + 1}c${cellGroup.map((c) => c.c + 1).join("")}`;
+        } else if (cellGroup.every((c) => c.c === firstC)) {
+          locStr = `r${cellGroup.map((c) => c.r + 1).join("")}c${firstC + 1}`;
+        } else {
+          const rowMap = new Map();
+          for (const cell of cellGroup) {
+            if (!rowMap.has(cell.r)) rowMap.set(cell.r, []);
+            rowMap.get(cell.r).push(cell.c);
+          }
+          const parts = [];
+          for (const [r, cols] of rowMap) {
+            parts.push(`r${r + 1}c${cols.map((c) => c + 1).join("")}`);
+          }
+          locStr = parts.join(",");
+        }
+        groups.push(`${locStr}<>${d}`);
+      }
+      actionStr = groups.join(", ");
+    }
+    msg = `${h.name}: ${h.detail || ""} => ${actionStr}`;
+    if (step.result.applyVisuals) step.result.applyVisuals();
+  }
+
+  showMessage(msg, msgColor);
+  renderBoard();
+  renderLines();
+}
+
+function buildSolverSummary() {
+  const list = document.getElementById("solver-summary-list");
+  list.innerHTML = "";
+
+  if (!list.dataset.dragSetup) {
+    list.dataset.dragSetup = "true";
+    list.style.overscrollBehavior = "contain";
+
+    let isDraggingList = false;
+    let startY, scrollTop;
+    list.style.cursor = "grab";
+
+    list.addEventListener("mousedown", (e) => {
+      isDraggingList = true;
+      list.style.cursor = "grabbing";
+      startY = e.pageY - list.offsetTop;
+      scrollTop = list.scrollTop;
+    });
+    window.addEventListener("mouseup", () => {
+      isDraggingList = false;
+      list.style.cursor = "grab";
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!isDraggingList) return;
+      e.preventDefault();
+      const y = e.pageY - list.offsetTop;
+      const walk = (y - startY) * 0.05; // DECREASED multiplier for significantly slower drag
+      list.scrollTop = scrollTop - walk;
+    });
+  }
+
+  const counts = {};
+  solverSteps.forEach((step) => {
+    if (step.type === "step") {
+      if (!counts[step.techName]) {
+        counts[step.techName] = {
+          count: 0,
+          level: step.level,
+          baseScore: step.score,
+        };
+      }
+      counts[step.techName].count++;
+    }
+  });
+
+  const sortedTechs = Object.keys(counts).sort(
+    (a, b) => counts[a].level - counts[b].level,
+  );
+  let maxLevel = 0; // Fallback tracker
+
+  sortedTechs.forEach((tech) => {
+    const data = counts[tech];
+    const totalScore = data.count * data.baseScore;
+    if (data.level > maxLevel) maxLevel = data.level;
+    const color = getThemeColor(data.level);
+
+    // Main Container
+    const row = document.createElement("div");
+    row.dataset.tech = tech; // Tag for highlighting
+    row.className = "font-mono";
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "0.5rem";
+    row.style.padding = "2px 4px"; // Slightly padded for highlight box
+    row.style.borderRadius = "4px"; // Rounded corners for highlight
+    row.style.transition = "background-color 0.2s, filter 0.2s"; // Smooth highlight transition
+    row.style.fontWeight = "bold";
+
+    row.style.color = color;
+    row.style.fontSize = "11px";
+    row.style.letterSpacing = "0.025em";
+    row.style.whiteSpace = "pre";
+
+    // 1. Fixed Width Count Multiplier
+    const countEl = document.createElement("div");
+    countEl.style.width = "2rem";
+    countEl.style.textAlign = "right";
+    countEl.style.flexShrink = "0";
+    countEl.style.opacity = "0.9";
+    countEl.textContent = `${String(data.count).padStart(2, " ")}x`;
+
+    // 2. Separator Dot
+    const dotEl = document.createElement("div");
+    dotEl.style.opacity = "0.75";
+    dotEl.style.flexShrink = "0";
+    dotEl.textContent = "·";
+
+    // 3. Technique Name (Fluid Width)
+    const nameEl = document.createElement("div");
+    nameEl.style.flexGrow = "1";
+    nameEl.style.overflow = "hidden";
+    nameEl.style.textOverflow = "ellipsis";
+    nameEl.textContent = tech;
+
+    // 4. Fixed Width Score String
+    const scoreEl = document.createElement("div");
+    scoreEl.style.textAlign = "right";
+    scoreEl.style.flexShrink = "0";
+    scoreEl.style.opacity = "0.9";
+    const baseStr = String(data.baseScore).padStart(3, " ");
+    const totalStr = String(totalScore).padStart(4, " "); // 4 digits for big numbers
+    scoreEl.innerHTML = `<span style="opacity:0.5">${baseStr} = </span>${totalStr} pt`;
+
+    row.appendChild(countEl);
+    row.appendChild(dotEl);
+    row.appendChild(nameEl);
+    row.appendChild(scoreEl);
+    list.appendChild(row);
+  });
+}
+
+function cloneToBoardState(vBoard, vPencils) {
+  const newState = Array(9)
+    .fill(null)
+    .map(() =>
+      Array(9)
+        .fill(null)
+        .map(() => ({
+          value: 0,
+          isGiven: false,
+          pencils: new Set(),
+          cellColor: null,
+          pencilColors: new Map(),
+        })),
+    );
 
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
-      boardState[r][c].value = solutionBoard[r][c];
-      boardState[r][c].pencils.clear();
+      newState[r][c].value = vBoard[r][c];
+      newState[r][c].pencils = new Set(vPencils[r][c]);
+      const idx = r * 9 + c;
+      const char = initialPuzzleString[idx];
+      if (char >= "1" && char <= "9") {
+        newState[r][c].isGiven = true;
+      }
     }
   }
+  return newState;
+}
 
-  saveState(); // Update undo history without saving to localStorage
-  removeCurrentPuzzleSave(); // Clear any existing save data
+function setupTimelineDragging() {
+  const wrapper = document.getElementById("solver-timeline-wrapper");
+  if (!wrapper || wrapper.dataset.dragBound === "true") return;
+  wrapper.dataset.dragBound = "true";
 
-  onBoardUpdated();
-  showMessage("Puzzle Solved! (Unique)", "green");
-  triggerSolveAnimation();
-  stopTimer();
+  let isDragging = false;
 
-  isSolvingViaButton = false; // Re-enable saving for subsequent user actions
+  const updateFromEvent = (e) => {
+    const rect = wrapper.getBoundingClientRect();
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let x = clientX - rect.left;
+    x = Math.max(0, Math.min(x, rect.width));
+
+    const percentage = x / rect.width;
+    let index = Math.floor(percentage * solverSteps.length);
+    if (index >= solverSteps.length) index = solverSteps.length - 1;
+
+    if (currentSolverStep !== index) {
+      renderSolverStep(index);
+    }
+  };
+
+  // Mouse events
+  wrapper.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    updateFromEvent(e);
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (isDragging) updateFromEvent(e);
+  });
+  window.addEventListener("mouseup", () => {
+    isDragging = false;
+  });
+
+  // Touch events for mobile
+  wrapper.addEventListener(
+    "touchstart",
+    (e) => {
+      isDragging = true;
+      updateFromEvent(e);
+    },
+    { passive: true },
+  );
+  window.addEventListener(
+    "touchmove",
+    (e) => {
+      if (isDragging) updateFromEvent(e);
+    },
+    { passive: true },
+  );
+  window.addEventListener("touchend", () => {
+    isDragging = false;
+  });
 }
 
 function showMessage(text, color) {
@@ -4168,6 +4728,18 @@ async function evaluateBoardDifficulty(opts = {}) {
     console.log("Initial Board State (0 = empty):");
     console.table(virtualBoard);
   }
+
+  // NEW: INITIALIZE SOLVER STEPS CAPTURE
+  solverSteps = [];
+  const cloneVirtualBoard = (vb) => vb.map((r) => [...r]);
+  const cloneVirtualPencils = (vp) => vp.map((r) => r.map((c) => new Set(c)));
+  solverSteps.push({
+    type: "summary",
+    board: cloneVirtualBoard(virtualBoard),
+    pencils: cloneVirtualPencils(startingPencils),
+    score: 0,
+    level: 0,
+  });
   // --- ASYNC SOLVING LOOP ---
   let evaluatedScore = 0;
   let progressMade = true;
@@ -4246,6 +4818,17 @@ async function evaluateBoardDifficulty(opts = {}) {
         if (cacheKey) techniqueResultCache.set(cacheKey, result);
       }
       if (result.change) {
+        // NEW: CAPTURE STEP STATE BEFORE APPLYING TO BOARD
+        solverSteps.push({
+          type: "step",
+          techName: tech.name,
+          level: tech.level,
+          score: tech.score, // ADD THIS LINE TO SAVE THE BASE SCORE
+          result: result,
+          board: cloneVirtualBoard(virtualBoard),
+          pencils: cloneVirtualPencils(startingPencils),
+        });
+
         evaluatedScore += tech.score;
         if (IS_DEBUG_MODE) {
           const logColor = getThemeColor(tech.level);
@@ -4301,6 +4884,16 @@ async function evaluateBoardDifficulty(opts = {}) {
   isSolved = virtualBoard.flat().every((v) => v !== 0);
   if (isSolved) {
     lastValidScore = evaluatedScore;
+
+    // NEW: CAPTURE SOLVED STATE
+    solverSteps[0].score = evaluatedScore;
+    solverSteps[0].level = maxDifficulty;
+    solverSteps.push({
+      type: "done",
+      board: cloneVirtualBoard(virtualBoard),
+      pencils: cloneVirtualPencils(startingPencils),
+    });
+
     if (IS_DEBUG_MODE) {
       console.log(`Level: ${maxDifficulty}, Score: ${evaluatedScore}`);
     }
@@ -4333,6 +4926,18 @@ async function evaluateBoardDifficulty(opts = {}) {
       updateLamp("violet", { level: maxDifficulty });
   } else {
     evaluatedScore = -1;
+
+    // NEW: CAPTURE BRUTE FORCE STATE
+    solverSteps[0].score = lastValidScore;
+    solverSteps[0].level = maxDifficulty;
+    solverSteps.push({
+      type: "bruteforce",
+      board: solutionBoard.map((r) => [...r]),
+      pencils: Array(9)
+        .fill(null)
+        .map(() => Array(9).fill(new Set())),
+    });
+
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore}`;
     } else {
