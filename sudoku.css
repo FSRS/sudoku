@@ -1197,7 +1197,7 @@ button:disabled:hover {
 /* -- Highlighting Behavior -- */
 /* Default highlight for cells without a custom color */
 .sudoku-cell.highlighted:not(.has-color) {
-  background-color: var(--nc-border-color);
+  background-color: #f6cefc;
 }
 
 /* For cells that have a custom color, use an inset shadow to avoid overwriting the color */
