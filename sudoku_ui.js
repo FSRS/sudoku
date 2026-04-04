@@ -3405,7 +3405,11 @@ function enterSolverModeUI() {
 
   // Update toggle button text
   const toggleBtn = document.getElementById("toggle-solver-mode-btn");
-  if (toggleBtn) toggleBtn.textContent = "Exit Solver Mode (S)";
+  const isMobile = window.innerWidth <= 550;
+  if (toggleBtn)
+    toggleBtn.textContent = isMobile
+      ? "Exit Solver Mode (S)"
+      : "Exit Solver Mode";
 
   setupTimelineDragging();
   buildSolverTimeline();
