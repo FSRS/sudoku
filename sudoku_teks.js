@@ -2761,9 +2761,9 @@ const techniques = {
         cells.forEach(([cr, cc]) => {
           boardState[cr][cc].cellColor = cellColorPalette[7];
           if (boardState[cr][cc].pencils.has(d1))
-            boardState[cr][cc].pencilColors.set(d1, candidateColorPalette[2]);
+            boardState[cr][cc].pencilColors.set(d1, candidateColorPalette[7]);
           if (boardState[cr][cc].pencils.has(d2))
-            boardState[cr][cc].pencilColors.set(d2, candidateColorPalette[2]);
+            boardState[cr][cc].pencilColors.set(d2, candidateColorPalette[7]);
           boardState[cr][cc].pencils.forEach((cand) => {
             if (cand !== d1 && cand !== d2)
               boardState[cr][cc].pencilColors.set(
@@ -3453,12 +3453,12 @@ const techniques = {
                 if (boardState[cr][cc].pencils.has(d1))
                   boardState[cr][cc].pencilColors.set(
                     d1,
-                    candidateColorPalette[2],
+                    candidateColorPalette[7],
                   );
                 if (boardState[cr][cc].pencils.has(d2))
                   boardState[cr][cc].pencilColors.set(
                     d2,
-                    candidateColorPalette[2],
+                    candidateColorPalette[7],
                   );
                 boardState[cr][cc].pencils.forEach((cand) => {
                   if (cand !== d1 && cand !== d2)
@@ -3854,7 +3854,7 @@ const techniques = {
             if (core_digits.has(cand))
               boardState[cr][cc].pencilColors.set(
                 cand,
-                candidateColorPalette[2],
+                candidateColorPalette[7],
               );
             else
               boardState[cr][cc].pencilColors.set(
@@ -4560,7 +4560,7 @@ const techniques = {
             if (core_digits.has(cand))
               boardState[cr][cc].pencilColors.set(
                 cand,
-                candidateColorPalette[2],
+                candidateColorPalette[7],
               );
             else
               boardState[cr][cc].pencilColors.set(
