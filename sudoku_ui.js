@@ -101,6 +101,12 @@ function initTheme() {
       renderLines();
       renderBoard();
 
+      if (isSolverMode) {
+        buildSolverTimeline();
+        buildSolverSummary();
+        renderSolverStep(currentSolverStep); // Re-applies the active highlight layer too
+      }
+
       // Save the updated mapped colors to localStorage so a page refresh loads correctly
       savePuzzleProgress();
     });
@@ -951,7 +957,7 @@ function renderLines() {
       circle.setAttribute("cy", `${cy}%`);
       circle.setAttribute("r", `${radiusVal}%`);
       circle.setAttribute("fill", color);
-      circle.setAttribute("opacity", "0.65");
+      circle.setAttribute("class", "draw-endpoint");
       staticGroup.appendChild(circle);
     };
 
@@ -1045,7 +1051,8 @@ function updatePreview() {
   circle.setAttribute("cy", `${startPos.y}%`);
   circle.setAttribute("r", `${radiusVal}%`);
   circle.setAttribute("fill", color);
-  circle.setAttribute("opacity", "0.65");
+
+  circle.setAttribute("class", "draw-endpoint");
 }
 
 // --- Custom Tooltip Logic ---
@@ -3010,6 +3017,9 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     }
   }
 
+  highlightedDigit = null;
+  highlightState = 0;
+
   selectedCell = { row: null, col: null };
   history = [];
   historyIndex = -1;
@@ -3581,6 +3591,8 @@ function buildSolverTimeline() {
   const timeline = document.getElementById("solver-timeline");
   timeline.innerHTML = "";
 
+  const isDarkMode = document.documentElement.classList.contains("dark");
+
   solverSteps.forEach((step) => {
     const segment = document.createElement("div");
     // Force CSS flex constraints so colors map uniformly
@@ -3588,13 +3600,18 @@ function buildSolverTimeline() {
     segment.style.height = "100%";
     segment.style.minWidth = "0";
 
-    let bgColor = document.documentElement.classList.contains("dark")
-      ? "#111827"
-      : "#000000";
-    if (step.type === "step") bgColor = getThemeColor(step.level);
-    else if (step.type === "done")
+    let bgColor = isDarkMode ? "#111827" : "#000000";
+    if (step.type === "step") {
+      bgColor = getThemeColor(step.level);
+
+      // --- UPDATED: Exceptions for Level 0 Timeline Bar in BOTH modes ---
+      if (step.level === 0) {
+        bgColor = isDarkMode ? "#4b5563" : "#e5e7eb";
+      }
+      // ------------------------------------------------------------------
+    } else if (step.type === "done") {
       bgColor = "#22c55e"; // green
-    else if (step.type === "bruteforce")
+    } else if (step.type === "bruteforce")
       bgColor = "#ef4444"; // red
     else if (step.type === "summary") bgColor = "#6b7280"; // gray
 

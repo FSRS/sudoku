@@ -1383,10 +1383,14 @@ button:disabled:hover {
 
 /* Base Line Style */
 .draw-line {
-  opacity: 0.65;
+  opacity: 0.5;
   stroke-linecap: round;
   stroke-linejoin: round;
   transition: d 0.1s ease; /* Smooth movement for preview */
+}
+
+.draw-endpoint {
+  opacity: 0.2;
 }
 
 /* Line Styles */
@@ -1663,6 +1667,11 @@ html.dark {
   }
   .sudoku-cell.highlighted.has-color::after {
     border: 3px solid rgba(250, 204, 21, 0.1); /* softer glow */
+  }
+
+  .draw-line,
+  .draw-endpoint {
+    opacity: 0.65;
   }
 
   /* --- Specific Buttons & Controls --- */
