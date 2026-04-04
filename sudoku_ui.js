@@ -51,6 +51,10 @@ let previousLampColor = null;
 let lastValidLampColor = "white";
 let currentEvaluationId = 0;
 let currentLampLevel = null;
+let userBoardSnapshot = null;
+let userLinesSnapshot = null;
+let userHighlightStateSnapshot = 0;
+let userHighlightedDigitSnapshot = null;
 
 // NEW: SOLVER MODE STATE
 let solverSteps = [];
@@ -1817,14 +1821,40 @@ function setupEventListeners() {
       modal.classList.add("hidden");
       modal.classList.remove("flex");
 
-      // Triggers full wipe of user board data
-      clearUserBoard();
+      const originalState = cloneBoardState(boardState);
+      const originalLines = JSON.parse(JSON.stringify(drawnLines));
+
+      const backupLampTimes = JSON.parse(JSON.stringify(lampTimestamps));
+      const backupPrevLamp = previousLampColor;
+      const backupLastValid = lastValidLampColor;
+
+      const backupHighlightState = highlightState;
+      const backupHighlightedDigit = highlightedDigit;
+
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (!boardState[r][c].isGiven) {
+            boardState[r][c].value = 0;
+            boardState[r][c].pencils.clear();
+          }
+        }
+      }
       // Cancels the async eval that clearUserBoard() triggers silently
       currentEvaluationId++;
 
       showMessage("Evaluating from beginning...", "blue");
       // Start our own tracked evaluation & await it
       await evaluateBoardDifficulty({ waitForFrame: false });
+      boardState = originalState;
+      drawnLines = originalLines;
+
+      lampTimestamps = backupLampTimes;
+      previousLampColor = backupPrevLamp;
+      lastValidLampColor = backupLastValid;
+
+      highlightState = backupHighlightState;
+      highlightedDigit = backupHighlightedDigit;
+
       enterSolverModeUI();
     });
 }
@@ -3156,6 +3186,8 @@ function serializeProgress() {
 }
 
 function savePuzzleProgress() {
+  if (isSolverMode) return;
+
   // Allow saving if it's a standard daily puzzle OR an Unlimited puzzle
   const isUnlimited = dateSelect.value === "unlimited";
 
@@ -3415,6 +3447,13 @@ function enterSolverModeUI() {
 
   stopTimer();
 
+  if (typeof savePuzzleProgress === "function") savePuzzleProgress();
+  userBoardSnapshot = cloneBoardState(boardState);
+  userLinesSnapshot = JSON.parse(JSON.stringify(drawnLines));
+
+  userHighlightStateSnapshot = highlightState;
+  userHighlightedDigitSnapshot = highlightedDigit;
+
   isSolverMode = true;
   document.getElementById("action-buttons-container").classList.add("hidden");
   document.getElementById("solver-bar-container").classList.remove("hidden");
@@ -3572,16 +3611,20 @@ function exitSolverMode() {
     toggleBtn.textContent = isMobile ? "Solver Mode" : "Enter Solver Mode (S)";
   }
 
-  // Revert back to user history
-  if (historyIndex >= 0) {
-    const historyEntry = history[historyIndex];
-    boardState = cloneBoardState(historyEntry.boardState);
-    drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || []));
+  // Restore exactly from the pre-solver snapshot
+  if (userBoardSnapshot) {
+    boardState = cloneBoardState(userBoardSnapshot);
+    drawnLines = JSON.parse(JSON.stringify(userLinesSnapshot || []));
   }
-  showMessage("Exited Solver Mode", "gray");
-  renderBoard();
-  renderLines();
 
+  highlightState = userHighlightStateSnapshot;
+  highlightedDigit = userHighlightedDigitSnapshot;
+
+  showMessage("Exited Solver Mode", "gray");
+
+  onBoardUpdated();
+
+  // Resume the timer if a puzzle is actively loaded
   if (!timerInterval && currentPuzzleKey) {
     startTimer(currentElapsedTime);
   }
@@ -3696,6 +3739,9 @@ function renderSolverStep(index) {
   let msgColor = "blue";
 
   if (step.type === "summary") {
+    highlightedDigit = null;
+    highlightState = 0;
+
     const isBruteForce =
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
