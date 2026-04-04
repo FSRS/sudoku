@@ -3699,11 +3699,11 @@ function renderSolverStep(index) {
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
     if (isBruteForce) {
-      msg = `Summary: Evaluated Level 11, Score: ?`;
+      msg = `Done! Evaluated Level 11, Score: ?`;
     } else {
-      msg = `Summary: Evaluated Level ${step.level}, Score: ${step.score}`;
+      msg = `Done! Evaluated Level ${step.level}, Score: ${step.score}`;
     }
-    msgColor = "gray";
+    msgColor = "green";
   } else if (step.type === "done") {
     msg = `Puzzle Fully Solved!`;
     msgColor = "green";
@@ -3771,6 +3771,8 @@ function buildSolverSummary() {
     list.dataset.dragSetup = "true";
     list.style.overscrollBehavior = "contain";
 
+    list.style.userSelect = "none";
+
     let isDraggingList = false;
     let startY, scrollTop;
     list.style.cursor = "grab";
@@ -3831,6 +3833,40 @@ function buildSolverSummary() {
     row.style.borderRadius = "4px"; // Rounded corners for highlight
     row.style.transition = "background-color 0.2s, filter 0.2s"; // Smooth highlight transition
     row.style.fontWeight = "bold";
+
+    row.style.cursor = "pointer";
+
+    row.addEventListener("click", () => {
+      // 1. Find all indices where this technique was used
+      const occurrences = [];
+      solverSteps.forEach((step, index) => {
+        if (step.type === "step" && step.techName === tech) {
+          occurrences.push(index);
+        }
+      });
+
+      if (occurrences.length === 0) return;
+
+      let targetIndex = occurrences[0]; // Default to the first occurrence
+
+      // 2. If already focused on this technique, jump to the next one
+      const currentStepObj = solverSteps[currentSolverStep];
+      if (
+        currentStepObj &&
+        currentStepObj.type === "step" &&
+        currentStepObj.techName === tech
+      ) {
+        const currentIndexInList = occurrences.indexOf(currentSolverStep);
+        if (currentIndexInList !== -1) {
+          // Cycle to the next occurrence, wrapping back to the start if at the end
+          const nextIndex = (currentIndexInList + 1) % occurrences.length;
+          targetIndex = occurrences[nextIndex];
+        }
+      }
+
+      // 3. Move the solver
+      renderSolverStep(targetIndex);
+    });
 
     row.style.color = color;
     row.style.fontSize = "11px";
