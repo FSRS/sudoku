@@ -1853,15 +1853,22 @@ html.dark {
   #close-modal-btn,
   #hint-cancel-btn,
   #solver-cancel-btn,
-  #solver-first-time-cancel-btn {
+  #solver-first-time-cancel-btn,
+  #copy-cancel-btn,
+  #format-cancel-btn,
+  #share-cancel-btn {
     background-color: #4b5563;
     color: #e5e7eb;
   }
+
   #date-cancel-btn:hover,
   #close-modal-btn:hover,
   #hint-cancel-btn:hover,
   #solver-cancel-btn:hover,
-  #solver-first-time-cancel-btn:hover {
+  #solver-first-time-cancel-btn:hover,
+  #copy-cancel-btn:hover,
+  #format-cancel-btn:hover,
+  #share-cancel-btn:hover {
     background-color: #374151;
   }
   /* --- Forms & Misc UI --- */

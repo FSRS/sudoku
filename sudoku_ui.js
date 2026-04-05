@@ -249,9 +249,9 @@ function updateButtonLabels() {
 
   if (titleText) {
     if (isMobile) {
-      titleText.innerHTML = ` <a href="https://darksabun.club/" class="hover:underline">D.S.</a>`;
+      titleText.innerHTML = ` <a href="sudoku.html" class="hover:underline text-gray-800 dark:text-gray-100">D.S.</a>`;
     } else {
-      titleText.textContent = " Daily Sudoku";
+      titleText.innerHTML = ` <a href="sudoku.html" class="hover:underline text-gray-800 dark:text-gray-100">Daily Sudoku</a>`;
     }
   }
 
@@ -1430,7 +1430,8 @@ function setupEventListeners() {
       }
     }
 
-    const raw = this.value.replace(/\s/g, "");
+    // Replace spaces and instantly convert any typed 0s into periods
+    const raw = this.value.replace(/\s/g, "").replace(/0/g, ".");
 
     if (raw.length > 0 && /^[0-9.]+$/.test(raw)) {
       const formatted = raw
@@ -3164,6 +3165,8 @@ function autoPencil() {
 }
 
 async function loadPuzzle(puzzleString, puzzleData = null) {
+  puzzleString = puzzleString.replace(/0/g, ".");
+
   const rawInput = puzzleString.replace(/\s/g, "");
   if (rawInput.length === 81 && /^[0-9.]+$/.test(rawInput)) {
     puzzleStringInput.value = rawInput
@@ -5830,13 +5833,15 @@ window.addEventListener("load", () => {
       // Decode in case the URL contains safe-encoded characters
       puzzleStr = decodeURIComponent(puzzleStr);
 
+      // Ensure URL zeroes are displayed as periods instantly in the textbox
+      puzzleStr = puzzleStr.replace(/0/g, ".");
+
       // Update UI to reflect a custom puzzle
       dateSelect.value = "custom";
       puzzleStringInput.value = puzzleStr;
 
       // Force the app to load the string
       await loadPuzzle(puzzleStr);
-
       // If the URL specifically requested solver mode
       if (mode === "solver") {
         // Silently bypass the first-time warning modals
