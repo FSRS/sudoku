@@ -1966,7 +1966,6 @@ function setupEventListeners() {
   });
 
   // NEW: Solver Navigation Bindings
-  // NEW: Solver Navigation Bindings
   document.getElementById("solver-prev-btn").addEventListener("click", () => {
     if (currentSolverStep > 0) {
       renderSolverStep(currentSolverStep - 1);
@@ -2071,6 +2070,60 @@ function setupEventListeners() {
 
       enterSolverModeUI();
     });
+
+  // --- Completion Share Modal Bindings ---
+  const compShareModal = document.getElementById("completion-share-modal");
+  const compDiscordBtn = document.getElementById("completion-discord-btn");
+  const compPlainBtn = document.getElementById("completion-plain-btn");
+  const compCancelBtn = document.getElementById("completion-cancel-btn");
+
+  const handleCompletionCopy = (format) => {
+    const shareText = generateCompletionText(format);
+    navigator.clipboard
+      .writeText(shareText)
+      .then(() => {
+        messageArea.innerHTML = "";
+        const colorClasses = [
+          "text-red-600",
+          "text-green-600",
+          "text-blue-500",
+          "text-gray-600",
+          "text-orange-500",
+        ];
+        messageArea.classList.remove(...colorClasses);
+        messageArea.classList.add("text-green-600");
+
+        const successText = document.createTextNode(
+          `Copied ${format === "discord" ? "Discord" : "Plain"} format! `,
+        );
+        messageArea.appendChild(successText);
+
+        const copyAgainButton = document.createElement("button");
+        copyAgainButton.textContent = "Copy Again";
+        copyAgainButton.className = "puzzle-action-button rounded-md";
+        copyAgainButton.onclick = () => {
+          compShareModal.classList.remove("hidden");
+          compShareModal.classList.add("flex");
+        };
+        messageArea.appendChild(copyAgainButton);
+      })
+      .catch((err) => {
+        console.error("Failed to copy text: ", err);
+        showMessage("Error: Could not copy text!", "red");
+      });
+
+    compShareModal.classList.add("hidden");
+    compShareModal.classList.remove("flex");
+  };
+
+  compDiscordBtn.addEventListener("click", () =>
+    handleCompletionCopy("discord"),
+  );
+  compPlainBtn.addEventListener("click", () => handleCompletionCopy("plain"));
+  compCancelBtn.addEventListener("click", () => {
+    compShareModal.classList.add("hidden");
+    compShareModal.classList.remove("flex");
+  });
 }
 
 function handleKeyDown(e) {
@@ -2085,6 +2138,7 @@ function handleKeyDown(e) {
   const copyMod = document.getElementById("copy-modal");
   const formatMod = document.getElementById("format-confirm-modal");
   const shareMod = document.getElementById("share-modal");
+  const compShareMod = document.getElementById("completion-share-modal");
 
   const isHintOpen = hintModal && !hintModal.classList.contains("hidden");
   const isSolverFirstOpen =
@@ -2094,6 +2148,8 @@ function handleKeyDown(e) {
   const isCopyOpen = copyMod && !copyMod.classList.contains("hidden");
   const isFormatOpen = formatMod && !formatMod.classList.contains("hidden");
   const isShareOpen = shareMod && !shareMod.classList.contains("hidden");
+  const isCompShareOpen =
+    compShareMod && !compShareMod.classList.contains("hidden");
 
   if (
     document.activeElement.tagName === "INPUT" ||
@@ -2147,7 +2203,8 @@ function handleKeyDown(e) {
       isSolverConfOpen ||
       isCopyOpen ||
       isFormatOpen ||
-      isShareOpen
+      isShareOpen ||
+      isCompShareOpen
     )
   ) {
     e.preventDefault();
@@ -2248,6 +2305,10 @@ function handleKeyDown(e) {
       if (isSolverConfOpen)
         document.getElementById("solver-cancel-btn").click();
       if (isCopyOpen) document.getElementById("copy-cancel-btn").click();
+      if (isFormatOpen) document.getElementById("format-cancel-btn").click();
+      if (isShareOpen) document.getElementById("share-cancel-btn").click();
+      if (isCompShareOpen)
+        document.getElementById("completion-cancel-btn").click(); // <-- Add this
       return;
     }
 
@@ -3041,33 +3102,11 @@ function checkCompletion() {
       shareButton.textContent = "Share";
       shareButton.className = "puzzle-action-button rounded-md";
       shareButton.onclick = () => {
-        const shareText = generateDiscordShareText();
-        navigator.clipboard
-          .writeText(shareText)
-          .then(() => {
-            messageArea.innerHTML = "";
-            const colorClasses = [
-              "text-red-600",
-              "text-green-600",
-              "text-gray-600",
-              "text-orange-500",
-            ];
-            messageArea.classList.remove(...colorClasses);
-            messageArea.classList.add("text-green-600");
-            const successText = document.createTextNode(
-              "Copied Discord sharable text!",
-            );
-            messageArea.appendChild(successText);
-            const copyAgainButton = document.createElement("button");
-            copyAgainButton.textContent = "Copy Again";
-            copyAgainButton.className = "puzzle-action-button rounded-md";
-            copyAgainButton.onclick = shareButton.onclick;
-            messageArea.appendChild(copyAgainButton);
-          })
-          .catch((err) => {
-            console.error("Failed to copy text: ", err);
-            showMessage("Error: Could not copy text!", "red");
-          });
+        const compShareModal = document.getElementById(
+          "completion-share-modal",
+        );
+        compShareModal.classList.remove("hidden");
+        compShareModal.classList.add("flex");
       };
       messageArea.appendChild(congratsText);
       messageArea.appendChild(shareButton);
@@ -4474,33 +4513,33 @@ function showMessage(text, color) {
   messageArea.classList.add(colors[color] || "text-gray-600");
 }
 
-function generateDiscordShareText() {
-  const title = "[fsrs Daily Sudoku](https://fsrs.darksabun.club/sudoku.html)";
-  const dateVal = dateSelect.value;
+function generateCompletionText(format = "discord") {
+  const isDiscord = format === "discord";
+  const title = isDiscord
+    ? "[fsrs Daily Sudoku](https://fsrs.darksabun.club/sudoku.html)"
+    : "fsrs Daily Sudoku";
 
+  const dateVal = dateSelect.value;
   let puzzleDateStr = new Date().toISOString().slice(0, 10);
   if (dateVal && /^\d{8}$/.test(dateVal)) {
-    puzzleDateStr = `${dateVal.slice(0, 4)}-${dateVal.slice(
-      4,
-      6,
-    )}-${dateVal.slice(6, 8)}`;
+    puzzleDateStr = `${dateVal.slice(0, 4)}-${dateVal.slice(4, 6)}-${dateVal.slice(6, 8)}`;
   }
 
   const level = parseInt(levelSelect.value, 10);
   const levelWord = difficultyWords[level] || "Unknown";
 
   const levelInfo = [
-    { emoji: ":white_large_square:", color: "white" }, // 0
-    { emoji: ":green_square:", color: "green" }, // 1
-    { emoji: ":green_square:", color: "green" }, // 2
-    { emoji: ":yellow_square:", color: "yellow" }, // 3
-    { emoji: ":yellow_square:", color: "yellow" }, // 4
-    { emoji: ":yellow_square:", color: "yellow" }, // 5
-    { emoji: ":orange_square:", color: "orange" }, // 6
-    { emoji: ":red_square:", color: "red" }, // 7
-    { emoji: ":red_square:", color: "red" }, // 8
-    { emoji: ":purple_square:", color: "violet" }, // 9
-    { emoji: ":purple_square:", color: "violet" }, // 10
+    { emoji: isDiscord ? ":white_large_square:" : "⬜", color: "white" },
+    { emoji: isDiscord ? ":green_square:" : "🟩", color: "green" },
+    { emoji: isDiscord ? ":green_square:" : "🟩", color: "green" },
+    { emoji: isDiscord ? ":yellow_square:" : "🟨", color: "yellow" },
+    { emoji: isDiscord ? ":yellow_square:" : "🟨", color: "yellow" },
+    { emoji: isDiscord ? ":yellow_square:" : "🟨", color: "yellow" },
+    { emoji: isDiscord ? ":orange_square:" : "🟧", color: "orange" },
+    { emoji: isDiscord ? ":red_square:" : "🟥", color: "red" },
+    { emoji: isDiscord ? ":red_square:" : "🟥", color: "red" },
+    { emoji: isDiscord ? ":purple_square:" : "🟪", color: "violet" },
+    { emoji: isDiscord ? ":purple_square:" : "🟪", color: "violet" },
   ];
 
   const colorHierarchy = {
@@ -4513,11 +4552,11 @@ function generateDiscordShareText() {
   };
 
   const accomplishmentOrder = [
-    { color: "red", emoji: ":red_square:" },
-    { color: "orange", emoji: ":orange_square:" },
-    { color: "yellow", emoji: ":yellow_square:" },
-    { color: "green", emoji: ":green_square:" },
-    { color: "white", emoji: ":white_large_square:" },
+    { color: "red", emoji: isDiscord ? ":red_square:" : "🟥" },
+    { color: "orange", emoji: isDiscord ? ":orange_square:" : "🟧" },
+    { color: "yellow", emoji: isDiscord ? ":yellow_square:" : "🟨" },
+    { color: "green", emoji: isDiscord ? ":green_square:" : "🟩" },
+    { color: "white", emoji: isDiscord ? ":white_large_square:" : "⬜" },
   ];
 
   const startingColor = levelInfo[level].color;
@@ -4527,23 +4566,32 @@ function generateDiscordShareText() {
 
   // Append star if hints were never used
   if (!hadUsedHint) {
-    levelStr += " :star:";
+    levelStr += isDiscord ? " :star:" : " ⭐";
   }
 
   let timeDetails = "";
   for (const item of accomplishmentOrder) {
     const itemRank = colorHierarchy[item.color];
     if (itemRank < startingRank && lampTimestamps[item.color]) {
-      timeDetails += `\n${item.emoji} ${formatTime(
-        lampTimestamps[item.color],
-      ).replace(/:/g, "\\:")}`;
+      let timeStr = formatTime(lampTimestamps[item.color]);
+      if (isDiscord) timeStr = timeStr.replace(/:/g, "\\:");
+      timeDetails += `\n${item.emoji} ${timeStr}`;
     }
   }
 
-  const finalTimeStr = puzzleTimerEl.textContent.replace(/:/g, "\\:");
-  timeDetails += `\n:ballot_box_with_check: ${finalTimeStr}`;
+  let finalTimeStr = puzzleTimerEl.textContent;
+  if (isDiscord) finalTimeStr = finalTimeStr.replace(/:/g, "\\:");
 
-  const header = `${title} | ${puzzleDateStr}\n${levelStr}${timeDetails}\n`;
+  const checkEmoji = isDiscord ? ":ballot_box_with_check:" : "☑️";
+  timeDetails += `\n${checkEmoji} ${finalTimeStr}`;
+
+  let header = `${title} | ${puzzleDateStr}\n${levelStr}${timeDetails}\n`;
+
+  // If format is plain text, append plain URL and return without grid
+  if (!isDiscord) {
+    header += `\nhttps://fsrs.darksabun.club/sudoku.html`;
+    return header.trim();
+  }
 
   const digitMap = {
     1: ":one:",
@@ -4559,13 +4607,9 @@ function generateDiscordShareText() {
   const emptySquare = ":blue_square:";
   let gridStr = "";
   for (let r = 0; r < 9; r++) {
-    if (r > 0 && r % 3 === 0) {
-      gridStr += "\n";
-    }
+    if (r > 0 && r % 3 === 0) gridStr += "\n";
     for (let c = 0; c < 9; c++) {
-      if (c > 0 && c % 3 === 0) {
-        gridStr += " ";
-      }
+      if (c > 0 && c % 3 === 0) gridStr += " ";
       const char = initialPuzzleString[r * 9 + c];
       gridStr += digitMap[char] || emptySquare;
     }
