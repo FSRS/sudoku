@@ -387,10 +387,14 @@ function addSudokuCoachLink(puzzleString) {
   container.innerHTML = "";
   if (!puzzleString) return;
 
+  const isMobile = window.innerWidth <= 550;
+
   const btn = document.createElement("button");
   btn.id = "toggle-solver-mode-btn";
-  btn.dataset.tooltip = "Toggle interactive GUI Solver Mode (S).";
-  const isMobile = window.innerWidth <= 550;
+  btn.dataset.tooltip = isMobile
+    ? "Toggle GUI Solver Mode"
+    : "Toggle GUI Solver Mode (S).";
+
   btn.textContent = isMobile ? "Solver Mode" : "Enter Solver Mode (S)";
   btn.className =
     "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600";
@@ -1359,12 +1363,23 @@ function setupEventListeners() {
 
   puzzleStringInput.addEventListener("input", function () {
     const raw = this.value.replace(/\s/g, "");
+
     if (/^[0-9.]+$/.test(raw)) {
-      const formatted = raw.match(/.{1,9}/g).join("\n");
+      const formatted = raw
+        .match(/.{1,27}/g)
+        .map((block) =>
+          block
+            .match(/.{1,9}/g)
+            .map((line) => line.match(/.{1,3}/g).join(" "))
+            .join("\n"),
+        )
+        .join("\n\n");
+
       if (this.value !== formatted) {
         this.value = formatted;
       }
     }
+
     this.style.height = "auto";
     this.style.height = this.scrollHeight + "px";
   });
@@ -2888,6 +2903,24 @@ function autoPencil() {
 }
 
 async function loadPuzzle(puzzleString, puzzleData = null) {
+  const rawInput = puzzleString.replace(/\s/g, "");
+  if (rawInput.length === 81 && /^[0-9.]+$/.test(rawInput)) {
+    puzzleStringInput.value = rawInput
+      .match(/.{1,27}/g) // 1. Split into blocks of 27 characters (3 rows)
+      .map(
+        (block) =>
+          block
+            .match(/.{1,9}/g) // 2. Split each block into rows of 9 characters
+            .map((line) => line.match(/.{1,3}/g).join(" ")) // 3. Add space every 3 characters
+            .join("\n"), // 4. Join the 3 rows together with a standard line break
+      )
+      .join("\n\n"); // 5. Join the larger blocks together with a double line break
+  }
+
+  // Force textbox height recalculation to trigger the new vertical scrollbar
+  puzzleStringInput.style.height = "auto";
+  puzzleStringInput.style.height = puzzleStringInput.scrollHeight + "px";
+
   if (autoPencilTipTimer) clearTimeout(autoPencilTipTimer);
   if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
 

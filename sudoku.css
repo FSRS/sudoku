@@ -1136,6 +1136,22 @@ button:disabled:hover {
   #solver-summary-list {
     max-height: clamp(10rem, calc(80vw - 30rem), 40rem) !important;
   }
+
+  #puzzle-string {
+    min-height: 48px !important;
+    max-height: clamp(48px, 30vw - 216px, 216px) !important;
+    overflow-y: auto !important; /* Enable vertical scroll if max is reached */
+
+    white-space: pre !important;
+    overflow-wrap: normal !important;
+    word-wrap: normal !important;
+    word-break: keep-all !important;
+
+    font-variant-ligatures: none !important;
+    font-feature-settings:
+      "liga" 0,
+      "clig" 0 !important; /* Fallback for older browsers */
+  }
 }
 
 /*
