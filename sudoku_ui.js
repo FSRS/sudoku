@@ -32,6 +32,11 @@ const copyModal = document.getElementById("copy-modal");
 const copyInitialBtn = document.getElementById("copy-initial-btn");
 const copyCurrentBtn = document.getElementById("copy-current-btn");
 const copyCancelBtn = document.getElementById("copy-cancel-btn");
+const shareBtn = document.getElementById("share-btn");
+const shareModal = document.getElementById("share-modal");
+const sharePlayingBtn = document.getElementById("share-playing-btn");
+const shareSolverBtn = document.getElementById("share-solver-btn");
+const shareCancelBtn = document.getElementById("share-cancel-btn");
 const techniqueResultCache = new Map();
 const minDateNum = 20260301;
 
@@ -383,6 +388,7 @@ function updateButtonLabels() {
     attachTooltipEvents(drawButton);
     attachTooltipEvents(colorButton);
     attachTooltipEvents(exptModeBtn);
+    attachTooltipEvents(shareBtn);
   }
 }
 
@@ -1874,8 +1880,57 @@ function setupEventListeners() {
     }
   });
 
+  // --- Share Modal Bindings ---
+  shareBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!initialPuzzleString) {
+      showMessage("No puzzle loaded to share.", "orange");
+      return;
+    }
+    shareModal.classList.remove("hidden");
+    shareModal.classList.add("flex");
+  });
+
+  shareCancelBtn.addEventListener("click", () => {
+    shareModal.classList.add("hidden");
+    shareModal.classList.remove("flex");
+  });
+
+  const generateShareLink = (mode) => {
+    if (!initialPuzzleString) return;
+
+    // Replace all periods with zeroes for the share link
+    const stringZeroes = initialPuzzleString.replace(/\./g, "0");
+    const baseUrl = window.location.origin + window.location.pathname;
+    let url = `${baseUrl}?puzzle=${stringZeroes}`;
+
+    if (mode === "solver") {
+      url += "&mode=solver";
+    }
+
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        showMessage(
+          `Copied ${mode === "solver" ? "Solver" : "Playing"} Link!`,
+          "green",
+        );
+      })
+      .catch((err) => {
+        console.error("Copy failed:", err);
+        showMessage("Failed to copy link.", "red");
+      });
+
+    shareModal.classList.add("hidden");
+    shareModal.classList.remove("flex");
+  };
+
+  sharePlayingBtn.addEventListener("click", () => generateShareLink("playing"));
+  shareSolverBtn.addEventListener("click", () => generateShareLink("solver"));
+
   document.querySelectorAll("[data-tooltip]").forEach(attachTooltipEvents);
   attachTooltipEvents(vagueHintBtn);
+  attachTooltipEvents(shareBtn);
   document.addEventListener("click", () => {
     if (activeTooltipElement) {
       hideTooltip(activeTooltipElement);
@@ -2019,6 +2074,8 @@ function handleKeyDown(e) {
   const solverFirstModal = document.getElementById("solver-first-time-modal");
   const solverConfModal = document.getElementById("solver-confirm-modal");
   const copyMod = document.getElementById("copy-modal");
+  const formatMod = document.getElementById("format-confirm-modal");
+  const shareMod = document.getElementById("share-modal");
 
   const isHintOpen = hintModal && !hintModal.classList.contains("hidden");
   const isSolverFirstOpen =
@@ -2026,6 +2083,8 @@ function handleKeyDown(e) {
   const isSolverConfOpen =
     solverConfModal && !solverConfModal.classList.contains("hidden");
   const isCopyOpen = copyMod && !copyMod.classList.contains("hidden");
+  const isFormatOpen = formatMod && !formatMod.classList.contains("hidden");
+  const isShareOpen = shareMod && !shareMod.classList.contains("hidden");
 
   if (isSolverMode) {
     if ((key_lower === "s" || key_lower === "q") && !isCtrlOrCmd) {
@@ -2059,7 +2118,14 @@ function handleKeyDown(e) {
   if (
     isCtrlOrCmd &&
     key_lower === "c" &&
-    !(isHintOpen || isSolverFirstOpen || isSolverConfOpen || isCopyOpen)
+    !(
+      isHintOpen ||
+      isSolverFirstOpen ||
+      isSolverConfOpen ||
+      isCopyOpen ||
+      isFormatOpen ||
+      isShareOpen
+    )
   ) {
     if (
       (document.activeElement.tagName === "INPUT" ||
@@ -2155,7 +2221,14 @@ function handleKeyDown(e) {
     return;
   }
 
-  if (isHintOpen || isSolverFirstOpen || isSolverConfOpen || isCopyOpen) {
+  if (
+    isHintOpen ||
+    isSolverFirstOpen ||
+    isSolverConfOpen ||
+    isCopyOpen ||
+    isFormatOpen ||
+    isShareOpen
+  ) {
     // 1. "Esc" or "q" to Escape/Cancel
     if (key === "Escape" || key_lower === "q") {
       e.preventDefault();
@@ -5743,3 +5816,40 @@ function getHighlightDiff(before, after) {
   }
   return null;
 }
+
+// --- URL Parameter Handling ---
+window.addEventListener("load", () => {
+  // A small delay ensures that any default daily puzzle loading
+  // from your main script finishes before we override it.
+  setTimeout(async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    let puzzleStr = urlParams.get("puzzle");
+    const mode = urlParams.get("mode");
+
+    if (puzzleStr) {
+      // Decode in case the URL contains safe-encoded characters
+      puzzleStr = decodeURIComponent(puzzleStr);
+
+      // Update UI to reflect a custom puzzle
+      dateSelect.value = "custom";
+      puzzleStringInput.value = puzzleStr;
+
+      // Force the app to load the string
+      await loadPuzzle(puzzleStr);
+
+      // If the URL specifically requested solver mode
+      if (mode === "solver") {
+        // Silently bypass the first-time warning modals
+        hadUsedSolver = true;
+        hadUsedHint = true;
+
+        currentEvaluationId++;
+        showMessage("Evaluating puzzle from URL...", "blue");
+        await evaluateBoardDifficulty({ waitForFrame: false });
+
+        // Launch the solver interface
+        enterSolverModeUI();
+      }
+    }
+  }, 300);
+});

@@ -1112,6 +1112,35 @@ button:disabled:hover {
   display: none !important;
 }
 
+#theme-toggle,
+#share-btn {
+  top: 0.75rem !important;
+  opacity: 0.75 !important; /* Higher base visibility */
+}
+
+#share-btn {
+  color: #1f2937 !important; /* Dark gray (text-gray-800) for light mode */
+}
+
+#theme-toggle:hover,
+#share-btn:hover {
+  opacity: 1 !important;
+}
+
+#theme-toggle {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  right: auto;
+}
+
+#share-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  left: auto;
+}
+
 @media (min-width: 880px) {
   .layout-wrapper {
     flex-direction: row;
@@ -1126,7 +1155,7 @@ button:disabled:hover {
 
   .right-col {
     max-width: 22rem;
-    margin-top: 4.75rem;
+    margin-top: 3.5rem;
   }
 
   .numpad-grid {
@@ -1139,7 +1168,7 @@ button:disabled:hover {
 
   #puzzle-string {
     min-height: 48px !important;
-    max-height: clamp(48px, 30vw - 216px, 216px) !important;
+    max-height: clamp(48px, 70vw - 560px, 216px) !important;
     overflow-y: auto !important; /* Enable vertical scroll if max is reached */
 
     white-space: pre !important;
@@ -1431,7 +1460,8 @@ button:disabled:hover {
 #solver-confirm-modal,
 #solver-first-time-modal,
 #copy-modal,
-#format-confirm-modal {
+#format-confirm-modal,
+#share-modal {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 100; /* Beats pencil marks (z-index: 30) */
 }
@@ -1697,7 +1727,7 @@ html.dark {
   }
   #resume-modal > div,
   #copy-modal > div,
-  #format-confirm-modal > div {
+  #format-confirm-modal > div #share-modal > div {
     background-color: #1f2937 !important; /* gray-800 */
     color: #f3f4f6 !important; /* gray-100 */
     border: 1px solid #4b5563; /* gray-600 */
