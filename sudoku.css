@@ -978,11 +978,10 @@ button:disabled:hover {
 
   transition:
     max-width 0.8s ease,
+    max-height 0.8s ease,
     margin-left 0.8s ease,
-    padding-left 0.8s ease,
-    padding-right 0.8s ease,
-    border-left-width 0.8s ease,
-    border-right-width 0.8s ease,
+    padding 0.8s ease,
+    border-width 0.8s ease,
     color 0.8s ease;
 
   cursor: help;
@@ -1041,14 +1040,13 @@ button:disabled:hover {
 
 #year-sticker.sticker-collapsed {
   max-width: 0;
+  max-height: 0;
   margin-left: 0;
-  padding-left: 0;
-  padding-right: 0;
-  border-left-width: 0;
-  border-right-width: 0;
-
+  padding: 0;
+  border-width: 0;
   color: transparent;
   box-shadow: none;
+  overflow: hidden;
 }
 
 /*
