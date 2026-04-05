@@ -1429,7 +1429,9 @@ button:disabled:hover {
 #resume-modal,
 #hint-confirm-modal,
 #solver-confirm-modal,
-#solver-first-time-modal {
+#solver-first-time-modal,
+#copy-modal,
+#format-confirm-modal {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 100; /* Beats pencil marks (z-index: 30) */
 }
@@ -1693,7 +1695,9 @@ html.dark {
     color: #f3f4f6 !important; /* gray-100 */
     border: 1px solid #4b5563; /* gray-600 */
   }
-  #resume-modal > div {
+  #resume-modal > div,
+  #copy-modal > div,
+  #format-confirm-modal > div {
     background-color: #1f2937 !important; /* gray-800 */
     color: #f3f4f6 !important; /* gray-100 */
     border: 1px solid #4b5563; /* gray-600 */
@@ -1729,6 +1733,17 @@ html.dark {
   #puzzle-info {
     color: #9ca3af !important; /* gray-400 */
   }
+
+  html.dark #copy-btn {
+    background-color: #6366f1 !important; /* Bright Indigo-500 */
+    color: #ffffff !important;
+    border: 1px solid #818cf8 !important; /* Lighter Indigo-400 border to make it pop */
+  }
+
+  html.dark #copy-btn:hover {
+    background-color: #818cf8 !important; /* Indigo-400 on hover */
+  }
+
   /*
   ------------------------------------------------------------------------------
   |   Part C: Specific Component Adjustments for Dark Mode                     |

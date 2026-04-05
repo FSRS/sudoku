@@ -27,6 +27,11 @@ const drawButton = modeSelector.querySelector('[data-mode="draw"]');
 const colorButton = modeSelector.querySelector('[data-mode="color"]');
 const difficultyLamp = document.getElementById("difficulty-lamp");
 const vagueHintBtn = document.getElementById("vague-hint-btn");
+const copyBtn = document.getElementById("copy-btn");
+const copyModal = document.getElementById("copy-modal");
+const copyInitialBtn = document.getElementById("copy-initial-btn");
+const copyCurrentBtn = document.getElementById("copy-current-btn");
+const copyCancelBtn = document.getElementById("copy-cancel-btn");
 const techniqueResultCache = new Map();
 const minDateNum = 20260301;
 
@@ -56,7 +61,6 @@ let userLinesSnapshot = null;
 let userHighlightStateSnapshot = 0;
 let userHighlightedDigitSnapshot = null;
 
-// NEW: SOLVER MODE STATE
 let solverSteps = [];
 let currentSolverStep = 0;
 let isSolverMode = false;
@@ -67,6 +71,7 @@ let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
 let lineColorPalette = []; // Specific palette for lines
 let hadUsedHint = false;
 let hadUsedSolver = false;
+let hadUsedFormatToggle = false;
 
 const lastUsedColors = {
   draw: { solid: null, dash: null },
@@ -465,7 +470,9 @@ function updateControls() {
   // --- NEW: Define Number Order based on Display Mode (A or B) ---
   const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
-  const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
+  const isHorizontalMode = window.innerWidth >= 880;
+  const currentOrder =
+    candidatePopupFormat === "B" && isHorizontalMode ? orderB : orderA;
   // ---------------------------------------------------------------
 
   if (currentMode === "color" || currentMode === "draw") {
@@ -1361,10 +1368,65 @@ function setupEventListeners() {
   numberPad.addEventListener("click", handleNumberPadClick);
   loadBtn.addEventListener("click", () => loadPuzzle(puzzleStringInput.value));
 
+  // --- Copy Modal Bindings ---
+  copyBtn.addEventListener("click", () => {
+    copyModal.classList.remove("hidden");
+    copyModal.classList.add("flex");
+  });
+
+  copyCancelBtn.addEventListener("click", () => {
+    copyModal.classList.add("hidden");
+    copyModal.classList.remove("flex");
+  });
+
+  copyInitialBtn.addEventListener("click", () => {
+    if (!initialPuzzleString) {
+      showMessage("No puzzle loaded to copy.", "red");
+    } else {
+      navigator.clipboard
+        .writeText(initialPuzzleString)
+        .then(() => {
+          showMessage("Initial grid copied to clipboard!", "green");
+        })
+        .catch((err) => {
+          console.error("Copy failed:", err);
+          showMessage("Failed to copy to clipboard.", "red");
+        });
+    }
+    copyModal.classList.add("hidden");
+    copyModal.classList.remove("flex");
+  });
+
+  copyCurrentBtn.addEventListener("click", () => {
+    const asciiBoard = generateAsciiGrid();
+    navigator.clipboard
+      .writeText(asciiBoard)
+      .then(() => {
+        showMessage("Current board copied to clipboard!", "green");
+      })
+      .catch((err) => {
+        console.error("Copy failed:", err);
+        showMessage("Failed to copy to clipboard.", "red");
+      });
+    copyModal.classList.add("hidden");
+    copyModal.classList.remove("flex");
+  });
+
   puzzleStringInput.addEventListener("input", function () {
+    // 1. Save the current cursor position
+    let cursorPosition = this.selectionStart;
+
+    // 2. Count how many non-whitespace characters are BEFORE the cursor
+    let nonSpaceCount = 0;
+    for (let i = 0; i < cursorPosition; i++) {
+      if (!/\s/.test(this.value[i])) {
+        nonSpaceCount++;
+      }
+    }
+
     const raw = this.value.replace(/\s/g, "");
 
-    if (/^[0-9.]+$/.test(raw)) {
+    if (raw.length > 0 && /^[0-9.]+$/.test(raw)) {
       const formatted = raw
         .match(/.{1,27}/g)
         .map((block) =>
@@ -1377,6 +1439,32 @@ function setupEventListeners() {
 
       if (this.value !== formatted) {
         this.value = formatted;
+
+        // 3. Find the new cursor position in the formatted string
+        let newCursorPosition = 0;
+        let currentNonSpaceCount = 0;
+
+        for (let i = 0; i < this.value.length; i++) {
+          if (currentNonSpaceCount === nonSpaceCount) {
+            newCursorPosition = i;
+            break;
+          }
+          if (!/\s/.test(this.value[i])) {
+            currentNonSpaceCount++;
+          }
+        }
+
+        // If the cursor was exactly at the end of the input string
+        if (
+          currentNonSpaceCount === nonSpaceCount &&
+          newCursorPosition === 0 &&
+          nonSpaceCount > 0
+        ) {
+          newCursorPosition = this.value.length;
+        }
+
+        // 4. Restore the cursor to its correct calculated location
+        this.setSelectionRange(newCursorPosition, newCursorPosition);
       }
     }
 
@@ -1397,16 +1485,19 @@ function setupEventListeners() {
   closeModalBtn.addEventListener("click", () =>
     candidateModal.classList.add("hidden"),
   );
-  window.addEventListener("resize", updateButtonLabels);
-  formatToggleBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
+  window.addEventListener("resize", () => {
+    updateButtonLabels();
+    updateControls(); // Re-render numpad in case the window crosses the 880px boundary
+  });
+  // 1. Define the actual toggle logic
+  const executeFormatToggle = () => {
     candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
     const tip = `Candidate display set to ${
       candidatePopupFormat === "A" ? "Numpad (A)" : "Phone (B)"
     } layout. (Press 'D' to toggle)`;
     showMessage(tip, "gray");
 
-    updateControls(); // <--- NEW: Re-render numpad ordering
+    updateControls();
     renderBoard();
 
     if (
@@ -1415,6 +1506,35 @@ function setupEventListeners() {
     ) {
       showCandidatePopup(selectedCell.row, selectedCell.col);
     }
+  };
+
+  // 2. The button listener now checks the "first time" flag
+  formatToggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!hadUsedFormatToggle) {
+      const formatModal = document.getElementById("format-confirm-modal");
+      formatModal.classList.remove("hidden");
+      formatModal.classList.add("flex");
+    } else {
+      executeFormatToggle();
+    }
+  });
+
+  // 3. Modal Bindings
+  const formatConfirmBtn = document.getElementById("format-confirm-btn");
+  const formatCancelBtn = document.getElementById("format-cancel-btn");
+  const formatModal = document.getElementById("format-confirm-modal");
+
+  formatConfirmBtn.addEventListener("click", () => {
+    formatModal.classList.add("hidden");
+    formatModal.classList.remove("flex");
+    hadUsedFormatToggle = true;
+    executeFormatToggle();
+  });
+
+  formatCancelBtn.addEventListener("click", () => {
+    formatModal.classList.add("hidden");
+    formatModal.classList.remove("flex");
   });
 
   // [REQ 4] Allow re-selecting the same level in Unlimited Mode
@@ -1894,6 +2014,19 @@ function handleKeyDown(e) {
   const key_lower = e.key.toLowerCase();
   const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
+  // --- NEW: MODAL KEYBOARD SHORTCUTS ---
+  const hintModal = document.getElementById("hint-confirm-modal");
+  const solverFirstModal = document.getElementById("solver-first-time-modal");
+  const solverConfModal = document.getElementById("solver-confirm-modal");
+  const copyMod = document.getElementById("copy-modal");
+
+  const isHintOpen = hintModal && !hintModal.classList.contains("hidden");
+  const isSolverFirstOpen =
+    solverFirstModal && !solverFirstModal.classList.contains("hidden");
+  const isSolverConfOpen =
+    solverConfModal && !solverConfModal.classList.contains("hidden");
+  const isCopyOpen = copyMod && !copyMod.classList.contains("hidden");
+
   if (isSolverMode) {
     if ((key_lower === "s" || key_lower === "q") && !isCtrlOrCmd) {
       const toggleBtn = document.getElementById("toggle-solver-mode-btn");
@@ -1923,7 +2056,11 @@ function handleKeyDown(e) {
     return;
   }
 
-  if (isCtrlOrCmd && key_lower === "c") {
+  if (
+    isCtrlOrCmd &&
+    key_lower === "c" &&
+    !(isHintOpen || isSolverFirstOpen || isSolverConfOpen || isCopyOpen)
+  ) {
     if (
       (document.activeElement.tagName === "INPUT" ||
         document.activeElement.tagName === "TEXTAREA") &&
@@ -2017,6 +2154,57 @@ function handleKeyDown(e) {
   ) {
     return;
   }
+
+  if (isHintOpen || isSolverFirstOpen || isSolverConfOpen || isCopyOpen) {
+    // 1. "Esc" or "q" to Escape/Cancel
+    if (key === "Escape" || key_lower === "q") {
+      e.preventDefault();
+      if (isHintOpen) document.getElementById("hint-cancel-btn").click();
+      if (isSolverFirstOpen)
+        document.getElementById("solver-first-time-cancel-btn").click();
+      if (isSolverConfOpen)
+        document.getElementById("solver-cancel-btn").click();
+      if (isCopyOpen) document.getElementById("copy-cancel-btn").click();
+      return;
+    }
+
+    // 2. "v" to confirm Hint
+    if (key_lower === "v" && e.shiftKey && isHintOpen) {
+      e.preventDefault();
+      document.getElementById("hint-confirm-btn").click();
+      return;
+    }
+
+    // 3. "s" to confirm Solver Mode
+    if (key_lower === "s" && e.shiftKey) {
+      if (isSolverFirstOpen) {
+        e.preventDefault();
+        document.getElementById("solver-first-time-confirm-btn").click();
+        return;
+      }
+      if (isSolverConfOpen) {
+        e.preventDefault();
+        const currentBtn = document.getElementById("solver-current-btn");
+        // If "Start from Current State" is available, select it. Otherwise, start from beginning.
+        if (currentBtn && currentBtn.style.display !== "none") {
+          currentBtn.click();
+        } else {
+          document.getElementById("solver-beginning-btn").click();
+        }
+        return;
+      }
+    }
+
+    if (key_lower === "d" && e.shiftKey && isFormatOpen) {
+      e.preventDefault();
+      document.getElementById("format-confirm-btn").click();
+      return;
+    }
+
+    // Block other background game shortcuts while these modals are open.
+    return;
+  }
+  // --- END NEW MODAL KEYBOARD SHORTCUTS ---
   if (key === "Escape" && !candidateModal.classList.contains("hidden")) {
     candidateModal.classList.add("hidden");
     return;
