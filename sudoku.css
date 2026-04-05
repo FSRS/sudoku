@@ -1115,11 +1115,11 @@ button:disabled:hover {
 #theme-toggle,
 #share-btn {
   top: 0.75rem !important;
-  opacity: 0.75 !important; /* Higher base visibility */
+  opacity: 0.65 !important;
 }
 
 #share-btn {
-  color: #1f2937 !important; /* Dark gray (text-gray-800) for light mode */
+  filter: brightness(0.5) saturate(0.6);
 }
 
 #theme-toggle:hover,
@@ -1764,14 +1764,18 @@ html.dark {
     color: #9ca3af !important; /* gray-400 */
   }
 
-  html.dark #copy-btn {
+  #copy-btn {
     background-color: #6366f1 !important; /* Bright Indigo-500 */
     color: #ffffff !important;
     border: 1px solid #818cf8 !important; /* Lighter Indigo-400 border to make it pop */
   }
 
-  html.dark #copy-btn:hover {
+  #copy-btn:hover {
     background-color: #818cf8 !important; /* Indigo-400 on hover */
+  }
+
+  #share-btn {
+    filter: brightness(1.2) saturate(0.8);
   }
 
   /*
