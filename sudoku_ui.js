@@ -411,7 +411,7 @@ function addSudokuCoachLink(puzzleString) {
     "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600";
 
   btn.addEventListener("click", () => {
-    if (btn.tooltipInstance) hideTooltip(btn);
+    hideTooltip(btn);
     if (activeTooltipElement === btn) activeTooltipElement = null;
 
     if (isSolverMode) {
@@ -1376,6 +1376,8 @@ function setupEventListeners() {
 
   // --- Copy Modal Bindings ---
   copyBtn.addEventListener("click", () => {
+    hideTooltip(copyBtn);
+    if (activeTooltipElement === copyBtn) activeTooltipElement = null;
     copyModal.classList.remove("hidden");
     copyModal.classList.add("flex");
   });
@@ -1480,10 +1482,28 @@ function setupEventListeners() {
   });
 
   solveBtn.addEventListener("click", solve);
+  const resetModal = document.getElementById("reset-confirm-modal");
+  const resetConfirmBtn = document.getElementById("reset-confirm-btn");
+  const resetCancelBtn = document.getElementById("reset-cancel-btn");
+
   clearBtn.addEventListener("click", () => {
+    hideTooltip(clearBtn);
+    if (activeTooltipElement === clearBtn) activeTooltipElement = null;
+    resetModal.classList.remove("hidden");
+    resetModal.classList.add("flex");
+  });
+
+  resetConfirmBtn.addEventListener("click", () => {
+    resetModal.classList.add("hidden");
+    resetModal.classList.remove("flex");
     clearUserBoard();
     clearAllColors();
     showMessage("Board cleared.", "gray");
+  });
+
+  resetCancelBtn.addEventListener("click", () => {
+    resetModal.classList.add("hidden");
+    resetModal.classList.remove("flex");
   });
   clearColorsBtn.addEventListener("click", clearAllColors);
   autoPencilBtn.addEventListener("click", autoPencil);
@@ -1789,7 +1809,7 @@ function setupEventListeners() {
 
   // 3. Update the main button listener
   vagueHintBtn.addEventListener("click", (e) => {
-    if (vagueHintBtn.tooltipInstance) hideTooltip(vagueHintBtn);
+    hideTooltip(vagueHintBtn);
     if (activeTooltipElement === vagueHintBtn) activeTooltipElement = null;
     // A. Validation Checks (Keep these before the modal)
     if (isBoardIdenticalToSolution()) {
@@ -1884,6 +1904,8 @@ function setupEventListeners() {
   // --- Share Modal Bindings ---
   shareBtn.addEventListener("click", (e) => {
     e.stopPropagation();
+    hideTooltip(shareBtn);
+    if (activeTooltipElement === shareBtn) activeTooltipElement = null;
     if (!initialPuzzleString) {
       showMessage("No puzzle loaded to share.", "orange");
       return;
@@ -2139,6 +2161,7 @@ function handleKeyDown(e) {
   const formatMod = document.getElementById("format-confirm-modal");
   const shareMod = document.getElementById("share-modal");
   const compShareMod = document.getElementById("completion-share-modal");
+  const resetMod = document.getElementById("reset-confirm-modal");
 
   const isHintOpen = hintModal && !hintModal.classList.contains("hidden");
   const isSolverFirstOpen =
@@ -2150,6 +2173,7 @@ function handleKeyDown(e) {
   const isShareOpen = shareMod && !shareMod.classList.contains("hidden");
   const isCompShareOpen =
     compShareMod && !compShareMod.classList.contains("hidden");
+  const isResetOpen = resetMod && !resetMod.classList.contains("hidden");
 
   if (
     document.activeElement.tagName === "INPUT" ||
@@ -2159,7 +2183,7 @@ function handleKeyDown(e) {
   }
 
   if (isSolverMode) {
-    if ((key_lower === "s" || key_lower === "q") && !isCtrlOrCmd) {
+    if (key_lower === "s" && !isCtrlOrCmd) {
       const toggleBtn = document.getElementById("toggle-solver-mode-btn");
       if (toggleBtn) toggleBtn.click();
       return;
@@ -2204,7 +2228,8 @@ function handleKeyDown(e) {
       isCopyOpen ||
       isFormatOpen ||
       isShareOpen ||
-      isCompShareOpen
+      isCompShareOpen ||
+      isResetOpen
     )
   ) {
     e.preventDefault();
@@ -2294,10 +2319,11 @@ function handleKeyDown(e) {
     isSolverConfOpen ||
     isCopyOpen ||
     isFormatOpen ||
-    isShareOpen
+    isShareOpen ||
+    isResetOpen
   ) {
-    // 1. "Esc" or "q" to Escape/Cancel
-    if (key === "Escape" || key_lower === "q") {
+    // 1. "Esc" to Escape/Cancel
+    if (key === "Escape") {
       e.preventDefault();
       if (isHintOpen) document.getElementById("hint-cancel-btn").click();
       if (isSolverFirstOpen)
@@ -2309,6 +2335,7 @@ function handleKeyDown(e) {
       if (isShareOpen) document.getElementById("share-cancel-btn").click();
       if (isCompShareOpen)
         document.getElementById("completion-cancel-btn").click(); // <-- Add this
+      if (isResetOpen) document.getElementById("reset-cancel-btn").click(); // <-- Add this
       return;
     }
 
@@ -2342,6 +2369,12 @@ function handleKeyDown(e) {
     if (key_lower === "d" && e.shiftKey && isFormatOpen) {
       e.preventDefault();
       document.getElementById("format-confirm-btn").click();
+      return;
+    }
+
+    if (key_lower === "q" && e.shiftKey && isResetOpen) {
+      e.preventDefault();
+      document.getElementById("reset-confirm-btn").click();
       return;
     }
 
