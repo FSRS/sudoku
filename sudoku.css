@@ -70,6 +70,7 @@
     --color-green-500: oklch(70.4% 0.191 150);
     --color-green-600: oklch(62.7% 0.194 149.214);
     --color-green-700: oklch(52.7% 0.154 150.069);
+    --color-blue-200: oklch(83.5% 0.1 255.5);
     --color-blue-300: oklch(76.58% 0.138 256.12);
     --color-blue-400: oklch(69.72% 0.175 258.11);
     --color-blue-500: oklch(62.3% 0.214 259.815);
@@ -1067,6 +1068,76 @@ button:disabled:hover {
   overflow-y: auto;
 }
 
+/* --- Responsive Horizontal Layout --- */
+.max-w-5xl {
+  /* Req 4: Reduced max-width to shrink overall scale for 16:9 screens */
+  max-width: 64rem;
+}
+
+.layout-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.left-col {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+@media (min-width: 550px) {
+  .left-col {
+    max-width: 38rem; /* Restricts the grid, adding natural horizontal padding */
+  }
+}
+
+.right-col {
+  flex: 1;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.numpad-grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+/* --- Fix for Numpad Visibility in Solver Mode --- */
+.numpad-grid.hidden {
+  display: none !important;
+}
+
+@media (min-width: 880px) {
+  .layout-wrapper {
+    flex-direction: row;
+    gap: 2rem;
+    align-items: flex-start;
+  }
+
+  .left-col {
+    /* Req 4: Shrink grid container to reduce vertical height */
+    max-width: 42rem;
+  }
+
+  .right-col {
+    max-width: 22rem;
+    margin-top: 4.75rem;
+  }
+
+  .numpad-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #solver-summary-list {
+    max-height: clamp(10rem, calc(80vw - 30rem), 40rem) !important;
+  }
+}
+
 /*
 ================================================================================
 |   5. COMPONENTS                                                              |
@@ -1162,11 +1233,14 @@ button:disabled:hover {
 
 .sudoku-cell .user-value {
   color: var(--color-indigo-600);
+  font-weight: 450;
+  font-size: clamp(1.1rem, 7cqi, 2.2rem);
 }
 
 .sudoku-cell .given-value {
   color: var(--nc-tx-1);
   font-weight: 600;
+  font-size: clamp(1.1rem, 7cqi, 2.2rem);
 }
 
 .sudoku-cell.invalid .user-value {
@@ -1247,6 +1321,7 @@ button:disabled:hover {
   color: var(--color-gray-700);
   opacity: 0.75;
   transition: opacity 0.2s;
+  font-size: clamp(0.8rem, 3.2cqi, 1.2rem);
 }
 
 .pencil-mark[style*="color"] {
@@ -1406,8 +1481,10 @@ button:disabled:hover {
 /* Ensure the grid container is relative so absolute SVG works */
 .sudoku-grid {
   position: relative;
+  container-type: inline-size;
 }
 /*
+
 ================================================================================
 |   6. ANIMATIONS                                                              |
 ================================================================================
@@ -1574,10 +1651,10 @@ html.dark {
     border-right-color: var(--nc-tx-1) !important;
   }
   .sudoku-cell .given-value {
-    color: #e5e7eb !important; /* gray-200 */
+    color: var(--color-gray-200) !important;
   }
   .sudoku-cell .user-value {
-    color: #60a5fa !important; /* blue-400 */
+    color: var(--color-blue-300) !important;
   }
 
   .pencil-mark {

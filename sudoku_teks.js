@@ -6480,7 +6480,9 @@ const techniques = {
                 type: "remove",
                 cells: elims,
                 hint: {
-                  name: options.nameOverride || "Alternating Inference Chain",
+                  name: (options.nameOverride || "AIC").includes("Chain")
+                    ? (options.nameOverride || "AIC").replace("Chain", "Ring")
+                    : (options.nameOverride || "AIC") + " Ring",
                   mainInfo:
                     techniques._getHintInfo(chain, hintType) + " (Ring)",
                   detail:
@@ -6626,7 +6628,7 @@ const techniques = {
                 type: "remove",
                 cells: elims,
                 hint: {
-                  name: options.nameOverride || "Alternating Inference Chain",
+                  name: options.nameOverride || "AIC",
                   mainInfo: techniques._getHintInfo(chain, hintType),
                   detail: techniques._buildChainDetail(chain, options),
                 },
@@ -6884,7 +6886,7 @@ const techniques = {
       bivalueOnly: false,
       maxLength: 20,
       hintType: "strongLink",
-      nameOverride: "Grouped Alternating Inference Chain",
+      nameOverride: "Grouepd AIC",
     }),
 
   // --- BITWISE HELPERS ---
@@ -7249,7 +7251,7 @@ const techniques = {
             new Set(elims.map(JSON.stringify)),
           ).map(JSON.parse);
 
-          let name = "Almost Locked Set XZ-Rule";
+          let name = "ALS XZ-Rule";
           let mainInfo = `ALSes on ${A.unitName} and ${B.unitName} (${
             rccCount === 1 ? "Singly" : "Doubly"
           } linked)`;
@@ -7890,7 +7892,7 @@ const techniques = {
                 type: "remove",
                 cells: uniqueElims,
                 hint: {
-                  name: "Almost Hidden Set XZ-Rule",
+                  name: "AHS XZ-Rule",
                   mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Doubly Linked)`,
                   detail: detail,
                 },
@@ -7969,7 +7971,7 @@ const techniques = {
                 type: "remove",
                 cells: uniqueElims,
                 hint: {
-                  name: "Almost Hidden Set XZ-Rule",
+                  name: "AHS XZ-Rule",
                   mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Doubly Linked)`,
                   detail: detail,
                 },
@@ -8068,7 +8070,7 @@ const techniques = {
                 type: "remove",
                 cells: uniqueElims,
                 hint: {
-                  name: "Almost Hidden Set XZ-Rule",
+                  name: "AHS XZ-Rule",
                   mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Singly Linked)`,
                   detail: foundDetail,
                 },
@@ -8137,7 +8139,7 @@ const techniques = {
                 type: "remove",
                 cells: uniqueElims,
                 hint: {
-                  name: "Almost Hidden Set XZ-Rule",
+                  name: "AHS XZ-Rule",
                   mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Singly Linked)`,
                   detail: foundDetail,
                 },
@@ -8608,7 +8610,7 @@ const techniques = {
       ringRccs,
       ringRcds,
     ) => {
-      let title = "Almost Hidden Set ";
+      let title = "AHS ";
       if (path.length === 3) {
         title += isRing ? "XY-Ring" : "XY-Wing";
       } else {
@@ -9291,9 +9293,7 @@ const techniques = {
                   type: "remove",
                   cells: uniqueElims,
                   hint: {
-                    name: isRing
-                      ? "Almost Hidden Set W-Wing (Ring)"
-                      : "Almost Hidden Set W-Wing",
+                    name: isRing ? "AHS W-Wing (Ring)" : "AHS W-Wing",
                     mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
                     detail: detailStr,
                   },
@@ -9430,13 +9430,13 @@ const techniques = {
     pencils,
     minLen,
     maxLen,
-    nameOverride = "Almost Locked Set Chain",
+    nameOverride = "ALS Chain",
   ) => {
     let eliminations = [];
     let found = false;
     let successPath = null; // To store the path that triggered the elimination
     let isRingResult = false;
-    let successTarget = 0;
+    let successTarget = [];
     let successClosingRcc = 0;
 
     // Helper: Eliminate RCC from common peers of the link (Used for Rings)
@@ -9555,7 +9555,8 @@ const techniques = {
               const disallow2 = d; // Entry to end
 
               let localChange = false;
-              let firstZ = 0; // Capture the target digit
+              let foundZs = [];
+
               // Iterate bits in commonMask
               const zDigits = techniques._bits.maskToDigits(commonMask);
               for (const z of zDigits) {
@@ -9573,7 +9574,7 @@ const techniques = {
                 techniques._processElims(peerMask, z, pencils, eliminations);
                 if (eliminations.length > prevLen) {
                   localChange = true;
-                  if (!firstZ) firstZ = z;
+                  foundZs.push(z);
                 }
               }
 
@@ -9581,7 +9582,7 @@ const techniques = {
                 found = true;
                 successPath = [...path]; // Capture path
                 isRingResult = false;
-                successTarget = firstZ;
+                successTarget = foundZs;
               }
             }
           }
@@ -9613,7 +9614,7 @@ const techniques = {
 
       // Specific Format for Almost Locked Set XY-Wing (Length 3 Linear Chain)
       if (
-        nameOverride === "Almost Locked Set XY-Wing" &&
+        nameOverride === "ALS XY-Wing" &&
         successPath &&
         successPath.length === 3
       ) {
@@ -9670,13 +9671,13 @@ const techniques = {
             i === 0
               ? isRingResult
                 ? successClosingRcc
-                : successTarget
+                : successTarget.join("")
               : successPath[i].viaDigit;
           const d_out =
             i === successPath.length - 1
               ? isRingResult
                 ? successClosingRcc
-                : successTarget
+                : successTarget.join("")
               : successPath[i + 1].viaDigit;
 
           pieces.push(`(${d_in}=${d_out})${fmtALS(als)}`);
@@ -9693,7 +9694,7 @@ const techniques = {
         alsCells: [..._alsLookup[step.hash].cells],
       }));
       const v_isRingResult = isRingResult;
-      const v_successTarget = successTarget;
+      const v_successTargets = successTarget; // <-- CHANGED: renamed to plural
       const v_successClosingRcc = successClosingRcc;
 
       const snap_nodes = (() => {
@@ -9703,19 +9704,20 @@ const techniques = {
             i === 0
               ? v_isRingResult
                 ? v_successClosingRcc
-                : v_successTarget
+                : v_successTargets[0]
               : step.viaDigit;
           const d_out =
             i === visualPath.length - 1
               ? v_isRingResult
                 ? v_successClosingRcc
-                : v_successTarget
+                : v_successTargets[0]
               : visualPath[i + 1].viaDigit;
 
           nodes.push({
             cells: step.alsCells.filter(([r, c]) => pencils[r][c].has(d_in)),
             digit: d_in,
           });
+          // ... (rest of your node push logic remains exactly the same)
           nodes.push({
             cells: step.alsCells.filter(([r, c]) => pencils[r][c].has(d_out)),
             digit: d_out,
@@ -9865,13 +9867,7 @@ const techniques = {
     techniques._buildAlsDigitCommonPeers();
     techniques._buildAlsRccMap();
 
-    return techniques._alsChainCore(
-      board,
-      pencils,
-      3,
-      3,
-      "Almost Locked Set XY-Wing",
-    );
+    return techniques._alsChainCore(board, pencils, 3, 3, "ALS XY-Wing");
   },
 
   alsChain: (board, pencils) => {
@@ -9881,13 +9877,7 @@ const techniques = {
       techniques._buildAlsDigitCommonPeers();
       techniques._buildAlsRccMap();
     }
-    return techniques._alsChainCore(
-      board,
-      pencils,
-      4,
-      5,
-      "Almost Locked Set Chain",
-    );
+    return techniques._alsChainCore(board, pencils, 4, 5, "ALS Chain");
   },
 
   // --- Almost Locked Set W-Wing & HELPERS ---
@@ -10295,10 +10285,6 @@ const techniques = {
             }
           }
 
-          // Fallback just in case edge combinations slip through
-          if (!detail)
-            detail = `Almost Locked Set W-Wing on ${A.unitName} and ${B.unitName}`;
-
           // --- PREPARE SNAP NODES FOR VISUALS ---
           const targetDigitsArray = [
             ...new Set(uniqueElims.map((e) => e.num)),
@@ -10398,7 +10384,7 @@ const techniques = {
             type: "remove",
             cells: uniqueElims,
             hint: {
-              name: "Almost Locked Set W-Wing",
+              name: "ALS W-Wing",
               mainInfo: `${A.unitName} and ${B.unitName}`,
               detail: detail,
             },

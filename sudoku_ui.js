@@ -246,7 +246,7 @@ function updateButtonLabels() {
   }
 
   if (currentMode === "pencil") {
-    modeToggleButton.textContent = isMobile ? "Pen." : "Pen.";
+    modeToggleButton.textContent = isMobile ? "Pen." : "Pen. (Z)";
     modeToggleButton.dataset.tooltip =
       "Pencil Mode: Click a cell, then a digit to toggle a candidate. (Z to switch)";
   } else {
@@ -396,6 +396,9 @@ function addSudokuCoachLink(puzzleString) {
     "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600";
 
   btn.addEventListener("click", () => {
+    if (btn.tooltipInstance) hideTooltip(btn);
+    if (activeTooltipElement === btn) activeTooltipElement = null;
+
     if (isSolverMode) {
       exitSolverMode();
     } else {
@@ -455,11 +458,15 @@ function createGrid() {
 function updateControls() {
   numberPad.innerHTML = "";
 
-  // Treat "draw" mode like "color" mode for the controls
+  // --- NEW: Define Number Order based on Display Mode (A or B) ---
+  const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
+  const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
+  // ---------------------------------------------------------------
+
   if (currentMode === "color" || currentMode === "draw") {
     let activePalette;
 
-    // Select the correct palette
     if (currentMode === "draw") {
       activePalette = lineColorPalette;
     } else {
@@ -469,45 +476,30 @@ function updateControls() {
           : cellColorPalette;
     }
 
-    for (let i = 0; i < 9; i++) {
+    currentOrder.forEach((i) => {
+      const colorIndex = i - 1; // Palette is 0-indexed
       const btn = document.createElement("button");
-      btn.style.backgroundColor = activePalette[i];
-      btn.dataset.color = activePalette[i];
-      btn.textContent = i + 1;
+      btn.style.backgroundColor = activePalette[colorIndex];
+      btn.dataset.color = activePalette[colorIndex];
+      btn.dataset.number = i; // Allow keyboard mapping
+      btn.textContent = i;
 
       const isDarkMode = document.documentElement.classList.contains("dark");
+      let labelColor = isDarkMode
+        ? "rgba(255,255,255,0.6)"
+        : "rgba(31,31,31,0.6)";
 
-      // Text color logic
-      let labelColor;
-      if (currentMode === "draw") {
-        // Lines use specific palettes; usually just ensure contrast
-        labelColor =
-          drawSubMode === "dash"
-            ? isDarkMode
-              ? "#1f2937"
-              : "#e5e7eb"
-            : isDarkMode
-              ? "rgba(255,255,255,0.6)"
-              : "rgba(31,31,31,0.6)";
-      } else {
-        labelColor =
-          coloringSubMode === "candidate"
-            ? isDarkMode
-              ? "#1f2937"
-              : "#e5e7eb"
-            : isDarkMode
-              ? "rgba(255,255,255,0.6)"
-              : "rgba(31,31,31,0.6)";
-      }
+      if (currentMode === "draw" && drawSubMode === "dash")
+        labelColor = isDarkMode ? "#1f2937" : "#e5e7eb";
+      else if (currentMode === "color" && coloringSubMode === "candidate")
+        labelColor = isDarkMode ? "#1f2937" : "#e5e7eb";
 
       btn.className =
         "color-btn p-2 text-lg font-bold border rounded-md shadow-sm h-12";
       btn.style.color = labelColor;
 
-      // Highlight if selected
-      if (selectedColor === activePalette[i]) {
+      if (selectedColor === activePalette[colorIndex])
         btn.classList.add("selected");
-      }
 
       btn.addEventListener("mouseenter", () => {
         btn.style.filter = isDarkMode ? "brightness(1.25)" : "brightness(0.9)";
@@ -516,17 +508,17 @@ function updateControls() {
         btn.style.filter = "brightness(1)";
       });
       numberPad.appendChild(btn);
-    }
+    });
   } else {
     // Concrete / Pencil Modes (Numbers)
-    for (let i = 1; i <= 9; i++) {
+    currentOrder.forEach((i) => {
       const btn = document.createElement("button");
       btn.textContent = i;
       btn.dataset.number = i;
       btn.className =
         "p-2 text-lg font-bold border rounded-md shadow-sm hover:bg-gray-100 h-12";
       numberPad.appendChild(btn);
-    }
+    });
   }
 }
 
@@ -1398,7 +1390,10 @@ function setupEventListeners() {
       candidatePopupFormat === "A" ? "Numpad (A)" : "Phone (B)"
     } layout. (Press 'D' to toggle)`;
     showMessage(tip, "gray");
+
+    updateControls(); // <--- NEW: Re-render numpad ordering
     renderBoard();
+
     if (
       !candidateModal.classList.contains("hidden") &&
       selectedCell.row !== null
@@ -1446,9 +1441,9 @@ function setupEventListeners() {
   if (!isMobile) {
     modeToggleButton.addEventListener("mouseenter", () => {
       if (currentMode === "concrete") {
-        modeToggleButton.textContent = "Pencil?";
+        modeToggleButton.textContent = isMobile ? "Pen?" : "Pen? (Z)";
       } else if (currentMode === "pencil") {
-        modeToggleButton.textContent = "Number?";
+        modeToggleButton.textContent = isMobile ? "Num?" : "Num? (Z)";
       }
     });
     modeToggleButton.addEventListener("mouseleave", () => {
@@ -1465,6 +1460,19 @@ function setupEventListeners() {
       }
     });
     colorButton.addEventListener("mouseleave", () => {
+      updateButtonLabels();
+    });
+
+    drawButton.addEventListener("mouseenter", () => {
+      if (currentMode === "draw") {
+        if (drawSubMode === "solid") {
+          drawButton.textContent = "Draw: Dash?";
+        } else {
+          drawButton.textContent = "Draw: Sol.?";
+        }
+      }
+    });
+    drawButton.addEventListener("mouseleave", () => {
       updateButtonLabels();
     });
   }
@@ -1639,6 +1647,8 @@ function setupEventListeners() {
 
   // 3. Update the main button listener
   vagueHintBtn.addEventListener("click", (e) => {
+    if (vagueHintBtn.tooltipInstance) hideTooltip(vagueHintBtn);
+    if (activeTooltipElement === vagueHintBtn) activeTooltipElement = null;
     // A. Validation Checks (Keep these before the modal)
     if (isBoardIdenticalToSolution()) {
       showMessage("The Sudoku is already solved!", "green");
@@ -1807,10 +1817,15 @@ function setupEventListeners() {
 
   document
     .getElementById("solver-current-btn")
-    .addEventListener("click", () => {
+    .addEventListener("click", async () => {
       const modal = document.getElementById("solver-confirm-modal");
       modal.classList.add("hidden");
       modal.classList.remove("flex");
+
+      currentEvaluationId++;
+      showMessage("Evaluating current state...", "blue");
+      await evaluateBoardDifficulty({ waitForFrame: false });
+
       enterSolverModeUI();
     });
 
@@ -1993,16 +2008,18 @@ function handleKeyDown(e) {
   }
   if (!candidateModal.classList.contains("hidden")) {
     if (key >= "1" && key <= "9") {
-      const candidateButtons = candidateGrid.querySelectorAll("button");
-      let targetButton = null;
-      candidateButtons.forEach((btn) => {
-        if (btn.textContent === key) {
-          targetButton = btn;
-        }
-      });
-      if (targetButton && !targetButton.disabled) {
-        targetButton.click();
-      }
+      // Check if mode requires a cell selection first
+      if (
+        (currentMode === "concrete" || currentMode === "pencil") &&
+        selectedCell.row === null
+      )
+        return;
+
+      // Select the button explicitly by its number dataset regardless of visual order
+      const numPadButton = numberPad.querySelector(
+        `button[data-number="${key}"]`,
+      );
+      if (numPadButton) numPadButton.click();
     }
     return;
   }
@@ -3447,6 +3464,7 @@ function enterSolverModeUI() {
 
   stopTimer();
 
+  if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
   if (typeof savePuzzleProgress === "function") savePuzzleProgress();
   userBoardSnapshot = cloneBoardState(boardState);
   userLinesSnapshot = JSON.parse(JSON.stringify(drawnLines));
@@ -3934,12 +3952,19 @@ function buildSolverSummary() {
     dotEl.style.flexShrink = "0";
     dotEl.textContent = "·";
 
+    const useShortTech = window.innerWidth >= 880;
+
+    const shortTech = tech
+      .replace(/Almost Locked Set/g, "ALS")
+      .replace(/Almost Hidden Set/g, "AHS")
+      .replace(/Alternating Inference Chain/g, "AIC");
+
     // 3. Technique Name (Fluid Width)
     const nameEl = document.createElement("div");
     nameEl.style.flexGrow = "1";
     nameEl.style.overflow = "hidden";
     nameEl.style.textOverflow = "ellipsis";
-    nameEl.textContent = tech;
+    nameEl.textContent = useShortTech ? shortTech : tech;
 
     // 4. Fixed Width Score String
     const scoreEl = document.createElement("div");
@@ -4508,6 +4533,7 @@ function getBoardStateHash(board, pencils) {
 }
 
 async function evaluateBoardDifficulty(opts = {}) {
+  if (isSolverMode) return;
   // [FIX] Support options to skip frame waiting for more robust initialization
   const { waitForFrame = true } = opts;
 
