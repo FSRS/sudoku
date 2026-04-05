@@ -1966,12 +1966,20 @@ function setupEventListeners() {
   });
 
   // NEW: Solver Navigation Bindings
+  // NEW: Solver Navigation Bindings
   document.getElementById("solver-prev-btn").addEventListener("click", () => {
-    if (currentSolverStep > 0) renderSolverStep(currentSolverStep - 1);
+    if (currentSolverStep > 0) {
+      renderSolverStep(currentSolverStep - 1);
+    } else {
+      renderSolverStep(0); // Re-display the first summary message
+    }
   });
   document.getElementById("solver-next-btn").addEventListener("click", () => {
-    if (currentSolverStep < solverSteps.length - 1)
+    if (currentSolverStep < solverSteps.length - 1) {
       renderSolverStep(currentSolverStep + 1);
+    } else {
+      renderSolverStep(solverSteps.length - 1); // Re-display the final message
+    }
   });
   document;
 
@@ -2106,13 +2114,20 @@ function handleKeyDown(e) {
     }
     if (key === "ArrowLeft") {
       e.preventDefault();
-      if (currentSolverStep > 0) renderSolverStep(currentSolverStep - 1);
+      if (currentSolverStep > 0) {
+        renderSolverStep(currentSolverStep - 1);
+      } else {
+        renderSolverStep(0); // Re-display the first summary message
+      }
       return;
     }
     if (key === "ArrowRight") {
       e.preventDefault();
-      if (currentSolverStep < solverSteps.length - 1)
+      if (currentSolverStep < solverSteps.length - 1) {
         renderSolverStep(currentSolverStep + 1);
+      } else {
+        renderSolverStep(solverSteps.length - 1); // Re-display the final message
+      }
       return;
     }
 
@@ -4078,7 +4093,7 @@ function renderSolverStep(index) {
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
     if (isBruteForce) {
-      msg = `Done! Evaluated Level 11, Score: ?`;
+      msg = `Done? Evaluated Level 11, Score: ?`;
     } else {
       msg = `Done! Evaluated Level ${step.level}, Score: ${step.score}`;
     }
@@ -4295,6 +4310,63 @@ function buildSolverSummary() {
     row.appendChild(scoreEl);
     list.appendChild(row);
   });
+  const lastStep = solverSteps[solverSteps.length - 1];
+  if (lastStep && lastStep.type === "bruteforce") {
+    const isDarkMode = document.documentElement.classList.contains("dark");
+
+    const row = document.createElement("div");
+    row.dataset.tech = "bruteforce"; // Matches the techName we added in evaluateBoardDifficulty
+    row.className = "font-mono";
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "0.5rem";
+    row.style.padding = "2px 4px";
+    row.style.borderRadius = "4px";
+    row.style.transition = "background-color 0.2s, filter 0.2s";
+    row.style.fontWeight = "bold";
+    row.style.cursor = "pointer";
+
+    // Clicking it jumps to the very last step
+    row.addEventListener("click", () => {
+      renderSolverStep(solverSteps.length - 1);
+    });
+
+    row.style.color = "#ef4444"; // Dangerous red color
+    row.style.fontSize = "11px";
+    row.style.letterSpacing = "0.025em";
+    row.style.whiteSpace = "pre";
+
+    const countEl = document.createElement("div");
+    countEl.style.width = "2rem";
+    countEl.style.textAlign = "right";
+    countEl.style.flexShrink = "0";
+    countEl.style.opacity = "0.9";
+    countEl.textContent = ` 1x`;
+
+    const dotEl = document.createElement("div");
+    dotEl.style.opacity = "0.75";
+    dotEl.style.flexShrink = "0";
+    dotEl.textContent = "·";
+
+    const nameEl = document.createElement("div");
+    nameEl.style.flexGrow = "1";
+    nameEl.style.overflow = "hidden";
+    nameEl.style.textOverflow = "ellipsis";
+    nameEl.textContent = "Brute Force :(";
+
+    const scoreEl = document.createElement("div");
+    scoreEl.style.textAlign = "right";
+    scoreEl.style.flexShrink = "0";
+    scoreEl.style.opacity = "0.9";
+    // Visually match the alignment of the standard score elements
+    scoreEl.innerHTML = `<span style="opacity:0.5">  ? = </span>   ? pt`;
+
+    row.appendChild(countEl);
+    row.appendChild(dotEl);
+    row.appendChild(nameEl);
+    row.appendChild(scoreEl);
+    list.appendChild(row);
+  }
 }
 
 function cloneToBoardState(vBoard, vPencils) {
@@ -5451,12 +5523,12 @@ async function evaluateBoardDifficulty(opts = {}) {
     solverSteps[0].level = maxDifficulty;
     solverSteps.push({
       type: "bruteforce",
+      techName: "bruteforce", // <-- ADD THIS so the summary list can highlight it
       board: solutionBoard.map((r) => [...r]),
       pencils: Array(9)
         .fill(null)
         .map(() => Array(9).fill(new Set())),
     });
-
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore}`;
     } else {
