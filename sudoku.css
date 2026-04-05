@@ -1139,48 +1139,6 @@ button:disabled:hover {
   left: auto;
 }
 
-@media (min-width: 880px) {
-  .layout-wrapper {
-    flex-direction: row;
-    gap: 2rem;
-    align-items: flex-start;
-  }
-
-  .left-col {
-    /* Req 4: Shrink grid container to reduce vertical height */
-    max-width: 42rem;
-  }
-
-  .right-col {
-    max-width: 22rem;
-    margin-top: 3.5rem;
-  }
-
-  .numpad-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  #solver-summary-list {
-    max-height: clamp(10rem, calc(80vw - 30rem), 40rem) !important;
-  }
-
-  #puzzle-string {
-    min-height: 48px !important;
-    max-height: clamp(48px, 70vw - 560px, 216px) !important;
-    overflow-y: auto !important; /* Enable vertical scroll if max is reached */
-
-    white-space: pre !important;
-    overflow-wrap: normal !important;
-    word-wrap: normal !important;
-    word-break: keep-all !important;
-
-    font-variant-ligatures: none !important;
-    font-feature-settings:
-      "liga" 0,
-      "clig" 0 !important; /* Fallback for older browsers */
-  }
-}
-
 /*
 ================================================================================
 |   5. COMPONENTS                                                              |
@@ -1446,7 +1404,6 @@ button:disabled:hover {
 }
 
 /* --- Component: Modals --- */
-/* --- Component: Modals --- */
 #candidate-modal,
 #date-modal {
   background-color: rgba(0, 0, 0, 0.5);
@@ -1529,8 +1486,16 @@ button:disabled:hover {
   position: relative;
   container-type: inline-size;
 }
-/*
 
+.solver-active-textarea {
+  height: 56px !important;
+  min-height: 48px !important;
+  max-height: 56px !important;
+  overflow-y: hidden !important;
+  white-space: nowrap !important;
+}
+
+/*
 ================================================================================
 |   6. ANIMATIONS                                                              |
 ================================================================================
@@ -1927,5 +1892,52 @@ html.dark {
   .pencil-grid {
     font-size: clamp(11px, 3.5vw, 15px) !important;
     line-height: 0.7 !important;
+  }
+}
+
+@media (max-width: 879px) {
+  #solver-summary-list {
+    max-height: 7.8rem !important;
+  }
+}
+
+@media (min-width: 880px) {
+  .layout-wrapper {
+    flex-direction: row;
+    gap: 2rem;
+    align-items: flex-start;
+  }
+
+  .left-col {
+    max-width: 42rem;
+  }
+
+  .right-col {
+    max-width: 22rem;
+    margin-top: 3.5rem;
+  }
+
+  .numpad-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #solver-summary-list {
+    max-height: clamp(10rem, calc(80vw - 30rem), 25.6rem) !important;
+  }
+
+  #puzzle-string {
+    min-height: 48px !important;
+    max-height: clamp(48px, 70vw - 560px, 216px) !important;
+    overflow-y: auto !important; /* Enable vertical scroll if max is reached */
+
+    white-space: pre !important;
+    overflow-wrap: normal !important;
+    word-wrap: normal !important;
+    word-break: keep-all !important;
+
+    font-variant-ligatures: none !important;
+    font-feature-settings:
+      "liga" 0,
+      "clig" 0 !important; /* Fallback for older browsers */
   }
 }
