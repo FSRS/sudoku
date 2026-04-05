@@ -2087,6 +2087,13 @@ function handleKeyDown(e) {
   const isFormatOpen = formatMod && !formatMod.classList.contains("hidden");
   const isShareOpen = shareMod && !shareMod.classList.contains("hidden");
 
+  if (
+    document.activeElement.tagName === "INPUT" ||
+    document.activeElement.tagName === "TEXTAREA"
+  ) {
+    return;
+  }
+
   if (isSolverMode) {
     if ((key_lower === "s" || key_lower === "q") && !isCtrlOrCmd) {
       const toggleBtn = document.getElementById("toggle-solver-mode-btn");
@@ -2128,13 +2135,6 @@ function handleKeyDown(e) {
       isShareOpen
     )
   ) {
-    if (
-      (document.activeElement.tagName === "INPUT" ||
-        document.activeElement.tagName === "TEXTAREA") &&
-      window.getSelection().toString()
-    ) {
-      return;
-    }
     e.preventDefault();
     const asciiBoard = generateAsciiGrid();
     navigator.clipboard
@@ -2213,12 +2213,6 @@ function handleKeyDown(e) {
     if (solverButton) {
       solverButton.click();
     }
-    return;
-  }
-  if (
-    document.activeElement.tagName === "INPUT" ||
-    document.activeElement.tagName === "TEXTAREA"
-  ) {
     return;
   }
 
@@ -2763,13 +2757,25 @@ function handleNumberPadClick(e) {
 
 async function populateSelectors() {
   levelSelect.innerHTML = "";
+
+  const blankOption = document.createElement("option");
+  blankOption.value = "";
+  blankOption.textContent = "";
+  blankOption.hidden = true;
+  levelSelect.appendChild(blankOption);
+
   for (let i = 0; i < 11; i++) {
     const option = document.createElement("option");
     option.value = i;
     option.textContent = `${i} (${difficultyWords[i]})`;
     levelSelect.appendChild(option);
   }
+
+  // FIX: Default back to Level 0 so normal daily loading works!
+  levelSelect.value = "0";
+
   dateSelect.innerHTML = "";
+
   const today = new Date();
   const recentDates = [];
   for (let i = 0; i < 7; i++) {
@@ -2807,6 +2813,12 @@ async function populateSelectors() {
   unlimitedOption.value = "unlimited";
   unlimitedOption.textContent = "Unlimited";
   dateSelect.appendChild(unlimitedOption);
+
+  const dateBlankOption = document.createElement("option");
+  dateBlankOption.value = "";
+  dateBlankOption.textContent = "Custom Board";
+  dateBlankOption.hidden = true;
+  dateSelect.appendChild(dateBlankOption);
 }
 
 /**
@@ -2825,6 +2837,10 @@ function decompressPuzzleString(str) {
 }
 
 async function findAndLoadSelectedPuzzle() {
+  if (!levelSelect.value) {
+    levelSelect.value = "0";
+  }
+
   // 1. Handle "Unlimited" Mode
   if (dateSelect.value === "unlimited") {
     let level = parseInt(levelSelect.value, 10);
@@ -2892,7 +2908,7 @@ async function findAndLoadSelectedPuzzle() {
   }
 
   // 2. Handle Standard Date/Level Selection
-  if (dateSelect.value === "custom") {
+  if (dateSelect.value === "custom" || dateSelect.value === "") {
     dateSelect.value = dateSelect.options[0].value;
   }
 
@@ -3381,12 +3397,13 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       puzzleLevelEl.textContent = `Lv. ${puzzleData.level} (${difficultyWords[puzzleData.level]})`;
       puzzleScoreEl.textContent = `~${puzzleData.score}`;
     }
-    // For Unlimited, the label is set in findAndLoadSelectedPuzzle
+    levelSelect.value = puzzleData.level; // Keep dropdown synced for daily/unlimited
   } else {
     currentPuzzleScore = 0;
     puzzleLevelEl.textContent = "";
     puzzleScoreEl.textContent = "";
-    dateSelect.value = "custom";
+    dateSelect.value = "";
+    levelSelect.value = "";
   }
 
   renderBoard();
@@ -5837,11 +5854,13 @@ window.addEventListener("load", () => {
       puzzleStr = puzzleStr.replace(/0/g, ".");
 
       // Update UI to reflect a custom puzzle
-      dateSelect.value = "custom";
+      dateSelect.value = ""; // <-- Changed from 'custom' to ''
+      levelSelect.value = ""; // Ensure Level Dropdown is blank for URL queries
       puzzleStringInput.value = puzzleStr;
 
       // Force the app to load the string
       await loadPuzzle(puzzleStr);
+
       // If the URL specifically requested solver mode
       if (mode === "solver") {
         // Silently bypass the first-time warning modals
