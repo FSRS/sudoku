@@ -1902,6 +1902,13 @@ function setupEventListeners() {
   });
 
   // --- Share Modal Bindings ---
+  const shareStep1 = document.getElementById("share-step-1");
+  const shareStep2 = document.getElementById("share-step-2");
+  const shareInitialBtn = document.getElementById("share-initial-btn");
+  const shareCurrentBtn = document.getElementById("share-current-btn");
+  const shareBackBtn = document.getElementById("share-back-btn");
+  let shareStateType = "initial"; // Tracks user selection
+
   shareBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     hideTooltip(shareBtn);
@@ -1910,8 +1917,43 @@ function setupEventListeners() {
       showMessage("No puzzle loaded to share.", "orange");
       return;
     }
+    shareStep1.classList.remove("hidden");
+    shareStep1.classList.add("flex");
+    shareStep2.classList.add("hidden");
+    shareStep2.classList.remove("flex");
+    document.getElementById("share-modal-desc").textContent =
+      "What do you want to share?";
     shareModal.classList.remove("hidden");
     shareModal.classList.add("flex");
+  });
+
+  shareInitialBtn.addEventListener("click", () => {
+    shareStateType = "initial";
+    shareStep1.classList.add("hidden");
+    shareStep1.classList.remove("flex");
+    shareStep2.classList.remove("hidden");
+    shareStep2.classList.add("flex");
+    document.getElementById("share-modal-desc").textContent =
+      "Share Initial State as:";
+  });
+
+  shareCurrentBtn.addEventListener("click", () => {
+    shareStateType = "current";
+    shareStep1.classList.add("hidden");
+    shareStep1.classList.remove("flex");
+    shareStep2.classList.remove("hidden");
+    shareStep2.classList.add("flex");
+    document.getElementById("share-modal-desc").textContent =
+      "Share Current Progress as:";
+  });
+
+  shareBackBtn.addEventListener("click", () => {
+    shareStep2.classList.add("hidden");
+    shareStep2.classList.remove("flex");
+    shareStep1.classList.remove("hidden");
+    shareStep1.classList.add("flex");
+    document.getElementById("share-modal-desc").textContent =
+      "What do you want to share?";
   });
 
   shareCancelBtn.addEventListener("click", () => {
@@ -1922,10 +1964,15 @@ function setupEventListeners() {
   const generateShareLink = (mode) => {
     if (!initialPuzzleString) return;
 
-    // Replace all periods with zeroes for the share link
-    const stringZeroes = initialPuzzleString.replace(/\./g, "0");
     const baseUrl = window.location.origin + window.location.pathname;
-    let url = `${baseUrl}?puzzle=${stringZeroes}`;
+    let url = baseUrl;
+
+    if (shareStateType === "current") {
+      url += `?state=${encodeURIComponent(encodeBoardState())}`;
+    } else {
+      const stringZeroes = initialPuzzleString.replace(/\./g, "0");
+      url += `?puzzle=${stringZeroes}`;
+    }
 
     if (mode === "solver") {
       url += "&mode=solver";
@@ -5995,40 +6042,157 @@ function getHighlightDiff(before, after) {
 }
 
 // --- URL Parameter Handling ---
+function encodeBoardState() {
+  const BASE62 =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let str = "";
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      let cell = boardState[r][c];
+      if (cell.isGiven) {
+        str += cell.value;
+      } else if (cell.value !== 0) {
+        str += String.fromCharCode(64 + cell.value); // Maps 1-9 to A-I
+      } else if (cell.pencils.size > 0) {
+        // Create 9-bit mask for candidates
+        let mask = 0;
+        for (let p of cell.pencils) {
+          mask |= 1 << (p - 1);
+        }
+        // First char (J-R), Second char (Base62)
+        str +=
+          String.fromCharCode(74 + Math.floor(mask / 62)) + BASE62[mask % 62];
+      } else {
+        str += ".";
+      }
+    }
+  }
+  // Compress sequence of empty dots using a-z (a=1 dot, z=26 dots)
+  return str.replace(/\.+/g, (match) => {
+    let len = match.length;
+    let res = "";
+    while (len > 26) {
+      res += "z";
+      len -= 26;
+    }
+    if (len > 0) res += String.fromCharCode(96 + len);
+    return res;
+  });
+}
+
 window.addEventListener("load", () => {
-  // A small delay ensures that any default daily puzzle loading
-  // from your main script finishes before we override it.
   setTimeout(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     let puzzleStr = urlParams.get("puzzle");
+    let stateStr = urlParams.get("state");
     const mode = urlParams.get("mode");
 
-    if (puzzleStr) {
-      // Decode in case the URL contains safe-encoded characters
-      puzzleStr = decodeURIComponent(puzzleStr);
+    if (stateStr) {
+      stateStr = decodeURIComponent(stateStr);
 
-      // Ensure URL zeroes are displayed as periods instantly in the textbox
-      puzzleStr = puzzleStr.replace(/0/g, ".");
+      const BASE62 =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      let initialStr = "";
+      let userCells = [];
+      let i = 0;
+      let cellIdx = 0;
 
-      // Update UI to reflect a custom puzzle
-      dateSelect.value = ""; // <-- Changed from 'custom' to ''
-      levelSelect.value = ""; // Ensure Level Dropdown is blank for URL queries
-      puzzleStringInput.value = puzzleStr;
+      // Single-pass decoding
+      while (i < stateStr.length && cellIdx < 81) {
+        let char = stateStr[i];
 
-      // Force the app to load the string
-      await loadPuzzle(puzzleStr);
+        if (char >= "J" && char <= "R") {
+          // --- BITMASK CANDIDATE DECODING ---
+          let nextChar = stateStr[i + 1];
+          let firstVal = char.charCodeAt(0) - 74; // 'J' is 74
+          let secondVal = BASE62.indexOf(nextChar);
+          let mask = firstVal * 62 + secondVal;
 
-      // If the URL specifically requested solver mode
+          let cands = [];
+          for (let bit = 0; bit < 9; bit++) {
+            if ((mask & (1 << bit)) !== 0) cands.push(bit + 1);
+          }
+
+          initialStr += ".";
+          userCells.push({
+            r: Math.floor(cellIdx / 9),
+            c: cellIdx % 9,
+            type: "candidates",
+            vals: cands,
+          });
+          i += 2; // Jump past both characters
+          cellIdx++;
+        } else if (char >= "1" && char <= "9") {
+          initialStr += char; // Given number
+          i++;
+          cellIdx++;
+        } else if (char >= "A" && char <= "I") {
+          initialStr += "."; // User number
+          userCells.push({
+            r: Math.floor(cellIdx / 9),
+            c: cellIdx % 9,
+            type: "user",
+            val: char.charCodeAt(0) - 64,
+          });
+          i++;
+          cellIdx++;
+        } else if (char >= "a" && char <= "z") {
+          // Empty space compression
+          let dots = char.charCodeAt(0) - 96; // 'a' = 1, 'b' = 2...
+          initialStr += ".".repeat(dots);
+          i++;
+          cellIdx += dots;
+        } else if (char === ".") {
+          initialStr += "."; // Literal dot
+          i++;
+          cellIdx++;
+        } else {
+          i++; // Safety fallback
+        }
+      }
+      dateSelect.value = "";
+      levelSelect.value = "";
+      puzzleStringInput.value = initialStr;
+
+      // 1. Load the underlying puzzle logic first
+      await loadPuzzle(initialStr);
+
+      // 2. Map the user's progress on top of the initial puzzle
+      userCells.forEach((uc) => {
+        if (uc.type === "user") {
+          boardState[uc.r][uc.c].value = uc.val;
+        } else if (uc.type === "candidates") {
+          uc.vals.forEach((v) => boardState[uc.r][uc.c].pencils.add(v));
+        }
+      });
+
+      renderBoard();
+      saveState();
+
       if (mode === "solver") {
-        // Silently bypass the first-time warning modals
         hadUsedSolver = true;
         hadUsedHint = true;
-
         currentEvaluationId++;
         showMessage("Evaluating puzzle from URL...", "blue");
         await evaluateBoardDifficulty({ waitForFrame: false });
+        enterSolverModeUI();
+      }
+    } else if (puzzleStr) {
+      puzzleStr = decodeURIComponent(puzzleStr);
+      puzzleStr = puzzleStr.replace(/0/g, ".");
 
-        // Launch the solver interface
+      dateSelect.value = "";
+      levelSelect.value = "";
+      puzzleStringInput.value = puzzleStr;
+
+      await loadPuzzle(puzzleStr);
+
+      if (mode === "solver") {
+        hadUsedSolver = true;
+        hadUsedHint = true;
+        currentEvaluationId++;
+        showMessage("Evaluating puzzle from URL...", "blue");
+        await evaluateBoardDifficulty({ waitForFrame: false });
         enterSolverModeUI();
       }
     }
