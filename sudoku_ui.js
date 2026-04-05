@@ -3851,6 +3851,8 @@ function enterSolverModeUI() {
   document.getElementById("number-pad").classList.add("hidden");
   document.getElementById("number-pad").classList.remove("grid");
 
+  puzzleStringInput.classList.add("solver-active-textarea");
+
   // Update toggle button text
   const toggleBtn = document.getElementById("toggle-solver-mode-btn");
   const isMobile = window.innerWidth <= 550;
@@ -3989,6 +3991,12 @@ function exitSolverMode() {
   document.getElementById("mode-selector").classList.add("flex");
   document.getElementById("number-pad").classList.remove("hidden");
   document.getElementById("number-pad").classList.add("grid");
+
+  puzzleStringInput.classList.remove("solver-active-textarea");
+  requestAnimationFrame(() => {
+    puzzleStringInput.style.height = "auto";
+    puzzleStringInput.style.height = puzzleStringInput.scrollHeight + "px";
+  });
 
   // Restore toggle button text
   const toggleBtn = document.getElementById("toggle-solver-mode-btn");
