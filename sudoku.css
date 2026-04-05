@@ -1838,7 +1838,8 @@ html.dark {
   #copy-cancel-btn,
   #format-cancel-btn,
   #share-cancel-btn,
-  #reset-cancel-btn {
+  #reset-cancel-btn,
+  #completion-cancel-btn {
     background-color: #4b5563;
     color: #e5e7eb;
   }
@@ -1851,7 +1852,8 @@ html.dark {
   #copy-cancel-btn:hover,
   #format-cancel-btn:hover,
   #share-cancel-btn:hover,
-  #reset-cancel-btn:hover {
+  #reset-cancel-btn:hover,
+  #completion-cancel-btn:hover {
     background-color: #374151;
   }
   /* --- Forms & Misc UI --- */
