@@ -810,7 +810,6 @@ function renderBoard() {
 
         cellLongPressTimer = setTimeout(() => {
           isCellLongPressFired = true;
-          if (navigator.vibrate) navigator.vibrate(50);
           executeCellAlternateAction();
         }, 400);
       };
