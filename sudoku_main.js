@@ -39,7 +39,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       await populateSelectors();
-      findAndLoadSelectedPuzzle();
+
+      // 1. Check if the user is loading a puzzle via URL parameters first
+      const loadedFromUrl = await handleUrlParameters();
+
+      // 2. If no URL parameters were found, load the default daily puzzle
+      if (!loadedFromUrl) {
+        findAndLoadSelectedPuzzle();
+      }
     } catch (error) {
       console.error("Error loading puzzles:", error);
       // Display a user-friendly error message on the page

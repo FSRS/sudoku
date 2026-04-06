@@ -612,7 +612,7 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
       start: { r, c, n },
       currentPos: getCandidateCenter(r, c, n),
       style: initStyle, // Store style in drawing state
-      color: initColor  // Store color in drawing state
+      color: initColor, // Store color in drawing state
     };
     updatePreview(); // Initialize the preview (start circle)
     return;
@@ -635,7 +635,8 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
 
   // Prioritize the style/color that the line was started with (handles left-click to end a right-click start)
   const activeStyle = drawingState.style || drawSubMode;
-  const activeColor = drawingState.color || selectedColor || lineColorPalette[0];
+  const activeColor =
+    drawingState.color || selectedColor || lineColorPalette[0];
 
   // Create object for label formatting (Solid uses "=", Dash uses "-")
   const lineObj = {
@@ -742,130 +743,173 @@ function renderBoard() {
     cell.onmouseout = null;
 
     if (state.cellColor) {
-        cell.classList.add("has-color");
-      } else {
-        cell.classList.remove("has-color");
+      cell.classList.add("has-color");
+    } else {
+      cell.classList.remove("has-color");
+    }
+
+    // --- HELPER: Get Alternate Color (Shared between Cell and Candidate) ---
+    // --- HELPER: Get Alternate Color (Shared between Cell and Candidate) ---
+    const getAltColor = () => {
+      if (currentMode === "color") {
+        let altColor = null;
+        let palette = [];
+        if (coloringSubMode === "candidate") {
+          altColor = lastUsedColors.color.prevCandidate;
+          palette = candidateColorPalette;
+        } else if (coloringSubMode === "cell") {
+          altColor = lastUsedColors.color.prevCell;
+          palette = cellColorPalette;
+        }
+
+        if (!altColor || altColor === selectedColor) {
+          let currentIndex = palette.indexOf(selectedColor);
+          if (currentIndex === -1) currentIndex = 0;
+          let fallbackIndex = (currentIndex + 2) % palette.length;
+          altColor = palette[fallbackIndex];
+        }
+        return altColor;
+      }
+      return null;
+    };
+
+    // --- NEW: SUPPRESSION FLAG ---
+    let suppressCellPreview = false;
+
+    // --- CELL LEVEL ALTERNATE ACTION (Right Click / Long Press) ---
+    const executeCellAlternateAction = () => {
+      if (!isExperimentalMode) return;
+      if (currentMode === "color" && coloringSubMode === "cell") {
+        const altColor = getAltColor();
+
+        suppressCellPreview = true; // Prevent hover from hiding the applied color
+
+        if (state.cellColor === altColor) {
+          state.cellColor = null;
+          cell.style.backgroundColor = "";
+        } else {
+          state.cellColor = altColor;
+          cell.style.backgroundColor = altColor;
+        }
+        saveState();
+      }
+    };
+
+    let cellLongPressTimer;
+    let isCellLongPressFired = false;
+
+    const startCellLongPress = (e) => {
+      if (!isExperimentalMode) return;
+
+      const clickedMark = e.target.closest(".pencil-mark");
+      if (clickedMark && clickedMark.textContent !== "") return;
+
+      isCellLongPressFired = false;
+
+      cellLongPressTimer = setTimeout(() => {
+        isCellLongPressFired = true;
+        executeCellAlternateAction();
+      }, 300);
+    };
+
+    const cancelCellLongPress = () => {
+      clearTimeout(cellLongPressTimer);
+    };
+
+    // Desktop Cell Events
+    cell.onmousedown = (e) => {
+      if (e.button !== 0) return;
+      startCellLongPress(e);
+    };
+    cell.onmouseup = cancelCellLongPress;
+    cell.onmouseleave = cancelCellLongPress;
+
+    // Mobile Cell Events
+    cell.ontouchstart = (e) => {
+      startCellLongPress(e);
+    };
+    cell.ontouchend = cancelCellLongPress;
+    cell.ontouchcancel = cancelCellLongPress;
+    cell.ontouchmove = cancelCellLongPress;
+
+    // Cell Context Menu (Right Click)
+    cell.oncontextmenu = (e) => {
+      if (!isExperimentalMode) return;
+
+      const clickedMark = e.target.closest(".pencil-mark");
+      if (clickedMark && clickedMark.textContent !== "") return;
+
+      e.preventDefault();
+      cancelCellLongPress();
+      if (!isCellLongPressFired) {
+        executeCellAlternateAction();
+      }
+    };
+
+    // Intercept standard click if long press fired
+    cell.onclick = (e) => {
+      if (isCellLongPressFired) {
+        e.stopPropagation();
+        isCellLongPressFired = false;
+        return;
       }
 
-      // --- HELPER: Get Alternate Color (Shared between Cell and Candidate) ---
-      const getAltColor = () => {
-        if (currentMode === "color") {
-          let altColor = null;
-          let palette = [];
-          if (coloringSubMode === "candidate") {
-            altColor = lastUsedColors.color.prevCandidate;
-            palette = candidateColorPalette;
-          } else if (coloringSubMode === "cell") {
-            altColor = lastUsedColors.color.prevCell;
-            palette = cellColorPalette;
-          }
+      // --- FIX: Handle Left-Click for Color:Cell mode locally to support suppression ---
+      if (
+        currentMode === "color" &&
+        coloringSubMode === "cell" &&
+        selectedColor
+      ) {
+        e.stopPropagation(); // Prevent global handleCellClick from triggering a full renderBoard()
 
-          if (!altColor || altColor === selectedColor) {
-            let currentIndex = palette.indexOf(selectedColor);
-            if (currentIndex === -1) currentIndex = 0;
-            let fallbackIndex = (currentIndex + 2) % palette.length;
-            altColor = palette[fallbackIndex];
-          }
-          return altColor;
+        // Manually update the highlighted cell focus ring to match standard click behavior
+        if (selectedCell.row !== null && selectedCell.col !== null) {
+          const prevCellEl = gridContainer.querySelector(
+            `.sudoku-cell[data-row="${selectedCell.row}"][data-col="${selectedCell.col}"]`,
+          );
+          if (prevCellEl)
+            prevCellEl.classList.remove("selected", "selected-green");
         }
-        return null;
-      };
+        selectedCell.row = row;
+        selectedCell.col = col;
+        cell.classList.add("selected");
 
-      // --- CELL LEVEL ALTERNATE ACTION (Right Click / Long Press) ---
-      const executeCellAlternateAction = () => {
-        if (!isExperimentalMode) return;
-        if (currentMode === "color" && coloringSubMode === "cell") {
-          const altColor = getAltColor();
-          if (state.cellColor === altColor) {
-            state.cellColor = null;
-            cell.style.backgroundColor = "";
-          } else {
-            state.cellColor = altColor;
-            cell.style.backgroundColor = altColor;
-          }
-          saveState();
-        }
-      };
+        suppressCellPreview = true; // Apply suppression so the hover preview doesn't overwrite
 
-      let cellLongPressTimer;
-      let isCellLongPressFired = false;
-
-      const startCellLongPress = (e) => {
-        if (!isExperimentalMode) return;
-
-        const clickedMark = e.target.closest('.pencil-mark');
-        if (clickedMark && clickedMark.textContent !== "") return;
-
-        isCellLongPressFired = false;
-
-
-        cellLongPressTimer = setTimeout(() => {
-          isCellLongPressFired = true;
-          executeCellAlternateAction();
-        }, 250);
-      };
-
-      const cancelCellLongPress = () => {
-        clearTimeout(cellLongPressTimer);
-      };
-
-      // Desktop Cell Events
-      cell.onmousedown = (e) => {
-        if (e.button !== 0) return;
-        startCellLongPress(e);
-      };
-      cell.onmouseup = cancelCellLongPress;
-      cell.onmouseleave = cancelCellLongPress;
-
-      // Mobile Cell Events
-      cell.ontouchstart = (e) => {
-        startCellLongPress(e);
-      };
-      cell.ontouchend = cancelCellLongPress;
-      cell.ontouchcancel = cancelCellLongPress;
-      cell.ontouchmove = cancelCellLongPress;
-
-      // Cell Context Menu (Right Click)
-      cell.oncontextmenu = (e) => {
-        if (!isExperimentalMode) return;
-
-        const clickedMark = e.target.closest('.pencil-mark');
-        if (clickedMark && clickedMark.textContent !== "") return;
-
-        e.preventDefault();
-        cancelCellLongPress();
-        // Prevent double-firing if the custom timer already triggered
-        if (!isCellLongPressFired) {
-          executeCellAlternateAction();
-        }
-      };
-
-      // Intercept standard click if long press fired
-      cell.onclick = (e) => {
-        if (isCellLongPressFired) {
-          e.stopPropagation();
-          isCellLongPressFired = false;
-        }
-      };
-
-      // --- STANDARD CELL HOVER ---
-      cell.onmouseover = () => {
-        currentlyHoveredElement = cell;
-        if (
-          currentMode === "color" &&
-          coloringSubMode === "cell" &&
-          selectedColor
-        ) {
+        if (state.cellColor === selectedColor) {
+          state.cellColor = null;
+          cell.style.backgroundColor = "";
+        } else {
+          state.cellColor = selectedColor;
           cell.style.backgroundColor = selectedColor;
         }
-      };
+        saveState();
+      }
+    };
 
-      cell.onmouseout = () => {
-        currentlyHoveredElement = null;
-        if (currentMode === "color" && coloringSubMode === "cell") {
+    // --- STANDARD CELL HOVER ---
+    cell.onmouseover = () => {
+      currentlyHoveredElement = cell;
+      if (
+        currentMode === "color" &&
+        coloringSubMode === "cell" &&
+        selectedColor
+      ) {
+        if (!suppressCellPreview) {
+          cell.style.backgroundColor = selectedColor;
+        } else {
           cell.style.backgroundColor = state.cellColor || "";
         }
-      };
+      }
+    };
+
+    cell.onmouseout = () => {
+      currentlyHoveredElement = null;
+      suppressCellPreview = false; // Restore normal hover behavior when pointer leaves
+      if (currentMode === "color" && coloringSubMode === "cell") {
+        cell.style.backgroundColor = state.cellColor || "";
+      }
+    };
 
     if (row === selectedCell.row && col === selectedCell.col) {
       const useGreenHighlight =
@@ -901,200 +945,229 @@ function renderBoard() {
           const allowInteraction =
             !isMobile ||
             (isMobile && (isExperimentalMode || currentMode === "draw"));
+          // --- NEW: SUPPRESSION FLAG FOR CANDIDATE ---
+          let suppressCandidatePreview = false;
 
-          if (allowInteraction) {
+          // --- HELPER: Logic for Alternate Action (Right Click / Long Press) ---
+          const executeAlternateAction = () => {
+            if (!isExperimentalMode) return;
 
-            // --- HELPER: Logic for Alternate Action (Right Click / Long Press) ---
-            const executeAlternateAction = () => {
-              if (!isExperimentalMode) return;
+            const cellState = boardState[row][col];
 
-              const cellState = boardState[row][col];
-
-              // 1. Alternate action on Candidate in Number mode -> Erase candidate
-              if (currentMode === "concrete") {
-                if (cellState.pencils.has(i)) {
-                  if (!timerInterval) startTimer(currentElapsedTime);
-                  cellState.pencils.delete(i);
-                  saveState();
-                  onBoardUpdated();
-                }
-              }
-              // 2. Alternate action on Candidate in Draw mode -> Draw dash line
-              else if (currentMode === "draw") {
-                const dashColor = lastUsedColors.draw.dash || lineColorPalette[0];
-                handleDrawClick(row, col, i, "dash", dashColor);
-              }
-              // 3. Alternate action in Color:Cell mode -> Color CELL
-              else if (currentMode === "color" && coloringSubMode === "cell") {
-                const altColor = getAltColor();
-                const currentCellColor = cellState.cellColor;
-
-                if (currentCellColor === altColor) {
-                  cellState.cellColor = null;
-                  cell.style.backgroundColor = ""; // Local DOM update on parent cell
-                } else {
-                  cellState.cellColor = altColor;
-                  cell.style.backgroundColor = altColor; // Local DOM update on parent cell
-                }
-                saveState();
-              }
-              // 4. Alternate action on Candidate in Color:Candidate mode -> Color CANDIDATE
-              else if (currentMode === "color" && coloringSubMode === "candidate") {
-                const altColor = getAltColor();
-                const currentColor = cellState.pencilColors.get(i);
-
-                if (currentColor === altColor) {
-                  cellState.pencilColors.delete(i);
-                  mark.style.color = ""; // Local DOM update on candidate
-                } else {
-                  cellState.pencilColors.set(i, altColor);
-                  mark.style.color = altColor; // Local DOM update on candidate
-                }
-                saveState();
-              }
-            };
-
-            // --- LONG PRESS STATE & TIMERS ---
-            let longPressTimer;
-            let isLongPressFired = false;
-
-            const startLongPress = (e) => {
-              isLongPressFired = false;
-
-              longPressTimer = setTimeout(() => {
-                isLongPressFired = true;
-                executeAlternateAction();
-              }, 250);
-            };
-
-            const cancelLongPress = () => {
-              clearTimeout(longPressTimer);
-            };
-
-            // Long Press Desktop Events
-            mark.addEventListener("mousedown", (e) => {
-              if (e.button !== 0) return;
-              startLongPress(e);
-            });
-            mark.addEventListener("mouseup", cancelLongPress);
-            mark.addEventListener("mouseleave", cancelLongPress);
-
-            // Long Press Mobile Touch Events
-            mark.addEventListener("touchstart", (e) => {
-              startLongPress(e);
-            }, { passive: true });
-            mark.addEventListener("touchend", cancelLongPress);
-            mark.addEventListener("touchcancel", cancelLongPress);
-            mark.addEventListener("touchmove", cancelLongPress);
-
-            // --- STANDARD HOVER & CONTEXT MENU ---
-            mark.addEventListener("mouseover", (e) => {
-              e.stopPropagation();
-              currentlyHoveredElement = mark;
-              if (
-                currentMode === "color" &&
-                coloringSubMode === "candidate" &&
-                selectedColor
-              ) {
-                mark.style.color = selectedColor;
-              } else if (
-                currentMode === "color" &&
-                coloringSubMode === "cell" &&
-                selectedColor
-              ) {
-                cell.style.backgroundColor = selectedColor;
-              }
-            });
-
-            mark.addEventListener("mouseout", (e) => {
-              e.stopPropagation();
-              currentlyHoveredElement = null;
-              const cellState = boardState[row][col];
-
-              if (currentMode === "color" && coloringSubMode === "cell") {
-                cell.style.backgroundColor = cellState.cellColor || "";
-              }
-              mark.style.color = cellState.pencilColors.get(i) || "";
-
-              cancelLongPress();
-            });
-
-            mark.addEventListener("contextmenu", (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              cancelLongPress();
-              // Prevent double-firing if the custom timer already triggered
-              if (!isLongPressFired) {
-                executeAlternateAction();
-              }
-            });
-
-            // --- LEFT CLICK / NORMAL TAP ---
-            mark.addEventListener("click", (e) => {
-              e.stopPropagation();
-
-              if (isLongPressFired) {
-                isLongPressFired = false;
-                return;
-              }
-
-              if (currentMode === "draw") {
-                handleDrawClick(row, col, i);
-              } else if (
-                currentMode === "color" &&
-                coloringSubMode === "candidate" &&
-                selectedColor
-              ) {
-                const cellState = boardState[row][col];
-                const currentColor = cellState.pencilColors.get(i);
-                if (currentColor === selectedColor) {
-                  cellState.pencilColors.delete(i);
-                  mark.style.color = "";
-                } else {
-                  cellState.pencilColors.set(i, selectedColor);
-                  mark.style.color = selectedColor;
-                }
-                saveState();
-              }
-              // --- NEW: Handle left click for Color:Cell mode on a candidate ---
-              else if (
-                currentMode === "color" &&
-                coloringSubMode === "cell" &&
-                selectedColor
-              ) {
-                const cellState = boardState[row][col];
-                const currentCellColor = cellState.cellColor;
-                if (currentCellColor === selectedColor) {
-                  cellState.cellColor = null;
-                  cell.style.backgroundColor = "";
-                } else {
-                  cellState.cellColor = selectedColor;
-                  cell.style.backgroundColor = selectedColor;
-                }
-                saveState();
-              }
-              // ----------------------------------------------------------------
-              else if (isExperimentalMode && currentMode === "pencil") {
-                const cellState = boardState[row][col];
-                if (cellState.pencils.has(i)) {
-                  if (!timerInterval) startTimer(currentElapsedTime);
-                  cellState.pencils.delete(i);
-                  saveState();
-                  onBoardUpdated();
-                }
-              } else if (isExperimentalMode && currentMode === "concrete") {
-                const cellState = boardState[row][col];
-                if (cellState.isGiven) return;
+            // 1. Alternate action on Candidate in Number mode -> Erase candidate
+            if (currentMode === "concrete") {
+              if (cellState.pencils.has(i)) {
                 if (!timerInterval) startTimer(currentElapsedTime);
-                cellState.value = i;
-                cellState.pencils.clear();
-                autoEliminatePencils(row, col, i);
+                cellState.pencils.delete(i);
                 saveState();
                 onBoardUpdated();
-                checkCompletion();
               }
-            });
-          }
+            }
+            // 2. Alternate action on Candidate in Draw mode -> Draw dash line
+            else if (currentMode === "draw") {
+              const dashColor = lastUsedColors.draw.dash || lineColorPalette[0];
+              handleDrawClick(row, col, i, "dash", dashColor);
+            }
+            // 3. Alternate action in Color:Cell mode -> Color CELL
+            else if (currentMode === "color" && coloringSubMode === "cell") {
+              const altColor = getAltColor();
+              const currentCellColor = cellState.cellColor;
+
+              suppressCellPreview = true; // Prevent hover from hiding the applied color
+
+              if (currentCellColor === altColor) {
+                cellState.cellColor = null;
+                cell.style.backgroundColor = ""; // Local DOM update on parent cell
+              } else {
+                cellState.cellColor = altColor;
+                cell.style.backgroundColor = altColor; // Local DOM update on parent cell
+              }
+              saveState();
+            }
+            // 4. Alternate action on Candidate in Color:Candidate mode -> Color CANDIDATE
+            else if (
+              currentMode === "color" &&
+              coloringSubMode === "candidate"
+            ) {
+              const altColor = getAltColor();
+              const currentColor = cellState.pencilColors.get(i);
+
+              suppressCandidatePreview = true; // Prevent hover from hiding the applied color
+
+              if (currentColor === altColor) {
+                cellState.pencilColors.delete(i);
+                mark.style.color = ""; // Local DOM update on candidate
+              } else {
+                cellState.pencilColors.set(i, altColor);
+                mark.style.color = altColor; // Local DOM update on candidate
+              }
+              saveState();
+            }
+          };
+
+          // --- LONG PRESS STATE & TIMERS ---
+          let longPressTimer;
+          let isLongPressFired = false;
+
+          const startLongPress = (e) => {
+            isLongPressFired = false;
+
+            longPressTimer = setTimeout(() => {
+              isLongPressFired = true;
+              executeAlternateAction();
+            }, 300);
+          };
+
+          const cancelLongPress = () => {
+            clearTimeout(longPressTimer);
+          };
+
+          // Long Press Desktop Events
+          mark.addEventListener("mousedown", (e) => {
+            if (e.button !== 0) return;
+            startLongPress(e);
+          });
+          mark.addEventListener("mouseup", cancelLongPress);
+          mark.addEventListener("mouseleave", cancelLongPress);
+
+          // Long Press Mobile Touch Events
+          mark.addEventListener(
+            "touchstart",
+            (e) => {
+              startLongPress(e);
+            },
+            { passive: true },
+          );
+          mark.addEventListener("touchend", cancelLongPress);
+          mark.addEventListener("touchcancel", cancelLongPress);
+          mark.addEventListener("touchmove", cancelLongPress);
+
+          // --- STANDARD HOVER & CONTEXT MENU ---
+          mark.addEventListener("mouseover", (e) => {
+            e.stopPropagation();
+            currentlyHoveredElement = mark;
+            if (
+              currentMode === "color" &&
+              coloringSubMode === "candidate" &&
+              selectedColor
+            ) {
+              if (!suppressCandidatePreview) {
+                mark.style.color = selectedColor;
+              } else {
+                mark.style.color =
+                  boardState[row][col].pencilColors.get(i) || "";
+              }
+            } else if (
+              currentMode === "color" &&
+              coloringSubMode === "cell" &&
+              selectedColor
+            ) {
+              if (!suppressCellPreview) {
+                cell.style.backgroundColor = selectedColor;
+              } else {
+                cell.style.backgroundColor =
+                  boardState[row][col].cellColor || "";
+              }
+            }
+          });
+
+          mark.addEventListener("mouseout", (e) => {
+            e.stopPropagation();
+            currentlyHoveredElement = null;
+            const cellState = boardState[row][col];
+
+            // Reset suppressions when leaving the candidate element
+            suppressCandidatePreview = false;
+            suppressCellPreview = false;
+
+            if (currentMode === "color" && coloringSubMode === "cell") {
+              cell.style.backgroundColor = cellState.cellColor || "";
+            }
+            mark.style.color = cellState.pencilColors.get(i) || "";
+
+            cancelLongPress();
+          });
+
+          mark.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            cancelLongPress();
+            if (!isLongPressFired) {
+              executeAlternateAction();
+            }
+          });
+
+          // --- LEFT CLICK / NORMAL TAP ---
+          mark.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            if (isLongPressFired) {
+              isLongPressFired = false;
+              return;
+            }
+
+            if (currentMode === "draw") {
+              handleDrawClick(row, col, i);
+            } else if (
+              currentMode === "color" &&
+              coloringSubMode === "candidate" &&
+              selectedColor
+            ) {
+              const cellState = boardState[row][col];
+              const currentColor = cellState.pencilColors.get(i);
+
+              suppressCandidatePreview = true; // Apply here so left-clicks don't flash incorrectly
+
+              if (currentColor === selectedColor) {
+                cellState.pencilColors.delete(i);
+                mark.style.color = "";
+              } else {
+                cellState.pencilColors.set(i, selectedColor);
+                mark.style.color = selectedColor;
+              }
+              saveState();
+            }
+            // --- NEW: Handle left click for Color:Cell mode on a candidate ---
+            else if (
+              currentMode === "color" &&
+              coloringSubMode === "cell" &&
+              selectedColor
+            ) {
+              const cellState = boardState[row][col];
+              const currentCellColor = cellState.cellColor;
+
+              suppressCellPreview = true; // Apply here so left-clicks don't flash incorrectly
+
+              if (currentCellColor === selectedColor) {
+                cellState.cellColor = null;
+                cell.style.backgroundColor = "";
+              } else {
+                cellState.cellColor = selectedColor;
+                cell.style.backgroundColor = selectedColor;
+              }
+              saveState();
+            }
+            // ----------------------------------------------------------------
+            else if (isExperimentalMode && currentMode === "pencil") {
+              const cellState = boardState[row][col];
+              if (cellState.pencils.has(i)) {
+                if (!timerInterval) startTimer(currentElapsedTime);
+                cellState.pencils.delete(i);
+                saveState();
+                onBoardUpdated();
+              }
+            } else if (isExperimentalMode && currentMode === "concrete") {
+              const cellState = boardState[row][col];
+              if (cellState.isGiven) return;
+              if (!timerInterval) startTimer(currentElapsedTime);
+              cellState.value = i;
+              cellState.pencils.clear();
+              autoEliminatePencils(row, col, i);
+              saveState();
+              onBoardUpdated();
+              checkCompletion();
+            }
+          });
         }
         pencilGrid.appendChild(mark);
       });
@@ -1242,7 +1315,8 @@ function updatePreview() {
 
   // --- UPDATED: Use the style & color saved in drawingState so the preview honors right-clicks ---
   const activeStyle = drawingState.style || drawSubMode;
-  const color = drawingState.color || selectedColor || lineColorPalette[0] || "black";
+  const color =
+    drawingState.color || selectedColor || lineColorPalette[0] || "black";
 
   let endX, endY;
   if (drawingState.currentPos) {
@@ -3098,9 +3172,17 @@ function handleNumberPadClick(e) {
       lastUsedColors.draw[drawSubMode] = newColor;
     } else {
       // Track previous color for both candidate and cell submodes
-      if (coloringSubMode === "candidate" && selectedColor && selectedColor !== newColor) {
+      if (
+        coloringSubMode === "candidate" &&
+        selectedColor &&
+        selectedColor !== newColor
+      ) {
         lastUsedColors.color.prevCandidate = selectedColor;
-      } else if (coloringSubMode === "cell" && selectedColor && selectedColor !== newColor) {
+      } else if (
+        coloringSubMode === "cell" &&
+        selectedColor &&
+        selectedColor !== newColor
+      ) {
         lastUsedColors.color.prevCell = selectedColor;
       }
       lastUsedColors.color[coloringSubMode] = newColor;
@@ -6357,121 +6439,121 @@ function encodeBoardState() {
   });
 }
 
-window.addEventListener("load", () => {
-  setTimeout(async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    let puzzleStr = urlParams.get("puzzle");
-    let stateStr = urlParams.get("state");
-    const mode = urlParams.get("mode");
+// --- URL Parameter Handling ---
+async function handleUrlParameters() {
+  const urlParams = new URLSearchParams(window.location.search);
+  let puzzleStr = urlParams.get("puzzle");
+  let stateStr = urlParams.get("state");
+  const mode = urlParams.get("mode");
 
-    if (stateStr) {
-      stateStr = decodeURIComponent(stateStr);
+  if (stateStr) {
+    stateStr = decodeURIComponent(stateStr);
 
-      const BASE62 =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-      let initialStr = "";
-      let userCells = [];
-      let i = 0;
-      let cellIdx = 0;
+    const BASE62 =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let initialStr = "";
+    let userCells = [];
+    let i = 0;
+    let cellIdx = 0;
 
-      // Single-pass decoding
-      while (i < stateStr.length && cellIdx < 81) {
-        let char = stateStr[i];
+    while (i < stateStr.length && cellIdx < 81) {
+      let char = stateStr[i];
 
-        if (char >= "J" && char <= "R") {
-          // --- BITMASK CANDIDATE DECODING ---
-          let nextChar = stateStr[i + 1];
-          let firstVal = char.charCodeAt(0) - 74; // 'J' is 74
-          let secondVal = BASE62.indexOf(nextChar);
-          let mask = firstVal * 62 + secondVal;
+      if (char >= "J" && char <= "R") {
+        let nextChar = stateStr[i + 1];
+        let firstVal = char.charCodeAt(0) - 74;
+        let secondVal = BASE62.indexOf(nextChar);
+        let mask = firstVal * 62 + secondVal;
 
-          let cands = [];
-          for (let bit = 0; bit < 9; bit++) {
-            if ((mask & (1 << bit)) !== 0) cands.push(bit + 1);
-          }
-
-          initialStr += ".";
-          userCells.push({
-            r: Math.floor(cellIdx / 9),
-            c: cellIdx % 9,
-            type: "candidates",
-            vals: cands,
-          });
-          i += 2; // Jump past both characters
-          cellIdx++;
-        } else if (char >= "1" && char <= "9") {
-          initialStr += char; // Given number
-          i++;
-          cellIdx++;
-        } else if (char >= "A" && char <= "I") {
-          initialStr += "."; // User number
-          userCells.push({
-            r: Math.floor(cellIdx / 9),
-            c: cellIdx % 9,
-            type: "user",
-            val: char.charCodeAt(0) - 64,
-          });
-          i++;
-          cellIdx++;
-        } else if (char >= "a" && char <= "z") {
-          // Empty space compression
-          let dots = char.charCodeAt(0) - 96; // 'a' = 1, 'b' = 2...
-          initialStr += ".".repeat(dots);
-          i++;
-          cellIdx += dots;
-        } else if (char === ".") {
-          initialStr += "."; // Literal dot
-          i++;
-          cellIdx++;
-        } else {
-          i++; // Safety fallback
+        let cands = [];
+        for (let bit = 0; bit < 9; bit++) {
+          if ((mask & (1 << bit)) !== 0) cands.push(bit + 1);
         }
-      }
-      dateSelect.value = "";
-      levelSelect.value = "";
-      puzzleStringInput.value = initialStr;
 
-      // 1. Load the underlying puzzle logic first
-      await loadPuzzle(initialStr);
-
-      // 2. Map the user's progress on top of the initial puzzle
-      userCells.forEach((uc) => {
-        if (uc.type === "user") {
-          boardState[uc.r][uc.c].value = uc.val;
-        } else if (uc.type === "candidates") {
-          uc.vals.forEach((v) => boardState[uc.r][uc.c].pencils.add(v));
-        }
-      });
-
-      renderBoard();
-      saveState();
-
-      if (mode === "solver") {
-        hadUsedSolver = true;
-        hadUsedHint = true;
-        currentEvaluationId++;
-        showMessage("Evaluating puzzle from URL...", "blue");
-        await evaluateBoardDifficulty({ waitForFrame: false });
-        enterSolverModeUI();
-      }
-    } else if (puzzleStr) {
-      puzzleStr = decodeURIComponent(puzzleStr);
-      puzzleStr = puzzleStr.replace(/0/g, ".");
-
-      dateSelect.value = "";
-      levelSelect.value = "";
-      puzzleStringInput.value = puzzleStr;
-
-      await loadPuzzle(puzzleStr);
-
-      if (mode === "solver") {
-        hadUsedSolver = true;
-        hadUsedHint = true;
-        currentEvaluationId++;
-        showMessage("Evaluating puzzle from URL...", "blue");
-        await evaluateBoardDifficulty({ waitForFrame: false });
-        enterSolverModeUI();
+        initialStr += ".";
+        userCells.push({
+          r: Math.floor(cellIdx / 9),
+          c: cellIdx % 9,
+          type: "candidates",
+          vals: cands,
+        });
+        i += 2;
+        cellIdx++;
+      } else if (char >= "1" && char <= "9") {
+        initialStr += char;
+        i++;
+        cellIdx++;
+      } else if (char >= "A" && char <= "I") {
+        initialStr += ".";
+        userCells.push({
+          r: Math.floor(cellIdx / 9),
+          c: cellIdx % 9,
+          type: "user",
+          val: char.charCodeAt(0) - 64,
+        });
+        i++;
+        cellIdx++;
+      } else if (char >= "a" && char <= "z") {
+        let dots = char.charCodeAt(0) - 96;
+        initialStr += ".".repeat(dots);
+        i++;
+        cellIdx += dots;
+      } else if (char === ".") {
+        initialStr += ".";
+        i++;
+        cellIdx++;
+      } else {
+        i++;
       }
     }
-  }, 300);
-});
+    dateSelect.value = "";
+    levelSelect.value = "";
+    puzzleStringInput.value = initialStr;
+
+    await loadPuzzle(initialStr);
+
+    userCells.forEach((uc) => {
+      if (uc.type === "user") {
+        boardState[uc.r][uc.c].value = uc.val;
+      } else if (uc.type === "candidates") {
+        uc.vals.forEach((v) => boardState[uc.r][uc.c].pencils.add(v));
+      }
+    });
+
+    renderBoard();
+    saveState();
+
+    if (mode === "solver") {
+      hadUsedSolver = true;
+      hadUsedHint = true;
+      currentEvaluationId++;
+      showMessage("Evaluating puzzle from URL...", "blue");
+      await evaluateBoardDifficulty({ waitForFrame: true });
+
+      enterSolverModeUI();
+    }
+    return true; // Successfully loaded from URL
+  } else if (puzzleStr) {
+    puzzleStr = decodeURIComponent(puzzleStr);
+    puzzleStr = puzzleStr.replace(/0/g, ".");
+
+    dateSelect.value = "";
+    levelSelect.value = "";
+    puzzleStringInput.value = puzzleStr;
+
+    await loadPuzzle(puzzleStr);
+
+    if (mode === "solver") {
+      hadUsedSolver = true;
+      hadUsedHint = true;
+      currentEvaluationId++;
+      showMessage("Evaluating puzzle from URL...", "blue");
+      await evaluateBoardDifficulty({ waitForFrame: true });
+
+      enterSolverModeUI();
+    }
+    return true; // Successfully loaded from URL
+  }
+
+  return false; // No URL parameters found
+}
