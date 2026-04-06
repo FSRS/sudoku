@@ -1227,7 +1227,7 @@ button:disabled:hover {
   padding-bottom: 11.11%;
   position: relative;
   border: 1px solid var(--nc-border-color);
-  transition: background-color 0.2s;
+  transition: background-color 0.1s ease;
   cursor: pointer;
 }
 
@@ -1332,7 +1332,9 @@ button:disabled:hover {
   overflow: hidden; /* NEW: Clips content if it accidentally overflows */
   color: var(--color-gray-700);
   opacity: 0.75;
-  transition: opacity 0.2s;
+  transition:
+    opacity 0.1s ease,
+    color 0.1s ease;
   font-size: clamp(0.8rem, 3.2cqi, 1.2rem);
 }
 

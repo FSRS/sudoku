@@ -809,7 +809,7 @@ function renderBoard() {
       cellLongPressTimer = setTimeout(() => {
         isCellLongPressFired = true;
         executeCellAlternateAction();
-      }, 300);
+      }, 250); // Sped up from 300ms
     };
 
     const cancelCellLongPress = () => {
@@ -830,7 +830,7 @@ function renderBoard() {
     };
     cell.ontouchend = cancelCellLongPress;
     cell.ontouchcancel = cancelCellLongPress;
-    cell.ontouchmove = cancelCellLongPress;
+    // FIX: Removed ontouchmove to prevent thumb jiggles from accidentally aborting the long press
 
     // Cell Context Menu (Right Click)
     cell.oncontextmenu = (e) => {
@@ -854,15 +854,13 @@ function renderBoard() {
         return;
       }
 
-      // --- FIX: Handle Left-Click for Color:Cell mode locally to support suppression ---
       if (
         currentMode === "color" &&
         coloringSubMode === "cell" &&
         selectedColor
       ) {
-        e.stopPropagation(); // Prevent global handleCellClick from triggering a full renderBoard()
+        e.stopPropagation();
 
-        // Manually update the highlighted cell focus ring to match standard click behavior
         if (selectedCell.row !== null && selectedCell.col !== null) {
           const prevCellEl = gridContainer.querySelector(
             `.sudoku-cell[data-row="${selectedCell.row}"][data-col="${selectedCell.col}"]`,
@@ -874,7 +872,7 @@ function renderBoard() {
         selectedCell.col = col;
         cell.classList.add("selected");
 
-        suppressCellPreview = true; // Apply suppression so the hover preview doesn't overwrite
+        suppressCellPreview = true;
 
         if (state.cellColor === selectedColor) {
           state.cellColor = null;
@@ -890,22 +888,26 @@ function renderBoard() {
     // --- STANDARD CELL HOVER ---
     cell.onmouseover = () => {
       currentlyHoveredElement = cell;
-      if (
-        currentMode === "color" &&
-        coloringSubMode === "cell" &&
-        selectedColor
-      ) {
-        if (!suppressCellPreview) {
-          cell.style.backgroundColor = selectedColor;
-        } else {
-          cell.style.backgroundColor = state.cellColor || "";
+
+      // FIX: Only show hover previews on devices with an actual mouse cursor
+      if (window.matchMedia("(hover: hover)").matches) {
+        if (
+          currentMode === "color" &&
+          coloringSubMode === "cell" &&
+          selectedColor
+        ) {
+          if (!suppressCellPreview) {
+            cell.style.backgroundColor = selectedColor;
+          } else {
+            cell.style.backgroundColor = state.cellColor || "";
+          }
         }
       }
     };
 
     cell.onmouseout = () => {
       currentlyHoveredElement = null;
-      suppressCellPreview = false; // Restore normal hover behavior when pointer leaves
+      suppressCellPreview = false;
       if (currentMode === "color" && coloringSubMode === "cell") {
         cell.style.backgroundColor = state.cellColor || "";
       }
@@ -1015,7 +1017,7 @@ function renderBoard() {
             longPressTimer = setTimeout(() => {
               isLongPressFired = true;
               executeAlternateAction();
-            }, 300);
+            }, 250); // Sped up from 300ms
           };
 
           const cancelLongPress = () => {
@@ -1040,33 +1042,37 @@ function renderBoard() {
           );
           mark.addEventListener("touchend", cancelLongPress);
           mark.addEventListener("touchcancel", cancelLongPress);
-          mark.addEventListener("touchmove", cancelLongPress);
+          // FIX: Removed touchmove listener to prevent thumb jiggles from aborting the long press
 
           // --- STANDARD HOVER & CONTEXT MENU ---
           mark.addEventListener("mouseover", (e) => {
             e.stopPropagation();
             currentlyHoveredElement = mark;
-            if (
-              currentMode === "color" &&
-              coloringSubMode === "candidate" &&
-              selectedColor
-            ) {
-              if (!suppressCandidatePreview) {
-                mark.style.color = selectedColor;
-              } else {
-                mark.style.color =
-                  boardState[row][col].pencilColors.get(i) || "";
-              }
-            } else if (
-              currentMode === "color" &&
-              coloringSubMode === "cell" &&
-              selectedColor
-            ) {
-              if (!suppressCellPreview) {
-                cell.style.backgroundColor = selectedColor;
-              } else {
-                cell.style.backgroundColor =
-                  boardState[row][col].cellColor || "";
+
+            // FIX: Only show hover previews on devices with an actual mouse cursor
+            if (window.matchMedia("(hover: hover)").matches) {
+              if (
+                currentMode === "color" &&
+                coloringSubMode === "candidate" &&
+                selectedColor
+              ) {
+                if (!suppressCandidatePreview) {
+                  mark.style.color = selectedColor;
+                } else {
+                  mark.style.color =
+                    boardState[row][col].pencilColors.get(i) || "";
+                }
+              } else if (
+                currentMode === "color" &&
+                coloringSubMode === "cell" &&
+                selectedColor
+              ) {
+                if (!suppressCellPreview) {
+                  cell.style.backgroundColor = selectedColor;
+                } else {
+                  cell.style.backgroundColor =
+                    boardState[row][col].cellColor || "";
+                }
               }
             }
           });
@@ -1076,7 +1082,6 @@ function renderBoard() {
             currentlyHoveredElement = null;
             const cellState = boardState[row][col];
 
-            // Reset suppressions when leaving the candidate element
             suppressCandidatePreview = false;
             suppressCellPreview = false;
 
@@ -3325,7 +3330,7 @@ async function populateSelectors() {
 
   const dateBlankOption = document.createElement("option");
   dateBlankOption.value = "";
-  dateBlankOption.textContent = "Custom Board";
+  dateBlankOption.textContent = "Custom";
   dateBlankOption.hidden = true;
   dateSelect.appendChild(dateBlankOption);
 }
