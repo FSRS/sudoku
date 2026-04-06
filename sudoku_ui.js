@@ -803,11 +803,13 @@ function renderBoard() {
     cell.oncontextmenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (isSolverMode) return;
       executeCellAlternateAction(); // Cleaned up
     };
 
     // Intercept standard click if long press fired
     cell.onclick = (e) => {
+      if (isSolverMode) return;
       if (
         currentMode === "color" &&
         coloringSubMode === "cell" &&
@@ -841,6 +843,7 @@ function renderBoard() {
 
     // --- STANDARD CELL HOVER ---
     cell.onmouseover = () => {
+      if (isSolverMode) return;
       if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
 
       currentlyHoveredElement = cell;
@@ -965,6 +968,7 @@ function renderBoard() {
 
           // --- STANDARD HOVER & CONTEXT MENU ---
           mark.addEventListener("mouseover", (e) => {
+            if (isSolverMode) return;
             if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
             e.stopPropagation();
             currentlyHoveredElement = mark;
@@ -1014,12 +1018,14 @@ function renderBoard() {
           mark.addEventListener("contextmenu", (e) => {
             e.preventDefault();
             e.stopPropagation();
+            if (isSolverMode) return;
             executeAlternateAction();
           });
 
           // --- LEFT CLICK / NORMAL TAP ---
           mark.addEventListener("click", (e) => {
             e.stopPropagation();
+            if (isSolverMode) return;
 
             if (currentMode === "draw") {
               handleDrawClick(row, col, i);
@@ -2458,7 +2464,10 @@ function handleKeyDown(e) {
   }
 
   if (isSolverMode) {
-    if (key_lower === "s" && !isCtrlOrCmd) {
+    if (
+      (key_lower === "s" || key_lower === "q" || key === "Escape") &&
+      !isCtrlOrCmd
+    ) {
       const toggleBtn = document.getElementById("toggle-solver-mode-btn");
       if (toggleBtn) toggleBtn.click();
       return;
@@ -2808,6 +2817,7 @@ function handleKeyDown(e) {
 }
 
 function handleCellClick(e) {
+  if (isSolverMode) return;
   const cell = e.target.closest(".sudoku-cell");
   if (!cell) return;
   selectedCell.row = parseInt(cell.dataset.row);
