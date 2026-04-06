@@ -3019,10 +3019,10 @@ function handleModeChange(e) {
   // Clear any existing experimental tip timer so they don't overlap if the user clicks fast
   if (window.exptTipTimer) clearTimeout(window.exptTipTimer);
 
-  if (isExperimentalMode && !isMobile) {
+  if (isExperimentalMode) {
     window.exptTipTimer = setTimeout(() => {
       let exptTip = "";
-      const actionTxt = "Right-click";
+      const actionTxt = isMobile ? "Long press" : "Right-click";
 
       if (currentMode === "concrete") {
         exptTip = `Expt feature: ${actionTxt} a candidate to erase it directly.`;
