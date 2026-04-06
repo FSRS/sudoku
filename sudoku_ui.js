@@ -788,46 +788,25 @@ function renderBoard() {
       };
 
       let cellLongPressTimer;
-      let cellPreviewTimer;
       let isCellLongPressFired = false;
 
       const startCellLongPress = (e) => {
         if (!isExperimentalMode) return;
 
-        // --- FIX: Only ignore if the user clicks an active candidate with a number ---
         const clickedMark = e.target.closest('.pencil-mark');
         if (clickedMark && clickedMark.textContent !== "") return;
 
         isCellLongPressFired = false;
 
-        cellPreviewTimer = setTimeout(() => {
-          const altColor = getAltColor();
-          if (altColor && currentMode === "color" && coloringSubMode === "cell") {
-            cell.style.backgroundColor = altColor;
-            cell.style.transition = "background-color 0.1s ease";
-          }
-        }, 150);
 
         cellLongPressTimer = setTimeout(() => {
           isCellLongPressFired = true;
           executeCellAlternateAction();
-        }, 400);
+        }, 250);
       };
 
       const cancelCellLongPress = () => {
         clearTimeout(cellLongPressTimer);
-        clearTimeout(cellPreviewTimer);
-        cell.style.transition = "";
-
-        if (!isCellLongPressFired) {
-          if (currentMode === "color" && coloringSubMode === "cell") {
-            if (selectedColor && currentlyHoveredElement === cell) {
-              cell.style.backgroundColor = selectedColor;
-            } else {
-              cell.style.backgroundColor = state.cellColor || "";
-            }
-          }
-        }
       };
 
       // Desktop Cell Events
@@ -850,13 +829,15 @@ function renderBoard() {
       cell.oncontextmenu = (e) => {
         if (!isExperimentalMode) return;
 
-        // --- FIX: Only ignore if the user clicks an active candidate with a number ---
         const clickedMark = e.target.closest('.pencil-mark');
         if (clickedMark && clickedMark.textContent !== "") return;
 
         e.preventDefault();
         cancelCellLongPress();
-        executeCellAlternateAction();
+        // Prevent double-firing if the custom timer already triggered
+        if (!isCellLongPressFired) {
+          executeCellAlternateAction();
+        }
       };
 
       // Intercept standard click if long press fired
@@ -884,7 +865,7 @@ function renderBoard() {
         if (currentMode === "color" && coloringSubMode === "cell") {
           cell.style.backgroundColor = state.cellColor || "";
         }
-      }
+      };
 
     if (row === selectedCell.row && col === selectedCell.col) {
       const useGreenHighlight =
@@ -975,66 +956,19 @@ function renderBoard() {
 
             // --- LONG PRESS STATE & TIMERS ---
             let longPressTimer;
-            let previewTimer;
             let isLongPressFired = false;
 
             const startLongPress = (e) => {
               isLongPressFired = false;
 
-              previewTimer = setTimeout(() => {
-                if (!isExperimentalMode) return;
-
-                const altColor = getAltColor();
-                if (altColor) {
-                  if (currentMode === "color" && coloringSubMode === "candidate") {
-                    mark.style.color = altColor;
-                    mark.style.transform = "scale(1.1)";
-                    mark.style.transition = "transform 0.1s ease, color 0.1s ease";
-                  } else if (currentMode === "color" && coloringSubMode === "cell") {
-                    cell.style.backgroundColor = altColor; // Preview cell color
-                    cell.style.transition = "background-color 0.1s ease";
-                  }
-                } else if (currentMode === "concrete" && state.pencils.has(i)) {
-                  mark.style.opacity = "0.4";
-                  mark.style.transform = "scale(0.9)";
-                  mark.style.transition = "transform 0.1s ease, opacity 0.1s ease";
-                }
-              }, 150);
-
               longPressTimer = setTimeout(() => {
                 isLongPressFired = true;
                 executeAlternateAction();
-              }, 400);
+              }, 250);
             };
 
             const cancelLongPress = () => {
               clearTimeout(longPressTimer);
-              clearTimeout(previewTimer);
-
-              mark.style.transform = "";
-              mark.style.opacity = "";
-              mark.style.transition = "";
-              cell.style.transition = "";
-
-              // ONLY revert the preview color if the long press action did NOT fire
-              if (!isLongPressFired) {
-                const cellState = boardState[row][col];
-
-                if (currentMode === "color" && coloringSubMode === "candidate") {
-                  if (selectedColor && currentlyHoveredElement === mark) {
-                    mark.style.color = selectedColor;
-                  } else {
-                    mark.style.color = cellState.pencilColors.get(i) || "";
-                  }
-                } else if (currentMode === "color" && coloringSubMode === "cell") {
-                  // Revert cell background if we were previewing it
-                  if (selectedColor && (currentlyHoveredElement === cell || currentlyHoveredElement === mark)) {
-                    cell.style.backgroundColor = selectedColor;
-                  } else {
-                    cell.style.backgroundColor = cellState.cellColor || "";
-                  }
-                }
-              }
             };
 
             // Long Press Desktop Events
@@ -1068,7 +1002,6 @@ function renderBoard() {
                 coloringSubMode === "cell" &&
                 selectedColor
               ) {
-                // NEW: Show cell background preview when hovering over a candidate
                 cell.style.backgroundColor = selectedColor;
               }
             });
@@ -1078,7 +1011,6 @@ function renderBoard() {
               currentlyHoveredElement = null;
               const cellState = boardState[row][col];
 
-              // NEW: Revert correctly based on the current coloring submode
               if (currentMode === "color" && coloringSubMode === "cell") {
                 cell.style.backgroundColor = cellState.cellColor || "";
               }
@@ -1091,7 +1023,10 @@ function renderBoard() {
               e.preventDefault();
               e.stopPropagation();
               cancelLongPress();
-              executeAlternateAction(); // This already handles Color:Cell right-clicks perfectly!
+              // Prevent double-firing if the custom timer already triggered
+              if (!isLongPressFired) {
+                executeAlternateAction();
+              }
             });
 
             // --- LEFT CLICK / NORMAL TAP ---
