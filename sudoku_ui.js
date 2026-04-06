@@ -600,12 +600,19 @@ function getCandidateCenter(r, c, n) {
   return { x, y };
 }
 
-function handleDrawClick(r, c, n) {
+// Update the entire handleDrawClick function to this:
+function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
+  // Determine active style/color taking right-click overrides into account
+  const initStyle = overrideStyle || drawSubMode;
+  const initColor = overrideColor || selectedColor || lineColorPalette[0];
+
   // 1. Start Drawing
   if (!drawingState || !drawingState.start) {
     drawingState = {
       start: { r, c, n },
       currentPos: getCandidateCenter(r, c, n),
+      style: initStyle, // Store style in drawing state
+      color: initColor  // Store color in drawing state
     };
     updatePreview(); // Initialize the preview (start circle)
     return;
@@ -626,8 +633,9 @@ function handleDrawClick(r, c, n) {
   const start = drawingState.start;
   const end = { r, c, n };
 
-  // Use currently selected color or default
-  const activeColor = selectedColor || lineColorPalette[0];
+  // Prioritize the style/color that the line was started with (handles left-click to end a right-click start)
+  const activeStyle = drawingState.style || drawSubMode;
+  const activeColor = drawingState.color || selectedColor || lineColorPalette[0];
 
   // Create object for label formatting (Solid uses "=", Dash uses "-")
   const lineObj = {
@@ -637,7 +645,7 @@ function handleDrawClick(r, c, n) {
     r2: end.r,
     c2: end.c,
     n2: end.n,
-    style: drawSubMode,
+    style: activeStyle,
   };
   const label = formatLineLabel(lineObj);
 
@@ -663,7 +671,7 @@ function handleDrawClick(r, c, n) {
   if (existingIdx !== -1) {
     const existing = drawnLines[existingIdx];
     // 4-1. Exact match (style & color) -> Delete
-    if (existing.color === activeColor && existing.style === drawSubMode) {
+    if (existing.color === activeColor && existing.style === activeStyle) {
       drawnLines.splice(existingIdx, 1);
       actionTaken = true;
     } else {
@@ -676,7 +684,7 @@ function handleDrawClick(r, c, n) {
         c2: end.c,
         n2: end.n,
         color: activeColor,
-        style: drawSubMode,
+        style: activeStyle,
       };
       actionTaken = true;
     }
@@ -690,7 +698,7 @@ function handleDrawClick(r, c, n) {
       c2: end.c,
       n2: end.n,
       color: activeColor,
-      style: drawSubMode,
+      style: activeStyle,
     });
     actionTaken = true;
   }
@@ -702,7 +710,7 @@ function handleDrawClick(r, c, n) {
     saveState(); // Save history
   }
 
-  renderLines(); // Update the static SVG layer (permits the new line)
+  renderLines(); // Update the static SVG layer
   updatePreview(); // Clear the dynamic preview layer
 }
 
@@ -734,14 +742,134 @@ function renderBoard() {
     cell.onmouseout = null;
 
     if (state.cellColor) {
-      cell.classList.add("has-color");
-    } else {
-      cell.classList.remove("has-color");
-    }
+        cell.classList.add("has-color");
+      } else {
+        cell.classList.remove("has-color");
+      }
 
-    cell.addEventListener(
-      "mouseover",
-      () => {
+      // --- HELPER: Get Alternate Color (Shared between Cell and Candidate) ---
+      const getAltColor = () => {
+        if (currentMode === "color") {
+          let altColor = null;
+          let palette = [];
+          if (coloringSubMode === "candidate") {
+            altColor = lastUsedColors.color.prevCandidate;
+            palette = candidateColorPalette;
+          } else if (coloringSubMode === "cell") {
+            altColor = lastUsedColors.color.prevCell;
+            palette = cellColorPalette;
+          }
+
+          if (!altColor || altColor === selectedColor) {
+            let currentIndex = palette.indexOf(selectedColor);
+            if (currentIndex === -1) currentIndex = 0;
+            let fallbackIndex = (currentIndex + 2) % palette.length;
+            altColor = palette[fallbackIndex];
+          }
+          return altColor;
+        }
+        return null;
+      };
+
+      // --- CELL LEVEL ALTERNATE ACTION (Right Click / Long Press) ---
+      const executeCellAlternateAction = () => {
+        if (!isExperimentalMode) return;
+        if (currentMode === "color" && coloringSubMode === "cell") {
+          const altColor = getAltColor();
+          if (state.cellColor === altColor) {
+            state.cellColor = null;
+            cell.style.backgroundColor = "";
+          } else {
+            state.cellColor = altColor;
+            cell.style.backgroundColor = altColor;
+          }
+          saveState();
+        }
+      };
+
+      let cellLongPressTimer;
+      let cellPreviewTimer;
+      let isCellLongPressFired = false;
+
+      const startCellLongPress = (e) => {
+        if (!isExperimentalMode) return;
+
+        // --- FIX: Only ignore if the user clicks an active candidate with a number ---
+        const clickedMark = e.target.closest('.pencil-mark');
+        if (clickedMark && clickedMark.textContent !== "") return;
+
+        isCellLongPressFired = false;
+
+        cellPreviewTimer = setTimeout(() => {
+          const altColor = getAltColor();
+          if (altColor && currentMode === "color" && coloringSubMode === "cell") {
+            cell.style.backgroundColor = altColor;
+            cell.style.transition = "background-color 0.1s ease";
+          }
+        }, 150);
+
+        cellLongPressTimer = setTimeout(() => {
+          isCellLongPressFired = true;
+          if (navigator.vibrate) navigator.vibrate(50);
+          executeCellAlternateAction();
+        }, 400);
+      };
+
+      const cancelCellLongPress = () => {
+        clearTimeout(cellLongPressTimer);
+        clearTimeout(cellPreviewTimer);
+        cell.style.transition = "";
+
+        if (!isCellLongPressFired) {
+          if (currentMode === "color" && coloringSubMode === "cell") {
+            if (selectedColor && currentlyHoveredElement === cell) {
+              cell.style.backgroundColor = selectedColor;
+            } else {
+              cell.style.backgroundColor = state.cellColor || "";
+            }
+          }
+        }
+      };
+
+      // Desktop Cell Events
+      cell.onmousedown = (e) => {
+        if (e.button !== 0) return;
+        startCellLongPress(e);
+      };
+      cell.onmouseup = cancelCellLongPress;
+      cell.onmouseleave = cancelCellLongPress;
+
+      // Mobile Cell Events
+      cell.ontouchstart = (e) => {
+        startCellLongPress(e);
+      };
+      cell.ontouchend = cancelCellLongPress;
+      cell.ontouchcancel = cancelCellLongPress;
+      cell.ontouchmove = cancelCellLongPress;
+
+      // Cell Context Menu (Right Click)
+      cell.oncontextmenu = (e) => {
+        if (!isExperimentalMode) return;
+
+        // --- FIX: Only ignore if the user clicks an active candidate with a number ---
+        const clickedMark = e.target.closest('.pencil-mark');
+        if (clickedMark && clickedMark.textContent !== "") return;
+
+        e.preventDefault();
+        cancelCellLongPress();
+        executeCellAlternateAction();
+      };
+
+      // Intercept standard click if long press fired
+      cell.onclick = (e) => {
+        if (isCellLongPressFired) {
+          e.stopPropagation();
+          isCellLongPressFired = false;
+        }
+      };
+
+      // --- STANDARD CELL HOVER ---
+      cell.onmouseover = () => {
         currentlyHoveredElement = cell;
         if (
           currentMode === "color" &&
@@ -750,20 +878,15 @@ function renderBoard() {
         ) {
           cell.style.backgroundColor = selectedColor;
         }
-      },
-      { once: false },
-    ); // Changed to explicit false for clarity
+      };
 
-    cell.addEventListener(
-      "mouseout",
-      () => {
+      cell.onmouseout = () => {
         currentlyHoveredElement = null;
         if (currentMode === "color" && coloringSubMode === "cell") {
           cell.style.backgroundColor = state.cellColor || "";
         }
-      },
-      { once: false },
-    );
+      }
+
     if (row === selectedCell.row && col === selectedCell.col) {
       const useGreenHighlight =
         currentMode === "pencil" ||
@@ -800,6 +923,139 @@ function renderBoard() {
             (isMobile && (isExperimentalMode || currentMode === "draw"));
 
           if (allowInteraction) {
+
+            // --- HELPER: Logic for Alternate Action (Right Click / Long Press) ---
+            const executeAlternateAction = () => {
+              if (!isExperimentalMode) return;
+
+              const cellState = boardState[row][col];
+
+              // 1. Alternate action on Candidate in Number mode -> Erase candidate
+              if (currentMode === "concrete") {
+                if (cellState.pencils.has(i)) {
+                  if (!timerInterval) startTimer(currentElapsedTime);
+                  cellState.pencils.delete(i);
+                  saveState();
+                  onBoardUpdated();
+                }
+              }
+              // 2. Alternate action on Candidate in Draw mode -> Draw dash line
+              else if (currentMode === "draw") {
+                const dashColor = lastUsedColors.draw.dash || lineColorPalette[0];
+                handleDrawClick(row, col, i, "dash", dashColor);
+              }
+              // 3. Alternate action in Color:Cell mode -> Color CELL
+              else if (currentMode === "color" && coloringSubMode === "cell") {
+                const altColor = getAltColor();
+                const currentCellColor = cellState.cellColor;
+
+                if (currentCellColor === altColor) {
+                  cellState.cellColor = null;
+                  cell.style.backgroundColor = ""; // Local DOM update on parent cell
+                } else {
+                  cellState.cellColor = altColor;
+                  cell.style.backgroundColor = altColor; // Local DOM update on parent cell
+                }
+                saveState();
+              }
+              // 4. Alternate action on Candidate in Color:Candidate mode -> Color CANDIDATE
+              else if (currentMode === "color" && coloringSubMode === "candidate") {
+                const altColor = getAltColor();
+                const currentColor = cellState.pencilColors.get(i);
+
+                if (currentColor === altColor) {
+                  cellState.pencilColors.delete(i);
+                  mark.style.color = ""; // Local DOM update on candidate
+                } else {
+                  cellState.pencilColors.set(i, altColor);
+                  mark.style.color = altColor; // Local DOM update on candidate
+                }
+                saveState();
+              }
+            };
+
+            // --- LONG PRESS STATE & TIMERS ---
+            let longPressTimer;
+            let previewTimer;
+            let isLongPressFired = false;
+
+            const startLongPress = (e) => {
+              isLongPressFired = false;
+
+              previewTimer = setTimeout(() => {
+                if (!isExperimentalMode) return;
+
+                const altColor = getAltColor();
+                if (altColor) {
+                  if (currentMode === "color" && coloringSubMode === "candidate") {
+                    mark.style.color = altColor;
+                    mark.style.transform = "scale(1.1)";
+                    mark.style.transition = "transform 0.1s ease, color 0.1s ease";
+                  } else if (currentMode === "color" && coloringSubMode === "cell") {
+                    cell.style.backgroundColor = altColor; // Preview cell color
+                    cell.style.transition = "background-color 0.1s ease";
+                  }
+                } else if (currentMode === "concrete" && state.pencils.has(i)) {
+                  mark.style.opacity = "0.4";
+                  mark.style.transform = "scale(0.9)";
+                  mark.style.transition = "transform 0.1s ease, opacity 0.1s ease";
+                }
+              }, 150);
+
+              longPressTimer = setTimeout(() => {
+                isLongPressFired = true;
+                if (navigator.vibrate) navigator.vibrate(50);
+                executeAlternateAction();
+              }, 400);
+            };
+
+            const cancelLongPress = () => {
+              clearTimeout(longPressTimer);
+              clearTimeout(previewTimer);
+
+              mark.style.transform = "";
+              mark.style.opacity = "";
+              mark.style.transition = "";
+              cell.style.transition = "";
+
+              // ONLY revert the preview color if the long press action did NOT fire
+              if (!isLongPressFired) {
+                const cellState = boardState[row][col];
+
+                if (currentMode === "color" && coloringSubMode === "candidate") {
+                  if (selectedColor && currentlyHoveredElement === mark) {
+                    mark.style.color = selectedColor;
+                  } else {
+                    mark.style.color = cellState.pencilColors.get(i) || "";
+                  }
+                } else if (currentMode === "color" && coloringSubMode === "cell") {
+                  // Revert cell background if we were previewing it
+                  if (selectedColor && (currentlyHoveredElement === cell || currentlyHoveredElement === mark)) {
+                    cell.style.backgroundColor = selectedColor;
+                  } else {
+                    cell.style.backgroundColor = cellState.cellColor || "";
+                  }
+                }
+              }
+            };
+
+            // Long Press Desktop Events
+            mark.addEventListener("mousedown", (e) => {
+              if (e.button !== 0) return;
+              startLongPress(e);
+            });
+            mark.addEventListener("mouseup", cancelLongPress);
+            mark.addEventListener("mouseleave", cancelLongPress);
+
+            // Long Press Mobile Touch Events
+            mark.addEventListener("touchstart", (e) => {
+              startLongPress(e);
+            }, { passive: true });
+            mark.addEventListener("touchend", cancelLongPress);
+            mark.addEventListener("touchcancel", cancelLongPress);
+            mark.addEventListener("touchmove", cancelLongPress);
+
+            // --- STANDARD HOVER & CONTEXT MENU ---
             mark.addEventListener("mouseover", (e) => {
               e.stopPropagation();
               currentlyHoveredElement = mark;
@@ -811,49 +1067,60 @@ function renderBoard() {
                 mark.style.color = selectedColor;
               }
             });
+
             mark.addEventListener("mouseout", (e) => {
               e.stopPropagation();
               currentlyHoveredElement = null;
-              mark.style.color = state.pencilColors.get(i) || "";
+              const cellState = boardState[row][col];
+              mark.style.color = cellState.pencilColors.get(i) || "";
+              cancelLongPress();
             });
+
+            mark.addEventListener("contextmenu", (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              cancelLongPress();
+              executeAlternateAction();
+            });
+
+            // --- LEFT CLICK / NORMAL TAP ---
             mark.addEventListener("click", (e) => {
+              e.stopPropagation();
+
+              if (isLongPressFired) {
+                isLongPressFired = false;
+                return;
+              }
+
               if (currentMode === "draw") {
-                e.stopPropagation();
                 handleDrawClick(row, col, i);
               } else if (
                 currentMode === "color" &&
                 coloringSubMode === "candidate" &&
                 selectedColor
               ) {
-                e.stopPropagation();
                 const cellState = boardState[row][col];
                 const currentColor = cellState.pencilColors.get(i);
                 if (currentColor === selectedColor) {
                   cellState.pencilColors.delete(i);
+                  mark.style.color = "";
                 } else {
                   cellState.pencilColors.set(i, selectedColor);
+                  mark.style.color = selectedColor;
                 }
                 saveState();
-                renderBoard();
               } else if (isExperimentalMode && currentMode === "pencil") {
-                e.stopPropagation();
                 const cellState = boardState[row][col];
                 if (cellState.pencils.has(i)) {
-                  // FIX: Start timer if not running
                   if (!timerInterval) startTimer(currentElapsedTime);
-
                   cellState.pencils.delete(i);
                   saveState();
                   onBoardUpdated();
                 }
               } else if (isExperimentalMode && currentMode === "concrete") {
-                e.stopPropagation();
                 const cellState = boardState[row][col];
                 if (cellState.isGiven) return;
-
-                // FIX: Start timer if not running
                 if (!timerInterval) startTimer(currentElapsedTime);
-
                 cellState.value = i;
                 cellState.pencils.clear();
                 autoEliminatePencils(row, col, i);
@@ -993,6 +1260,7 @@ function renderLines() {
   });
 }
 
+// Replace these specific lines inside the updatePreview() function
 function updatePreview() {
   const svg = document.getElementById("drawing-layer");
   const previewGroup = document.getElementById("preview-lines-group");
@@ -1006,7 +1274,10 @@ function updatePreview() {
 
   const start = drawingState.start;
   const startPos = getCandidateCenter(start.r, start.c, start.n);
-  const color = selectedColor || lineColorPalette[0] || "black";
+
+  // --- UPDATED: Use the style & color saved in drawingState so the preview honors right-clicks ---
+  const activeStyle = drawingState.style || drawSubMode;
+  const color = drawingState.color || selectedColor || lineColorPalette[0] || "black";
 
   let endX, endY;
   if (drawingState.currentPos) {
@@ -1018,7 +1289,7 @@ function updatePreview() {
   }
 
   // --- Calculate Shortened Coordinates for Preview ---
-  const radiusVal = drawSubMode === "solid" ? 1.6 : 1.2;
+  const radiusVal = activeStyle === "solid" ? 1.6 : 1.2;
 
   let x1 = startPos.x,
     y1 = startPos.y;
@@ -1051,13 +1322,13 @@ function updatePreview() {
     previewGroup.appendChild(circle);
   }
 
-  // 1. Update Line
+  // 1. Update Line (Updated to use activeStyle)
   line.setAttribute("x1", `${x1}%`);
   line.setAttribute("y1", `${y1}%`);
   line.setAttribute("x2", `${x2}%`);
   line.setAttribute("y2", `${y2}%`);
   line.setAttribute("stroke", color);
-  line.setAttribute("class", `draw-line ${drawSubMode}`);
+  line.setAttribute("class", `draw-line ${activeStyle}`);
 
   // 2. Update Start Circle
   circle.setAttribute("cx", `${startPos.x}%`);
@@ -1368,7 +1639,10 @@ function setupEventListeners() {
   gridContainer.style.userSelect = "none";
   gridContainer.addEventListener("dragstart", (e) => e.preventDefault());
 
+  gridContainer.addEventListener("contextmenu", (e) => e.preventDefault());
+
   loadExperimentalModePreference();
+
   gridContainer.addEventListener("click", handleCellClick);
   modeSelector.addEventListener("click", (e) => handleModeChange(e));
   numberPad.addEventListener("click", handleNumberPadClick);
@@ -2788,6 +3062,30 @@ function handleModeChange(e) {
   }
   showMessage(tip, "gray");
 
+  // Clear any existing experimental tip timer so they don't overlap if the user clicks fast
+  if (window.exptTipTimer) clearTimeout(window.exptTipTimer);
+
+  if (isExperimentalMode) {
+    window.exptTipTimer = setTimeout(() => {
+      let exptTip = "";
+      const actionTxt = isMobile ? "Long press" : "Right-click";
+
+      if (currentMode === "concrete") {
+        exptTip = `Expt feature: ${actionTxt} a candidate to erase it directly.`;
+      } else if (currentMode === "draw" && drawSubMode === "solid") {
+        exptTip = `Expt feature: ${actionTxt} a candidate to draw a dash line.`;
+      } else if (currentMode === "color" && coloringSubMode === "cell") {
+        exptTip = `Expt feature: ${actionTxt} a candidate to apply the previously selected cell color.`;
+      } else if (currentMode === "color" && coloringSubMode === "candidate") {
+        exptTip = `Expt feature: ${actionTxt} a candidate to apply the previously selected color.`;
+      }
+
+      if (exptTip) {
+        showMessage(exptTip, "blue"); // Use blue to make the new feature stand out
+      }
+    }, 3500); // Wait 3.5 seconds before showing the advanced tip
+  }
+
   // Reset Button Classes
   modeToggleButton.classList.remove("active", "active-green");
   colorButton.classList.remove("active", "active-green");
@@ -2829,13 +3127,21 @@ function handleNumberPadClick(e) {
 
   // Handle Color Selection (Color Mode OR Draw Mode)
   if (currentMode === "color" || currentMode === "draw") {
-    selectedColor = btn.dataset.color;
+    const newColor = btn.dataset.color;
 
     if (currentMode === "draw") {
-      lastUsedColors.draw[drawSubMode] = selectedColor;
+      lastUsedColors.draw[drawSubMode] = newColor;
     } else {
-      lastUsedColors.color[coloringSubMode] = selectedColor;
+      // Track previous color for both candidate and cell submodes
+      if (coloringSubMode === "candidate" && selectedColor && selectedColor !== newColor) {
+        lastUsedColors.color.prevCandidate = selectedColor;
+      } else if (coloringSubMode === "cell" && selectedColor && selectedColor !== newColor) {
+        lastUsedColors.color.prevCell = selectedColor;
+      }
+      lastUsedColors.color[coloringSubMode] = newColor;
     }
+
+    selectedColor = newColor;
 
     // Visual update for buttons
     numberPad
@@ -2853,7 +3159,7 @@ function handleNumberPadClick(e) {
         currentlyHoveredElement.style.color = selectedColor;
       }
     }
-    return;
+    return; // Exits the function early if a color was clicked
   }
 
   // Handle Number Input (Concrete / Pencil)
@@ -3914,6 +4220,12 @@ function enterSolverModeUI() {
 
   if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
   if (typeof savePuzzleProgress === "function") savePuzzleProgress();
+
+  document.querySelectorAll(".custom-tooltip").forEach((tooltip) => {
+    tooltip.remove();
+  });
+  activeTooltipElement = null;
+
   userBoardSnapshot = cloneBoardState(boardState);
   userLinesSnapshot = JSON.parse(JSON.stringify(drawnLines));
 

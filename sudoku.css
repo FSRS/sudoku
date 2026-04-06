@@ -1911,7 +1911,13 @@ html.dark {
   /* Reduce pencil mark font size to fit smaller cells */
   .pencil-grid {
     font-size: clamp(11px, 3.5vw, 15px) !important;
-    line-height: 0.7 !important;
+    line-height: 0.9 !important;
+  }
+
+  .pencil-mark {
+    /* Adjust these clamp values if you want them larger/smaller */
+    /* clamp(MIN, PREFERRED, MAX) */
+    font-size: clamp(10px, 3.6vw, 17px) !important;
   }
 }
 
