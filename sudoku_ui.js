@@ -5737,6 +5737,7 @@ async function evaluateBoardDifficulty(opts = {}) {
   }
 
   // NEW: INITIALIZE SOLVER STEPS CAPTURE
+  if (myEvaluationId !== currentEvaluationId) return;
   solverSteps = [];
   const cloneVirtualBoard = (vb) => vb.map((r) => [...r]);
   const cloneVirtualPencils = (vp) => vp.map((r) => r.map((c) => new Set(c)));
@@ -5755,14 +5756,11 @@ async function evaluateBoardDifficulty(opts = {}) {
     // A. NON-BLOCKING CHECK
     // If more than 12ms have passed since the last frame, yield to the browser
     if (performance.now() - lastYieldTime > 12) {
-      // [FIX] Ensure we respect the waitForFrame option even inside the loop
-      // to keep initialization logic tight if requested.
       if (waitForFrame) {
         await new Promise((resolve) => setTimeout(resolve, 0));
-        // B. CANCELLATION CHECK
-        // If the user changed the board during the pause, stop this calculation
-        if (myEvaluationId !== currentEvaluationId) return;
       }
+      // Cancellation check applies regardless of waitForFrame
+      if (myEvaluationId !== currentEvaluationId) return;
       lastYieldTime = performance.now();
     }
 
