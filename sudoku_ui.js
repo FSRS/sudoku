@@ -816,30 +816,22 @@ function renderBoard() {
       clearTimeout(cellLongPressTimer);
     };
 
-    // Desktop Cell Events
-    cell.onmousedown = (e) => {
-      if (e.button !== 0) return;
-      startCellLongPress(e);
-    };
-    cell.onmouseup = cancelCellLongPress;
-    cell.onmouseleave = cancelCellLongPress;
-
     // Mobile Cell Events
     cell.ontouchstart = (e) => {
+      window.lastTouchTime = Date.now(); // TRACK THE TOUCH TIME
       startCellLongPress(e);
     };
     cell.ontouchend = cancelCellLongPress;
     cell.ontouchcancel = cancelCellLongPress;
-    // FIX: Removed ontouchmove to prevent thumb jiggles from accidentally aborting the long press
 
-    // Cell Context Menu (Right Click)
+    // Desktop Cell Events
+    cell.onmousedown = null;
+    cell.onmouseup = null;
+    cell.onmouseleave = null;
+
     cell.oncontextmenu = (e) => {
-      if (!isExperimentalMode) return;
-
-      const clickedMark = e.target.closest(".pencil-mark");
-      if (clickedMark && clickedMark.textContent !== "") return;
-
       e.preventDefault();
+      e.stopPropagation();
       cancelCellLongPress();
       if (!isCellLongPressFired) {
         executeCellAlternateAction();
@@ -887,9 +879,9 @@ function renderBoard() {
 
     // --- STANDARD CELL HOVER ---
     cell.onmouseover = () => {
-      currentlyHoveredElement = cell;
+      if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
 
-      // FIX: Only show hover previews on devices with an actual mouse cursor
+      currentlyHoveredElement = cell;
       if (window.matchMedia("(hover: hover)").matches) {
         if (
           currentMode === "color" &&
@@ -906,6 +898,8 @@ function renderBoard() {
     };
 
     cell.onmouseout = () => {
+      if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
+
       currentlyHoveredElement = null;
       suppressCellPreview = false;
       if (currentMode === "color" && coloringSubMode === "cell") {
@@ -1036,20 +1030,20 @@ function renderBoard() {
           mark.addEventListener(
             "touchstart",
             (e) => {
+              window.lastTouchTime = Date.now(); // TRACK THE TOUCH TIME
               startLongPress(e);
             },
             { passive: true },
           );
           mark.addEventListener("touchend", cancelLongPress);
           mark.addEventListener("touchcancel", cancelLongPress);
-          // FIX: Removed touchmove listener to prevent thumb jiggles from aborting the long press
 
           // --- STANDARD HOVER & CONTEXT MENU ---
           mark.addEventListener("mouseover", (e) => {
+            if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
             e.stopPropagation();
             currentlyHoveredElement = mark;
 
-            // FIX: Only show hover previews on devices with an actual mouse cursor
             if (window.matchMedia("(hover: hover)").matches) {
               if (
                 currentMode === "color" &&
@@ -1078,6 +1072,7 @@ function renderBoard() {
           });
 
           mark.addEventListener("mouseout", (e) => {
+            if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
             e.stopPropagation();
             currentlyHoveredElement = null;
             const cellState = boardState[row][col];
