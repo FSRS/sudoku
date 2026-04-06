@@ -1004,7 +1004,6 @@ function renderBoard() {
 
               longPressTimer = setTimeout(() => {
                 isLongPressFired = true;
-                if (navigator.vibrate) navigator.vibrate(50);
                 executeAlternateAction();
               }, 400);
             };
@@ -1065,6 +1064,13 @@ function renderBoard() {
                 selectedColor
               ) {
                 mark.style.color = selectedColor;
+              } else if (
+                currentMode === "color" &&
+                coloringSubMode === "cell" &&
+                selectedColor
+              ) {
+                // NEW: Show cell background preview when hovering over a candidate
+                cell.style.backgroundColor = selectedColor;
               }
             });
 
@@ -1072,7 +1078,13 @@ function renderBoard() {
               e.stopPropagation();
               currentlyHoveredElement = null;
               const cellState = boardState[row][col];
+
+              // NEW: Revert correctly based on the current coloring submode
+              if (currentMode === "color" && coloringSubMode === "cell") {
+                cell.style.backgroundColor = cellState.cellColor || "";
+              }
               mark.style.color = cellState.pencilColors.get(i) || "";
+
               cancelLongPress();
             });
 
@@ -1080,7 +1092,7 @@ function renderBoard() {
               e.preventDefault();
               e.stopPropagation();
               cancelLongPress();
-              executeAlternateAction();
+              executeAlternateAction(); // This already handles Color:Cell right-clicks perfectly!
             });
 
             // --- LEFT CLICK / NORMAL TAP ---
@@ -1109,7 +1121,26 @@ function renderBoard() {
                   mark.style.color = selectedColor;
                 }
                 saveState();
-              } else if (isExperimentalMode && currentMode === "pencil") {
+              }
+              // --- NEW: Handle left click for Color:Cell mode on a candidate ---
+              else if (
+                currentMode === "color" &&
+                coloringSubMode === "cell" &&
+                selectedColor
+              ) {
+                const cellState = boardState[row][col];
+                const currentCellColor = cellState.cellColor;
+                if (currentCellColor === selectedColor) {
+                  cellState.cellColor = null;
+                  cell.style.backgroundColor = "";
+                } else {
+                  cellState.cellColor = selectedColor;
+                  cell.style.backgroundColor = selectedColor;
+                }
+                saveState();
+              }
+              // ----------------------------------------------------------------
+              else if (isExperimentalMode && currentMode === "pencil") {
                 const cellState = boardState[row][col];
                 if (cellState.pencils.has(i)) {
                   if (!timerInterval) startTimer(currentElapsedTime);
