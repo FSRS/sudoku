@@ -795,35 +795,6 @@ function renderBoard() {
       }
     };
 
-    let cellLongPressTimer;
-    let isCellLongPressFired = false;
-
-    const startCellLongPress = (e) => {
-      if (!isExperimentalMode) return;
-
-      const clickedMark = e.target.closest(".pencil-mark");
-      if (clickedMark && clickedMark.textContent !== "") return;
-
-      isCellLongPressFired = false;
-
-      cellLongPressTimer = setTimeout(() => {
-        isCellLongPressFired = true;
-        executeCellAlternateAction();
-      }, 250); // Sped up from 300ms
-    };
-
-    const cancelCellLongPress = () => {
-      clearTimeout(cellLongPressTimer);
-    };
-
-    // Mobile Cell Events
-    cell.ontouchstart = (e) => {
-      window.lastTouchTime = Date.now(); // TRACK THE TOUCH TIME
-      startCellLongPress(e);
-    };
-    cell.ontouchend = cancelCellLongPress;
-    cell.ontouchcancel = cancelCellLongPress;
-
     // Desktop Cell Events
     cell.onmousedown = null;
     cell.onmouseup = null;
@@ -832,20 +803,11 @@ function renderBoard() {
     cell.oncontextmenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      cancelCellLongPress();
-      if (!isCellLongPressFired) {
-        executeCellAlternateAction();
-      }
+      executeCellAlternateAction(); // Cleaned up
     };
 
     // Intercept standard click if long press fired
     cell.onclick = (e) => {
-      if (isCellLongPressFired) {
-        e.stopPropagation();
-        isCellLongPressFired = false;
-        return;
-      }
-
       if (
         currentMode === "color" &&
         coloringSubMode === "cell" &&
@@ -1001,43 +963,6 @@ function renderBoard() {
             }
           };
 
-          // --- LONG PRESS STATE & TIMERS ---
-          let longPressTimer;
-          let isLongPressFired = false;
-
-          const startLongPress = (e) => {
-            isLongPressFired = false;
-
-            longPressTimer = setTimeout(() => {
-              isLongPressFired = true;
-              executeAlternateAction();
-            }, 250); // Sped up from 300ms
-          };
-
-          const cancelLongPress = () => {
-            clearTimeout(longPressTimer);
-          };
-
-          // Long Press Desktop Events
-          mark.addEventListener("mousedown", (e) => {
-            if (e.button !== 0) return;
-            startLongPress(e);
-          });
-          mark.addEventListener("mouseup", cancelLongPress);
-          mark.addEventListener("mouseleave", cancelLongPress);
-
-          // Long Press Mobile Touch Events
-          mark.addEventListener(
-            "touchstart",
-            (e) => {
-              window.lastTouchTime = Date.now(); // TRACK THE TOUCH TIME
-              startLongPress(e);
-            },
-            { passive: true },
-          );
-          mark.addEventListener("touchend", cancelLongPress);
-          mark.addEventListener("touchcancel", cancelLongPress);
-
           // --- STANDARD HOVER & CONTEXT MENU ---
           mark.addEventListener("mouseover", (e) => {
             if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
@@ -1084,27 +1009,17 @@ function renderBoard() {
               cell.style.backgroundColor = cellState.cellColor || "";
             }
             mark.style.color = cellState.pencilColors.get(i) || "";
-
-            cancelLongPress();
           });
 
           mark.addEventListener("contextmenu", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            cancelLongPress();
-            if (!isLongPressFired) {
-              executeAlternateAction();
-            }
+            executeAlternateAction();
           });
 
           // --- LEFT CLICK / NORMAL TAP ---
           mark.addEventListener("click", (e) => {
             e.stopPropagation();
-
-            if (isLongPressFired) {
-              isLongPressFired = false;
-              return;
-            }
 
             if (currentMode === "draw") {
               handleDrawClick(row, col, i);
@@ -3104,10 +3019,10 @@ function handleModeChange(e) {
   // Clear any existing experimental tip timer so they don't overlap if the user clicks fast
   if (window.exptTipTimer) clearTimeout(window.exptTipTimer);
 
-  if (isExperimentalMode) {
+  if (isExperimentalMode && !isMobile) {
     window.exptTipTimer = setTimeout(() => {
       let exptTip = "";
-      const actionTxt = isMobile ? "Long press" : "Right-click";
+      const actionTxt = "Right-click";
 
       if (currentMode === "concrete") {
         exptTip = `Expt feature: ${actionTxt} a candidate to erase it directly.`;

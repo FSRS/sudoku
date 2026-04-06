@@ -1227,7 +1227,7 @@ button:disabled:hover {
   padding-bottom: 11.11%;
   position: relative;
   border: 1px solid var(--nc-border-color);
-  transition: background-color 0.1s ease;
+  transition: background-color 0.2s ease;
   cursor: pointer;
 }
 
@@ -1333,8 +1333,8 @@ button:disabled:hover {
   color: var(--color-gray-700);
   opacity: 0.75;
   transition:
-    opacity 0.1s ease,
-    color 0.1s ease;
+    opacity 0.2s ease,
+    color 0.2s ease;
   font-size: clamp(0.8rem, 3.2cqi, 1.2rem);
 }
 
