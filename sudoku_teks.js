@@ -6583,7 +6583,9 @@ const techniques = {
                   mainInfo:
                     techniques._getHintInfo(chain, hintType) + " (Ring)",
                   detail:
-                    techniques._buildChainDetail(chain, options) + "-(Ring)",
+                    `[${chain.length}] ` +
+                    techniques._buildChainDetail(chain, options) +
+                    "-(Ring)",
                 },
                 applyVisuals: () => {
                   if (singleDigit) {
@@ -6727,7 +6729,9 @@ const techniques = {
                 hint: {
                   name: options.nameOverride || "AIC",
                   mainInfo: techniques._getHintInfo(chain, hintType),
-                  detail: techniques._buildChainDetail(chain, options),
+                  detail:
+                    `[${chain.length}] ` +
+                    techniques._buildChainDetail(chain, options),
                 },
                 applyVisuals: () => {
                   if (singleDigit) {
@@ -7016,7 +7020,7 @@ const techniques = {
       bivalueOnly: false,
       maxLength: 20,
       hintType: "strongLink",
-      nameOverride: "Grouepd AIC",
+      nameOverride: "Grouped AIC",
     });
   },
 
@@ -9007,7 +9011,7 @@ const techniques = {
         hint: {
           name: title,
           mainInfo: infoStr,
-          detail: detailStr,
+          detail: `${path.length !== 3 ? "" : `[${path.length}] `}` + detailStr,
         },
         applyVisuals: buildAhsChainVisuals(
           chain,
@@ -9831,7 +9835,7 @@ const techniques = {
                 type: "remove",
                 cells: uniqueElims,
                 hint: {
-                  name: "AHS W-Wing (Ring 3C)",
+                  name: "AHS W-Wing (Ring)",
                   mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
                   detail: detailStr,
                 },
@@ -10604,6 +10608,8 @@ const techniques = {
         if (isRingResult) {
           detail += "-(Ring)";
         }
+        if (nameOverride !== "ALS XY-Wing")
+          detail = `[${successPath.length}] ` + detail;
       }
 
       // Deep capture necessary properties to avoid relying on global _alsLookup in UI callback
@@ -12085,15 +12091,39 @@ const techniques = {
                       const parts = [];
                       for (const petal of chosen) {
                         const als = alses[petal.alsIdx];
-                        const covCells = [];
+                        const coveredStemCells = [];
+
                         for (let k = 0; k < stemCount; k++) {
                           if ((petal.covers & (1 << k)) !== 0) {
-                            covCells.push(
-                              `${stemDigit}r${stemCells[k].r + 1}c${stemCells[k].c + 1}`,
-                            );
+                            coveredStemCells.push(stemCells[k]);
                           }
                         }
-                        const covStr = covCells.join(",");
+
+                        let covStr = "";
+                        if (uType === "row") {
+                          const r = uIdx + 1;
+                          const cs = coveredStemCells
+                            .map((c) => c.c + 1)
+                            .sort()
+                            .join("");
+                          covStr = `${stemDigit}r${r}c${cs}`;
+                        } else if (uType === "col") {
+                          const c = uIdx + 1;
+                          const rs = coveredStemCells
+                            .map((c) => c.r + 1)
+                            .sort()
+                            .join("");
+                          covStr = `${stemDigit}r${rs}c${c}`;
+                        } else {
+                          // uType === "box"
+                          const b = uIdx + 1;
+                          const ps = coveredStemCells
+                            .map((c) => (c.r % 3) * 3 + (c.c % 3) + 1)
+                            .sort()
+                            .join("");
+                          covStr = `${stemDigit}b${b}p${ps}`;
+                        }
+
                         parts.push(
                           `${covStr}-(${stemDigit}=${elimD})${fmtALS(als)}`,
                         );
