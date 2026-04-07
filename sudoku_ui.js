@@ -2347,9 +2347,13 @@ function setupEventListeners() {
       modal.classList.add("hidden");
       modal.classList.remove("flex");
 
-      currentEvaluationId++;
+      if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
+      const evalId = ++currentEvaluationId;
+
       showMessage("Evaluating current state...", "blue");
       await evaluateBoardDifficulty({ waitForFrame: false });
+
+      if (currentEvaluationId !== evalId) return;
 
       enterSolverModeUI();
     });
@@ -2379,12 +2383,16 @@ function setupEventListeners() {
           }
         }
       }
-      // Cancels the async eval that clearUserBoard() triggers silently
-      currentEvaluationId++;
+
+      if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
+      const evalId = ++currentEvaluationId;
 
       showMessage("Evaluating from beginning...", "blue");
       // Start our own tracked evaluation & await it
       await evaluateBoardDifficulty({ waitForFrame: false });
+
+      if (currentEvaluationId !== evalId) return;
+
       boardState = originalState;
       drawnLines = originalLines;
 
@@ -4302,9 +4310,13 @@ async function solve() {
       }
     }
 
-    currentEvaluationId++;
+    if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
+    const evalId = ++currentEvaluationId;
+
     showMessage("Evaluating from beginning...", "blue");
     await evaluateBoardDifficulty({ waitForFrame: false });
+
+    if (currentEvaluationId !== evalId) return;
 
     // Restore state memory so exiting solver mode works flawlessly
     boardState = originalState;
@@ -4329,10 +4341,10 @@ async function solve() {
     return;
   }
 
-  proceedToSolverMode();
+  await proceedToSolverMode();
 }
 
-function proceedToSolverMode() {
+async function proceedToSolverMode() {
   // Check if any progress/drawings exist
   let hasUserInput = false;
   if (drawnLines.length > 0) hasUserInput = true;
@@ -4353,8 +4365,16 @@ function proceedToSolverMode() {
     if (hasUserInput) break;
   }
 
-  // If blank, proceed immediately
+  // If blank, ensure a fresh evaluation is fully completed before proceeding
   if (!hasUserInput) {
+    if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
+    const evalId = ++currentEvaluationId;
+
+    showMessage("Evaluating...", "blue");
+    await evaluateBoardDifficulty({ waitForFrame: false });
+
+    if (currentEvaluationId !== evalId) return;
+
     enterSolverModeUI();
     return;
   }
