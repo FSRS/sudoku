@@ -1024,6 +1024,17 @@ function renderBoard() {
 
           // --- LEFT CLICK / NORMAL TAP ---
           mark.addEventListener("click", (e) => {
+            const isCurrentlyMobile = window.innerWidth <= 550;
+            const canInteractDirectly =
+              !isCurrentlyMobile ||
+              (isCurrentlyMobile && (isExperimentalMode || currentMode === "draw"));
+
+            if (!canInteractDirectly) {
+              // Let the click bubble up to the cell to trigger handleCellClick.
+              // Fixes unresponsive cell selection and missing candidate modal in mobile Expt OFF.
+              return;
+            }
+
             e.stopPropagation();
             if (isSolverMode) return;
 
@@ -1048,7 +1059,7 @@ function renderBoard() {
               }
               saveState();
             }
-            // --- NEW: Handle left click for Color:Cell mode on a candidate ---
+            // Handle left click for Color:Cell mode on a candidate
             else if (
               currentMode === "color" &&
               coloringSubMode === "cell" &&
@@ -1068,7 +1079,6 @@ function renderBoard() {
               }
               saveState();
             }
-            // ----------------------------------------------------------------
             else if (isExperimentalMode && currentMode === "pencil") {
               const cellState = boardState[row][col];
               if (cellState.pencils.has(i)) {
