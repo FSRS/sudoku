@@ -1026,7 +1026,7 @@ function renderBoard() {
           mark.addEventListener("click", (e) => {
             const isCurrentlyMobile = window.innerWidth <= 550;
             const canInteractDirectly =
-              !isCurrentlyMobile ||
+              (!isCurrentlyMobile && (isExperimentalMode || currentMode === "draw" || currentMode === "color"))
               (isCurrentlyMobile && (isExperimentalMode || currentMode === "draw"));
 
             if (!canInteractDirectly) {
