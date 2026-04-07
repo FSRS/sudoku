@@ -6045,6 +6045,7 @@ function getDefaultTechniques() {
       func: techniques.ahsWWing,
       level: 9,
       score: 350,
+      defaultEnabled: false,
     },
     {
       name: "Almost Locked Set Chain",
@@ -6057,6 +6058,7 @@ function getDefaultTechniques() {
       func: techniques.ahsChain,
       level: 10,
       score: 370,
+      defaultEnabled: false,
     },
     {
       name: "Cell Death Blossom",
