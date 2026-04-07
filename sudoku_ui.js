@@ -37,6 +37,7 @@ const shareModal = document.getElementById("share-modal");
 const sharePlayingBtn = document.getElementById("share-playing-btn");
 const shareSolverBtn = document.getElementById("share-solver-btn");
 const shareCancelBtn = document.getElementById("share-cancel-btn");
+const prefBtn = document.getElementById("pref-btn"); // Add this line
 const techniqueResultCache = new Map();
 const minDateNum = 20260301;
 
@@ -1026,8 +1027,12 @@ function renderBoard() {
           mark.addEventListener("click", (e) => {
             const isCurrentlyMobile = window.innerWidth <= 550;
             const canInteractDirectly =
-              (!isCurrentlyMobile && (isExperimentalMode || currentMode === "draw" || currentMode === "color")) ||
-              (isCurrentlyMobile && (isExperimentalMode || currentMode === "draw"));
+              (!isCurrentlyMobile &&
+                (isExperimentalMode ||
+                  currentMode === "draw" ||
+                  currentMode === "color")) ||
+              (isCurrentlyMobile &&
+                (isExperimentalMode || currentMode === "draw"));
 
             if (!canInteractDirectly) {
               // Let the click bubble up to the cell to trigger handleCellClick.
@@ -1078,8 +1083,7 @@ function renderBoard() {
                 cell.style.backgroundColor = selectedColor;
               }
               saveState();
-            }
-            else if (isExperimentalMode && currentMode === "pencil") {
+            } else if (isExperimentalMode && currentMode === "pencil") {
               const cellState = boardState[row][col];
               if (cellState.pencils.has(i)) {
                 if (!timerInterval) startTimer(currentElapsedTime);
@@ -1508,7 +1512,8 @@ function updateLamp(color, { record = true, level = null } = {}) {
 
     // If a specific level is provided (and it's a solved state color), use it
     if (level !== null && color !== "gray") {
-      desc = `Level ${level}`;
+      const isCustom = hasCustomPreferences();
+      desc = isCustom ? `Level ${level}*` : `Level ${level}`;
     }
 
     tooltipText = `${label}: ${desc}`;
@@ -1806,6 +1811,14 @@ function setupEventListeners() {
   formatCancelBtn.addEventListener("click", () => {
     formatModal.classList.add("hidden");
     formatModal.classList.remove("flex");
+  });
+
+  // --- Preference Modal Binding ---
+  prefBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    hideTooltip(prefBtn);
+    if (activeTooltipElement === prefBtn) activeTooltipElement = null;
+    openPreferencesModal();
   });
 
   // [REQ 4] Allow re-selecting the same level in Unlimited Mode
@@ -2245,6 +2258,7 @@ function setupEventListeners() {
   document.querySelectorAll("[data-tooltip]").forEach(attachTooltipEvents);
   attachTooltipEvents(vagueHintBtn);
   attachTooltipEvents(shareBtn);
+  attachTooltipEvents(prefBtn);
   document.addEventListener("click", () => {
     if (activeTooltipElement) {
       hideTooltip(activeTooltipElement);
@@ -2453,6 +2467,7 @@ function handleKeyDown(e) {
   const shareMod = document.getElementById("share-modal");
   const compShareMod = document.getElementById("completion-share-modal");
   const resetMod = document.getElementById("reset-confirm-modal");
+  const prefMod = document.getElementById("preferences-modal");
 
   const isHintOpen = hintModal && !hintModal.classList.contains("hidden");
   const isSolverFirstOpen =
@@ -2465,11 +2480,19 @@ function handleKeyDown(e) {
   const isCompShareOpen =
     compShareMod && !compShareMod.classList.contains("hidden");
   const isResetOpen = resetMod && !resetMod.classList.contains("hidden");
+  const isPrefOpen = prefMod && !prefMod.classList.contains("hidden");
 
   if (
     document.activeElement.tagName === "INPUT" ||
     document.activeElement.tagName === "TEXTAREA"
   ) {
+    return;
+  }
+
+  // --- NEW: PREFERENCES SHORTCUT ---
+  if (isCtrlOrCmd && key === ",") {
+    e.preventDefault();
+    openPreferencesModal();
     return;
   }
 
@@ -2614,7 +2637,8 @@ function handleKeyDown(e) {
     isCopyOpen ||
     isFormatOpen ||
     isShareOpen ||
-    isResetOpen
+    isResetOpen ||
+    isPrefOpen
   ) {
     // 1. "Esc" to Escape/Cancel
     if (key === "Escape") {
@@ -2630,6 +2654,7 @@ function handleKeyDown(e) {
       if (isCompShareOpen)
         document.getElementById("completion-cancel-btn").click(); // <-- Add this
       if (isResetOpen) document.getElementById("reset-cancel-btn").click(); // <-- Add this
+      if (isPrefOpen) document.getElementById("pref-cancel-btn").click();
       return;
     }
 
@@ -4513,10 +4538,12 @@ function renderSolverStep(index) {
     const isBruteForce =
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
+    const star = hasCustomPreferences() ? "*" : "";
+
     if (isBruteForce) {
-      msg = `Done? Evaluated Level 11, Score: ?`;
+      msg = `Done? Evaluated Level 11${star}, Score: ?${star}`;
     } else {
-      msg = `Done! Evaluated Level ${step.level}, Score: ${step.score}`;
+      msg = `Done! Evaluated Level ${step.level}${star}, Score: ${step.score}${star}`;
     }
     msgColor = "green";
   } else if (step.type === "done") {
@@ -5349,6 +5376,8 @@ async function evaluateBoardDifficulty(opts = {}) {
   // [FIX] Support options to skip frame waiting for more robust initialization
   const { waitForFrame = true } = opts;
 
+  const techniqueOrder = getActiveTechniques();
+
   // 1. Capture the ID of this specific run
   const myEvaluationId = currentEvaluationId;
 
@@ -5429,9 +5458,9 @@ async function evaluateBoardDifficulty(opts = {}) {
     lastValidScore = 4 * emptyCount;
 
     if (currentPuzzleScore > 0) {
-      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore})`;
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore}${star})`;
     } else {
-      puzzleScoreEl.textContent = `(${lastValidScore})`;
+      puzzleScoreEl.textContent = `(${lastValidScore}${star})`;
     }
     return;
   }
@@ -5448,296 +5477,6 @@ async function evaluateBoardDifficulty(opts = {}) {
   }
 
   let maxDifficulty = 0;
-  const techniqueOrder = [
-    {
-      name: "Eliminate Candidates",
-      func: techniques.eliminateCandidates,
-      level: 0,
-      score: 0,
-    },
-    { name: "Full House", func: techniques.fullHouse, level: 0, score: 4 },
-    { name: "Naked Single", func: techniques.nakedSingle, level: 0, score: 4 },
-    {
-      name: "Hidden Single",
-      func: techniques.hiddenSingle,
-      level: 0,
-      score: 14,
-    },
-    {
-      name: "Locked Pair",
-      func: (b, p) => techniques.lockedSubset(b, p, 2),
-      level: 1,
-      score: 40,
-    },
-    {
-      name: "Locked Triple",
-      func: (b, p) => techniques.lockedSubset(b, p, 3),
-      level: 1,
-      score: 60,
-    },
-    {
-      name: "Intersection",
-      func: (b, p) => techniques.intersection(b, p),
-      level: 2,
-      score: 50,
-    },
-    {
-      name: "Naked Pair",
-      func: (b, p) => techniques.nakedSubset(b, p, 2),
-      level: 2,
-      score: 60,
-    },
-    {
-      name: "Hidden Pair",
-      func: (b, p) => techniques.hiddenSubset(b, p, 2),
-      level: 2,
-      score: 70,
-    },
-    {
-      name: "Naked Triple",
-      func: (b, p) => techniques.nakedSubset(b, p, 3),
-      level: 2,
-      score: 80,
-    },
-    {
-      name: "Hidden Triple",
-      func: (b, p) => techniques.hiddenSubset(b, p, 3),
-      level: 2,
-      score: 100,
-    },
-    {
-      name: "Naked Quad",
-      func: (b, p) => techniques.nakedSubset(b, p, 4),
-      level: 3,
-      score: 120,
-    },
-    {
-      name: "Hidden Quad",
-      func: (b, p) => techniques.hiddenSubset(b, p, 4),
-      level: 3,
-      score: 150,
-    },
-    {
-      name: "X-Wing",
-      func: (b, p) => techniques.fish(b, p, 2),
-      level: 3,
-      score: 100,
-    },
-    {
-      name: "Swordfish",
-      func: (b, p) => techniques.fish(b, p, 3),
-      level: 3,
-      score: 130,
-    },
-    {
-      name: "XY-Wing",
-      func: (b, p) => techniques.xyWing(b, p),
-      level: 3,
-      score: 120,
-    },
-    {
-      name: "Remote Pair",
-      func: (b, p) => techniques.remotePair(b, p),
-      level: 3,
-      score: 110,
-    },
-    {
-      name: "BUG+1",
-      func: (b, p) => techniques.bugPlusOne(b, p),
-      level: 4,
-      score: 100,
-    },
-    {
-      name: "Jellyfish",
-      func: (b, p) => techniques.fish(b, p, 4),
-      level: 4,
-      score: 160,
-    },
-    {
-      name: "XYZ-Wing",
-      func: (b, p) => techniques.xyzWing(b, p),
-      level: 4,
-      score: 140,
-    },
-    {
-      name: "W-Wing",
-      func: (b, p) => techniques.wWing(b, p),
-      level: 4,
-      score: 160,
-    },
-    { name: "Skyscraper", func: techniques.skyscraper, level: 4, score: 110 },
-    {
-      name: "2-String Kite",
-      func: techniques.twoStringKite,
-      level: 4,
-      score: 120,
-    },
-    { name: "Crane", func: techniques.turbotFish, level: 4, score: 130 },
-
-    {
-      name: "Unique Rectangle",
-      func: (b, p) => techniques.uniqueRectangle(b, p),
-      level: 4,
-      score: 100,
-    },
-    {
-      name: "Unique Loop",
-      func: techniques.uniqueHexagon,
-      level: 5,
-      score: 120,
-    },
-    {
-      name: "Extended Unique Rectangle",
-      func: techniques.extendedRectangle,
-      level: 5,
-      score: 140,
-    },
-    {
-      name: "Grouped W-Wing",
-      func: techniques.groupedWWing,
-      level: 5,
-      score: 170,
-    },
-    {
-      name: "Finned X-Wing",
-      func: techniques.finnedXWing,
-      level: 5,
-      score: 140,
-    },
-    {
-      name: "Grouped 2-String Kite",
-      func: techniques.groupedKite,
-      level: 5,
-      score: 150,
-    },
-    {
-      name: "Empty Rectangle",
-      func: techniques.groupedTurbotFish,
-      level: 5,
-      score: 150,
-    },
-    {
-      name: "Almost Locked Pair",
-      func: techniques.almostLockedPair,
-      level: 5,
-      score: 180,
-    },
-    {
-      name: "Almost Locked Triple",
-      func: techniques.almostLockedTriple,
-      level: 5,
-      score: 200,
-    },
-    {
-      name: "Hidden Rectangle",
-      func: techniques.hiddenRectangle,
-      level: 5,
-      score: 110,
-    },
-    {
-      name: "Finned Swordfish",
-      func: techniques.finnedSwordfish,
-      level: 6,
-      score: 200,
-    },
-    {
-      name: "Finned Jellyfish",
-      func: techniques.finnedJellyfish,
-      level: 6,
-      score: 260,
-    },
-
-    { name: "X-Chain", func: techniques.xChain, level: 6, score: 200 },
-    { name: "XY-Chain", func: techniques.xyChain, level: 6, score: 240 },
-    { name: "Firework", func: techniques.firework, level: 6, score: 240 },
-    { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6, score: 200 },
-    { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6, score: 240 },
-    {
-      name: "Grouped X-Chain",
-      func: techniques.groupedXChain,
-      level: 7,
-      score: 240,
-    },
-    {
-      name: "Alternating Inference Chain",
-      func: techniques.alternatingInferenceChain,
-      level: 7,
-      score: 280,
-    },
-    { name: "Grouped AIC", func: techniques.groupedAIC, level: 8, score: 300 },
-    {
-      name: "Almost Locked Set XZ-Rule",
-      func: techniques.alsXZ,
-      level: 8,
-      score: 300,
-    },
-    {
-      name: "Almost Locked Set XY-Wing",
-      func: techniques.alsXYWing,
-      level: 9,
-      score: 320,
-    },
-    {
-      name: "Almost Locked Set W-Wing",
-      func: techniques.alsWWing,
-      level: 9,
-      score: 340,
-    },
-    {
-      name: "Almost Hidden Set XZ-Rule",
-      func: techniques.ahsXZ,
-      level: 9,
-      score: 310,
-    },
-    {
-      name: "Almost Hidden Set XY-Wing",
-      func: techniques.ahsXYWing,
-      level: 9,
-      score: 330,
-    },
-    {
-      name: "Almost Hidden Set W-Wing",
-      func: techniques.ahsWWing,
-      level: 9,
-      score: 350,
-    },
-    {
-      name: "Almost Locked Set Chain",
-      func: techniques.alsChain,
-      level: 10,
-      score: 360,
-    },
-    // {
-    //   name: "Almost Hidden Set Chain",
-    //   func: techniques.ahsChain,
-    //   level: 10,
-    //   score: 370,
-    // },
-    {
-      name: "Cell Death Blossom",
-      func: techniques.cellDeathBlossom,
-      level: 10,
-      score: 380,
-    },
-    {
-      name: "Region Death Blossom",
-      func: techniques.regionDeathBlossom,
-      level: 10,
-      score: 400,
-    },
-    {
-      name: "Finned Franken Swordfish",
-      func: techniques.finnedFrankenSwordfish,
-      level: 10,
-      score: 410,
-    },
-    {
-      name: "Finned Mutant Swordfish",
-      func: techniques.finnedMutantSwordfish,
-      level: 10,
-      score: 470,
-    },
-  ];
   const solveStartTime = performance.now();
   if (IS_DEBUG_MODE) {
     console.clear();
@@ -5912,20 +5651,24 @@ async function evaluateBoardDifficulty(opts = {}) {
     if (IS_DEBUG_MODE) {
       console.log(`Level: ${maxDifficulty}, Score: ${evaluatedScore}`);
     }
+
+    const star = hasCustomPreferences() ? "*" : "";
+
     if (currentPuzzleScore > 0) {
-      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${evaluatedScore})`;
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${evaluatedScore}${star})`;
     } else if (isCustomPuzzle) {
       if (!isCustomDifficultyEvaluated) {
         if (dateSelect.value !== "unlimited") {
-          puzzleLevelEl.textContent = `Custom Lv. ${maxDifficulty}`;
+          const star = hasCustomPreferences() ? "*" : "";
+          puzzleLevelEl.textContent = `Custom Lv. ${maxDifficulty}${star}`;
         }
         customScoreEvaluated = evaluatedScore;
         isCustomDifficultyEvaluated = true;
       }
       if (customScoreEvaluated > 0) {
-        puzzleScoreEl.textContent = `~${customScoreEvaluated} (${evaluatedScore})`;
+        puzzleScoreEl.textContent = `~${customScoreEvaluated} (${evaluatedScore}${star})`;
       } else {
-        puzzleScoreEl.textContent = `(${evaluatedScore})`;
+        puzzleScoreEl.textContent = `(${evaluatedScore}${star})`;
       }
     }
     if (previousLampColor === "black") {
@@ -5961,7 +5704,8 @@ async function evaluateBoardDifficulty(opts = {}) {
 
     if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
       if (dateSelect.value !== "unlimited") {
-        puzzleLevelEl.textContent = `Custom Lv. 11`;
+        const star = hasCustomPreferences() ? "*" : "";
+        puzzleLevelEl.textContent = `Custom Lv. 11${star}`;
       }
       isCustomDifficultyEvaluated = true;
     }
@@ -5990,12 +5734,15 @@ async function evaluateBoardDifficulty(opts = {}) {
     if (foundBug) {
       updateLamp("black");
       vagueHintMessage = "";
-      const scoreSuffix = lastValidScore > 0 ? ` (${lastValidScore})` : "";
+
+      const star = hasCustomPreferences() ? "*" : "";
+      const scoreSuffix =
+        lastValidScore > 0 ? ` (${lastValidScore}${star})` : "";
 
       if (currentPuzzleScore > 0) {
         puzzleScoreEl.textContent = `~${currentPuzzleScore}${scoreSuffix}`;
       } else if (lastValidScore > 0) {
-        puzzleScoreEl.textContent = `(${lastValidScore})`;
+        puzzleScoreEl.textContent = `(${lastValidScore}${star})`;
       }
     } else {
       updateLamp("magenta");
@@ -6009,6 +5756,803 @@ async function evaluateBoardDifficulty(opts = {}) {
     console.log("-----------------------------------------------");
   }
 }
+
+const UNIQUENESS_TECHNIQUES = [
+  "BUG+1",
+  "Unique Rectangle",
+  "Unique Loop",
+  "Extended Unique Rectangle",
+  "Hidden Rectangle",
+];
+const MANDATORY_TECHNIQUES = ["Full House", "Eliminate Candidates"];
+const TECHNIQUE_HIERARCHIES = [
+  ["Crane", "Empty Rectangle", "X-Chain"],
+  ["Skyscraper", "Finned X-Wing", "X-Chain"],
+  ["2-String Kite", "Grouped 2-String Kite", "X-Chain"],
+  ["W-Wing", "Grouped W-Wing"],
+  ["Remote Pair", "X-Chain"],
+  ["Remote Pair", "XY-Chain"],
+  ["X-Wing", "X-Chain"],
+  ["Naked Pair", "XY-Chain"],
+  ["Hidden Pair", "Alternating Inference Chain"],
+  ["X-Chain", "Grouped X-Chain", "Grouped AIC"],
+  ["XY-Wing", "XY-Chain", "Alternating Inference Chain", "Grouped AIC"],
+  ["W-Wing", "Alternating Inference Chain"],
+  ["Grouped W-Wing", "Grouped AIC"],
+  ["Almost Locked Pair", "Sue de Coq"],
+  ["Almost Locked Triple", "Sue de Coq"],
+  ["XY-Wing", "Almost Locked Set XZ-Rule"],
+  ["XY-Wing", "Almost Locked Set XY-Wing"],
+  ["W-Wing", "Almost Locked Set W-Wing"],
+  ["XYZ-Wing", "Almost Locked Set XZ-Rule"],
+  ["WXYZ-Wing", "Almost Locked Set XZ-Rule"],
+  ["Almost Locked Set XZ-Rule", "Almost Locked Set Chain"],
+  ["Almost Locked Set XY-Wing", "Almost Locked Set Chain"],
+  ["Almost Hidden Set XZ-Rule", "Almost Hidden Set Chain"],
+  ["Almost Hidden Set XY-Wing", "Almost Hidden Set Chain"],
+];
+
+function getDefaultTechniques() {
+  // Map over the massive array and assign a defaultEnabled boolean.
+  // If we didn't specify it, it defaults to true.
+  return [
+    {
+      name: "Eliminate Candidates",
+      func: techniques.eliminateCandidates,
+      level: 0,
+      score: 0,
+    },
+    { name: "Full House", func: techniques.fullHouse, level: 0, score: 4 },
+    { name: "Naked Single", func: techniques.nakedSingle, level: 0, score: 4 },
+    {
+      name: "Hidden Single",
+      func: techniques.hiddenSingle,
+      level: 0,
+      score: 14,
+    },
+    {
+      name: "Locked Pair",
+      func: (b, p) => techniques.lockedSubset(b, p, 2),
+      level: 1,
+      score: 40,
+    },
+    {
+      name: "Locked Triple",
+      func: (b, p) => techniques.lockedSubset(b, p, 3),
+      level: 1,
+      score: 60,
+    },
+    {
+      name: "Intersection",
+      func: (b, p) => techniques.intersection(b, p),
+      level: 2,
+      score: 50,
+    },
+    {
+      name: "Naked Pair",
+      func: (b, p) => techniques.nakedSubset(b, p, 2),
+      level: 2,
+      score: 60,
+    },
+    {
+      name: "Hidden Pair",
+      func: (b, p) => techniques.hiddenSubset(b, p, 2),
+      level: 2,
+      score: 70,
+    },
+    {
+      name: "Naked Triple",
+      func: (b, p) => techniques.nakedSubset(b, p, 3),
+      level: 2,
+      score: 80,
+    },
+    {
+      name: "Hidden Triple",
+      func: (b, p) => techniques.hiddenSubset(b, p, 3),
+      level: 2,
+      score: 100,
+    },
+    {
+      name: "Naked Quad",
+      func: (b, p) => techniques.nakedSubset(b, p, 4),
+      level: 3,
+      score: 120,
+    },
+    {
+      name: "Hidden Quad",
+      func: (b, p) => techniques.hiddenSubset(b, p, 4),
+      level: 3,
+      score: 150,
+    },
+    {
+      name: "X-Wing",
+      func: (b, p) => techniques.fish(b, p, 2),
+      level: 3,
+      score: 100,
+    },
+    {
+      name: "Swordfish",
+      func: (b, p) => techniques.fish(b, p, 3),
+      level: 3,
+      score: 130,
+    },
+    {
+      name: "XY-Wing",
+      func: (b, p) => techniques.xyWing(b, p),
+      level: 3,
+      score: 120,
+    },
+    {
+      name: "Remote Pair",
+      func: (b, p) => techniques.remotePair(b, p),
+      level: 3,
+      score: 110,
+    },
+    {
+      name: "BUG+1",
+      func: (b, p) => techniques.bugPlusOne(b, p),
+      level: 4,
+      score: 100,
+    },
+    {
+      name: "Jellyfish",
+      func: (b, p) => techniques.fish(b, p, 4),
+      level: 4,
+      score: 160,
+    },
+    {
+      name: "XYZ-Wing",
+      func: (b, p) => techniques.xyzWing(b, p),
+      level: 4,
+      score: 140,
+    },
+    {
+      name: "W-Wing",
+      func: (b, p) => techniques.wWing(b, p),
+      level: 4,
+      score: 160,
+    },
+    { name: "Skyscraper", func: techniques.skyscraper, level: 4, score: 110 },
+    {
+      name: "2-String Kite",
+      func: techniques.twoStringKite,
+      level: 4,
+      score: 120,
+    },
+    { name: "Crane", func: techniques.turbotFish, level: 4, score: 130 },
+    {
+      name: "Unique Rectangle",
+      func: (b, p) => techniques.uniqueRectangle(b, p),
+      level: 4,
+      score: 100,
+    },
+    {
+      name: "Unique Loop",
+      func: techniques.uniqueHexagon,
+      level: 5,
+      score: 120,
+    },
+    {
+      name: "Extended Unique Rectangle",
+      func: techniques.extendedRectangle,
+      level: 5,
+      score: 140,
+    },
+    {
+      name: "Grouped W-Wing",
+      func: techniques.groupedWWing,
+      level: 5,
+      score: 170,
+    },
+    {
+      name: "Finned X-Wing",
+      func: techniques.finnedXWing,
+      level: 5,
+      score: 140,
+    },
+    {
+      name: "Grouped 2-String Kite",
+      func: techniques.groupedKite,
+      level: 5,
+      score: 150,
+    },
+    {
+      name: "Empty Rectangle",
+      func: techniques.groupedTurbotFish,
+      level: 5,
+      score: 150,
+    },
+    {
+      name: "Almost Locked Pair",
+      func: techniques.almostLockedPair,
+      level: 5,
+      score: 180,
+    },
+    {
+      name: "Almost Locked Triple",
+      func: techniques.almostLockedTriple,
+      level: 5,
+      score: 200,
+    },
+    {
+      name: "Hidden Rectangle",
+      func: techniques.hiddenRectangle,
+      level: 5,
+      score: 110,
+    },
+    {
+      name: "Finned Swordfish",
+      func: techniques.finnedSwordfish,
+      level: 6,
+      score: 200,
+    },
+    {
+      name: "Finned Jellyfish",
+      func: techniques.finnedJellyfish,
+      level: 6,
+      score: 260,
+    },
+    { name: "X-Chain", func: techniques.xChain, level: 6, score: 200 },
+    { name: "XY-Chain", func: techniques.xyChain, level: 6, score: 240 },
+    { name: "Firework", func: techniques.firework, level: 6, score: 240 },
+    { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6, score: 200 },
+    { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6, score: 240 },
+    {
+      name: "Grouped X-Chain",
+      func: techniques.groupedXChain,
+      level: 7,
+      score: 240,
+    },
+    {
+      name: "Alternating Inference Chain",
+      func: techniques.alternatingInferenceChain,
+      level: 7,
+      score: 280,
+    },
+    { name: "Grouped AIC", func: techniques.groupedAIC, level: 8, score: 300 },
+    {
+      name: "Almost Locked Set XZ-Rule",
+      func: techniques.alsXZ,
+      level: 8,
+      score: 300,
+    },
+    {
+      name: "Almost Locked Set XY-Wing",
+      func: techniques.alsXYWing,
+      level: 9,
+      score: 320,
+    },
+    {
+      name: "Almost Locked Set W-Wing",
+      func: techniques.alsWWing,
+      level: 9,
+      score: 340,
+    },
+    {
+      name: "Almost Hidden Set XZ-Rule",
+      func: techniques.ahsXZ,
+      level: 9,
+      score: 310,
+    },
+    {
+      name: "Almost Hidden Set XY-Wing",
+      func: techniques.ahsXYWing,
+      level: 9,
+      score: 330,
+    },
+    {
+      name: "Almost Hidden Set W-Wing",
+      func: techniques.ahsWWing,
+      level: 9,
+      score: 350,
+    },
+    {
+      name: "Almost Locked Set Chain",
+      func: techniques.alsChain,
+      level: 10,
+      score: 360,
+    },
+    {
+      name: "Almost Hidden Set Chain",
+      func: techniques.ahsChain,
+      level: 10,
+      score: 370,
+    },
+    {
+      name: "Cell Death Blossom",
+      func: techniques.cellDeathBlossom,
+      level: 10,
+      score: 380,
+    },
+    {
+      name: "Region Death Blossom",
+      func: techniques.regionDeathBlossom,
+      level: 10,
+      score: 400,
+    },
+    {
+      name: "Finned Franken Swordfish",
+      func: techniques.finnedFrankenSwordfish,
+      level: 10,
+      score: 410,
+    },
+    {
+      name: "Finned Mutant Swordfish",
+      func: techniques.finnedMutantSwordfish,
+      level: 10,
+      score: 470,
+    },
+  ].map((t) => ({ ...t, defaultEnabled: t.defaultEnabled !== false }));
+}
+
+function hasCustomPreferences() {
+  const savedPrefs = localStorage.getItem("sudokuTechniquePrefs");
+  if (!savedPrefs) return false;
+
+  try {
+    const defaults = getDefaultTechniques();
+    const active = getActiveTechniques();
+    const defaultActive = defaults.filter((t) => t.defaultEnabled);
+
+    // 1. Check if the number of active techniques changed (toggled on/off)
+    if (active.length !== defaultActive.length) return true;
+
+    // 2. Check if the order or difficulty levels changed
+    for (let i = 0; i < active.length; i++) {
+      if (active[i].name !== defaultActive[i].name) return true;
+
+      const orig = defaults.find((t) => t.name === active[i].name);
+      if (orig && orig.level !== active[i].level) return true;
+      if (orig && orig.score !== active[i].score) return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+function getActiveTechniques() {
+  const defaults = getDefaultTechniques();
+  const savedPrefs = JSON.parse(localStorage.getItem("sudokuTechniquePrefs"));
+
+  if (!savedPrefs) {
+    return defaults.filter((t) => t.defaultEnabled);
+  }
+
+  const active = [];
+  savedPrefs.forEach((p) => {
+    const tech = defaults.find((t) => t.name === p.name);
+    if (tech && (p.enabled || MANDATORY_TECHNIQUES.includes(p.name))) {
+      // Overwrite the level property if the user dragged it elsewhere
+      if (p.level !== undefined) tech.level = p.level;
+      // Overwrite score if user customized it
+      if (p.score !== undefined) tech.score = p.score;
+      active.push(tech);
+    }
+  });
+
+  // Catch any new features pushed in a codebase update
+  defaults.forEach((t) => {
+    if (!savedPrefs.some((p) => p.name === t.name)) {
+      if (t.defaultEnabled) active.push(t);
+    }
+  });
+  return active;
+}
+
+// Scans the DOM list top-to-bottom to calculate which level section an item is currently under
+function updateListLabels() {
+  const container = document.getElementById("technique-list-container");
+  let currentLevel = 0;
+  const seenEnabled = new Set(); // Track enabled techniques ordered above
+
+  Array.from(container.children).forEach((child) => {
+    if (child.classList.contains("sortable-level-header")) {
+      currentLevel = parseInt(child.dataset.level, 10);
+    } else if (child.classList.contains("sortable-item")) {
+      const techName = child.dataset.name;
+      const origLevel = parseInt(child.dataset.origLevel, 10);
+      child.dataset.currentLevel = currentLevel; // Update dataset state
+
+      const levelSpan = child.querySelector(".tech-level-text");
+      const scoreInput = child.querySelector(".tech-score-input");
+      const cb = child.querySelector(".tech-checkbox");
+      const isMandatory = child.classList.contains("locked-item");
+
+      // --- HIERARCHY LOGIC ---
+      let shouldDisable = false;
+      if (!isMandatory) {
+        for (const chain of TECHNIQUE_HIERARCHIES) {
+          const myIdx = chain.indexOf(techName);
+          if (myIdx !== -1) {
+            // Check if any higher technique in this chain was already seen and enabled
+            for (let i = myIdx + 1; i < chain.length; i++) {
+              if (seenEnabled.has(chain[i])) {
+                shouldDisable = true;
+                break;
+              }
+            }
+          }
+          if (shouldDisable) break;
+        }
+
+        if (shouldDisable) {
+          cb.checked = false;
+          cb.disabled = true;
+          child.style.opacity = "0.6";
+          cb.title =
+            "Disabled by a higher-hierarchy technique ordered above it.";
+        } else {
+          cb.disabled = false;
+          child.style.opacity = "1";
+          cb.title = "";
+        }
+      }
+
+      // Add to seen set ONLY if it ends up checked/enabled
+      if (cb.checked) {
+        seenEnabled.add(techName);
+      }
+      // --- END HIERARCHY LOGIC ---
+
+      const origScore = parseInt(scoreInput.dataset.defaultScore, 10);
+
+      let currentScore = origScore;
+      if (scoreInput.value.trim() !== "") {
+        currentScore = parseInt(scoreInput.value, 10);
+        if (isNaN(currentScore)) currentScore = origScore;
+      }
+
+      const levelText =
+        currentLevel !== origLevel
+          ? `Lv.${origLevel}→${currentLevel}`
+          : `Lv.${origLevel}`;
+      const scoreText = currentScore !== origScore ? `, ${origScore}→` : ``;
+
+      levelSpan.textContent = `(${levelText}${scoreText})`;
+
+      if (currentLevel !== origLevel || currentScore !== origScore) {
+        levelSpan.classList.add(
+          "text-orange-600",
+          "dark:text-orange-400",
+          "font-bold",
+        );
+        levelSpan.classList.remove("text-gray-500", "font-normal");
+      } else {
+        levelSpan.classList.remove(
+          "text-orange-600",
+          "dark:text-orange-400",
+          "font-bold",
+        );
+        levelSpan.classList.add("text-gray-500", "font-normal");
+      }
+    }
+  });
+
+  // Re-sync the Uniqueness master toggle in case a uniqueness technique was force-disabled
+  const uniqToggles = document.querySelectorAll(".uniqueness-cb");
+  const masterToggle = document.getElementById("toggle-uniqueness-btn");
+  if (masterToggle && uniqToggles.length > 0) {
+    masterToggle.checked = Array.from(uniqToggles).every((cb) => cb.checked);
+  }
+}
+
+function openPreferencesModal() {
+  const modal = document.getElementById("preferences-modal");
+  const listContainer = document.getElementById("technique-list-container");
+  listContainer.innerHTML = "";
+
+  // Touch drag-to-scroll (runs once per open; clears old listeners via AbortController)
+  if (listContainer._scrollAbort) listContainer._scrollAbort.abort();
+  const ac = new AbortController();
+  listContainer._scrollAbort = ac;
+  const opts = { signal: ac.signal, passive: false };
+  let touchStartY = 0,
+    touchScrollTop = 0,
+    isTouchScrolling = false;
+  listContainer.addEventListener(
+    "touchstart",
+    (e) => {
+      touchStartY = e.touches[0].clientY;
+      touchScrollTop = listContainer.scrollTop;
+      isTouchScrolling = false;
+    },
+    opts,
+  );
+  listContainer.addEventListener(
+    "touchmove",
+    (e) => {
+      const dy = touchStartY - e.touches[0].clientY;
+      if (!isTouchScrolling && Math.abs(dy) > 4) isTouchScrolling = true;
+      if (isTouchScrolling) {
+        e.preventDefault(); // prevent page scroll / drag hijack
+        listContainer.scrollTop = touchScrollTop + dy;
+      }
+    },
+    opts,
+  );
+
+  const defaultTechs = getDefaultTechniques();
+  const savedPrefs =
+    JSON.parse(localStorage.getItem("sudokuTechniquePrefs")) || null;
+
+  let currentOrder = [];
+  if (savedPrefs) {
+    savedPrefs.forEach((p) => {
+      const tech = defaultTechs.find((t) => t.name === p.name);
+      if (tech) {
+        currentOrder.push({
+          ...tech,
+          enabled: p.enabled,
+          origLevel: tech.level,
+          level: p.level !== undefined ? p.level : tech.level,
+          origScore: tech.score,
+          currentScore: p.score !== undefined ? p.score : tech.score,
+        });
+      }
+    });
+    defaultTechs.forEach((t) => {
+      if (!currentOrder.find((c) => c.name === t.name)) {
+        currentOrder.push({
+          ...t,
+          enabled: t.defaultEnabled,
+          origLevel: t.level,
+          origScore: t.score,
+          currentScore: t.score,
+        });
+      }
+    });
+  } else {
+    currentOrder = defaultTechs.map((t) => ({
+      ...t,
+      enabled: t.defaultEnabled,
+      origLevel: t.level,
+      origScore: t.score,
+      currentScore: t.score,
+    }));
+  }
+
+  // Force Mandatory Techniques to the top of the UI list
+  const topOrder = [];
+  const restOrder = [];
+  for (const t of currentOrder) {
+    if (t.name === "Eliminate Candidates") topOrder[0] = t;
+    else if (t.name === "Full House") topOrder[1] = t;
+    else restOrder.push(t);
+  }
+  currentOrder = [...topOrder.filter(Boolean), ...restOrder];
+
+  // 1. Build Static Level Headers
+  const headers = [];
+  for (let i = 0; i <= 10; i++) {
+    const header = document.createElement("div");
+    header.className =
+      "sortable-level-header mt-3 mb-1 text-[11px] font-bold uppercase text-gray-500 border-b border-gray-300 dark:border-gray-600 pb-0.5";
+    header.dataset.level = i;
+    header.textContent = `Level ${i}`;
+    listContainer.appendChild(header);
+    headers.push(header);
+  }
+
+  // 2. Slot items under their current level headers
+  currentOrder.forEach((tech) => {
+    const item = document.createElement("div");
+
+    const isMandatory = MANDATORY_TECHNIQUES.includes(tech.name);
+    const isUniqueness = UNIQUENESS_TECHNIQUES.includes(tech.name);
+
+    item.className = `sortable-item bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded py-1.5 px-2 flex justify-between items-center shadow-sm mt-1 ${isMandatory ? "locked-item" : ""}`;
+    item.draggable = !isMandatory;
+    item.dataset.name = tech.name;
+    item.dataset.origLevel = tech.origLevel;
+    item.dataset.currentLevel = tech.level;
+
+    item.innerHTML = `
+      <div class="flex items-center gap-2 w-full min-w-0 pointer-events-none">
+        <span class="drag-handle shrink-0 text-gray-400 ${isMandatory ? "opacity-25 cursor-default" : "hover:text-gray-600 dark:hover:text-gray-300 cursor-grab"} px-1 text-sm pointer-events-auto">≡</span>
+        <input type="checkbox" class="tech-checkbox pointer-events-auto shrink-0 w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${isUniqueness ? "uniqueness-cb" : ""}"
+          ${tech.enabled || isMandatory ? "checked" : ""}
+          ${isMandatory ? "disabled" : ""}
+        >
+        <div class="flex flex-row justify-between w-full min-w-0 items-center gap-1">
+          <span class="text-[13px] font-medium truncate ${isMandatory ? "opacity-50" : ""}" title="${tech.name}">
+            ${tech.name}
+          </span>
+          <div class="flex items-center gap-1 shrink-0 pointer-events-auto">
+            <span class="tech-level-text text-[11px] text-gray-500 font-normal whitespace-nowrap">
+              (Lv.${tech.origLevel})
+            </span>
+            <input type="text" inputmode="numeric" maxlength="4"
+              class="tech-score-input text-[11px] text-right rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-1 py-0 leading-tight pointer-events-auto"
+              style="width: 3rem;"
+              data-default-score="${tech.origScore}"
+              value="${tech.currentScore}"
+              title="Score (default: ${tech.origScore})"
+            >
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Sanitize score input: non-negative integer only; snap to default on failure
+    const scoreInput = item.querySelector(".tech-score-input");
+    const cb = item.querySelector(".tech-checkbox"); // Grab the checkbox
+
+    // Dynamically update visuals while the user types
+    scoreInput.addEventListener("input", () => {
+      updateListLabels();
+    });
+
+    // Add this listener to trigger the hierarchy validation upon checking/unchecking
+    cb.addEventListener("change", () => {
+      updateListLabels();
+    });
+
+    // Dynamically update visuals while the user types
+    scoreInput.addEventListener("input", () => {
+      updateListLabels();
+    });
+
+    scoreInput.addEventListener("blur", () => {
+      const parsed = parseInt(scoreInput.value, 10);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        scoreInput.value = scoreInput.dataset.defaultScore;
+      } else {
+        scoreInput.value = parsed; // strip whitespace/leading zeros
+      }
+      updateListLabels(); // update again after sanitizing
+    });
+
+    // Prevent drag from firing when typing in the input
+    // Prevent drag from firing when typing in the input
+    scoreInput.addEventListener("mousedown", (e) => e.stopPropagation());
+    scoreInput.addEventListener("dragstart", (e) => e.stopPropagation());
+    // Drop it in right before the *next* level header
+    const targetLevel = parseInt(item.dataset.currentLevel, 10);
+    if (targetLevel < 10)
+      listContainer.insertBefore(item, headers[targetLevel + 1]);
+    else listContainer.appendChild(item);
+
+    // Drag behavior
+    item.addEventListener("dragstart", (e) => {
+      item.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      updateListLabels(); // Visually recalculate level overrides!
+    });
+  });
+
+  updateListLabels(); // Run instantly to colorize any pre-existing overrides
+
+  // Uniqueness Toggles Setup
+  const uniqToggles = document.querySelectorAll(".uniqueness-cb");
+  const masterToggle = document.getElementById("toggle-uniqueness-btn");
+  const updateMaster = () =>
+    (masterToggle.checked = Array.from(uniqToggles).every((cb) => cb.checked));
+  updateMaster();
+  masterToggle.onchange = (e) =>
+    uniqToggles.forEach((cb) => (cb.checked = e.target.checked));
+  uniqToggles.forEach((cb) => cb.addEventListener("change", updateMaster));
+
+  // Drag over
+  listContainer.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    const afterElement = getDragAfterElement(listContainer, e.clientY);
+    const dragging = document.querySelector(".dragging");
+    if (afterElement == null) listContainer.appendChild(dragging);
+    else listContainer.insertBefore(dragging, afterElement);
+  });
+
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function getDragAfterElement(container, y) {
+  // Allow evaluating headers and draggable items to drop correctly in between segments
+  const draggableElements = [
+    ...container.querySelectorAll(
+      ".sortable-item:not(.dragging):not(.locked-item), .sortable-level-header",
+    ),
+  ];
+  return draggableElements.reduce(
+    (closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset)
+        return { offset: offset, element: child };
+      else return closest;
+    },
+    { offset: Number.NEGATIVE_INFINITY },
+  ).element;
+}
+
+// Bind Button Listeners
+document.addEventListener("DOMContentLoaded", () => {
+  // --- SAVE BUTTON ---
+  document
+    .getElementById("pref-save-btn")
+    .addEventListener("click", async () => {
+      const items = document.querySelectorAll(".sortable-item");
+      const prefs = Array.from(items).map((item) => {
+        const defaultScore = parseInt(
+          item.querySelector(".tech-score-input").dataset.defaultScore,
+          10,
+        );
+        const parsedScore = parseInt(
+          item.querySelector(".tech-score-input").value,
+          10,
+        );
+        const score =
+          Number.isInteger(parsedScore) && parsedScore >= 0
+            ? parsedScore
+            : defaultScore;
+        return {
+          name: item.dataset.name,
+          enabled: item.querySelector("input[type='checkbox']").checked,
+          level: parseInt(item.dataset.currentLevel, 10),
+          score: score,
+        };
+      });
+
+      // 1. Save the exact dragged order and toggle states to local cache
+      localStorage.setItem("sudokuTechniquePrefs", JSON.stringify(prefs));
+
+      // 2. Close the modal
+      document.getElementById("preferences-modal").classList.add("hidden");
+      document.getElementById("preferences-modal").classList.remove("flex");
+
+      // 3. Safely exit solver mode if it's open (prevents timeline glitches with new rules)
+      if (typeof isSolverMode !== "undefined" && isSolverMode) {
+        exitSolverMode();
+      }
+
+      // 4. Wipe the old technique cache so the new order isn't bypassed
+      if (typeof techniqueResultCache !== "undefined") {
+        techniqueResultCache.clear();
+      }
+
+      // 5. Force a fresh "Refresh/Re-evaluation" of the board
+      currentEvaluationId++;
+      showMessage("Preferences saved! Re-evaluating board...", "blue");
+
+      await evaluateBoardDifficulty({ waitForFrame: false });
+
+      showMessage("Board evaluation updated!", "green");
+    });
+
+  // --- CANCEL BUTTON ---
+  document.getElementById("pref-cancel-btn").addEventListener("click", () => {
+    document.getElementById("preferences-modal").classList.add("hidden");
+    document.getElementById("preferences-modal").classList.remove("flex");
+  });
+
+  // --- DEFAULT BUTTON ---
+  document
+    .getElementById("pref-default-btn")
+    .addEventListener("click", async () => {
+      // 1. Wipe the local cache
+      localStorage.removeItem("sudokuTechniquePrefs");
+
+      // 2. Close the modal
+      document.getElementById("preferences-modal").classList.add("hidden");
+      document.getElementById("preferences-modal").classList.remove("flex");
+
+      // 3. Safely exit solver mode and wipe cache
+      if (typeof isSolverMode !== "undefined" && isSolverMode) exitSolverMode();
+      if (typeof techniqueResultCache !== "undefined")
+        techniqueResultCache.clear();
+
+      // 4. Force a fresh "Refresh/Re-evaluation" using defaults
+      currentEvaluationId++;
+      showMessage("Defaults restored! Re-evaluating board...", "blue");
+
+      await evaluateBoardDifficulty({ waitForFrame: false });
+
+      showMessage("Defaults restored and applied!", "green");
+    });
+});
 
 // --- ASCII Grid Generation ---
 function generateAsciiGrid() {
@@ -6311,6 +6855,7 @@ function getDiffDescription(before, after) {
   if (totalChangedCells === 0) return "No visible changes";
   return "Multiple cells updated (Highlight/Wipe/Reset/Solve)";
 }
+
 function getHighlightDiff(before, after) {
   // Check if highlight state or digit changed
   if (

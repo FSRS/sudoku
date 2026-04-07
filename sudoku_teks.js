@@ -16,6 +16,35 @@ let _memoComplexFish = {
   mutant: new Set(),
 };
 
+// Add processed Flag
+let _prNpair = false;
+let _prHpair = false;
+
+let _prXYw = false;
+let _prXYZw = false;
+let _prWw = false;
+
+let _prSky = false;
+let _prKite = false;
+let _prCrane = false;
+
+let _prgSky = false;
+let _prgKite = false;
+let _prgCrane = false;
+
+let _prXC = false;
+let _prgXC = false;
+let _prAIC = false;
+let _prgAIC = false;
+
+let _prALSXZ = false;
+let _prALSXY = false;
+let _prALSWW = false;
+
+let _prAHSXZ = false;
+let _prAHSXY = false;
+let _prAHSW = false;
+
 const techniques = {
   _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
   _getPointIndex: (r, c) => Math.floor(r % 3) * 3 + Math.floor(c % 3),
@@ -133,6 +162,46 @@ const techniques = {
   },
 
   eliminateCandidates: (board, pencils) => {
+    // Initialize Cache
+    _alsCache = [];
+    _ahsCache = [];
+    _alsDigitCommonPeers = {};
+    _alsRccMap = {};
+    _alsLookup = {};
+
+    _ahsRccMap = new Map();
+    _ahsRcdMap = new Map();
+    _ahsZcdMap = new Map();
+    _ahsZsMap = new Map();
+
+    // Initialize processed flag
+    _prXYw = false;
+    _prXYZw = false;
+    _prWw = false;
+    _prWXYZw = false;
+
+    _prSky = false;
+    _prKite = false;
+    _prCrane = false;
+
+    _prgSky = false;
+    _prgKite = false;
+    _prgCrane = false;
+
+    _prXC = false;
+
+    _prgXC = false;
+    _prAIC = false;
+    _prgAIC = false;
+
+    _prALSXZ = false;
+    _prALSXY = false;
+    _prALSWW = false;
+
+    _prAHSXZ = false;
+    _prAHSXY = false;
+    _prAHSW = false;
+
     const removals = [];
     let newr = 0;
     let newc = 0;
@@ -720,6 +789,10 @@ const techniques = {
   },
 
   nakedSubset: (board, pencils, size) => {
+    if (size === 2) {
+      _prNpair = true;
+    }
+
     const unitTypes = [
       { name: "box", label: "Box" },
       { name: "row", label: "Row" },
@@ -731,8 +804,8 @@ const techniques = {
         const unit = techniques._getUnitCells(name, i);
         const unitName = `${label} ${i + 1}`; // Now we have the proper name
 
-        const emptyCells = unit.filter(([r, c]) => board[r][c] === 0);
-        if (emptyCells.length < 2 * size) continue;
+        // const emptyCells = unit.filter(([r, c]) => board[r][c] === 0);
+        // if (emptyCells.length < 2 * size) continue;
 
         const potentialCells = unit.filter(
           ([r, c]) =>
@@ -835,6 +908,8 @@ const techniques = {
       { name: "col", label: "Col" },
     ];
 
+    if (size === 2) _prHpair = true;
+
     for (const { name, label } of unitTypes) {
       for (let i = 0; i < 9; i++) {
         const unit = techniques._getUnitCells(name, i);
@@ -843,7 +918,7 @@ const techniques = {
         const emptyCells = unit.filter(([r, c]) => board[r][c] === 0);
         // Fixed logic: Hidden subsets need at least size + 1 empty cells usually,
         // but keeping your original logic:
-        if (emptyCells.length < 2 * size + 1) continue;
+        // if (emptyCells.length < 2 * size + 1) continue;
 
         const candMap = new Map();
         for (const cell of emptyCells) {
@@ -1053,6 +1128,7 @@ const techniques = {
   },
 
   finnedXWing: (board, pencils) => {
+    _prgSky = true;
     let result = techniques._findFinnedFish(board, pencils, 2, true); // Row-based
     if (result.change) return result;
     result = techniques._findFinnedFish(board, pencils, 2, false); // Column-based
@@ -1255,6 +1331,7 @@ const techniques = {
   },
 
   xyWing: (board, pencils) => {
+    _prXYw = true;
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -1371,6 +1448,7 @@ const techniques = {
   },
 
   xyzWing: (board, pencils) => {
+    _prXYZw = true;
     const trivalueCells = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -1566,6 +1644,7 @@ const techniques = {
 
           // If not grouped, we strictly require exactly 2 candidates forming the link
           if (!isGrouped && x_cells_in_unit.length !== 2) continue;
+          if (isGrouped && _prWw && x_cells_in_unit.length == 2) continue;
 
           const group1 = [];
           const group2 = [];
@@ -1696,6 +1775,7 @@ const techniques = {
   },
 
   wWing: (board, pencils) => {
+    _prWw = true;
     return techniques._wWingCore(board, pencils, false);
   },
 
@@ -1825,6 +1905,7 @@ const techniques = {
   },
 
   skyscraper: (board, pencils) => {
+    _prSky = true;
     const skyscraperLogic = (isRowBased) => {
       for (let num = 1; num <= 9; num++) {
         const strongLinks = [];
@@ -1955,6 +2036,7 @@ const techniques = {
   },
 
   twoStringKite: (board, pencils) => {
+    _prKite = true;
     for (let num = 1; num <= 9; num++) {
       const rowLinks = [];
       for (let r = 0; r < 9; r++) {
@@ -2084,6 +2166,7 @@ const techniques = {
   },
 
   turbotFish: (board, pencils) => {
+    _prCrane = true;
     const turbotLogic = (isRowBased) => {
       for (let num = 1; num <= 9; num++) {
         for (let b = 0; b < 9; b++) {
@@ -2209,6 +2292,7 @@ const techniques = {
   },
 
   groupedKite: (board, pencils) => {
+    _prgKite = true;
     for (let num = 1; num <= 9; num++) {
       for (let b = 0; b < 9; b++) {
         const boxCells = techniques._getUnitCells("box", b);
@@ -2241,7 +2325,7 @@ const techniques = {
 
             // Check group condition
             const group = box_n_cells.filter(([r, c]) => r === r1 || c === c1);
-            if (group.length < 3) continue;
+            if (_prKite && group.length < 3) continue;
 
             if (pencils[r2][c2].has(num)) {
               // --- Build Grouped bXpY logic ---
@@ -2363,6 +2447,7 @@ const techniques = {
   },
 
   groupedTurbotFish: (board, pencils) => {
+    _prgCrane = true;
     const logic = (isRowVersion) => {
       for (let num = 1; num <= 9; num++) {
         for (let b = 0; b < 9; b++) {
@@ -6362,9 +6447,13 @@ const techniques = {
       weakLinks = graph.weakLinks;
       nodeMap = graph.nodeMap;
     } else {
-      if (singleDigit & !useGrouped) techniques._resetAICCache();
+      const prarr = [_prXC, _prgXC, _prAIC, _prgAIC];
+      const prcount = prarr.reduce(
+        (prcnt, val) => (val === true ? prcnt + 1 : prcnt),
+        0,
+      );
+      if (prcount === 1) techniques._resetAICCache();
       techniques._ensureSingleNodesAndLinks(pencils);
-
       if (useGrouped) {
         techniques._ensureGroupedNodesAndLinks(pencils);
       }
@@ -6421,7 +6510,15 @@ const techniques = {
         foundPathAtTargetLen = true;
       }
 
-      const shouldCheck = !options.useGrouped || hasGrouped;
+      let shouldCheck = true;
+
+      if (options.useGrouped) {
+        if (singleDigit) {
+          if (_prXC && !hasGrouped) shouldCheck = false;
+        } else {
+          if (_prAIC && !hasGrouped) shouldCheck = false;
+        }
+      }
 
       if (shouldCheck && reachedTarget) {
         // <--- USE THE VARIABLES HERE
@@ -6741,10 +6838,35 @@ const techniques = {
       }
     };
 
+    let minTargetLen = 6;
+
+    if (singleDigit) {
+      if (!useGrouped) {
+        // X-Chain
+        if (
+          (_prSky || _prgSky) &&
+          (_prKite || _prgKite) &&
+          (_prCrane || _prgCrane)
+        ) {
+          minTargetLen = 4;
+        }
+      } else {
+        // Grouped X-Chain
+        if (_prgSky && _prgKite && _prgCrane) {
+          minTargetLen = 4;
+        }
+      }
+    } else {
+      if (!_prNpair || !_prHpair) minTargetLen = 4;
+      else if (bivalueOnly) {
+        if (_prXYw) minTargetLen = 8;
+      }
+    }
+
     // --- Iterative Deepening Framework ---
     // Start at length 6, incrementing by 2 up to maxLength to guarantee the shortest chain first.
     for (
-      currentTargetLen = bivalueOnly ? 8 : 6;
+      currentTargetLen = minTargetLen;
       currentTargetLen <= maxLength;
       currentTargetLen += 2
     ) {
@@ -6840,54 +6962,63 @@ const techniques = {
 
   // --- Technique Wrappers ---
 
-  xChain: (board, pencils) =>
-    techniques._findAIC(board, pencils, {
+  xChain: (board, pencils) => {
+    _prXC = true;
+    return techniques._findAIC(board, pencils, {
       singleDigit: true,
       useGrouped: false,
       bivalueOnly: false,
       maxLength: 10,
       hintType: "digit",
       nameOverride: "X-Chain",
-    }),
+    });
+  },
 
-  groupedXChain: (board, pencils) =>
-    techniques._findAIC(board, pencils, {
+  groupedXChain: (board, pencils) => {
+    _prgXC = true;
+    return techniques._findAIC(board, pencils, {
       singleDigit: true,
       useGrouped: true,
       bivalueOnly: false,
       maxLength: 10,
       hintType: "digit",
       nameOverride: "Grouped X-Chain",
-    }),
+    });
+  },
 
-  xyChain: (board, pencils) =>
-    techniques._findAIC(board, pencils, {
+  xyChain: (board, pencils) => {
+    return techniques._findAIC(board, pencils, {
       singleDigit: false,
       useGrouped: false,
       bivalueOnly: true,
       maxLength: 24,
       hintType: "startCell",
       nameOverride: "XY-Chain",
-    }),
+    });
+  },
 
-  alternatingInferenceChain: (board, pencils) =>
-    techniques._findAIC(board, pencils, {
+  alternatingInferenceChain: (board, pencils) => {
+    _prAIC = true;
+    return techniques._findAIC(board, pencils, {
       singleDigit: false,
       useGrouped: false,
       bivalueOnly: false,
       maxLength: 20,
       hintType: "strongLink",
-    }),
+    });
+  },
 
-  groupedAIC: (board, pencils) =>
-    techniques._findAIC(board, pencils, {
+  groupedAIC: (board, pencils) => {
+    _prgAIC = true;
+    return techniques._findAIC(board, pencils, {
       singleDigit: false,
       useGrouped: true,
       bivalueOnly: false,
       maxLength: 20,
       hintType: "strongLink",
       nameOverride: "Grouepd AIC",
-    }),
+    });
+  },
 
   // --- BITWISE HELPERS ---
   _bits: {
@@ -7168,6 +7299,7 @@ const techniques = {
       // We want 'j' to iterate over the WXYZ part (starting where XY ends)
       innerLoopStartBase = alsesXY.length;
     } else {
+      _prALSXZ = true;
       // Standard Almost Locked Set XZ-Rule: Compare everything (Size 1 to 8) against everything
       alses = techniques._collectAllALS(board, pencils, 1, 8);
       _alsCache = alses;
@@ -7283,7 +7415,13 @@ const techniques = {
 
           const fmtALS = (als) => {
             if (als.unitName.startsWith("Box")) {
-              const b = parseInt(als.unitName.split(" ")[1]);
+              const b = [
+                ...new Set(
+                  als.cells.map(
+                    ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
+                  ),
+                ),
+              ];
               const pts = [
                 ...new Set(
                   als.cells.map(
@@ -7550,10 +7688,10 @@ const techniques = {
           const size = techniques._bits.popcount(mask);
           if (size === 0 || size >= n - 1) continue;
 
-          // Exclude any AHS digit bitmask strictly containing a naked subset's digits
+          // Exclude any AHS digit bitmask containing a naked subset's digits
           let containsNaked = false;
           for (const nsMask of nakedSubsetDigitMasks) {
-            if ((mask & nsMask) === nsMask) {
+            if ((mask & nsMask) === nsMask && mask !== nsMask) {
               containsNaked = true;
               break;
             }
@@ -7681,6 +7819,7 @@ const techniques = {
   },
 
   ahsXZ: (board, pencils) => {
+    _prAHSXZ = true;
     const getUnique = (arr) =>
       Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
     const cellEq = (c1, c2) => c1[0] === c2[0] && c1[1] === c2[1];
@@ -7986,8 +8125,72 @@ const techniques = {
             }
           }
           // 2 restricted common digits (Ring)
-          else if (rcds.length === 2) {
-            // Redundant with Almost Locked Set XZ-Rule Ring (Exclusive cells + Complementaty ALS from another ALS)
+          else if (!_prALSXZ && rcds.length === 2) {
+            const rcd1 = rcds[0];
+            const rcd2 = rcds[1];
+
+            // Remove restricted common digits from commonly visible cells of exclusive cells
+            for (const rcd of [rcd1, rcd2]) {
+              for (const c1 of rcd.exc1) {
+                for (const c2 of rcd.exc2) {
+                  const peers = techniques._commonVisibleCells(c1, c2);
+                  for (const p of peers) {
+                    if (pencils[p[0]][p[1]].has(rcd.d)) {
+                      removals.push({ r: p[0], c: p[1], num: rcd.d });
+                    }
+                  }
+                }
+              }
+            }
+
+            // Remove off-AHS digits on cells that are not exclusive cells for each AHS
+            for (const cell of ahs1.cells) {
+              if (
+                rcd1.exc1.some((c) => cellEq(c, cell)) ||
+                rcd2.exc1.some((c) => cellEq(c, cell))
+              )
+                continue;
+              for (const cand of pencils[cell[0]][cell[1]]) {
+                if (!ahs1.digits.has(cand)) {
+                  removals.push({ r: cell[0], c: cell[1], num: cand });
+                }
+              }
+            }
+            for (const cell of ahs2.cells) {
+              if (
+                rcd1.exc2.some((c) => cellEq(c, cell)) ||
+                rcd2.exc2.some((c) => cellEq(c, cell))
+              )
+                continue;
+              for (const cand of pencils[cell[0]][cell[1]]) {
+                if (!ahs2.digits.has(cand)) {
+                  removals.push({ r: cell[0], c: cell[1], num: cand });
+                }
+              }
+            }
+
+            if (removals.length > 0) {
+              const uniqueElims = getUnique(removals);
+              const detail = `((${rcd2.d})${fmtCell(rcd2.exc2[0][0], rcd2.exc2[0][1], ahs2)}=(${rcd2.d})${fmtCell(rcd2.exc1[0][0], rcd2.exc1[0][1], ahs1)})${ahs1Str}-((${rcd1.d})${fmtCell(rcd1.exc1[0][0], rcd1.exc1[0][1], ahs1)}=(${rcd1.d})${fmtCell(rcd1.exc2[0][0], rcd1.exc2[0][1], ahs2)})${ahs2Str}-(Ring)`;
+
+              return {
+                change: true,
+                type: "remove",
+                cells: uniqueElims,
+                hint: {
+                  name: "AHS XZ-Rule", // Unified name to match the 1 RCC + 1 RCD ring case
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1} (Doubly Linked)`,
+                  detail: detail,
+                },
+                applyVisuals: buildVisuals(
+                  ahs1,
+                  ahs2,
+                  [], // No RCCs in this specific ring type
+                  [rcd1, rcd2], // Pass both restricted common digits to draw dual dashed lines
+                  uniqueElims,
+                ),
+              };
+            }
           }
         } else {
           // ==========================================
@@ -8154,7 +8357,7 @@ const techniques = {
   },
 
   _ahsChainCore: (board, pencils, minLength, maxLength) => {
-    // UPDATED: Custom unique filter that prioritizes "cell" source eliminations
+    // Custom unique filter that prioritizes "cell" source eliminations
     const getUnique = (arr) => {
       const map = new Map();
       arr.forEach((el) => {
@@ -8208,6 +8411,7 @@ const techniques = {
     const buildAhsChainVisuals = (
       chain,
       rccs,
+      rcds,
       isRing,
       ringRccs,
       ringRcds,
@@ -8245,8 +8449,25 @@ const techniques = {
           });
         }
 
+        // 2b. Draw standard intra-chain RCDs (Line Color 1)
+        if (rcds && rcds.length > 0) {
+          rcds.forEach((edge) => {
+            drawnLines.push({
+              r1: edge.excFrom[0],
+              c1: edge.excFrom[1],
+              n1: edge.d,
+              r2: edge.excTo[0],
+              c2: edge.excTo[1],
+              n2: edge.d,
+              color: lineColorPalette[1],
+              style: "dash",
+            });
+          });
+        }
+
         // 3. Handle Ring Connections between both end AHSes
-        if (isRing) {
+        if (isRing || (ringRcds && ringRcds.length > 0)) {
+          // UPDATED to always draw weak external links
           if (ringRccs && ringRccs.length > 0) {
             ringRccs.forEach(([r, c]) => {
               boardState[r][c].cellColor = cellColorPalette[1];
@@ -8255,15 +8476,18 @@ const techniques = {
           }
           if (ringRcds && ringRcds.length > 0) {
             ringRcds.forEach((rcd) => {
+              // UPDATED: Support diff digits (d1/d2) for non-ring weak links
+              const num1 = rcd.d1 !== undefined ? rcd.d1 : rcd.d;
+              const num2 = rcd.d2 !== undefined ? rcd.d2 : rcd.d;
               rcd.exc1.forEach((c1) => {
                 rcd.exc2.forEach((c2) => {
                   drawnLines.push({
                     r1: c1[0],
                     c1: c1[1],
-                    n1: rcd.d,
+                    n1: num1,
                     r2: c2[0],
                     c2: c2[1],
-                    n2: rcd.d,
+                    n2: num2,
                     color: lineColorPalette[0],
                     style: "dash",
                   });
@@ -8279,7 +8503,6 @@ const techniques = {
             const inAHS = chain.some((ahs) =>
               ahs.cells.some(([ar, ac]) => ar === el.r && ac === el.c),
             );
-            // UPDATED: Only color the cell background if the elimination is inside the AHS AND via a common cell rule
             if (inAHS && el.source === "cell") {
               boardState[el.r][el.c].cellColor = cellColorPalette[0]; // Cell Color 1
             }
@@ -8303,16 +8526,43 @@ const techniques = {
       const key = `${min}-${max}`;
       const edges = [];
 
-      // ONLY use RCCs to connect adjacent AHSs
+      // 1. Check for RCCs
       const rccs = _ahsRccMap.get(key) || [];
       for (const rcc of rccs) edges.push({ type: "rcc", cell: rcc });
+
+      // 2. Check for RCDs (Exclusive cells seeing each other)
+      const aFrom = ahses[fromIdx];
+      const aTo = ahses[toIdx];
+      const sharedDigits = [...aFrom.digits].filter((d) => aTo.digits.has(d));
+
+      for (const d of sharedDigits) {
+        const excFroms = aFrom.exclusiveCellsMap.get(d) || [];
+        const excTos = aTo.exclusiveCellsMap.get(d) || [];
+
+        for (const exc1 of excFroms) {
+          for (const exc2 of excTos) {
+            if (!cellEq(exc1, exc2) && techniques._sees(exc1, exc2)) {
+              edges.push({ type: "rcd", d, excFrom: exc1, excTo: exc2 });
+            }
+          }
+        }
+      }
 
       return edges;
     };
 
     let foundResult = null;
 
-    const buildDetailStr = (path, cCell, endD, endExc1, endExcLast, isRing) => {
+    // UPDATED: Replaced endD/endExc with startD/endD and startExc/endExc
+    const buildDetailStr = (
+      path,
+      cCell,
+      startD,
+      endD,
+      startExc,
+      endExc,
+      isRing,
+    ) => {
       const formatGrouped = (cells, ahs) => {
         if (ahs.type === "box") {
           const pts = [
@@ -8367,9 +8617,9 @@ const techniques = {
             inCell = cCell;
             inIsRcd = false;
           } else {
-            inCell = endExc1;
+            inCell = startExc; // UPDATED
             inIsRcd = true;
-            inD = endD;
+            inD = startD; // UPDATED
           }
         } else {
           const prevEdge = path[i].edge;
@@ -8388,7 +8638,7 @@ const techniques = {
             outCell = cCell;
             outIsRcd = false;
           } else {
-            outCell = endExcLast;
+            outCell = endExc; // UPDATED
             outIsRcd = true;
             outD = endD;
           }
@@ -8412,22 +8662,61 @@ const techniques = {
       return parts.join("-") + (isRing ? "-(Ring)" : "");
     };
 
-    const processRingEdges = (pathArray, removals) => {
+    const processRingEdges = (pathArray, closingLink, removals) => {
+      const getLinkCells = (edge, isTo) => {
+        if (!edge) return null;
+        if (edge.type === "rcc") return edge.cell;
+        return isTo ? edge.excTo : edge.excFrom;
+      };
+
+      // 1. Process intermediate RCC logic (union candidates)
       for (let i = 1; i < pathArray.length; i++) {
         const edge = pathArray[i].edge;
-        const aFrom = ahses[pathArray[i - 1].ahsIdx];
-        const aTo = ahses[pathArray[i].ahsIdx];
-
-        const union = new Set([...aFrom.digits, ...aTo.digits]);
-        for (const cand of pencils[edge.cell[0]][edge.cell[1]]) {
-          if (!union.has(cand))
-            removals.push({
-              r: edge.cell[0],
-              c: edge.cell[1],
-              num: cand,
-              source: "cell",
-            }); // UPDATED
+        if (edge.type === "rcc") {
+          const aFrom = ahses[pathArray[i - 1].ahsIdx];
+          const aTo = ahses[pathArray[i].ahsIdx];
+          const union = new Set([...aFrom.digits, ...aTo.digits]);
+          for (const cand of pencils[edge.cell[0]][edge.cell[1]]) {
+            if (!union.has(cand)) {
+              removals.push({
+                r: edge.cell[0],
+                c: edge.cell[1],
+                num: cand,
+                source: "cell",
+              });
+            }
+          }
         }
+      }
+
+      // 2. Process Ring Elimination - for each AHS, remove off-AHS digits from NON-LINK cells
+      for (let i = 0; i < pathArray.length; i++) {
+        const ahs = ahses[pathArray[i].ahsIdx];
+        let cellIn, cellOut;
+
+        if (i === 0) {
+          cellIn =
+            closingLink.type === "rcc" ? closingLink.cell : closingLink.excTo;
+        } else {
+          cellIn = getLinkCells(pathArray[i].edge, true);
+        }
+
+        if (i === pathArray.length - 1) {
+          cellOut =
+            closingLink.type === "rcc" ? closingLink.cell : closingLink.excFrom;
+        } else {
+          cellOut = getLinkCells(pathArray[i + 1].edge, false);
+        }
+
+        ahs.cells.forEach((c) => {
+          if (!cellEq(c, cellIn) && !cellEq(c, cellOut)) {
+            for (const cand of pencils[c[0]][c[1]]) {
+              if (!ahs.digits.has(cand)) {
+                removals.push({ r: c[0], c: c[1], num: cand, source: "cell" });
+              }
+            }
+          }
+        });
       }
     };
 
@@ -8437,8 +8726,12 @@ const techniques = {
       const firstAhs = ahses[firstAhsIdx];
       const lastAhs = ahses[lastAhsIdx];
 
-      const firstUsedCell = path[1].edge.cell;
-      const lastUsedCell = path[path.length - 1].edge.cell;
+      const firstUsedCell =
+        path[1].edge.type === "rcc" ? path[1].edge.cell : path[1].edge.excFrom;
+      const lastUsedCell =
+        path[path.length - 1].edge.type === "rcc"
+          ? path[path.length - 1].edge.cell
+          : path[path.length - 1].edge.excTo;
 
       let removals = [];
       let finalDetailStr = "";
@@ -8446,7 +8739,7 @@ const techniques = {
       let finalRingRccs = [];
       let finalRingRcds = [];
 
-      // 1. Common Cell check (Ends meet at a shared cell)
+      // 1. Common Cell check
       const commonCells = firstAhs.cells.filter((c) =>
         lastAhs.cells.some((c2) => cellEq(c, c2)),
       );
@@ -8468,13 +8761,13 @@ const techniques = {
 
         for (const cand of pencils[c[0]][c[1]]) {
           if (!union.has(cand)) {
-            localRemovals.push({ r: c[0], c: c[1], num: cand, source: "cell" }); // UPDATED
+            localRemovals.push({ r: c[0], c: c[1], num: cand, source: "cell" });
             cellRemoved = true;
           }
         }
 
         if (isRcc) {
-          processRingEdges(path, localRemovals);
+          processRingEdges(path, { type: "rcc", cell: c }, localRemovals);
           if (localRemovals.length > 0) {
             removals.push(...localRemovals);
             if (!finalIsRing) {
@@ -8482,6 +8775,7 @@ const techniques = {
               finalDetailStr = buildDetailStr(
                 path,
                 validCommonCells,
+                null,
                 null,
                 null,
                 null,
@@ -8501,13 +8795,14 @@ const techniques = {
               null,
               null,
               null,
+              null,
               false,
             );
           }
         }
       }
 
-      // 2. RCD check (Ends meet via Exclusive Cells with the same digit)
+      // 2. Same Digit RCD check
       const sharedDigits = [...firstAhs.digits].filter((d) =>
         lastAhs.digits.has(d),
       );
@@ -8525,7 +8820,6 @@ const techniques = {
             let localRemovals = [];
 
             if (sees && !cellEq(exc1, exc2)) {
-              // Ring formed via visible exclusive cells
               const peers = techniques._commonVisibleCells(exc1, exc2);
               for (const p of peers) {
                 if (pencils[p[0]][p[1]].has(d))
@@ -8534,9 +8828,14 @@ const techniques = {
                     c: p[1],
                     num: d,
                     source: "digit",
-                  }); // UPDATED
+                  });
               }
-              processRingEdges(path, localRemovals);
+
+              processRingEdges(
+                path,
+                { type: "rcd", d, excFrom: exc2, excTo: exc1 },
+                localRemovals,
+              );
 
               if (localRemovals.length > 0) {
                 removals.push(...localRemovals);
@@ -8545,6 +8844,7 @@ const techniques = {
                   finalDetailStr = buildDetailStr(
                     path,
                     null,
+                    d,
                     d,
                     exc1,
                     exc2,
@@ -8556,7 +8856,6 @@ const techniques = {
                 }
               }
             } else if (!cellEq(exc1, exc2)) {
-              // Not a ring
               const peers = techniques._commonVisibleCells(exc1, exc2);
               let removed = false;
               for (const p of peers) {
@@ -8566,7 +8865,7 @@ const techniques = {
                     c: p[1],
                     num: d,
                     source: "digit",
-                  }); // UPDATED
+                  });
                   removed = true;
                 }
               }
@@ -8577,10 +8876,69 @@ const techniques = {
                     path,
                     null,
                     d,
+                    d,
                     exc1,
                     exc2,
                     false,
                   );
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 3. NEW: Different Digit Exclusive Cell check (Non-Ring Weak Link)
+      for (const d1 of firstAhs.digits) {
+        const excFirsts = firstAhs.exclusiveCellsMap.get(d1) || [];
+        for (const exc1 of excFirsts) {
+          if (cellEq(exc1, firstUsedCell)) continue;
+
+          for (const d2 of lastAhs.digits) {
+            if (d1 === d2) continue; // Handled by same-digit RCD check
+            const excLasts = lastAhs.exclusiveCellsMap.get(d2) || [];
+            for (const exc2 of excLasts) {
+              if (cellEq(exc2, lastUsedCell)) continue;
+
+              if (techniques._sees(exc1, exc2)) {
+                let localRemovals = [];
+                let removed = false;
+
+                // Eliminate each other's digit from the endpoints
+                if (pencils[exc1[0]][exc1[1]].has(d2)) {
+                  localRemovals.push({
+                    r: exc1[0],
+                    c: exc1[1],
+                    num: d2,
+                    source: "digit",
+                  });
+                  removed = true;
+                }
+                if (pencils[exc2[0]][exc2[1]].has(d1)) {
+                  localRemovals.push({
+                    r: exc2[0],
+                    c: exc2[1],
+                    num: d1,
+                    source: "digit",
+                  });
+                  removed = true;
+                }
+
+                if (removed) {
+                  removals.push(...localRemovals);
+                  if (!finalDetailStr) {
+                    finalDetailStr = buildDetailStr(
+                      path,
+                      null,
+                      d1,
+                      d2,
+                      exc1,
+                      exc2,
+                      false,
+                    );
+                  }
+                  // Draw a visual dashed line representing the continuous interaction
+                  finalRingRcds.push({ d1, d2, exc1: [exc1], exc2: [exc2] });
                 }
               }
             }
@@ -8626,12 +8984,17 @@ const techniques = {
         infoStr = `Start with ${detailParts[0]}-`;
       }
 
-      // Collect intra-chain rccs and actual AHS objects for the visual helper
       const chain = path.map((p) => ahses[p.ahsIdx]);
+
       const intraRccs = [];
+      const intraRcds = [];
       for (let i = 1; i < path.length; i++) {
-        if (path[i].edge && path[i].edge.type === "rcc") {
-          intraRccs.push(path[i].edge.cell);
+        if (path[i].edge) {
+          if (path[i].edge.type === "rcc") {
+            intraRccs.push(path[i].edge.cell);
+          } else if (path[i].edge.type === "rcd") {
+            intraRcds.push(path[i].edge);
+          }
         }
       }
 
@@ -8649,6 +9012,7 @@ const techniques = {
         applyVisuals: buildAhsChainVisuals(
           chain,
           intraRccs,
+          intraRcds,
           isRing,
           ringRccs,
           ringRcds,
@@ -8657,11 +9021,13 @@ const techniques = {
       };
     };
 
+    let currentTargetLen = minLength;
     // DFS Execution
     const findPaths = (currentIdx, path, visited) => {
       if (foundResult) return;
 
-      if (path.length >= minLength) {
+      if (path.length === currentTargetLen) {
+        if (minLength === 2 && _prAHSXY && path.length === 3) return;
         if (path[0].ahsIdx < path[path.length - 1].ahsIdx) {
           const res = evaluatePath(path);
           if (res && res.change) {
@@ -8671,7 +9037,7 @@ const techniques = {
         }
       }
 
-      if (path.length === maxLength) return;
+      if (path.length === currentTargetLen) return;
 
       for (let nextIdx = 0; nextIdx < ahses.length; nextIdx++) {
         if (visited.has(nextIdx)) continue;
@@ -8679,8 +9045,12 @@ const techniques = {
 
         for (const edge of edges) {
           const lastEdge = path[path.length - 1].edge;
+
           if (lastEdge) {
-            if (cellEq(lastEdge.cell, edge.cell)) continue;
+            const cellIn =
+              lastEdge.type === "rcc" ? lastEdge.cell : lastEdge.excTo;
+            const cellOut = edge.type === "rcc" ? edge.cell : edge.excFrom;
+            if (cellEq(cellIn, cellOut)) continue;
           }
 
           visited.add(nextIdx);
@@ -8694,9 +9064,17 @@ const techniques = {
       }
     };
 
-    for (let i = 0; i < ahses.length; i++) {
-      const visited = new Set([i]);
-      findPaths(i, [{ ahsIdx: i, edge: null }], visited);
+    // Start DFS from every AHS using Iterative Deepening
+    for (
+      currentTargetLen = minLength;
+      currentTargetLen <= maxLength;
+      currentTargetLen++
+    ) {
+      for (let i = 0; i < ahses.length; i++) {
+        const visited = new Set([i]);
+        findPaths(i, [{ ahsIdx: i, edge: null }], visited);
+        if (foundResult) break;
+      }
       if (foundResult) return foundResult;
     }
 
@@ -8705,15 +9083,19 @@ const techniques = {
 
   // --- Almost Hidden Set XY-Wing / RING ---
   ahsXYWing: (board, pencils) => {
+    _prAHSXY = true;
     // XY-Wing is strictly an Almost Hidden Set Chain of length 3
     return techniques._ahsChainCore(board, pencils, 3, 3);
   },
 
   ahsChain: (board, pencils) => {
-    return techniques._ahsChainCore(board, pencils, 4, 5);
+    let minlen = !_prAHSXZ ? 2 : !_prAHSXY ? 3 : 4;
+    return techniques._ahsChainCore(board, pencils, minlen, 5);
   },
 
   ahsWWing: (board, pencils) => {
+    if (!_prALSWW) techniques._precomputeDigitLocations(board, pencils);
+
     const getUnique = (arr) =>
       Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
 
@@ -8743,7 +9125,6 @@ const techniques = {
     };
 
     const fmtCell = (r, c, type, idx) => {
-      // Use bp notation if the unit is a box (type "box" or integer 2)
       if (type === "box" || type === 2) {
         const p = Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1;
         return `b${idx + 1}p${p}`;
@@ -8751,14 +9132,36 @@ const techniques = {
       return `r${r + 1}c${c + 1}`;
     };
 
+    const formatGroup = (cells, type, idx) => {
+      if (type === "box" || type === 2) {
+        const pts = [
+          ...new Set(
+            cells.map(
+              ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+            ),
+          ),
+        ]
+          .sort((a, b) => a - b)
+          .join("");
+        return `b${idx + 1}p${pts}`;
+      } else {
+        const rs = [...new Set(cells.map(([r, c]) => r + 1))]
+          .sort((a, b) => a - b)
+          .join("");
+        const cs = [...new Set(cells.map(([r, c]) => c + 1))]
+          .sort((a, b) => a - b)
+          .join("");
+        return `r${rs}c${cs}`;
+      }
+    };
+
     const getCands = (r, c, ahs) =>
       [...pencils[r][c]].filter((d) => ahs.digits.has(d)).join("");
 
-    // --- VISUAL HELPERS ---
     const getCandsArr = (r, c, ahs) =>
       [...pencils[r][c]].filter((d) => ahs.digits.has(d)).sort((a, b) => a - b);
 
-    // Replaced coveredCells with group1 and group2
+    // --- VISUAL HELPERS ---
     const buildAhsWWingVisuals = (
       ahs1,
       ahs2,
@@ -8770,6 +9173,9 @@ const techniques = {
       isRing,
       rccs,
       uniqueElims,
+      ringType,
+      ringRcd,
+      ring3CData = null, // NEW: Support for Case 3C Visuals
     ) => {
       return () => {
         highlightedDigit = null;
@@ -8794,7 +9200,7 @@ const techniques = {
           return [bestA, bestB];
         };
 
-        // 1. Color AHS1 (Cell Color 7, Cand Color 7)
+        // 1. Color AHS1
         ahs1.cells.forEach(([r, c]) => {
           boardState[r][c].cellColor = cellColorPalette[6];
           ahs1.digits.forEach((d) => {
@@ -8803,7 +9209,7 @@ const techniques = {
           });
         });
 
-        // 2. Color AHS2 (Cell Color 8, Cand Color 8)
+        // 2. Color AHS2
         ahs2.cells.forEach(([r, c]) => {
           boardState[r][c].cellColor = cellColorPalette[7];
           ahs2.digits.forEach((d) => {
@@ -8812,7 +9218,7 @@ const techniques = {
           });
         });
 
-        // 3. Color node3 (group1) and node4 (group2) in covered unit (Cand Color 5 and 6)
+        // 3. Color node3 (group1) and node4 (group2) in covered unit
         group1.forEach(([r, c]) => {
           if (boardState[r][c].pencils.has(linkDigit)) {
             boardState[r][c].pencilColors.set(
@@ -8830,7 +9236,7 @@ const techniques = {
           }
         });
 
-        // 4. Group node3 and node4 (Line colors 5 and 6)
+        // 4. Group node3 and node4
         if (group1.length > 1) {
           for (let i = 0; i < group1.length - 1; i++) {
             drawnLines.push({
@@ -8841,7 +9247,7 @@ const techniques = {
               c2: group1[i + 1][1],
               n2: linkDigit,
               color: lineColorPalette[4],
-              style: "solid", // Line Color 5
+              style: "solid",
             });
           }
         }
@@ -8855,12 +9261,12 @@ const techniques = {
               c2: group2[i + 1][1],
               n2: linkDigit,
               color: lineColorPalette[5],
-              style: "solid", // Line Color 6
+              style: "solid",
             });
           }
         }
 
-        // Connection between node3 and node4 (Solid line color 1)
+        // Connection between node3 and node4
         const closestGroups = getClosestCells(group1, group2);
         if (closestGroups) {
           drawnLines.push({
@@ -8886,12 +9292,11 @@ const techniques = {
                 r2: node.r,
                 c2: node.c,
                 n2: node.cands[i + 1],
-                color: lineColorPalette[6], // Line color 7
+                color: lineColorPalette[6],
                 style: "solid",
               });
             }
           }
-          // Connect to node3 (group1)
           const closest = getClosestCells([[node.r, node.c]], group1);
           if (closest) {
             drawnLines.push({
@@ -8918,12 +9323,11 @@ const techniques = {
                 r2: node.r,
                 c2: node.c,
                 n2: node.cands[i + 1],
-                color: lineColorPalette[7], // Line color 8
+                color: lineColorPalette[7],
                 style: "solid",
               });
             }
           }
-          // Connect to node4 (group2)
           const closest = getClosestCells([[node.r, node.c]], group2);
           if (closest) {
             drawnLines.push({
@@ -8939,14 +9343,145 @@ const techniques = {
           }
         });
 
-        // 7. Color RCC cell ONLY if it is a ring (Cell Color 2)
-        if (isRing && rccs && rccs.length > 0) {
-          rccs.forEach(([r, c]) => {
-            boardState[r][c].cellColor = cellColorPalette[1];
+        // 7. NEW: Case 3C Visuals (Second Covered House)
+        if (ring3CData) {
+          const { cv2, group3, group4, node8Nodes, node7Nodes } = ring3CData;
+          const d2 = cv2.d;
+
+          group3.forEach(([r, c]) => {
+            if (boardState[r][c].pencils.has(d2))
+              boardState[r][c].pencilColors.set(d2, candidateColorPalette[4]);
+          });
+          group4.forEach(([r, c]) => {
+            if (boardState[r][c].pencils.has(d2))
+              boardState[r][c].pencilColors.set(d2, candidateColorPalette[5]);
+          });
+
+          if (group3.length > 1) {
+            for (let i = 0; i < group3.length - 1; i++) {
+              drawnLines.push({
+                r1: group3[i][0],
+                c1: group3[i][1],
+                n1: d2,
+                r2: group3[i + 1][0],
+                c2: group3[i + 1][1],
+                n2: d2,
+                color: lineColorPalette[4],
+                style: "solid",
+              });
+            }
+          }
+          if (group4.length > 1) {
+            for (let i = 0; i < group4.length - 1; i++) {
+              drawnLines.push({
+                r1: group4[i][0],
+                c1: group4[i][1],
+                n1: d2,
+                r2: group4[i + 1][0],
+                c2: group4[i + 1][1],
+                n2: d2,
+                color: lineColorPalette[5],
+                style: "solid",
+              });
+            }
+          }
+
+          const closestGroups34 = getClosestCells(group3, group4);
+          if (closestGroups34) {
+            drawnLines.push({
+              r1: closestGroups34[0][0],
+              c1: closestGroups34[0][1],
+              n1: d2,
+              r2: closestGroups34[1][0],
+              c2: closestGroups34[1][1],
+              n2: d2,
+              color: lineColorPalette[0],
+              style: "solid",
+            });
+          }
+
+          node8Nodes.forEach((node) => {
+            if (node.cands.length > 1) {
+              for (let i = 0; i < node.cands.length - 1; i++) {
+                drawnLines.push({
+                  r1: node.r,
+                  c1: node.c,
+                  n1: node.cands[i],
+                  r2: node.r,
+                  c2: node.c,
+                  n2: node.cands[i + 1],
+                  color: lineColorPalette[6],
+                  style: "solid",
+                });
+              }
+            }
+            const closest = getClosestCells([[node.r, node.c]], group3);
+            if (closest) {
+              drawnLines.push({
+                r1: node.r,
+                c1: node.c,
+                n1: node.cands[0],
+                r2: closest[1][0],
+                c2: closest[1][1],
+                n2: d2,
+                color: lineColorPalette[0],
+                style: "dash",
+              });
+            }
+          });
+
+          node7Nodes.forEach((node) => {
+            if (node.cands.length > 1) {
+              for (let i = 0; i < node.cands.length - 1; i++) {
+                drawnLines.push({
+                  r1: node.r,
+                  c1: node.c,
+                  n1: node.cands[i],
+                  r2: node.r,
+                  c2: node.c,
+                  n2: node.cands[i + 1],
+                  color: lineColorPalette[7],
+                  style: "solid",
+                });
+              }
+            }
+            const closest = getClosestCells([[node.r, node.c]], group4);
+            if (closest) {
+              drawnLines.push({
+                r1: node.r,
+                c1: node.c,
+                n1: node.cands[0],
+                r2: closest[1][0],
+                c2: closest[1][1],
+                n2: d2,
+                color: lineColorPalette[0],
+                style: "dash",
+              });
+            }
           });
         }
 
-        // 8. Color Eliminations (Candidate Color 1)
+        // 8. Color RCC cell OR Ring RCD connection
+        if (isRing && !ring3CData) {
+          if (ringType === "cell" && rccs && rccs.length > 0) {
+            rccs.forEach(([r, c]) => {
+              boardState[r][c].cellColor = cellColorPalette[1];
+            });
+          } else if (ringType === "digit" && ringRcd) {
+            drawnLines.push({
+              r1: ringRcd.c1[0],
+              c1: ringRcd.c1[1],
+              n1: ringRcd.d,
+              r2: ringRcd.c2[0],
+              c2: ringRcd.c2[1],
+              n2: ringRcd.d,
+              color: lineColorPalette[0],
+              style: "dash",
+            });
+          }
+        }
+
+        // 9. Color Eliminations
         uniqueElims.forEach((el) => {
           boardState[el.r][el.c].pencilColors.set(
             el.num,
@@ -8958,8 +9493,6 @@ const techniques = {
     // --- END VISUAL HELPERS ---
 
     const ahses = techniques._collectAllAHS(board, pencils);
-
-    // Utilize global AHS mapping and digit precomputations
     techniques._buildAhsMaps(ahses, pencils);
 
     // Helper: Check if candidate d in a unit is fully covered by the combined peers of c1 and c2
@@ -8970,7 +9503,6 @@ const techniques = {
       else unitMask = techniques._digitBoxMasks[d - 1][idx];
 
       if (techniques._bits.popcount(unitMask) < 2) return false;
-
       if (unitType === 0 && (c1[0] === idx || c2[0] === idx)) return false;
       if (unitType === 1 && (c1[1] === idx || c2[1] === idx)) return false;
       if (unitType === 2) {
@@ -9011,11 +9543,320 @@ const techniques = {
       return true;
     };
 
+    // Helper: Global Elimination Function for Covered Peers
+    const eliminateCoverPeersGeneric = (
+      linkCell,
+      d,
+      uType,
+      uIdx,
+      removalsArr,
+    ) => {
+      let unitMask = 0;
+      if (uType === 0) unitMask = techniques._digitRowMasks[d - 1][uIdx];
+      else if (uType === 1) unitMask = techniques._digitColMasks[d - 1][uIdx];
+      else unitMask = techniques._digitBoxMasks[d - 1][uIdx];
+
+      const coveredHouseCells = [];
+      for (let idx = 0; idx < 9; idx++) {
+        if ((unitMask & (1 << idx)) !== 0) {
+          let houseCell;
+          if (uType === 0) houseCell = [uIdx, idx];
+          else if (uType === 1) houseCell = [idx, uIdx];
+          else
+            houseCell = [
+              Math.floor(uIdx / 3) * 3 + Math.floor(idx / 3),
+              (uIdx % 3) * 3 + (idx % 3),
+            ];
+
+          if (techniques._sees(linkCell, houseCell)) {
+            coveredHouseCells.push(houseCell);
+          }
+        }
+      }
+
+      if (coveredHouseCells.length === 0) return;
+
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (r === linkCell[0] && c === linkCell[1]) continue;
+
+          const targetCell = [r, c];
+          if (!techniques._sees(targetCell, linkCell)) continue;
+
+          let seesAllCovered = true;
+          for (const hc of coveredHouseCells) {
+            if (r === hc[0] && c === hc[1]) {
+              seesAllCovered = false;
+              break;
+            }
+            if (!techniques._sees(targetCell, hc)) {
+              seesAllCovered = false;
+              break;
+            }
+          }
+
+          if (seesAllCovered && pencils[r][c].has(d)) {
+            removalsArr.push({ r: r, c: c, num: d });
+          }
+        }
+      }
+    };
+
     for (let i = 0; i < ahses.length; i++) {
       for (let j = i + 1; j < ahses.length; j++) {
-        const key = `${i}-${j}`;
+        const ahs1 = ahses[i];
+        const ahs2 = ahses[j];
 
-        // Fetch globally cached AHS intersections
+        // ==============================================================
+        // --- NEW: CASE 3C (Ring by Two Cover Houses) ---
+        // ==============================================================
+        const validCovers = [];
+        const sharedDigits = [...ahs1.digits].filter((d) => ahs2.digits.has(d));
+
+        for (const d of sharedDigits) {
+          const c1_list = ahs1.exclusiveCellsMap.get(d) || [];
+          const c2_list = ahs2.exclusiveCellsMap.get(d) || [];
+
+          for (const c1 of c1_list) {
+            for (const c2 of c2_list) {
+              if (cellEq(c1, c2)) continue;
+
+              for (let uType = 0; uType < 3; uType++) {
+                for (let uIdx = 0; uIdx < 9; uIdx++) {
+                  if (unitCoveredByPair(c1, c2, d, uType, uIdx)) {
+                    const cellInUnit = (r, c) => {
+                      if (uType === 0) return r === uIdx;
+                      if (uType === 1) return c === uIdx;
+                      return Math.floor(r / 3) * 3 + Math.floor(c / 3) === uIdx;
+                    };
+                    const overlapsAHS =
+                      ahs1.cells.some(([r, c]) => cellInUnit(r, c)) ||
+                      ahs2.cells.some(([r, c]) => cellInUnit(r, c));
+
+                    if (!overlapsAHS) {
+                      validCovers.push({ d, c1, c2, uType, uIdx });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        for (let m = 0; m < validCovers.length; m++) {
+          for (let n = m + 1; n < validCovers.length; n++) {
+            const cv1 = validCovers[m];
+            const cv2 = validCovers[n];
+
+            // For Case 3C: all the exclusive cells used in the covers should be separate.
+            if (
+              cellEq(cv1.c1, cv2.c1) ||
+              cellEq(cv1.c2, cv2.c2) ||
+              cellEq(cv1.c1, cv2.c2) ||
+              cellEq(cv1.c2, cv2.c1)
+            ) {
+              continue;
+            }
+
+            const removals3C = [];
+            let changed3C = false;
+
+            const processNonRcc3C = (ahs, linkCell1, linkCell2) => {
+              for (const cell of ahs.cells) {
+                if (cellEq(cell, linkCell1) || cellEq(cell, linkCell2))
+                  continue;
+                for (const cand of pencils[cell[0]][cell[1]]) {
+                  if (!ahs.digits.has(cand)) {
+                    removals3C.push({ r: cell[0], c: cell[1], num: cand });
+                  }
+                }
+              }
+            };
+
+            processNonRcc3C(ahs1, cv1.c1, cv2.c1);
+            processNonRcc3C(ahs2, cv1.c2, cv2.c2);
+
+            const initialLen = removals3C.length;
+            eliminateCoverPeersGeneric(
+              cv1.c1,
+              cv1.d,
+              cv1.uType,
+              cv1.uIdx,
+              removals3C,
+            );
+            eliminateCoverPeersGeneric(
+              cv1.c2,
+              cv1.d,
+              cv1.uType,
+              cv1.uIdx,
+              removals3C,
+            );
+            eliminateCoverPeersGeneric(
+              cv2.c1,
+              cv2.d,
+              cv2.uType,
+              cv2.uIdx,
+              removals3C,
+            );
+            eliminateCoverPeersGeneric(
+              cv2.c2,
+              cv2.d,
+              cv2.uType,
+              cv2.uIdx,
+              removals3C,
+            );
+
+            if (removals3C.length > initialLen || removals3C.length > 0)
+              changed3C = true;
+
+            if (changed3C) {
+              const uniqueElims = getUnique(removals3C);
+
+              const getCoveredCells = (uType, uIdx, d) => {
+                const cells = [];
+                for (let k = 0; k < 9; k++) {
+                  let r, c;
+                  if (uType === 0) {
+                    r = uIdx;
+                    c = k;
+                  } else if (uType === 1) {
+                    r = k;
+                    c = uIdx;
+                  } else {
+                    r = Math.floor(uIdx / 3) * 3 + Math.floor(k / 3);
+                    c = (uIdx % 3) * 3 + (k % 3);
+                  }
+                  if (pencils[r][c] && pencils[r][c].has(d)) cells.push([r, c]);
+                }
+                return cells;
+              };
+
+              const covCells1 = getCoveredCells(cv1.uType, cv1.uIdx, cv1.d);
+              const group1 = covCells1.filter(
+                (cell) =>
+                  techniques._sees(cell, cv1.c1) || cellEq(cell, cv1.c1),
+              );
+              const group2 = covCells1.filter(
+                (cell) =>
+                  techniques._sees(cell, cv1.c2) || cellEq(cell, cv1.c2),
+              );
+
+              const covCells2 = getCoveredCells(cv2.uType, cv2.uIdx, cv2.d);
+              const group3 = covCells2.filter(
+                (cell) =>
+                  techniques._sees(cell, cv2.c1) || cellEq(cell, cv2.c1),
+              );
+              const group4 = covCells2.filter(
+                (cell) =>
+                  techniques._sees(cell, cv2.c2) || cellEq(cell, cv2.c2),
+              );
+
+              if (
+                !group1.length ||
+                !group2.length ||
+                !group3.length ||
+                !group4.length
+              )
+                continue;
+
+              const c1_d1Str = fmtCell(
+                cv1.c1[0],
+                cv1.c1[1],
+                ahs1.type,
+                ahs1.idx,
+              );
+              const c2_d1Str = fmtCell(
+                cv1.c2[0],
+                cv1.c2[1],
+                ahs2.type,
+                ahs2.idx,
+              );
+              const covC1_d1Str = formatGroup(group1, cv1.uType, cv1.uIdx);
+              const covC2_d1Str = formatGroup(group2, cv1.uType, cv1.uIdx);
+
+              const c1_d2Str = fmtCell(
+                cv2.c1[0],
+                cv2.c1[1],
+                ahs1.type,
+                ahs1.idx,
+              );
+              const c2_d2Str = fmtCell(
+                cv2.c2[0],
+                cv2.c2[1],
+                ahs2.type,
+                ahs2.idx,
+              );
+              const covC1_d2Str = formatGroup(group3, cv2.uType, cv2.uIdx);
+              const covC2_d2Str = formatGroup(group4, cv2.uType, cv2.uIdx);
+
+              const detailStr = `((${cv2.d})${c1_d2Str}=(${cv1.d})${c1_d1Str})${formatAHS(ahs1)}-(${cv1.d})(${covC1_d1Str}=${covC2_d1Str})-((${cv1.d})${c2_d1Str}=(${cv2.d})${c2_d2Str})${formatAHS(ahs2)}-(${cv2.d})(${covC1_d2Str}=${covC2_d2Str})-(Ring)`;
+
+              const node2Nodes = [
+                {
+                  r: cv1.c1[0],
+                  c: cv1.c1[1],
+                  cands: getCandsArr(cv1.c1[0], cv1.c1[1], ahs1),
+                },
+              ];
+              const node5Nodes = [
+                {
+                  r: cv1.c2[0],
+                  c: cv1.c2[1],
+                  cands: getCandsArr(cv1.c2[0], cv1.c2[1], ahs2),
+                },
+              ];
+
+              const ring3CData = {
+                cv2,
+                group3,
+                group4,
+                node8Nodes: [
+                  {
+                    r: cv2.c1[0],
+                    c: cv2.c1[1],
+                    cands: getCandsArr(cv2.c1[0], cv2.c1[1], ahs1),
+                  },
+                ],
+                node7Nodes: [
+                  {
+                    r: cv2.c2[0],
+                    c: cv2.c2[1],
+                    cands: getCandsArr(cv2.c2[0], cv2.c2[1], ahs2),
+                  },
+                ],
+              };
+
+              return {
+                change: true,
+                type: "remove",
+                cells: uniqueElims,
+                hint: {
+                  name: "AHS W-Wing (Ring 3C)",
+                  mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
+                  detail: detailStr,
+                },
+                applyVisuals: buildAhsWWingVisuals(
+                  ahs1,
+                  ahs2,
+                  group1,
+                  group2,
+                  cv1.d,
+                  node2Nodes,
+                  node5Nodes,
+                  true,
+                  [],
+                  uniqueElims,
+                  "3C",
+                  null,
+                  ring3CData,
+                ),
+              };
+            }
+          }
+        }
+        // ==============================================================
+
+        const key = `${i}-${j}`;
         const rccs = _ahsRccMap.get(key) || [];
         const zs = _ahsZsMap.get(key) || [];
         const rcds = _ahsRcdMap.get(key) || [];
@@ -9024,8 +9865,6 @@ const techniques = {
         const allCds = [...rcds, ...zcds];
         if (allCds.length === 0) continue;
 
-        const ahs1 = ahses[i];
-        const ahs2 = ahses[j];
         const sharedCells = [...rccs, ...zs];
 
         for (const cd1 of allCds) {
@@ -9042,9 +9881,21 @@ const techniques = {
               for (let uType = 0; uType < 3 && !hasStrongLink; uType++) {
                 for (let uIdx = 0; uIdx < 9 && !hasStrongLink; uIdx++) {
                   if (unitCoveredByPair(c1_link, c2_link, d1, uType, uIdx)) {
-                    hasStrongLink = true;
-                    validUType = uType;
-                    validUIdx = uIdx;
+                    const cellInUnit = (r, c) => {
+                      if (uType === 0) return r === uIdx;
+                      if (uType === 1) return c === uIdx;
+                      return Math.floor(r / 3) * 3 + Math.floor(c / 3) === uIdx;
+                    };
+
+                    const overlapsAHS =
+                      ahs1.cells.some(([r, c]) => cellInUnit(r, c)) ||
+                      ahs2.cells.some(([r, c]) => cellInUnit(r, c));
+
+                    if (!overlapsAHS) {
+                      hasStrongLink = true;
+                      validUType = uType;
+                      validUIdx = uIdx;
+                    }
                   }
                 }
               }
@@ -9055,7 +9906,13 @@ const techniques = {
               let changed = false;
               let isRing = false;
 
-              // Ring Helpers
+              // Wrapped helper to set changed flag
+              const eliminateCoverPeers = (linkCell, d, uType, uIdx) => {
+                const initialLen = removals.length;
+                eliminateCoverPeersGeneric(linkCell, d, uType, uIdx, removals);
+                if (removals.length > initialLen) changed = true;
+              };
+
               const processNonRcc = (ahs, linkCell, elimCell) => {
                 for (const cell of ahs.cells) {
                   if (cellEq(cell, linkCell) || cellEq(cell, elimCell))
@@ -9070,64 +9927,13 @@ const techniques = {
                 }
               };
 
-              const eliminateCoverPeers = (linkCell, d, uType, uIdx) => {
-                let unitMask = 0;
-                if (uType === 0)
-                  unitMask = techniques._digitRowMasks[d - 1][uIdx];
-                else if (uType === 1)
-                  unitMask = techniques._digitColMasks[d - 1][uIdx];
-                else unitMask = techniques._digitBoxMasks[d - 1][uIdx];
-
-                const coveredHouseCells = [];
-                for (let idx = 0; idx < 9; idx++) {
-                  if ((unitMask & (1 << idx)) !== 0) {
-                    let houseCell;
-                    if (uType === 0) houseCell = [uIdx, idx];
-                    else if (uType === 1) houseCell = [idx, uIdx];
-                    else
-                      houseCell = [
-                        Math.floor(uIdx / 3) * 3 + Math.floor(idx / 3),
-                        (uIdx % 3) * 3 + (idx % 3),
-                      ];
-
-                    if (techniques._sees(linkCell, houseCell)) {
-                      coveredHouseCells.push(houseCell);
-                    }
-                  }
-                }
-
-                if (coveredHouseCells.length === 0) return;
-
-                for (let r = 0; r < 9; r++) {
-                  for (let c = 0; c < 9; c++) {
-                    if (r === linkCell[0] && c === linkCell[1]) continue;
-
-                    const targetCell = [r, c];
-                    if (!techniques._sees(targetCell, linkCell)) continue;
-
-                    let seesAllCovered = true;
-                    for (const hc of coveredHouseCells) {
-                      if (r === hc[0] && c === hc[1]) {
-                        seesAllCovered = false;
-                        break;
-                      }
-                      if (!techniques._sees(targetCell, hc)) {
-                        seesAllCovered = false;
-                        break;
-                      }
-                    }
-
-                    if (seesAllCovered && pencils[r][c].has(d)) {
-                      removals.push({ r: r, c: c, num: d });
-                      changed = true;
-                    }
-                  }
-                }
-              };
+              let ringType = null;
+              let ringRcd = null;
 
               // 3A. Ring by Cell
               if (rccs.length === 1) {
                 isRing = true;
+                ringType = "cell";
                 let sharedCell = rccs[0];
 
                 const unionDigits = new Set([...ahs1.digits, ...ahs2.digits]);
@@ -9144,15 +9950,55 @@ const techniques = {
 
                 processNonRcc(ahs1, c1_link, sharedCell);
                 processNonRcc(ahs2, c2_link, sharedCell);
-
                 eliminateCoverPeers(c1_link, d1, validUType, validUIdx);
                 eliminateCoverPeers(c2_link, d1, validUType, validUIdx);
-              } else if (rcds.length === 1) {
-                // 3B. Ring by Candidate
-                isRing = true;
-                // Redundant with ALS W Ring
-              } else {
-                // Not Ring
+              }
+              // 3B. Ring by Digit
+              else if (rcds.length === 1) {
+                const d2 = rcds[0].d;
+                if (d1 !== d2) {
+                  isRing = true;
+                  const c1_elim_list = ahs1.exclusiveCellsMap.get(d2) || [];
+                  const c2_elim_list = ahs2.exclusiveCellsMap.get(d2) || [];
+
+                  for (const c1_elim of c1_elim_list) {
+                    for (const c2_elim of c2_elim_list) {
+                      if (
+                        c1_elim[0] === c2_elim[0] &&
+                        c1_elim[1] === c2_elim[1]
+                      )
+                        continue;
+
+                      if (techniques._sees(c1_elim, c2_elim)) {
+                        isRing = true;
+                        ringType = "digit";
+                        ringRcd = { d: d2, c1: c1_elim, c2: c2_elim };
+
+                        const commonPeers = techniques._commonVisibleCells(
+                          c1_elim,
+                          c2_elim,
+                        );
+                        for (const p of commonPeers) {
+                          if (pencils[p[0]][p[1]].has(d2)) {
+                            removals.push({ r: p[0], c: p[1], num: d2 });
+                            changed = true;
+                          }
+                        }
+
+                        processNonRcc(ahs1, c1_link, c1_elim);
+                        processNonRcc(ahs2, c2_link, c2_elim);
+
+                        eliminateCoverPeers(c1_link, d1, validUType, validUIdx);
+                        eliminateCoverPeers(c2_link, d1, validUType, validUIdx);
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+
+              // 4. Not Ring
+              if (!isRing) {
                 // 4A. Elimination by Cell
                 const unionDigits = new Set([...ahs1.digits, ...ahs2.digits]);
                 for (const c of sharedCells) {
@@ -9164,13 +10010,42 @@ const techniques = {
                     }
                   }
                 }
-                // 4B. Elimination by Digit (Redundant with ALS W Wing)
+                // 4B. Elimination by Digit
+                for (const d2 of zs) {
+                  if (d2 === d1) continue;
+
+                  const c1_elim_list = ahs1.exclusiveCellsMap.get(d2) || [];
+                  const c2_elim_list = ahs2.exclusiveCellsMap.get(d2) || [];
+
+                  if (!c1_elim_list.length || !c2_elim_list.length) continue;
+
+                  for (const c1_elim of c1_elim_list) {
+                    for (const c2_elim of c2_elim_list) {
+                      if (
+                        c1_elim[0] === c2_elim[0] &&
+                        c1_elim[1] === c2_elim[1]
+                      )
+                        continue;
+
+                      const commonPeers = techniques._commonVisibleCells(
+                        c1_elim,
+                        c2_elim,
+                      );
+
+                      for (const p of commonPeers) {
+                        if (pencils[p[0]][p[1]].has(d2)) {
+                          removals.push({ r: p[0], c: p[1], num: d2 });
+                          changed = true;
+                        }
+                      }
+                    }
+                  }
+                }
               }
 
               if (changed && removals.length > 0) {
                 const uniqueElims = getUnique(removals);
 
-                // Construct cells in covered unit sharing digit `d1`
                 const coveredCells = [];
                 for (let k = 0; k < 9; k++) {
                   let r, c;
@@ -9190,7 +10065,6 @@ const techniques = {
                   }
                 }
 
-                // Node 3 & Node 4 are the specific cells in the covered unit seen by Node 2 & Node 5
                 const group1 = coveredCells.filter(
                   (cell) =>
                     techniques._sees(cell, c1_link) || cellEq(cell, c1_link),
@@ -9200,7 +10074,8 @@ const techniques = {
                     techniques._sees(cell, c2_link) || cellEq(cell, c2_link),
                 );
 
-                // Determine zcell (shared cell between the AHSs)
+                if (group1.length === 0 || group2.length === 0) continue;
+
                 const zcell =
                   rccs.length > 0
                     ? rccs[0]
@@ -9210,67 +10085,92 @@ const techniques = {
 
                 let detailStr = "";
 
-                if (zcell) {
-                  const zCands1 = getCands(zcell[0], zcell[1], ahs1);
-                  const zCands2 = getCands(zcell[0], zcell[1], ahs2);
-                  const z1Str = fmtCell(
-                    zcell[0],
-                    zcell[1],
-                    ahs1.type,
-                    ahs1.idx,
-                  );
-                  const z2Str = fmtCell(
-                    zcell[0],
-                    zcell[1],
-                    ahs2.type,
-                    ahs2.idx,
-                  );
+                const covC1Str = formatGroup(group1, validUType, validUIdx);
+                const covC2Str = formatGroup(group2, validUType, validUIdx);
+                const c1Str = fmtCell(
+                  c1_link[0],
+                  c1_link[1],
+                  ahs1.type,
+                  ahs1.idx,
+                );
+                const c2Str = fmtCell(
+                  c2_link[0],
+                  c2_link[1],
+                  ahs2.type,
+                  ahs2.idx,
+                );
 
-                  const c1Str = fmtCell(
-                    c1_link[0],
-                    c1_link[1],
-                    ahs1.type,
-                    ahs1.idx,
-                  );
-                  const c2Str = fmtCell(
-                    c2_link[0],
-                    c2_link[1],
-                    ahs2.type,
-                    ahs2.idx,
-                  );
+                if (isRing) {
+                  if (ringType === "cell") {
+                    const zCands1 = getCands(zcell[0], zcell[1], ahs1);
+                    const zCands2 = getCands(zcell[0], zcell[1], ahs2);
+                    const z1Str = fmtCell(
+                      zcell[0],
+                      zcell[1],
+                      ahs1.type,
+                      ahs1.idx,
+                    );
+                    const z2Str = fmtCell(
+                      zcell[0],
+                      zcell[1],
+                      ahs2.type,
+                      ahs2.idx,
+                    );
 
-                  // Helper to format grouped covered cells correctly
-                  const formatGroup = (cells, type, idx) => {
-                    if (type === "box" || type === 2) {
-                      const pts = [
-                        ...new Set(
-                          cells.map(
-                            ([r, c]) =>
-                              Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                          ),
-                        ),
-                      ]
-                        .sort((a, b) => a - b)
-                        .join("");
-                      return `b${idx + 1}p${pts}`;
-                    } else {
-                      const rs = [...new Set(cells.map(([r, c]) => r + 1))]
-                        .sort((a, b) => a - b)
-                        .join("");
-                      const cs = [...new Set(cells.map(([r, c]) => c + 1))]
-                        .sort((a, b) => a - b)
-                        .join("");
-                      return `r${rs}c${cs}`;
-                    }
-                  };
+                    detailStr = `((${zCands1})${z1Str}=(${d1})${c1Str})${formatAHS(ahs1)}-(${d1})(${covC1Str}=${covC2Str})-((${d1})${c2Str}=(${zCands2})${z2Str})${formatAHS(ahs2)}-(Ring)`;
+                  } else if (ringType === "digit") {
+                    const z1Str = fmtCell(
+                      ringRcd.c1[0],
+                      ringRcd.c1[1],
+                      ahs1.type,
+                      ahs1.idx,
+                    );
+                    const z2Str = fmtCell(
+                      ringRcd.c2[0],
+                      ringRcd.c2[1],
+                      ahs2.type,
+                      ahs2.idx,
+                    );
+                    detailStr = `((${ringRcd.d})${z1Str}=(${d1})${c1Str})${formatAHS(ahs1)}-(${d1})(${covC1Str}=${covC2Str})-((${d1})${c2Str}=(${ringRcd.d})${z2Str})${formatAHS(ahs2)}-(Ring)`;
+                  }
+                } else {
+                  if (zcell) {
+                    const zCands1 = getCands(zcell[0], zcell[1], ahs1);
+                    const zCands2 = getCands(zcell[0], zcell[1], ahs2);
+                    const z1Str = fmtCell(
+                      zcell[0],
+                      zcell[1],
+                      ahs1.type,
+                      ahs1.idx,
+                    );
+                    const z2Str = fmtCell(
+                      zcell[0],
+                      zcell[1],
+                      ahs2.type,
+                      ahs2.idx,
+                    );
 
-                  const covC1Str = formatGroup(group1, validUType, validUIdx);
-                  const covC2Str = formatGroup(group2, validUType, validUIdx);
+                    detailStr = `((${zCands1})${z1Str}=(${d1})${c1Str})${formatAHS(ahs1)}-(${d1})(${covC1Str}=${covC2Str})-((${d1})${c2Str}=(${zCands2})${z2Str})${formatAHS(ahs2)}`;
+                  } else if (zs && zs.length > 0) {
+                    const zCands1 = zs.join("");
+                    const zCands2 = zs.join("");
 
-                  // String properly integrates formatted group1 and group2
-                  detailStr = `((${zCands1})${z1Str}=(${d1})${c1Str})${formatAHS(ahs1)}-(${d1})(${covC1Str}=${covC2Str})-((${d1})${c2Str}=(${zCands2})${z2Str})${formatAHS(ahs2)}`;
+                    let zCells1 = [];
+                    zs.forEach((d) => {
+                      zCells1.push(...(ahs1.exclusiveCellsMap.get(d) || []));
+                    });
+                    zCells1 = getUnique(zCells1);
+                    const z1Str = formatGroup(zCells1, ahs1.type, ahs1.idx);
 
-                  if (isRing) detailStr += `-(Ring)`;
+                    let zCells2 = [];
+                    zs.forEach((d) => {
+                      zCells2.push(...(ahs2.exclusiveCellsMap.get(d) || []));
+                    });
+                    zCells2 = getUnique(zCells2);
+                    const z2Str = formatGroup(zCells2, ahs2.type, ahs2.idx);
+
+                    detailStr = `((${zCands1})${z1Str}=(${d1})${c1Str})${formatAHS(ahs1)}-(${d1})(${covC1Str}=${covC2Str})-((${d1})${c2Str}=(${zCands2})${z2Str})${formatAHS(ahs2)}`;
+                  }
                 }
 
                 const node2Nodes = [
@@ -9297,7 +10197,7 @@ const techniques = {
                     mainInfo: `AHSes on ${ahs1.type} ${ahs1.idx + 1} and ${ahs2.type} ${ahs2.idx + 1}`,
                     detail: detailStr,
                   },
-                  // Pass group1 and group2 directly into visual helper
+
                   applyVisuals: buildAhsWWingVisuals(
                     ahs1,
                     ahs2,
@@ -9309,6 +10209,8 @@ const techniques = {
                     isRing,
                     rccs,
                     uniqueElims,
+                    ringType,
+                    ringRcd,
                   ),
                 };
               }
@@ -9463,6 +10365,8 @@ const techniques = {
       return changed;
     };
 
+    let currentTargetLen = minLen;
+
     // DFS Function
     const dfs = (path, visited) => {
       if (found) return;
@@ -9485,7 +10389,8 @@ const techniques = {
         const len = path.length;
 
         // Check Constraints
-        if (len >= minLen && len <= maxLen && path[0].hash < nbrHash) {
+        if (len === currentTargetLen && path[0].hash < nbrHash) {
+          if (minLen === 2 && _prALSXY && len === 3) continue;
           const alsStart = _alsLookup[path[0].hash];
           const alsEnd = _alsLookup[nbrHash];
           let isRing = false;
@@ -9588,7 +10493,7 @@ const techniques = {
           }
         }
 
-        if (!found && len < maxLen) {
+        if (!found && len < currentTargetLen) {
           dfs(path, visited);
         }
 
@@ -9599,9 +10504,16 @@ const techniques = {
     };
 
     // Start DFS from every ALS
-    for (const als of _alsCache) {
+    for (
+      currentTargetLen = minLen;
+      currentTargetLen <= maxLen;
+      currentTargetLen++
+    ) {
+      for (const als of _alsCache) {
+        if (found) break;
+        dfs([{ hash: als.hash, viaDigit: 0 }], new Set([als.hash]));
+      }
       if (found) break;
-      dfs([{ hash: als.hash, viaDigit: 0 }], new Set([als.hash]));
     }
 
     if (found && eliminations.length > 0) {
@@ -9610,7 +10522,7 @@ const techniques = {
       ).map(JSON.parse);
 
       // --- Hint Construction ---
-      let info = `Length ${minLen} Chain found`;
+      let info = "";
 
       // Specific Format for Almost Locked Set XY-Wing (Length 3 Linear Chain)
       if (
@@ -9641,7 +10553,13 @@ const techniques = {
       if (successPath) {
         const fmtALS = (als) => {
           if (als.unitName && als.unitName.startsWith("Box")) {
-            const b = parseInt(als.unitName.split(" ")[1]);
+            const b = [
+              ...new Set(
+                als.cells.map(
+                  ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
+                ),
+              ),
+            ];
             const pts = [
               ...new Set(
                 als.cells.map(
@@ -9862,6 +10780,7 @@ const techniques = {
    * Corresponds to C++: als_xy_wing()
    */
   alsXYWing: (board, pencils) => {
+    _prALSXY = true;
     if (_alsCache.legnth === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
     techniques._buildAlsDigitCommonPeers();
@@ -9877,7 +10796,8 @@ const techniques = {
       techniques._buildAlsDigitCommonPeers();
       techniques._buildAlsRccMap();
     }
-    return techniques._alsChainCore(board, pencils, 4, 5, "ALS Chain");
+    let minlen = !_prALSXZ ? 2 : !_prALSXY ? 3 : 4;
+    return techniques._alsChainCore(board, pencils, minlen, 5, "ALS Chain");
   },
 
   // --- Almost Locked Set W-Wing & HELPERS ---
@@ -10010,11 +10930,14 @@ const techniques = {
   },
 
   alsWWing: (board, pencils) => {
+    _prALSWW = true;
     if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
-    techniques._buildAlsDigitCommonPeers();
-    techniques._buildAlsRccMap();
+    if (_alsDigitCommonPeers.length === 0) {
+      techniques._buildAlsDigitCommonPeers();
+      techniques._buildAlsRccMap();
+    }
     techniques._precomputeDigitLocations(board, pencils);
 
     const alses = _alsCache;
@@ -10091,7 +11014,7 @@ const techniques = {
         const popB = techniques._bits.popcount(B.mask);
 
         // Skip standard W-Wings (2x2 bivalue cells) or specific size combos excluded in C++
-        if (popA + popB === 4) continue;
+        if (_prWw && popA + popB === 4) continue;
 
         const commonMask = A.mask & B.mask;
         if (techniques._bits.popcount(commonMask) < 2) continue;
@@ -10175,7 +11098,13 @@ const techniques = {
           // --- Formatting Helpers ---
           const fmtALS = (als) => {
             if (als.unitName.startsWith("Box")) {
-              const b = parseInt(als.unitName.split(" ")[1]);
+              const b = [
+                ...new Set(
+                  als.cells.map(
+                    ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
+                  ),
+                ),
+              ];
               const pts = [
                 ...new Set(
                   als.cells.map(
@@ -10514,7 +11443,13 @@ const techniques = {
     // --- Formatting Helper ---
     const fmtALS = (als) => {
       if (als.unitName && als.unitName.startsWith("Box")) {
-        const b = parseInt(als.unitName.split(" ")[1]);
+        const b = [
+          ...new Set(
+            als.cells.map(
+              ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
+            ),
+          ),
+        ];
         const pts = [
           ...new Set(
             als.cells.map(
@@ -10966,7 +11901,13 @@ const techniques = {
     // --- Formatting Helper ---
     const fmtALS = (als) => {
       if (als.unitName && als.unitName.startsWith("Box")) {
-        const b = parseInt(als.unitName.split(" ")[1]);
+        const b = [
+          ...new Set(
+            als.cells.map(
+              ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
+            ),
+          ),
+        ];
         const pts = [
           ...new Set(
             als.cells.map(
