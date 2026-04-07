@@ -1452,6 +1452,17 @@ button:disabled:hover {
   z-index: 100; /* Beats pencil marks (z-index: 30) */
 }
 
+/* Add padding and rounded corners to modal action buttons */
+#reset-confirm-btn,
+#reset-cancel-btn,
+#pref-save-btn,
+#pref-cancel-btn,
+#pref-default-btn {
+  border-radius: var(--radius-md); /* Rounds the edges */
+  padding: 0.375rem 1.25rem; /* Adds vertical and horizontal spacing */
+  transition: all 0.15s ease-in-out; /* Smooth hover effect */
+}
+
 #hint-confirm-modal {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 100; /* Increased to 100 to match the HTML intent and beat pencil marks (30) */
@@ -1474,6 +1485,13 @@ button:disabled:hover {
   flex: 1 1 0%;
   min-height: 0;
   overflow-y: auto;
+  margin-bottom: 1rem;
+  padding-right: 0.5rem;
+}
+
+/* Make the score input boxes more round */
+.tech-score-input {
+  border-radius: var(--radius-md) !important;
 }
 
 #candidate-grid button:not(:disabled):hover {
@@ -2008,6 +2026,7 @@ html.dark {
 /* --- Preferences Modal Drag & Drop --- */
 .sortable-item {
   transition: background-color 0.15s ease;
+  border-radius: var(--radius-md) !important;
 }
 .sortable-item.dragging {
   opacity: 0.6;
@@ -2018,7 +2037,7 @@ html.dark .sortable-item.dragging {
   background-color: #374151; /* Gray-700 */
 }
 .sortable-level-header {
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   font-weight: 700;
   text-transform: uppercase;
   color: var(--color-gray-500);
