@@ -10507,7 +10507,7 @@ const techniques = {
    */
   alsXYWing: (board, pencils) => {
     _prALSXY = true;
-    if (_alsCache.legnth === 0)
+    if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
     techniques._buildAlsDigitCommonPeers();
     techniques._buildAlsRccMap();
@@ -10516,9 +10516,9 @@ const techniques = {
   },
 
   alsChain: (board, pencils) => {
-    if (_alsCache.legnth === 0)
+    if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-    if (_alsDigitCommonPeers.length === 0) {
+    if (Object.keys(_alsDigitCommonPeers).length === 0) {
       techniques._buildAlsDigitCommonPeers();
       techniques._buildAlsRccMap();
     }
@@ -10660,10 +10660,11 @@ const techniques = {
     if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
-    if (_alsDigitCommonPeers.length === 0) {
+    if (Object.keys(_alsDigitCommonPeers).length === 0) {
       techniques._buildAlsDigitCommonPeers();
       techniques._buildAlsRccMap();
     }
+
     techniques._precomputeDigitLocations(board, pencils);
 
     const alses = _alsCache;
@@ -11163,7 +11164,7 @@ const techniques = {
 
   // --- CELL DEATH BLOSSOM ---
   cellDeathBlossom: (board, pencils) => {
-    if (_alsCache.legnth === 0)
+    if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
     // --- Formatting Helper ---
