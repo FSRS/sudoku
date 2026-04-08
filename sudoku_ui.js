@@ -48,6 +48,7 @@ let isClearStoragePending = false;
 let arePencilsHidden = false;
 let isSolvingViaButton = false;
 let currentElapsedTime = 0;
+let timerWasRunningBeforeSolver = false;
 let currentlyHoveredElement = null;
 let pausedElapsedTimes = {};
 let puzzleTimers = {}; // { "dateLevel": { elapsedMs, startTime } }
@@ -4231,6 +4232,7 @@ function enterSolverModeUI() {
     return;
   }
 
+  timerWasRunningBeforeSolver = !!timerInterval;
   stopTimer();
 
   if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
@@ -4438,7 +4440,7 @@ function exitSolverMode() {
   onBoardUpdated();
 
   // Resume the timer if a puzzle is actively loaded
-  if (!timerInterval && currentPuzzleKey) {
+  if (!timerInterval && currentPuzzleKey && timerWasRunningBeforeSolver) {
     startTimer(currentElapsedTime);
   }
 }
