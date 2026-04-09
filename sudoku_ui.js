@@ -5474,6 +5474,7 @@ async function evaluateBoardDifficulty(opts = {}) {
       }
     }
   }
+  const star = hasCustomPreferences() ? "*" : "";
   if (emptyCount <= 3) {
     updateLamp("white", { level: 0 });
     vagueHintMessage = "Full House";
