@@ -3830,6 +3830,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       wasSaveLoaded = true;
       isLoadingSavedGame = true;
       showMessage("Resumed saved game.", "green");
+      checkCompletion();
     }
   }
 
@@ -3912,7 +3913,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     }
   }, 5000);
 
-  checkCompletion();
+  // checkCompletion();
 }
 
 function clearUserBoard() {
