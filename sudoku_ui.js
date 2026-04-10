@@ -4580,6 +4580,14 @@ function renderSolverStep(index) {
       msg = `Done! Evaluated Level ${step.level}${star}, Score: ${step.score}${star}`;
     }
     msgColor = "green";
+
+    if (currentPuzzleScore > 0) {
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore}${star})`;
+    } else if (customScoreEvaluated > 0) {
+      puzzleScoreEl.textContent = `~${customScoreEvaluated} (${lastValidScore}${star})`;
+    } else {
+      puzzleScoreEl.textContent = `${star}`;
+    }
   } else if (step.type === "done") {
     msg = `Puzzle Fully Solved!`;
     msgColor = "green";
@@ -4597,7 +4605,6 @@ function renderSolverStep(index) {
     const h = step.result.hint;
     const { r, c, num, type } = step.result;
 
-    const star = hasCustomPreferences() ? "*" : "";
     const displayScore = step.cumulativeScore ?? lastValidScore;
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore - displayScore}${star})`;
