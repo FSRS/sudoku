@@ -39,11 +39,9 @@ let _prgAIC = false;
 
 let _prALSXZ = false;
 let _prALSXY = false;
-let _prALSWW = false;
 
 let _prAHSXZ = false;
 let _prAHSXY = false;
-let _prAHSW = false;
 
 const techniques = {
   _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
@@ -178,7 +176,6 @@ const techniques = {
     _prXYw = false;
     _prXYZw = false;
     _prWw = false;
-    _prWXYZw = false;
 
     _prSky = false;
     _prKite = false;
@@ -196,11 +193,9 @@ const techniques = {
 
     _prALSXZ = false;
     _prALSXY = false;
-    _prALSWW = false;
 
     _prAHSXZ = false;
     _prAHSXY = false;
-    _prAHSW = false;
 
     const removals = [];
     let newr = 0;
@@ -9038,7 +9033,6 @@ const techniques = {
   },
 
   alsWWing: (board, pencils) => {
-    _prALSWW = true;
     if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
