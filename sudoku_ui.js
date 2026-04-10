@@ -3880,7 +3880,11 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
 
   saveState();
 
-  if (savedTime > 0 && !timerInterval) {
+  const alreadySolved =
+    isBoardIdenticalToSolution() &&
+    boardState.flat().every((cell) => cell.value !== 0);
+
+  if (savedTime > 0 && !timerInterval && !alreadySolved) {
     startTimer(savedTime);
   }
 
@@ -4303,7 +4307,11 @@ async function solve() {
   if (emptyCount === 0 && isBoardIdenticalToSolution()) {
     const originalState = cloneBoardState(boardState);
 
-    // Temporarily clear to initial state without saving to history
+    // Back up lamp state before the scratch evaluation overwrites it
+    const backupLampTimes = JSON.parse(JSON.stringify(lampTimestamps));
+    const backupPrevLamp = previousLampColor;
+    const backupLastValid = lastValidLampColor;
+
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         if (!boardState[r][c].isGiven) {
@@ -4321,7 +4329,11 @@ async function solve() {
 
     if (currentEvaluationId !== evalId) return;
 
-    // Restore state memory so exiting solver mode works flawlessly
+    // Restore lamp state so entering solver mode doesn't reflect scratch timestamps
+    lampTimestamps = backupLampTimes;
+    previousLampColor = backupPrevLamp;
+    lastValidLampColor = backupLastValid;
+
     boardState = originalState;
     enterSolverModeUI();
     return;
@@ -4588,9 +4600,9 @@ function renderSolverStep(index) {
     const star = hasCustomPreferences() ? "*" : "";
     const displayScore = step.cumulativeScore ?? lastValidScore;
     if (currentPuzzleScore > 0) {
-      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore-displayScore}${star})`;
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore - displayScore}${star})`;
     } else if (customScoreEvaluated > 0) {
-      puzzleScoreEl.textContent = `~${customScoreEvaluated} (${lastValidScore-displayScore}${star})`;
+      puzzleScoreEl.textContent = `~${customScoreEvaluated} (${lastValidScore - displayScore}${star})`;
     } else {
       puzzleScoreEl.textContent = `${star}`;
     }
