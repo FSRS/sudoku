@@ -3900,7 +3900,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     setTimeout(() => {
       const tip = levelTips[puzzleData.level];
       if (tip) showMessage(tip, "gray");
-    }, 2000);
+    }, 5000);
   }
 
   autoPencilTipTimer = setTimeout(() => {
@@ -3911,7 +3911,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
         : "Tip: Click&nbsp;'Auto-Pencil'&nbsp;<span class='shortcut-highlight'>(or press 'A')</span> to fill in all possible candidates.";
       showMessage(tip, "gray");
     }
-  }, 5000);
+  }, 10000);
 
   // checkCompletion();
 }
@@ -4553,6 +4553,7 @@ function renderSolverStep(index) {
 
   let msg = "";
   let msgColor = "blue";
+  const star = hasCustomPreferences() ? "*" : "";
 
   if (step.type === "summary") {
     highlightedDigit = null;
@@ -4560,8 +4561,6 @@ function renderSolverStep(index) {
 
     const isBruteForce =
       solverSteps[solverSteps.length - 1].type === "bruteforce";
-
-    const star = hasCustomPreferences() ? "*" : "";
 
     if (isBruteForce) {
       msg = `Done? Evaluated Level 11${star}, Score: ?${star}`;
@@ -4572,12 +4571,29 @@ function renderSolverStep(index) {
   } else if (step.type === "done") {
     msg = `Puzzle Fully Solved!`;
     msgColor = "green";
+    if (currentPuzzleScore > 0) {
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (0${star})`;
+    } else if (customScoreEvaluated > 0) {
+      puzzleScoreEl.textContent = `~${customScoreEvaluated} (0${star})`;
+    } else {
+      puzzleScoreEl.textContent = `(0${star})`;
+    }
   } else if (step.type === "bruteforce") {
     msg = `Sorry! Built-in techniques failed to solve this. Showing Solution.`;
     msgColor = "red";
   } else if (step.type === "step") {
     const h = step.result.hint;
     const { r, c, num, type } = step.result;
+
+    const star = hasCustomPreferences() ? "*" : "";
+    const displayScore = step.cumulativeScore ?? lastValidScore;
+    if (currentPuzzleScore > 0) {
+      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore-displayScore}${star})`;
+    } else if (customScoreEvaluated > 0) {
+      puzzleScoreEl.textContent = `~${customScoreEvaluated} (${lastValidScore-displayScore}${star})`;
+    } else {
+      puzzleScoreEl.textContent = `${star}`;
+    }
 
     let actionStr = "";
     if (type === "place") {
@@ -5602,7 +5618,8 @@ async function evaluateBoardDifficulty(opts = {}) {
           techName: tech.name,
           level: tech.level,
           score: tech.score,
-          rank: techniqueOrder.indexOf(tech), // <-- NEW: Capture the array index
+          cumulativeScore: evaluatedScore,
+          rank: techniqueOrder.indexOf(tech),
           result: result,
           board: cloneVirtualBoard(virtualBoard),
           pencils: cloneVirtualPencils(startingPencils),
