@@ -8886,8 +8886,10 @@ const techniques = {
     _prALSXY = true;
     if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-    techniques._buildAlsDigitCommonPeers();
-    techniques._buildAlsRccMap();
+    if (Object.keys(_alsDigitCommonPeers).length === 0) {
+      techniques._buildAlsDigitCommonPeers();
+      techniques._buildAlsRccMap();
+    }
 
     return techniques._alsChainCore(board, pencils, 3, 3, "ALS XY-Wing");
   },

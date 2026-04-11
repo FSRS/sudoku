@@ -5578,8 +5578,6 @@ async function evaluateBoardDifficulty(opts = {}) {
     progressMade = false;
 
     alsCacheBuilt = false;
-    alsRccMapBuilt = false;
-
     ahsCacheBuilt = false;
 
     for (const tech of techniqueOrder) {
@@ -5598,19 +5596,9 @@ async function evaluateBoardDifficulty(opts = {}) {
         result = techniqueResultCache.get(cacheKey);
         // console.log(`Used cache ${tech.name}`);
       } else {
-        if (tech.name === "Almost Locked Set XZ-Rule") {
-          alsCacheBuilt = true;
-        } else if (tech.name === "Almost Locked Set XY-Wing") {
-          if (!alsCacheBuilt) _alsCache = [];
-          alsCacheBuilt = true;
-          alsRccMapBuilt = true;
-        } else if (
-          (tech.name === "Almost Locked Set W-Wing") |
-          (tech.name === "Almost Locked Set Chain")
-        ) {
-          if (!alsCacheBuilt) _alsCache = [];
-          alsCacheBuilt = true;
-          if (!alsRccMapBuilt) {
+        if (tech.name.includes("Almost Locked Set")) {
+          if (!alsCacheBuilt) {
+            _alsCache = [];
             _alsDigitCommonPeers = {};
             _alsRccMap = {};
             _alsLookup = {};
@@ -5622,7 +5610,14 @@ async function evaluateBoardDifficulty(opts = {}) {
         ) {
           if (!alsCacheBuilt) _alsCache = [];
           alsCacheBuilt = true;
-        } else if (tech.name === "Almost Hidden Set XZ-Rule") {
+        } else if (tech.name.includes("Almost Hidden Set")) {
+          if (!ahsCacheBuilt) {
+            _ahsCache = [];
+            _ahsRccMap = new Map();
+            _ahsRcdMap = new Map();
+            _ahsZcdMap = new Map();
+            _ahsZsMap = new Map();
+          }
           ahsCacheBuilt = true;
         }
         // Run Technique
