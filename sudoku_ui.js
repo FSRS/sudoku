@@ -2841,6 +2841,26 @@ function handleKeyDown(e) {
     clearColorsBtn.click();
     return;
   }
+  if (key === "0") {
+    if (currentMode === "concrete" || currentMode === "pencil") {
+      if (selectedCell.row !== null) {
+        const cellState = boardState[selectedCell.row][selectedCell.col];
+        // Ensure we are focused on a given number, matching the 1-9 behavior
+        if (cellState.isGiven) {
+          if (highlightState !== 2) {
+            highlightedDigit = null;
+            highlightState = 2;
+          } else {
+            // Toggle off if it was already active
+            highlightedDigit = null;
+            highlightState = 0;
+          }
+          renderBoard();
+        }
+      }
+    }
+    return;
+  }
   if (key >= "1" && key <= "9") {
     if (currentMode === "color" || currentMode === "draw") {
       const colorButtons = numberPad.querySelectorAll("button");
