@@ -6314,35 +6314,60 @@ function openPreferencesModal() {
   const listContainer = document.getElementById("technique-list-container");
   listContainer.innerHTML = "";
 
-  // Touch drag-to-scroll (runs once per open; clears old listeners via AbortController)
-  if (listContainer._scrollAbort) listContainer._scrollAbort.abort();
-  const ac = new AbortController();
-  listContainer._scrollAbort = ac;
-  const opts = { signal: ac.signal, passive: false };
-  let touchStartY = 0,
-    touchScrollTop = 0,
-    isTouchScrolling = false;
-  listContainer.addEventListener(
-    "touchstart",
-    (e) => {
-      touchStartY = e.touches[0].clientY;
-      touchScrollTop = listContainer.scrollTop;
-      isTouchScrolling = false;
-    },
-    opts,
-  );
-  listContainer.addEventListener(
-    "touchmove",
-    (e) => {
-      const dy = touchStartY - e.touches[0].clientY;
-      if (!isTouchScrolling && Math.abs(dy) > 4) isTouchScrolling = true;
-      if (isTouchScrolling) {
-        e.preventDefault(); // prevent page scroll / drag hijack
-        listContainer.scrollTop = touchScrollTop + dy;
+  // Native overscroll handles bounce and momentum perfectly
+  listContainer.style.overscrollBehavior = "contain";
+  listContainer.style.scrollBehavior = "auto";
+
+  // --- Edge Auto-Scroll during Drag & Drop ---
+  let dragScrollAnimation = null;
+  let currentDragY = 0;
+
+  const startDragScroll = () => {
+    if (dragScrollAnimation) return;
+    const scrollStep = () => {
+      const rect = listContainer.getBoundingClientRect();
+      const edgeSize = 45; // Height of the auto-scroll trigger zone (px)
+
+      // Decrease this number to make the maximum scroll speed slower
+      const maxSpeed = 8;
+
+      let scrollAmount = 0;
+      if (currentDragY > 0) {
+        if (currentDragY < rect.top + edgeSize) {
+          // Accelerate as you move closer to (or past) the top edge
+          const intensity =
+            Math.max(0, rect.top + edgeSize - currentDragY) / edgeSize;
+          scrollAmount = -Math.ceil(intensity * maxSpeed);
+        } else if (currentDragY > rect.bottom - edgeSize) {
+          // Accelerate as you move closer to (or past) the bottom edge
+          const intensity =
+            Math.max(0, currentDragY - (rect.bottom - edgeSize)) / edgeSize;
+          scrollAmount = Math.ceil(intensity * maxSpeed);
+        }
       }
-    },
-    opts,
-  );
+
+      if (scrollAmount !== 0) {
+        listContainer.scrollTop += scrollAmount;
+
+        // Dynamically re-evaluate item placement as the list scrolls
+        const afterElement = getDragAfterElement(listContainer, currentDragY);
+        const dragging = document.querySelector(".dragging");
+        if (dragging) {
+          if (afterElement == null) listContainer.appendChild(dragging);
+          else listContainer.insertBefore(dragging, afterElement);
+        }
+      }
+      dragScrollAnimation = requestAnimationFrame(scrollStep);
+    };
+    dragScrollAnimation = requestAnimationFrame(scrollStep);
+  };
+
+  const stopDragScroll = () => {
+    if (dragScrollAnimation) {
+      cancelAnimationFrame(dragScrollAnimation);
+      dragScrollAnimation = null;
+    }
+  };
 
   const defaultTechs = getDefaultTechniques();
   const savedPrefs =
@@ -6489,10 +6514,13 @@ function openPreferencesModal() {
     item.addEventListener("dragstart", (e) => {
       item.classList.add("dragging");
       e.dataTransfer.effectAllowed = "move";
+      startDragScroll(); // <-- Start auto-scrolling engine
     });
     item.addEventListener("dragend", () => {
       item.classList.remove("dragging");
       updateListLabels(); // Visually recalculate level overrides!
+      stopDragScroll(); // <-- Stop auto-scrolling engine
+      currentDragY = 0;
     });
   });
 
@@ -6511,6 +6539,8 @@ function openPreferencesModal() {
   // Drag over
   listContainer.addEventListener("dragover", (e) => {
     e.preventDefault();
+    currentDragY = e.clientY; // <-- Track mouse/touch Y position for auto-scroll
+
     const afterElement = getDragAfterElement(listContainer, e.clientY);
     const dragging = document.querySelector(".dragging");
     if (afterElement == null) listContainer.appendChild(dragging);
