@@ -2842,24 +2842,15 @@ function handleKeyDown(e) {
     return;
   }
   if (key === "0") {
-    if (currentMode === "concrete" || currentMode === "pencil") {
-      if (selectedCell.row !== null) {
-        const cellState = boardState[selectedCell.row][selectedCell.col];
-        // Ensure we are focused on a given number, matching the 1-9 behavior
-        if (cellState.isGiven) {
-          if (highlightState !== 2) {
-            highlightedDigit = null;
-            highlightState = 2;
-          } else {
-            // Toggle off if it was already active
-            highlightedDigit = null;
-            highlightState = 0;
-          }
-          renderBoard();
-        }
-      }
+    if (highlightState !== 2) {
+      highlightedDigit = null;
+      highlightState = 2;
+    } else {
+      // Toggle off if it was already active
+      highlightedDigit = null;
+      highlightState = 0;
     }
-    return;
+    renderBoard();
   }
   if (key >= "1" && key <= "9") {
     if (currentMode === "color" || currentMode === "draw") {
@@ -3647,12 +3638,13 @@ function autoPencil() {
   showMessage("Auto-Pencil complete!", "green");
   hasUsedAutoPencil = true;
   isAutoPencilPending = false;
+  const isMobile = window.innerWidth <= 550;
+  const tip = isMobile
+    ? "Tip: To highlight all bivalue cells, click one when highlighting is off."
+    : "Tip: To highlight bivalue cells, click one when highlighting is off or press '0'.";
 
   setTimeout(() => {
-    showMessage(
-      "Tip: To highlight all bivalue cells, click one when highlighting is off.",
-      "gray",
-    );
+    showMessage(tip, "gray");
   }, 2000);
 }
 
