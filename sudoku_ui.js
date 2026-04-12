@@ -7061,6 +7061,10 @@ async function handleUrlParameters() {
       await evaluateBoardDifficulty({ waitForFrame: true });
 
       enterSolverModeUI();
+    } else {
+      // Re-evaluate with the actual progressed board state
+      currentEvaluationId++;
+      await evaluateBoardDifficulty({ waitForFrame: true });
     }
     return true; // Successfully loaded from URL
   } else if (puzzleStr) {
