@@ -106,7 +106,7 @@ function calculateAllPencils(board) {
     .map(() =>
       Array(9)
         .fill(null)
-        .map(() => new Set())
+        .map(() => new Set()),
     );
   const boardValues = board.map((row) => row.map((cell) => cell.value));
   for (let r = 0; r < 9; r++) {
@@ -226,9 +226,11 @@ function checkPuzzleUniqueness(board) {
     };
   }
   if (solutionCount > 1) {
+    const countLabel =
+      solutionCount >= 10000 ? "10,000+" : solutionCount.toLocaleString();
     return {
       isValid: false,
-      message: "Error: This puzzle has more than one solution.",
+      message: `Error: This puzzle has ${countLabel} solutions.`,
     };
   }
 
@@ -241,7 +243,7 @@ function checkPuzzleUniqueness(board) {
  * @param {number} limit - The maximum number of solutions to find before stopping.
  * @returns {number} The number of solutions found (up to the limit).
  */
-function countSolutions(board, limit = 2) {
+function countSolutions(board, limit = 10000) {
   let count = 0;
 
   function search() {
