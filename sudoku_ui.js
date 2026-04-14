@@ -72,6 +72,9 @@ let solverSteps = [];
 let currentSolverStep = 0;
 let isSolverMode = false;
 
+let isViewAllTechniquesMode = false;
+let viewAllTechniquesResults = []; // Array of { tech, result, actionStr }
+
 let drawSubMode = "solid"; // "solid" or "dash"
 let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
 let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
@@ -80,12 +83,24 @@ let hadUsedHint = false;
 let hadUsedSolver = false;
 let hadUsedFormatToggle = false;
 
+let vatNextLevel = 1;
+let vatMaxLevel = 6;
+let vatCurrentBoard = null;
+let vatCurrentPencils = null;
+let vatActiveTechniques = [];
+
 const lastUsedColors = {
   draw: { solid: null, dash: null },
   color: { cell: null, candidate: null },
 };
 
 // --- UI Update Functions ---
+
+let _activeTechniqueOrder = null; // cached after first evaluation
+
+function getTechniqueOrder() {
+  return _activeTechniqueOrder || getDefaultTechniques();
+}
 
 function initTheme() {
   const toggleBtn = document.getElementById("theme-toggle");
@@ -119,8 +134,12 @@ function initTheme() {
 
       if (isSolverMode) {
         buildSolverTimeline();
-        buildSolverSummary();
-        renderSolverStep(currentSolverStep); // Re-applies the active highlight layer too
+        if (isViewAllTechniquesMode) {
+          buildViewAllTechniquesList(solverSteps[currentSolverStep]);
+        } else {
+          buildSolverSummary();
+          renderSolverStep(currentSolverStep);
+        }
       }
 
       // Save the updated mapped colors to localStorage so a page refresh loads correctly
@@ -326,7 +345,6 @@ function updateButtonLabels() {
         : "Enter Solver Mode (S)";
     }
   }
-
   // --- UPDATED LOGIC START ---
   if (isExperimentalMode) {
     // 1. Add active class
@@ -2308,6 +2326,17 @@ function setupEventListeners() {
       renderSolverStep(solverSteps.length - 1); // Re-display the final message
     }
   });
+  document
+    .getElementById("solver-view-all-btn")
+    .addEventListener("click", () => {
+      enterViewAllTechniquesMode();
+    });
+
+  document
+    .getElementById("solver-back-from-all-btn")
+    .addEventListener("click", () => {
+      exitViewAllTechniquesMode();
+    });
   document;
 
   // NEW: Solver First-Time Modal Bindings
@@ -3640,7 +3669,7 @@ function autoPencil() {
   isAutoPencilPending = false;
   const isMobile = window.innerWidth <= 550;
   const tip = isMobile
-    ? "Tip: To highlight all bivalue cells, click one when highlighting is off."
+    ? "Tip: To highlight all bivalue cells, touch one when highlighting is off."
     : "Tip: To highlight bivalue cells, click one when highlighting is off or press '0'.";
 
   setTimeout(() => {
@@ -4425,6 +4454,10 @@ async function proceedToSolverMode() {
 }
 
 function exitSolverMode() {
+  if (isViewAllTechniquesMode) {
+    exitViewAllTechniquesMode(); // Clean up VAT state first
+  }
+  isViewAllTechniquesMode = false;
   isSolverMode = false;
   document
     .getElementById("action-buttons-container")
@@ -4470,6 +4503,618 @@ function exitSolverMode() {
   }
 }
 
+function enterViewAllTechniquesMode() {
+  if (!isSolverMode) return;
+  if (
+    solverSteps.length === 0 ||
+    currentSolverStep === 0 ||
+    currentSolverStep === solverSteps.length - 1
+  ) {
+    return;
+  }
+
+  const step = solverSteps[currentSolverStep];
+  if (!step) return;
+
+  isViewAllTechniquesMode = true;
+
+  // Hide solver controls, show back button
+  document.getElementById("solver-prev-btn").classList.add("hidden");
+  document.getElementById("solver-next-btn").classList.add("hidden");
+  document.getElementById("solver-view-all-btn").classList.add("hidden");
+  document.getElementById("solver-step-fraction").classList.add("hidden");
+  document.getElementById("solver-timeline-wrapper").classList.add("hidden");
+
+  document
+    .getElementById("solver-back-from-all-btn")
+    .classList.remove("hidden");
+
+  // Clear current summary list
+  const list = document.getElementById("solver-summary-list");
+  list.innerHTML = "";
+
+  // Initialize VAT state tracking
+  vatCurrentBoard = step.board;
+  vatCurrentPencils = step.pencils;
+  vatActiveTechniques = getActiveTechniques();
+  vatMaxLevel = Math.max(...vatActiveTechniques.map((t) => t.level || 0));
+
+  // Determine the level of the currently viewed technique
+  const currentTech = vatActiveTechniques.find((t) => t.name === step.techName);
+  const currentLevel = currentTech ? currentTech.level || 0 : 0;
+
+  // Calculate occurrences for the title (e.g., Grouped AIC (13/100))
+  const vatTextEl = document.getElementById("vat-mode-text");
+  if (vatTextEl) {
+    vatTextEl.classList.remove("hidden");
+
+    // Dynamically insert the Search Level Button next to the text
+    let searchBtn = document.getElementById("vat-search-next-btn");
+    if (!searchBtn) {
+      searchBtn = document.createElement("button");
+      searchBtn.id = "vat-search-next-btn";
+      searchBtn.className =
+        "ml-auto px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 shadow-sm transition-colors";
+      vatTextEl.parentElement.style.display = "flex";
+      vatTextEl.parentElement.style.alignItems = "center";
+      vatTextEl.parentElement.appendChild(searchBtn);
+    }
+  }
+
+  // Set the next level up
+  vatNextLevel = currentLevel + 1;
+
+  // Execute the initial search (Current Level + Eliminate Candidates)
+  searchAndAppendVatLevel(currentLevel, true);
+}
+
+function exitViewAllTechniquesMode() {
+  isViewAllTechniquesMode = false;
+
+  // Restore solver controls and hide VAT text
+  document.getElementById("solver-prev-btn").classList.remove("hidden");
+  document.getElementById("solver-next-btn").classList.remove("hidden");
+  document.getElementById("solver-view-all-btn").classList.remove("hidden");
+
+  document.getElementById("solver-back-from-all-btn").classList.add("hidden");
+  document.getElementById("vat-mode-text").classList.add("hidden"); // <-- ADD THIS
+
+  document.getElementById("solver-step-fraction").classList.remove("hidden");
+  document.getElementById("solver-timeline-wrapper").classList.remove("hidden");
+
+  const searchBtn = document.getElementById("vat-search-next-btn");
+  if (searchBtn) searchBtn.classList.add("hidden");
+
+  // Restore normal solver summary
+  buildSolverSummary();
+  renderSolverStep(currentSolverStep);
+}
+
+// Inside sudoku_ui.js
+
+function buildViewAllTechniquesList(step) {
+  const list = document.getElementById("solver-summary-list");
+  list.innerHTML = ""; // Clear current summary
+
+  const board = step.board;
+  const pencils = step.pencils;
+  const activeTechniques = getActiveTechniques();
+  let allHints = [];
+
+  // 1. Gather all hints from techniques
+  for (const tech of activeTechniques) {
+    if (typeof tech.func === "function") {
+      // Pass true for the findAll parameter
+      const results = tech.func(board, pencils, true);
+
+      if (Array.isArray(results) && results.length > 0) {
+        results.forEach((res) => {
+          allHints.push({ tech: tech, result: res });
+        });
+      } else if (results && results.change && !Array.isArray(results)) {
+        allHints.push({ tech: tech, result: results });
+      }
+    }
+  }
+
+  if (allHints.length === 0) {
+    const msg = document.createElement("div");
+    msg.className = "p-2 text-sm text-gray-500 italic text-center";
+    msg.textContent = "No standard techniques found for this state.";
+    list.appendChild(msg);
+    return;
+  }
+
+  const isDark = document.documentElement.classList.contains("dark");
+
+  // 2. First Level Grouping: Group by Technique Name + Action String
+  const groupedHints = new Map();
+
+  allHints.forEach((item) => {
+    let actionStr = "";
+
+    // Format the action string to serve as part of the group key
+    if (item.result.type === "place") {
+      actionStr = `r${item.result.r + 1}c${item.result.c + 1} = ${item.result.num}`;
+    } else if (item.result.cells) {
+      const cells = item.result.cells || [];
+      const removalsByDigit = new Map();
+      cells.forEach((c) => {
+        if (!removalsByDigit.has(c.num)) removalsByDigit.set(c.num, []);
+        removalsByDigit.get(c.num).push({ r: c.r, c: c.c });
+      });
+      const groups = [];
+      const sortedDigits = Array.from(removalsByDigit.keys()).sort(
+        (a, b) => a - b,
+      );
+      for (const d of sortedDigits) {
+        const cg = removalsByDigit
+          .get(d)
+          .map((c) => `r${c.r + 1}c${c.c + 1}`)
+          .join(",");
+        groups.push(`${cg}<>${d}`);
+      }
+      actionStr = groups.join(" | ");
+    }
+
+    const groupKey = `${item.tech.name}::${actionStr}`;
+
+    if (!groupedHints.has(groupKey)) {
+      groupedHints.set(groupKey, {
+        tech: item.tech,
+        actionStr: actionStr,
+        items: [],
+      });
+    }
+    groupedHints.get(groupKey).items.push(item);
+  });
+
+  // 3. Render the grouped Level 1 and Level 2 lists
+  groupedHints.forEach((group) => {
+    // --- LEVEL 1: Parent Group (Technique + Action) ---
+    const parentRow = document.createElement("div");
+    parentRow.className =
+      "font-mono hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
+    parentRow.style.display = "flex";
+    parentRow.style.flexDirection = "column";
+    parentRow.style.gap = "2px";
+    parentRow.style.padding = "6px";
+    parentRow.style.borderBottom = isDark
+      ? "1px solid #374151"
+      : "1px solid #e5e7eb";
+    parentRow.style.cursor = "pointer";
+
+    // Header container (always visible)
+    const headerDiv = document.createElement("div");
+    headerDiv.style.display = "flex";
+    headerDiv.style.justifyContent = "space-between";
+    headerDiv.style.alignItems = "center";
+
+    // Tech & Action text
+    const techInfoDiv = document.createElement("div");
+    const techNameEl = document.createElement("div");
+    techNameEl.style.color = getThemeColor(group.tech.level);
+    techNameEl.style.fontWeight = "bold";
+    techNameEl.style.fontSize = "12px";
+    techNameEl.textContent = group.tech.name;
+
+    const actionEl = document.createElement("div");
+    actionEl.style.fontSize = "11px";
+    actionEl.style.opacity = "0.9";
+    actionEl.textContent = group.actionStr;
+
+    techInfoDiv.appendChild(techNameEl);
+    techInfoDiv.appendChild(actionEl);
+
+    // Accordion Toggle Icon
+    const toggleIcon = document.createElement("div");
+    toggleIcon.style.fontSize = "10px";
+    toggleIcon.style.opacity = "0.6";
+    toggleIcon.textContent = `▼ (${group.items.length})`;
+
+    headerDiv.appendChild(techInfoDiv);
+    headerDiv.appendChild(toggleIcon);
+    parentRow.appendChild(headerDiv);
+
+    // --- LEVEL 2: Sub-list Container (Specific Chains/Paths) ---
+    const subListContainer = document.createElement("div");
+    subListContainer.style.display = "none"; // Collapsed by default
+    subListContainer.style.flexDirection = "column";
+    subListContainer.style.gap = "4px";
+    subListContainer.style.marginTop = "4px";
+    subListContainer.style.paddingLeft = "8px";
+    subListContainer.style.borderLeft = `2px solid ${getThemeColor(group.tech.level)}`;
+    group.items.forEach((subItem, index) => {
+      const childRow = document.createElement("div");
+      childRow.className =
+        "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors";
+      childRow.style.fontSize = "10px";
+      childRow.style.opacity = "0.85";
+      childRow.style.padding = "4px";
+      childRow.style.borderRadius = "3px";
+      childRow.style.cursor = "pointer";
+
+      // Hide items beyond the first 3
+      if (index >= 3) {
+        childRow.style.display = "none";
+        childRow.classList.add("vat-extra-item");
+      }
+
+      // Show the specific chain detail, fallback to variation number
+      childRow.textContent =
+        subItem.result.hint.detail || `Path variation ${index + 1}`;
+
+      // Click on sub-item applies visuals
+      childRow.addEventListener("click", (e) => {
+        e.stopPropagation(); // Prevent the parent click event from firing
+
+        // Reset board visuals
+        boardState = cloneToBoardState(board, pencils);
+        drawnLines = [];
+        clearAllColors();
+
+        // Apply this specific hint's visuals
+        if (subItem.result.applyVisuals) {
+          subItem.result.applyVisuals();
+        }
+
+        // Highlight active sub-row globally
+        Array.from(list.querySelectorAll(".active-sub-row")).forEach((c) => {
+          c.classList.remove("active-sub-row");
+          c.style.backgroundColor = "transparent";
+        });
+
+        childRow.classList.add("active-sub-row");
+        childRow.style.backgroundColor = isDark
+          ? "rgba(255,255,255,0.15)"
+          : "rgba(0,0,0,0.08)";
+
+        showMessage(
+          `${group.tech.name}: ${subItem.result.hint.detail || ""} => ${group.actionStr}`,
+          "blue",
+        );
+        renderBoard();
+        renderLines();
+      });
+
+      subListContainer.appendChild(childRow);
+    });
+
+    // Add Show More button if there are more than 3 items
+    if (group.items.length > 3) {
+      const showMoreBtn = document.createElement("div");
+      showMoreBtn.className =
+        "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-blue-600 dark:text-blue-400 font-semibold text-center";
+      showMoreBtn.style.fontSize = "10px";
+      showMoreBtn.style.padding = "4px";
+      showMoreBtn.style.borderRadius = "3px";
+      showMoreBtn.style.cursor = "pointer";
+      showMoreBtn.textContent = `Show ${group.items.length - 3} more...`;
+
+      showMoreBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const extraItems = subListContainer.querySelectorAll(".vat-extra-item");
+        extraItems.forEach((item) => {
+          item.style.display = "block";
+        });
+        showMoreBtn.remove(); // Remove the button after expanding
+      });
+
+      subListContainer.appendChild(showMoreBtn);
+    }
+
+    parentRow.appendChild(subListContainer);
+
+    // Toggle logic for the Parent row
+    parentRow.addEventListener("click", () => {
+      const isHidden = subListContainer.style.display === "none";
+      subListContainer.style.display = isHidden ? "flex" : "none";
+      toggleIcon.textContent = isHidden
+        ? `▲ (${group.items.length})`
+        : `▼ (${group.items.length})`;
+
+      // Convenience: If there is only 1 path and we are opening it, auto-click it to show the visuals instantly
+      if (isHidden && group.items.length === 1) {
+        subListContainer.firstChild.click();
+      }
+    });
+
+    list.appendChild(parentRow);
+  });
+}
+
+function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
+  const searchBtn = document.getElementById("vat-search-next-btn");
+  if (searchBtn) {
+    searchBtn.textContent = "Searching...";
+    searchBtn.disabled = true;
+    searchBtn.classList.add("opacity-50", "cursor-wait");
+  }
+
+  const vatTextEl = document.getElementById("vat-mode-text");
+  if (vatTextEl) {
+    vatTextEl.textContent = `Searched Lv. ${levelToSearch}! `;
+  }
+  // Timeout allows the DOM to render the "Searching..." text before JS locks the thread
+  setTimeout(() => {
+    const list = document.getElementById("solver-summary-list");
+    const isDark = document.documentElement.classList.contains("dark");
+
+    // Gather techniques matching the target level
+    let techsToSearch = vatActiveTechniques.filter(
+      (t) => t.level === levelToSearch,
+    );
+
+    // Always prepend "Eliminate Candidates" if requested
+    if (includeEliminate) {
+      const elimTech = vatActiveTechniques.find(
+        (t) => t.name === "Eliminate Candidates",
+      );
+      if (elimTech && !techsToSearch.includes(elimTech)) {
+        techsToSearch.unshift(elimTech);
+      }
+    }
+
+    let newHints = [];
+
+    // Run the techniques
+    for (const tech of techsToSearch) {
+      if (typeof tech.func === "function") {
+        const results = tech.func(vatCurrentBoard, vatCurrentPencils, true);
+
+        if (Array.isArray(results) && results.length > 0) {
+          results.forEach((res) => {
+            newHints.push({ tech: tech, result: res });
+          });
+        } else if (results && results.change && !Array.isArray(results)) {
+          newHints.push({ tech: tech, result: results });
+        }
+      }
+    }
+
+    // Render results
+    if (newHints.length === 0 && list.children.length === 0) {
+      const msg = document.createElement("div");
+      msg.id = "vat-no-tech-msg";
+      msg.className = "p-2 text-sm text-gray-500 italic text-center";
+      msg.textContent = "No standard techniques found.";
+      list.appendChild(msg);
+    } else if (newHints.length > 0) {
+      const noMsg = document.getElementById("vat-no-tech-msg");
+      if (noMsg) noMsg.remove();
+
+      // --- 1. First Level Grouping: Group by Technique Name + Action String ---
+      const groupedHints = new Map();
+
+      newHints.forEach((item) => {
+        let actionStr = "";
+
+        if (item.result.type === "place") {
+          actionStr = `r${item.result.r + 1}c${item.result.c + 1} = ${item.result.num}`;
+        } else if (item.result.cells) {
+          const cells = item.result.cells || [];
+          const removalsByDigit = new Map();
+          cells.forEach((c) => {
+            if (!removalsByDigit.has(c.num)) removalsByDigit.set(c.num, []);
+            removalsByDigit.get(c.num).push({ r: c.r, c: c.c });
+          });
+          const groups = [];
+          const sortedDigits = Array.from(removalsByDigit.keys()).sort(
+            (a, b) => a - b,
+          );
+          for (const d of sortedDigits) {
+            const cg = removalsByDigit
+              .get(d)
+              .map((c) => `r${c.r + 1}c${c.c + 1}`)
+              .join(",");
+            groups.push(`${cg}<>${d}`);
+          }
+          actionStr = groups.join(" | ");
+        }
+
+        const groupKey = `${item.tech.name}::${actionStr}`;
+
+        if (!groupedHints.has(groupKey)) {
+          groupedHints.set(groupKey, {
+            tech: item.tech,
+            actionStr: actionStr,
+            items: [],
+          });
+        }
+        groupedHints.get(groupKey).items.push(item);
+      });
+
+      // --- 2. Render the grouped Level 1 and Level 2 lists ---
+      groupedHints.forEach((group) => {
+        // LEVEL 1: Parent Group (Technique + Action)
+        const parentRow = document.createElement("div");
+        parentRow.className =
+          "font-mono hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
+        parentRow.style.display = "flex";
+        parentRow.style.flexDirection = "column";
+        parentRow.style.gap = "2px";
+        parentRow.style.padding = "6px";
+        parentRow.style.borderBottom = isDark
+          ? "1px solid #374151"
+          : "1px solid #e5e7eb";
+        parentRow.style.cursor = "pointer";
+
+        const headerDiv = document.createElement("div");
+        headerDiv.style.display = "flex";
+        headerDiv.style.justifyContent = "space-between";
+        headerDiv.style.alignItems = "center";
+
+        const techInfoDiv = document.createElement("div");
+        const techNameEl = document.createElement("div");
+        techNameEl.style.color = getThemeColor(group.tech.level);
+        techNameEl.style.fontWeight = "bold";
+        techNameEl.style.fontSize = "12px";
+        techNameEl.textContent = group.tech.name;
+
+        const actionEl = document.createElement("div");
+        actionEl.style.fontSize = "11px";
+        actionEl.style.opacity = "0.9";
+        actionEl.textContent = group.actionStr;
+
+        techInfoDiv.appendChild(techNameEl);
+        techInfoDiv.appendChild(actionEl);
+
+        const toggleIcon = document.createElement("div");
+        toggleIcon.style.fontSize = "10px";
+        toggleIcon.style.opacity = "0.6";
+        toggleIcon.textContent = `▼ (${group.items.length})`;
+
+        headerDiv.appendChild(techInfoDiv);
+        headerDiv.appendChild(toggleIcon);
+        parentRow.appendChild(headerDiv);
+
+        // LEVEL 2: Sub-list Container (Specific Chains/Paths)
+        const subListContainer = document.createElement("div");
+        subListContainer.style.display = "none";
+        subListContainer.style.flexDirection = "column";
+        subListContainer.style.gap = "4px";
+        subListContainer.style.marginTop = "4px";
+        subListContainer.style.paddingLeft = "8px";
+        subListContainer.style.borderLeft = `2px solid ${getThemeColor(group.tech.level)}`;
+
+        group.items.forEach((subItem, index) => {
+          const childRow = document.createElement("div");
+          childRow.className =
+            "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors";
+          childRow.style.fontSize = "10px";
+          childRow.style.opacity = "0.85";
+          childRow.style.padding = "4px";
+          childRow.style.borderRadius = "3px";
+          childRow.style.cursor = "pointer";
+
+          // Hide items beyond the first 3
+          if (index >= 3) {
+            childRow.style.display = "none";
+            childRow.classList.add("vat-extra-item");
+          }
+
+          childRow.textContent =
+            (subItem.result.hint && subItem.result.hint.detail) ||
+            `Path variation ${index + 1}`;
+
+          childRow.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            // Note: Use VAT specific board states here
+            boardState = cloneToBoardState(vatCurrentBoard, vatCurrentPencils);
+            drawnLines = [];
+            clearAllColors();
+
+            if (subItem.result.applyVisuals) {
+              subItem.result.applyVisuals();
+            }
+
+            Array.from(list.querySelectorAll(".active-sub-row")).forEach(
+              (c) => {
+                c.classList.remove("active-sub-row");
+                c.style.backgroundColor = "transparent";
+              },
+            );
+
+            childRow.classList.add("active-sub-row");
+            childRow.style.backgroundColor = isDark
+              ? "rgba(255,255,255,0.15)"
+              : "rgba(0,0,0,0.08)";
+
+            const detail = subItem.result.hint
+              ? subItem.result.hint.detail || ""
+              : "";
+            showMessage(
+              `${group.tech.name}: ${detail} => ${group.actionStr}`,
+              "blue",
+            );
+            renderBoard();
+            renderLines();
+          });
+
+          subListContainer.appendChild(childRow);
+        });
+
+        // Add Show More button if there are more than 3 items
+        if (group.items.length > 3) {
+          const showMoreBtn = document.createElement("div");
+          showMoreBtn.className =
+            "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-blue-600 dark:text-blue-400 font-semibold text-center";
+          showMoreBtn.style.fontSize = "10px";
+          showMoreBtn.style.padding = "4px";
+          showMoreBtn.style.borderRadius = "3px";
+          showMoreBtn.style.cursor = "pointer";
+          showMoreBtn.textContent = `Show ${group.items.length - 3} more...`;
+
+          showMoreBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const extraItems =
+              subListContainer.querySelectorAll(".vat-extra-item");
+            extraItems.forEach((item) => {
+              item.style.display = "block";
+            });
+            showMoreBtn.remove(); // Remove the button after expanding
+          });
+
+          subListContainer.appendChild(showMoreBtn);
+        }
+
+        parentRow.appendChild(subListContainer);
+
+        parentRow.addEventListener("click", () => {
+          const isHidden = subListContainer.style.display === "none";
+          subListContainer.style.display = isHidden ? "flex" : "none";
+          toggleIcon.textContent = isHidden
+            ? `▲ (${group.items.length})`
+            : `▼ (${group.items.length})`;
+
+          if (isHidden && group.items.length === 1) {
+            subListContainer.firstChild.click();
+          }
+        });
+
+        list.appendChild(parentRow);
+      });
+    }
+
+    // Update the UI Button for the next level search
+    if (searchBtn) {
+      searchBtn.disabled = false;
+      searchBtn.classList.remove("opacity-50", "cursor-wait");
+
+      if (vatNextLevel <= vatMaxLevel) {
+        searchBtn.textContent = `Search Lv. ${vatNextLevel}`;
+        searchBtn.onclick = () => {
+          const nextLvlToRun = vatNextLevel;
+          vatNextLevel++;
+          searchAndAppendVatLevel(nextLvlToRun, false);
+        };
+        searchBtn.classList.remove("hidden");
+      } else {
+        // No more levels left to search
+        searchBtn.classList.add("hidden");
+      }
+    }
+  }, 50);
+}
+
+// Helper function using your existing preference logic
+function getActiveTechniqueOrder() {
+  let prefs;
+
+  if (hasCustomPreferences()) {
+    const savedPrefs = localStorage.getItem("sudokuTechniquePrefs");
+    prefs = JSON.parse(savedPrefs);
+  } else {
+    // Fallback to your default array if they haven't saved custom prefs
+    prefs = getDefaultTechniques();
+  }
+
+  // Filter out disabled techniques and return an array of just the string IDs
+  // e.g., ["eliminateCandidates", "fullHouse", "nakedSingle", ...]
+  return prefs.filter((pref) => pref.enabled !== false).map((pref) => pref.id);
+}
+
 function buildSolverTimeline() {
   const timeline = document.getElementById("solver-timeline");
   timeline.innerHTML = "";
@@ -4504,6 +5149,7 @@ function buildSolverTimeline() {
 }
 
 function renderSolverStep(index) {
+  if (isViewAllTechniquesMode) return;
   if (index < 0 || index >= solverSteps.length) return;
   currentSolverStep = index;
   const step = solverSteps[index];
@@ -4519,6 +5165,18 @@ function renderSolverStep(index) {
   if (focusBar) {
     const percentage = ((index + 0.5) / solverSteps.length) * 100;
     focusBar.style.left = `${percentage}%`;
+  }
+
+  // Visually block the VAT (View All Techniques) button on first and last steps
+  const vatBtn = document.getElementById("solver-view-all-btn");
+  if (vatBtn) {
+    if (index === 0 || index === solverSteps.length - 1) {
+      vatBtn.disabled = true;
+      vatBtn.classList.add("opacity-50", "cursor-not-allowed");
+    } else {
+      vatBtn.disabled = false;
+      vatBtn.classList.remove("opacity-50", "cursor-not-allowed");
+    }
   }
 
   // Highlight active segment visually
@@ -5448,6 +6106,8 @@ async function evaluateBoardDifficulty(opts = {}) {
 
   const techniqueOrder = getActiveTechniques();
 
+  _activeTechniqueOrder = techniqueOrder;
+
   // 1. Capture the ID of this specific run
   const myEvaluationId = currentEvaluationId;
 
@@ -5989,7 +6649,7 @@ function getDefaultTechniques() {
       level: 4,
       score: 120,
     },
-    { name: "Crane", func: techniques.turbotFish, level: 4, score: 130 },
+    { name: "Crane", func: techniques.crane, level: 4, score: 130 },
     {
       name: "Unique Rectangle",
       func: (b, p) => techniques.uniqueRectangle(b, p),
@@ -5998,7 +6658,7 @@ function getDefaultTechniques() {
     },
     {
       name: "Unique Loop",
-      func: techniques.uniqueHexagon,
+      func: techniques.uniqueLoop,
       level: 5,
       score: 120,
     },
@@ -6028,7 +6688,7 @@ function getDefaultTechniques() {
     },
     {
       name: "Empty Rectangle",
-      func: techniques.groupedTurbotFish,
+      func: techniques.emptyRectangle,
       level: 5,
       score: 150,
     },
@@ -6430,7 +7090,7 @@ function openPreferencesModal() {
     const isMandatory = MANDATORY_TECHNIQUES.includes(tech.name);
     const isUniqueness = UNIQUENESS_TECHNIQUES.includes(tech.name);
 
-    item.className = `sortable-item bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded py-1.5 px-2 flex justify-between items-center shadow-sm mt-1 ${isMandatory ? "locked-item" : ""}`;
+    item.className = `sortable-item bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded py-1 px-2 flex justify-between items-center shadow-sm mt-1 ${isMandatory ? "locked-item" : ""}`;
     item.draggable = !isMandatory;
     item.dataset.name = tech.name;
     item.dataset.origLevel = tech.origLevel;

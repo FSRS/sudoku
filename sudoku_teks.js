@@ -159,7 +159,7 @@ const techniques = {
     return techniques._unitCache[unitIndex];
   },
 
-  eliminateCandidates: (board, pencils) => {
+  eliminateCandidates: (board, pencils, findAll = false) => {
     // Initialize Cache
     _alsCache = [];
     _ahsCache = [];
@@ -232,7 +232,7 @@ const techniques = {
       const uniqueRemovals = Array.from(
         new Set(removals.map(JSON.stringify)),
       ).map(JSON.parse);
-      return {
+      const res = {
         change: true,
         type: "remove",
         cells: uniqueRemovals,
@@ -254,11 +254,13 @@ const techniques = {
           ); // Color 1
         },
       };
+      return findAll ? [res] : res;
     }
-    return { change: false };
+    return findAll ? [] : { change: false };
   },
 
-  fullHouse: (board, pencils) => {
+  fullHouse: (board, pencils, findAll = false) => {
+    const results = [];
     // 1. Scan Rows
     for (let r = 0; r < 9; r++) {
       let emptyCnt = 0;
@@ -275,12 +277,14 @@ const techniques = {
       }
       // CHECK ADDED: && pencils[r][emptyCol].size === 1
       if (emptyCnt === 1 && pencils[r][emptyCol].size === 1) {
-        return techniques._resolveFullHouse(
+        const res = techniques._resolveFullHouse(
           r,
           emptyCol,
           solvedMask,
           `Row ${r + 1}`,
         );
+        if (!findAll) return res;
+        results.push(res);
       }
     }
 
@@ -300,12 +304,14 @@ const techniques = {
       }
       // CHECK ADDED: && pencils[emptyRow][c].size === 1
       if (emptyCnt === 1 && pencils[emptyRow][c].size === 1) {
-        return techniques._resolveFullHouse(
+        const res = techniques._resolveFullHouse(
           emptyRow,
           c,
           solvedMask,
           `Col ${c + 1}`,
         );
+        if (!findAll) return res;
+        results.push(res);
       }
     }
 
@@ -331,16 +337,17 @@ const techniques = {
 
       // CHECK ADDED: && pencils[emptyCell.r][emptyCell.c].size === 1
       if (emptyCnt === 1 && pencils[emptyCell.r][emptyCell.c].size === 1) {
-        return techniques._resolveFullHouse(
+        const res = techniques._resolveFullHouse(
           emptyCell.r,
           emptyCell.c,
           solvedMask,
           `Box ${b + 1}`,
         );
+        if (!findAll) return res;
+        results.push(res);
       }
     }
-
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
   // Helper to calculate missing digit and format the return object
@@ -383,12 +390,13 @@ const techniques = {
     };
   },
 
-  nakedSingle: (board, pencils) => {
+  nakedSingle: (board, pencils, findAll = false) => {
+    const results = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         if (board[r][c] === 0 && pencils[r][c].size === 1) {
           const num = pencils[r][c].values().next().value;
-          return {
+          const res = {
             change: true,
             type: "place",
             r,
@@ -406,13 +414,16 @@ const techniques = {
               boardState[r][c].pencilColors.set(num, candidateColorPalette[3]);
             },
           };
+          if (!findAll) return res;
+          results.push(res);
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  hiddenSingle: (board, pencils) => {
+  hiddenSingle: (board, pencils, findAll = false) => {
+    const results = [];
     // 1. Define types with the display name you want
     const unitTypes = [
       { name: "box", label: "Box" },
@@ -426,7 +437,6 @@ const techniques = {
         // Get the specific unit (e.g., Row 0)
         const unit = techniques._getUnitCells(name, i);
 
-        // --- EXISTING LOGIC STARTS HERE ---
         for (let num = 1; num <= 9; num++) {
           const possibleCells = [];
           for (const [r, c] of unit) {
@@ -444,7 +454,7 @@ const techniques = {
             const unitLabel = `${label} ${i + 1}`;
             const detail = `Only cell ${position} with digit (${num}) in ${unitLabel}`;
 
-            return {
+            const res = {
               change: true,
               type: "place",
               r,
@@ -474,20 +484,22 @@ const techniques = {
                 );
               },
             };
+            if (!findAll) return res;
+            results.push(res);
           }
         }
-        // --- EXISTING LOGIC ENDS HERE ---
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  lockedSubset: (board, pencils, size) => {
+  lockedSubset: (board, pencils, size, findAll = false) => {
     // This technique finds subsets of candidates that are locked within the
     // intersection of a box and a line (row or column).
     // It's a combination of "Pointing" (eliminating from the line outside the box)
     // and "Naked Subset" (eliminating from the box outside the line).
 
+    const results = [];
     // Iterate through each of the 9 boxes
     for (let b = 0; b < 9; b++) {
       const box_r_start = Math.floor(b / 3) * 3;
@@ -507,7 +519,7 @@ const techniques = {
             if (
               board[r][c] === 0 &&
               pencils[r][c].size <= size &&
-              pencils[r][c].size > 1
+              pencils[r][c].size >= 1
             ) {
               potential_cells.push([r, c]);
             }
@@ -574,7 +586,7 @@ const techniques = {
 
                 const lineType = isRow ? "Row" : "Col";
 
-                return {
+                const res = {
                   change: true,
                   type: "remove",
                   cells: removals,
@@ -605,17 +617,19 @@ const techniques = {
                     ); // Color 1
                   },
                 };
+                if (!findAll) return res;
+                results.push(res);
               }
             }
           }
         }
       }
     }
-
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  intersection: (board, pencils) => {
+  intersection: (board, pencils, findAll = false) => {
+    const results = [];
     for (const is_pointing of [true, false]) {
       // Pointing: outer loop = box (0-8), inner = row-or-col orientation
       // Claiming: outer loop = line index (0-8), inner = row-or-col orientation
@@ -728,7 +742,7 @@ const techniques = {
             const _is_pointing = is_pointing;
             const _removals = removals;
 
-            return {
+            const res = {
               change: true,
               type: "remove",
               cells: removals,
@@ -776,17 +790,20 @@ const techniques = {
                 );
               },
             };
+            if (!findAll) return res;
+            results.push(res);
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  nakedSubset: (board, pencils, size) => {
+  nakedSubset: (board, pencils, size, findAll = false) => {
     if (size === 2) {
       _prNpair = true;
     }
+    const results = [];
 
     const unitTypes = [
       { name: "box", label: "Box" },
@@ -805,7 +822,7 @@ const techniques = {
         const potentialCells = unit.filter(
           ([r, c]) =>
             board[r][c] === 0 &&
-            pencils[r][c].size >= 2 &&
+            pencils[r][c].size >= 1 &&
             pencils[r][c].size <= size,
         );
 
@@ -821,13 +838,29 @@ const techniques = {
             const removals = [];
             const cellGroupSet = new Set(cellGroup.map(JSON.stringify));
 
-            for (const [r, c] of unit) {
-              if (
-                board[r][c] === 0 &&
-                !cellGroupSet.has(JSON.stringify([r, c]))
-              ) {
-                for (const num of union)
-                  if (pencils[r][c].has(num)) removals.push({ r, c, num });
+            // Find ALL units that share these cells (e.g., the Row AND the Box)
+            const commonUnits = techniques._getCommonUnits(cellGroup);
+
+            for (const cUnit of commonUnits) {
+              for (const [r, c] of cUnit.cells) {
+                if (
+                  board[r][c] === 0 &&
+                  !cellGroupSet.has(JSON.stringify([r, c]))
+                ) {
+                  for (const num of union) {
+                    if (pencils[r][c].has(num)) {
+                      // Prevent duplicate removals since a cell might be seen by multiple common units
+                      if (
+                        !removals.some(
+                          (rem) =>
+                            rem.r === r && rem.c === c && rem.num === num,
+                        )
+                      ) {
+                        removals.push({ r, c, num });
+                      }
+                    }
+                  }
+                }
               }
             }
 
@@ -855,7 +888,7 @@ const techniques = {
                 cellStr = `r${rows}c${cols}`;
               }
 
-              return {
+              const res = {
                 change: true,
                 type: "remove",
                 cells: removals,
@@ -888,20 +921,23 @@ const techniques = {
                   ); // Color 1
                 },
               };
+              if (!findAll) return res;
+              results.push(res);
             }
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  hiddenSubset: (board, pencils, size) => {
+  hiddenSubset: (board, pencils, size, findAll = false) => {
     const unitTypes = [
       { name: "box", label: "Box" },
       { name: "row", label: "Row" },
       { name: "col", label: "Col" },
     ];
+    const results = [];
 
     if (size === 2) _prHpair = true;
 
@@ -975,7 +1011,7 @@ const techniques = {
               // Extract and sort the digits for the string
               const digitsStr = [...numGroup].sort().join("");
 
-              return {
+              const res = {
                 change: true,
                 type: "remove",
                 cells: removals,
@@ -1008,15 +1044,18 @@ const techniques = {
                   ); // Color 1
                 },
               };
+              if (!findAll) return res;
+              results.push(res);
             }
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  fish: (board, pencils, size) => {
+  fish: (board, pencils, size, findAll = false) => {
+    const results = [];
     for (const isRowBased of [true, false]) {
       for (let num = 1; num <= 9; num++) {
         const candidatesInDim = [];
@@ -1067,7 +1106,7 @@ const techniques = {
               const baseStr = `${basePrefix}${baseNums}`;
               const coverStr = `${coverPrefix}${coverNums}`;
 
-              return {
+              const res = {
                 change: true,
                 type: "remove",
                 cells: removals,
@@ -1114,37 +1153,55 @@ const techniques = {
                   ); // Color 1
                 },
               };
+              if (!findAll) return res;
+              results.push(res);
             }
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  finnedXWing: (board, pencils) => {
+  finnedXWing: (board, pencils, findAll = false) => {
     _prgSky = true;
-    let result = techniques._findFinnedFish(board, pencils, 2, true); // Row-based
-    if (result.change) return result;
-    result = techniques._findFinnedFish(board, pencils, 2, false); // Column-based
-    return result;
+    if (!findAll) {
+      let result = techniques._findFinnedFish(board, pencils, 2, true, false);
+      if (result.change) return result;
+      return techniques._findFinnedFish(board, pencils, 2, false, false);
+    } else {
+      const r1 = techniques._findFinnedFish(board, pencils, 2, true, true);
+      const r2 = techniques._findFinnedFish(board, pencils, 2, false, true);
+      return [...r1, ...r2];
+    }
   },
 
-  finnedSwordfish: (board, pencils) => {
-    let result = techniques._findFinnedFish(board, pencils, 3, true);
-    if (result.change) return result;
-    result = techniques._findFinnedFish(board, pencils, 3, false);
-    return result;
+  finnedSwordfish: (board, pencils, findAll = false) => {
+    if (!findAll) {
+      let result = techniques._findFinnedFish(board, pencils, 3, true, false);
+      if (result.change) return result;
+      return techniques._findFinnedFish(board, pencils, 3, false, false);
+    } else {
+      const r1 = techniques._findFinnedFish(board, pencils, 3, true, true);
+      const r2 = techniques._findFinnedFish(board, pencils, 3, false, true);
+      return [...r1, ...r2];
+    }
   },
 
-  finnedJellyfish: (board, pencils) => {
-    let result = techniques._findFinnedFish(board, pencils, 4, true);
-    if (result.change) return result;
-    result = techniques._findFinnedFish(board, pencils, 4, false);
-    return result;
+  finnedJellyfish: (board, pencils, findAll = false) => {
+    if (!findAll) {
+      let result = techniques._findFinnedFish(board, pencils, 4, true, false);
+      if (result.change) return result;
+      return techniques._findFinnedFish(board, pencils, 4, false, false);
+    } else {
+      const r1 = techniques._findFinnedFish(board, pencils, 4, true, true);
+      const r2 = techniques._findFinnedFish(board, pencils, 4, false, true);
+      return [...r1, ...r2];
+    }
   },
 
-  _findFinnedFish: (board, pencils, fishSize, isRowBased) => {
+  _findFinnedFish: (board, pencils, fishSize, isRowBased, findAll = false) => {
+    const results = []; // Add this
     for (let num = 1; num <= 9; num++) {
       // Step 1: Find all lines that could be part of the pattern
       const potentialLines = [];
@@ -1159,7 +1216,7 @@ const techniques = {
         }
         // A finned fish pattern requires lines with more than 1 candidate
         // We allow up to fishSize + 1/2 fins for this initial search
-        if (candidateLocs.length >= 2 && candidateLocs.length <= fishSize + 2) {
+        if (candidateLocs.length >= 1 && candidateLocs.length <= fishSize + 2) {
           potentialLines.push({ line: i, locs: candidateLocs });
         }
       }
@@ -1268,7 +1325,7 @@ const techniques = {
               .join("");
             const finStr = `b${finBoxIndex + 1}p${finPoints}`;
 
-            return {
+            const resultObj = {
               change: true,
               type: "remove",
               cells: removals,
@@ -1318,14 +1375,16 @@ const techniques = {
                 ); // Color 1
               },
             };
+            if (!findAll) return resultObj;
+            results.push(resultObj);
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  xyWing: (board, pencils) => {
+  xyWing: (board, pencils, findAll = false) => {
     _prXYw = true;
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
@@ -1337,7 +1396,7 @@ const techniques = {
     }
 
     if (bivalueCells.length < 3) return { change: false };
-
+    const results = [];
     for (const pivot of bivalueCells) {
       const [x, y] = pivot.cands;
       const pincer1Candidates = bivalueCells.filter(
@@ -1376,7 +1435,7 @@ const techniques = {
             if (removals.length > 0) {
               const allCands = [x, y, z].sort().join("");
 
-              return {
+              const res = {
                 change: true,
                 type: "remove",
                 cells: removals,
@@ -1434,15 +1493,19 @@ const techniques = {
                   );
                 },
               };
+              if (!findAll) return res;
+              results.push(res);
             }
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  xyzWing: (board, pencils) => {
+  xyzWing: (board, pencils, findAll = false) => {
+    let results = [];
+
     _prXYZw = true;
     const trivalueCells = [];
     for (let r = 0; r < 9; r++) {
@@ -1504,7 +1567,7 @@ const techniques = {
           }
           if (removals.length > 0) {
             const pivotCands = [...pivot.cands].sort().join("");
-            return {
+            const resultObj = {
               change: true,
               type: "remove",
               cells: removals,
@@ -1572,15 +1635,18 @@ const techniques = {
                 );
               },
             };
+            if (!findAll) return resultObj;
+            results.push(resultObj);
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
   // --- Unified Helper for W-Wing & Grouped W-Wing ---
-  _wWingCore: (board, pencils, isGrouped) => {
+  _wWingCore: (board, pencils, isGrouped, findAll = false) => {
+    const results = [];
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -1589,7 +1655,7 @@ const techniques = {
         }
       }
     }
-    if (bivalueCells.length < 2) return { change: false };
+    if (bivalueCells.length < 2) return findAll ? results : { change: false };
 
     for (const pair of techniques.combinations(bivalueCells, 2)) {
       const [cell1, cell2] = pair;
@@ -1710,7 +1776,7 @@ const techniques = {
             const linkStr2 = formatGroup(group2, unitType, unitIndex);
             const strongLinkDetail = `(${linkDigit})(${linkStr1}=${linkStr2})`;
 
-            return {
+            const res = {
               change: true,
               type: "remove",
               cells: removals,
@@ -1762,23 +1828,27 @@ const techniques = {
                 );
               },
             };
+
+            if (!findAll) return res;
+            results.push(res);
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  wWing: (board, pencils) => {
+  wWing: (board, pencils, findAll = false) => {
     _prWw = true;
-    return techniques._wWingCore(board, pencils, false);
+    return techniques._wWingCore(board, pencils, false, findAll);
   },
 
-  groupedWWing: (board, pencils) => {
-    return techniques._wWingCore(board, pencils, true);
+  groupedWWing: (board, pencils, findAll = false) => {
+    return techniques._wWingCore(board, pencils, true, findAll);
   },
 
-  remotePair: (board, pencils) => {
+  remotePair: (board, pencils, findAll = false) => {
+    const results = [];
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -1838,7 +1908,7 @@ const techniques = {
               const pathStr = path
                 .map(([r, c]) => `r${r + 1}c${c + 1}`)
                 .join("-");
-              return {
+              const res = {
                 change: true,
                 type: "remove",
                 cells: removals,
@@ -1875,6 +1945,8 @@ const techniques = {
                   );
                 },
               };
+              if (!findAll) return res;
+              results.push(res);
             }
           }
 
@@ -1896,12 +1968,14 @@ const techniques = {
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  skyscraper: (board, pencils) => {
+  skyscraper: (board, pencils, findAll = false) => {
     _prSky = true;
     const skyscraperLogic = (isRowBased) => {
+      let results = [];
+
       for (let num = 1; num <= 9; num++) {
         const strongLinks = [];
         for (let i = 0; i < 9; i++) {
@@ -1966,7 +2040,7 @@ const techniques = {
               ? [link2.line, baseLoc]
               : [baseLoc, link2.line];
 
-            return {
+            const resultObj = {
               change: true,
               type: "remove",
               cells: removals,
@@ -2018,19 +2092,29 @@ const techniques = {
                 }
               },
             };
+            if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
+            results.push(resultObj);
           }
         }
       }
-      return { change: false };
+      return findAll ? results : { change: false };
     };
 
-    let result = skyscraperLogic(true);
-    if (result.change) return result;
-    result = skyscraperLogic(false);
-    return result;
+    // 5. Update the execution block
+    if (!findAll) {
+      let result = skyscraperLogic(true);
+      if (result.change) return result.res;
+      result = skyscraperLogic(false);
+      return result.change ? result.res : { change: false };
+    } else {
+      const r1 = skyscraperLogic(true);
+      const r2 = skyscraperLogic(false);
+      return [...r1, ...r2]; // FIXED: Returns the array directly
+    }
   },
 
-  twoStringKite: (board, pencils) => {
+  twoStringKite: (board, pencils, findAll = false) => {
+    let results = [];
     _prKite = true;
     for (let num = 1; num <= 9; num++) {
       const rowLinks = [];
@@ -2099,7 +2183,7 @@ const techniques = {
                   const link1Str = `r${p1[0] + 1}c${p1[1] + 1}=r${pBox1[0] + 1}c${pBox1[1] + 1}`;
                   const link2Str = `r${pBox2[0] + 1}c${pBox2[1] + 1}=r${p2[0] + 1}c${p2[1] + 1}`;
 
-                  return {
+                  const resultObj = {
                     change: true,
                     type: "remove",
                     cells: removals,
@@ -2150,6 +2234,8 @@ const techniques = {
                       }
                     },
                   };
+                  if (!findAll) return resultObj; // Note the wrapper
+                  results.push(resultObj);
                 }
               }
             }
@@ -2157,12 +2243,13 @@ const techniques = {
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  turbotFish: (board, pencils) => {
+  crane: (board, pencils, findAll = false) => {
     _prCrane = true;
     const turbotLogic = (isRowBased) => {
+      let results = [];
       for (let num = 1; num <= 9; num++) {
         for (let b = 0; b < 9; b++) {
           const boxCells = techniques._getUnitCells("box", b);
@@ -2219,7 +2306,7 @@ const techniques = {
                     const link1Str = `b${b + 1}p${p1BoxIndex}=b${b + 1}p${p2BoxIndex}`;
                     const link2Str = `r${pC[0] + 1}c${pC[1] + 1}=r${pD[0] + 1}c${pD[1] + 1}`;
 
-                    return {
+                    const resultObj = {
                       change: true,
                       type: "remove",
                       cells: removals,
@@ -2270,6 +2357,8 @@ const techniques = {
                         }
                       },
                     };
+                    if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
+                    results.push(resultObj);
                   }
                 }
               }
@@ -2277,16 +2366,24 @@ const techniques = {
           }
         }
       }
-      return { change: false };
+      return findAll ? results : { change: false };
     };
 
-    let result = turbotLogic(true);
-    if (result.change) return result;
-    result = turbotLogic(false);
-    return result;
+    // 5. Update the execution block
+    if (!findAll) {
+      let result = turbotLogic(true);
+      if (result.change) return result.res;
+      result = turbotLogic(false);
+      return result.change ? result.res : { change: false };
+    } else {
+      const r1 = turbotLogic(true);
+      const r2 = turbotLogic(false);
+      return [...r1, ...r2]; // FIXED: Returns the array directly
+    }
   },
 
-  groupedKite: (board, pencils) => {
+  groupedKite: (board, pencils, findAll = false) => {
+    let results = [];
     _prgKite = true;
     for (let num = 1; num <= 9; num++) {
       for (let b = 0; b < 9; b++) {
@@ -2346,7 +2443,7 @@ const techniques = {
               const link1Str = `r${r1 + 1}c${c2 + 1}=r${r1 + 1}c${rowGroupCols}`;
               const link2Str = `r${colGroupRows}c${c1 + 1}=r${r2 + 1}c${c1 + 1}`;
 
-              return {
+              const resultObj = {
                 change: true,
                 type: "remove",
                 cells: [{ r: r2, c: c2, num }],
@@ -2433,17 +2530,20 @@ const techniques = {
                   }
                 },
               };
+              if (!findAll) return resultObj; // Note the wrapper
+              results.push(resultObj);
             }
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  groupedTurbotFish: (board, pencils) => {
+  emptyRectangle: (board, pencils, findAll = false) => {
     _prgCrane = true;
     const logic = (isRowVersion) => {
+      let results = [];
       for (let num = 1; num <= 9; num++) {
         for (let b = 0; b < 9; b++) {
           const boxCells = techniques._getUnitCells("box", b);
@@ -2535,7 +2635,7 @@ const techniques = {
                       ? `r${r2 + 1}c${c1 + 1}=r${r2 + 1}c${c2 + 1}`
                       : `r${r1 + 1}c${c2 + 1}=r${r2 + 1}c${c2 + 1}`;
 
-                    return {
+                    const resultObj = {
                       change: true,
                       type: "remove",
                       cells: [{ r: elimR, c: elimC, num }],
@@ -2623,6 +2723,8 @@ const techniques = {
                         }
                       },
                     };
+                    if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
+                    results.push(resultObj);
                   }
                 }
               }
@@ -2630,16 +2732,22 @@ const techniques = {
           }
         }
       }
-      return { change: false };
+      return findAll ? results : { change: false };
     };
 
-    let result = logic(true);
-    if (result.change) return result;
-    result = logic(false);
-    return result;
+    if (!findAll) {
+      let result = logic(true);
+      if (result.change) return result.res;
+      result = logic(false);
+      return result.change ? result.res : { change: false };
+    } else {
+      const r1 = logic(true);
+      const r2 = logic(false);
+      return [...r1, ...r2]; // FIXED: Returns the array directly
+    }
   },
 
-  bugPlusOne: (board, pencils) => {
+  bugPlusOne: (board, pencils, findAll = false) => {
     const unsolvedCells = [];
     const bivalueCells = [];
     const trivalueCells = [];
@@ -2762,7 +2870,8 @@ const techniques = {
     return peers;
   },
 
-  uniqueRectangle: (board, pencils) => {
+  uniqueRectangle: (board, pencils, findAll = false) => {
+    let results = [];
     const rects = techniques._findHiddenRectangles(pencils);
     if (!rects || rects.length === 0) return { change: false };
 
@@ -2928,8 +3037,8 @@ const techniques = {
         const removals = [];
         if (pencils[r][c].has(d1)) removals.push({ r, c, num: d1 });
         if (pencils[r][c].has(d2)) removals.push({ r, c, num: d2 });
-        if (removals.length > 0)
-          return {
+        if (removals.length > 0) {
+          const resultObj = {
             change: true,
             type: "remove",
             cells: uniqueRemovals(removals),
@@ -2946,6 +3055,10 @@ const techniques = {
               uniqueRemovals(removals),
             ),
           };
+          if (!findAll) return resultObj;
+          results.push(resultObj);
+          continue;
+        }
       }
 
       // --- Types 2 & 5: Two or three extra cells with a common extra digit ---
@@ -2972,8 +3085,8 @@ const techniques = {
                 removals.push({ r, c, num: commonExtraDigit });
               }
             }
-            if (removals.length > 0)
-              return {
+            if (removals.length > 0) {
+              const resultObj = {
                 change: true,
                 type: "remove",
                 cells: uniqueRemovals(removals),
@@ -2993,6 +3106,11 @@ const techniques = {
                   uniqueRemovals(removals),
                 ),
               };
+
+              if (!findAll) return resultObj;
+              results.push(resultObj);
+              continue;
+            }
           }
         }
       }
@@ -3077,7 +3195,7 @@ const techniques = {
                 unit.type === "box"
                   ? formatBP(res.chosen, unit.idx)
                   : formatRC(res.chosen);
-              return {
+              const resultObj = {
                 change: true,
                 type: "remove",
                 cells: res.removals,
@@ -3095,6 +3213,9 @@ const techniques = {
                   { subsetCells: res.chosen, subsetCands: res.union },
                 ), // Changed union to res.unions
               };
+              if (!findAll) return resultObj;
+              results.push(resultObj);
+              continue;
             }
           }
         }
@@ -3139,7 +3260,7 @@ const techniques = {
               if (removals.length > 0) {
                 const lineStr =
                   e1r === e2r ? `Row ${e1r + 1}` : `Col ${e1c + 1}`;
-                return {
+                const resultObj = {
                   change: true,
                   type: "remove",
                   cells: uniqueRemovals(removals),
@@ -3157,6 +3278,9 @@ const techniques = {
                     { restrictedDigit: u, e1: [e1r, e1c], e2: [e2r, e2c] },
                   ),
                 };
+                if (!findAll) return resultObj;
+                results.push(resultObj);
+                continue;
               }
             }
           }
@@ -3185,8 +3309,8 @@ const techniques = {
                 removals.push({ r: e1r, c: e1c, num: u });
               if (pencils[e2r][e2c].has(u))
                 removals.push({ r: e2r, c: e2c, num: u });
-              if (removals.length > 0)
-                return {
+              if (removals.length > 0) {
+                const resultObj = {
                   change: true,
                   type: "remove",
                   cells: uniqueRemovals(removals),
@@ -3204,15 +3328,21 @@ const techniques = {
                     { restrictedDigit: u },
                   ),
                 };
+                if (!findAll) return resultObj;
+                results.push(resultObj);
+
+                continue;
+              }
             }
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  hiddenRectangle: (board, pencils) => {
+  hiddenRectangle: (board, pencils, findAll = false) => {
+    const results = [];
     const rectangles = techniques._findHiddenRectangles(pencils);
     if (rectangles.length === 0) return { change: false };
 
@@ -3516,7 +3646,7 @@ const techniques = {
           const bivalueStr = getBivalueStr(bivalueCells);
           const uniqueLinks = Array.from(new Set(strongLinks)).join(",");
 
-          return {
+          const resultObj = {
             change: true,
             type: "remove",
             cells: uniqueRemovals,
@@ -3557,10 +3687,12 @@ const techniques = {
               );
             },
           };
+          if (!findAll) return resultObj;
+          results.push(resultObj);
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false }; // ← was just `return { change: false }`
   },
 
   _findHiddenRectangles: (pencils) => {
@@ -3856,7 +3988,8 @@ const techniques = {
     return rectangles;
   },
 
-  extendedRectangle: (board, pencils) => {
+  extendedRectangle: (board, pencils, findAll = false) => {
+    const results = [];
     const ers = techniques._findExtendedRectangles(pencils);
     if (ers.length === 0) return { change: false };
 
@@ -4053,7 +4186,7 @@ const techniques = {
           if (pencils[r][c].has(d)) removals.push({ r, c, num: d });
         });
         if (removals.length > 0) {
-          return {
+          const resultObj = {
             change: true,
             type: "remove",
             cells: uniqueRemovals(removals),
@@ -4069,6 +4202,9 @@ const techniques = {
               uniqueRemovals(removals),
             ),
           };
+          if (!findAll) return resultObj;
+          results.push(resultObj);
+          continue;
         }
       }
 
@@ -4103,7 +4239,7 @@ const techniques = {
             }
           }
           if (removals.length > 0) {
-            return {
+            const resultObj = {
               change: true,
               type: "remove",
               cells: uniqueRemovals(removals),
@@ -4120,6 +4256,9 @@ const techniques = {
               ),
             };
           }
+          if (!findAll) return resultObj;
+          results.push(resultObj);
+          continue;
         }
       }
 
@@ -4205,7 +4344,7 @@ const techniques = {
                 unit.type === "box"
                   ? formatBP(res.chosen, unit.idx)
                   : formatRC(res.chosen);
-              return {
+              const resultObj = {
                 change: true,
                 type: "remove",
                 cells: uniqueRemovals(res.removals),
@@ -4222,6 +4361,9 @@ const techniques = {
                   { subsetCells: res.chosen, subsetCands: res.union },
                 ),
               };
+              if (!findAll) return resultObj;
+              results.push(resultObj);
+              continue;
             }
           }
         }
@@ -4293,7 +4435,7 @@ const techniques = {
                   [e2r, e2c],
                 ]);
 
-                return {
+                const resultObj = {
                   change: true,
                   type: "remove",
                   cells: uniqueRemovals(removals),
@@ -4310,6 +4452,9 @@ const techniques = {
                     { restrictedDigit: d, e1: [e1r, e1c], e2: [e2r, e2c] },
                   ),
                 };
+                if (!findAll) return resultObj;
+                results.push(resultObj);
+                continue;
               }
             }
           }
@@ -4365,7 +4510,7 @@ const techniques = {
               if (pencils[e2r][e2c].has(d))
                 removals.push({ r: e2r, c: e2c, num: d });
               if (removals.length > 0) {
-                return {
+                const resultObj = {
                   change: true,
                   type: "remove",
                   cells: uniqueRemovals(removals),
@@ -4382,13 +4527,16 @@ const techniques = {
                     { restrictedDigit: d, is_3x2 },
                   ),
                 };
+                if (!findAll) return resultObj;
+                results.push(resultObj);
+                continue;
               }
             }
           }
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
   // Offsets relative to a 3x3 selection of rows/cols
@@ -4562,7 +4710,8 @@ const techniques = {
     }
     return hexagons;
   },
-  uniqueHexagon: (board, pencils) => {
+  uniqueLoop: (board, pencils, findAll = false) => {
+    const results = [];
     const hexagons = techniques._findUniqueHexagons(pencils);
     if (hexagons.length === 0) return { change: false };
 
@@ -4729,7 +4878,7 @@ const techniques = {
         if (pencils[r][c].has(d1)) removals.push({ r, c, num: d1 });
         if (pencils[r][c].has(d2)) removals.push({ r, c, num: d2 });
         if (removals.length > 0) {
-          return {
+          const resultObj = {
             change: true,
             type: "remove",
             cells: uniqueRemovals(removals),
@@ -4745,6 +4894,9 @@ const techniques = {
               uniqueRemovals(removals),
             ),
           };
+          if (!findAll) return resultObj;
+          results.push(resultObj);
+          continue;
         }
       }
 
@@ -4777,7 +4929,7 @@ const techniques = {
             }
           }
           if (removals.length > 0) {
-            return {
+            const resultObj = {
               change: true,
               type: "remove",
               cells: uniqueRemovals(removals),
@@ -4796,6 +4948,9 @@ const techniques = {
                 uniqueRemovals(removals),
               ),
             };
+            if (!findAll) return resultObj;
+            results.push(resultObj);
+            continue;
           }
         }
       }
@@ -4875,7 +5030,7 @@ const techniques = {
                 unit.type === "box"
                   ? formatBP(res.chosen, unit.idx)
                   : formatRC(res.chosen);
-              return {
+              const resultObj = {
                 change: true,
                 type: "remove",
                 cells: uniqueRemovals(res.removals),
@@ -4892,6 +5047,9 @@ const techniques = {
                   { subsetCells: res.chosen, subsetCands: res.union },
                 ),
               };
+              if (!findAll) return resultObj;
+              results.push(resultObj);
+              continue;
             }
           }
         }
@@ -4949,7 +5107,7 @@ const techniques = {
                   [e1r, e1c],
                   [e2r, e2c],
                 ]);
-                return {
+                const resultObj = {
                   change: true,
                   type: "remove",
                   cells: uniqueRemovals(removals),
@@ -4970,6 +5128,9 @@ const techniques = {
                     },
                   ),
                 };
+                if (!findAll) return resultObj;
+                results.push(resultObj);
+                continue;
               }
             }
           }
@@ -5038,7 +5199,7 @@ const techniques = {
                   if (pencils[r][c].has(u)) removals.push({ r, c, num: u });
                 });
                 if (removals.length > 0) {
-                  return {
+                  const resultObj = {
                     change: true,
                     type: "remove",
                     cells: uniqueRemovals(removals),
@@ -5055,6 +5216,9 @@ const techniques = {
                       { restrictedDigit: u },
                     ),
                   };
+                  if (!findAll) return resultObj;
+                  results.push(resultObj);
+                  continue;
                 }
               }
             }
@@ -5062,11 +5226,12 @@ const techniques = {
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
   // --- Unified Helper for Almost Locked Pair & Triple ---
-  _almostLockedSets: (board, pencils, size) => {
+  _almostLockedSets: (board, pencils, size, findAll = false) => {
+    const results = [];
     const numBaseCells = size - 1;
 
     // --- Format Helpers for Hints ---
@@ -5267,7 +5432,7 @@ const techniques = {
                     size === 2 ? "Almost Locked Pair" : "Almost Locked Triple";
                   const mainInfo = `using ${isRow ? "Row" : "Col"} ${isLineToBox ? baseIdx + 1 : targetIdx + 1} and Box ${isLineToBox ? targetIdx + 1 : baseIdx + 1}`;
 
-                  return {
+                  const resultObj = {
                     change: true,
                     type: "remove",
                     cells: uniqueElims,
@@ -5322,6 +5487,8 @@ const techniques = {
                       );
                     },
                   };
+                  if (!findAll) return resultObj;
+                  results.push(resultObj);
                 }
               }
             }
@@ -5330,18 +5497,19 @@ const techniques = {
       }
     }
 
-    return { change: false };
+    return findAll ? results : { change: false }; // ← was just `return { change: false }`
   },
 
-  almostLockedPair: (board, pencils) => {
-    return techniques._almostLockedSets(board, pencils, 2);
+  almostLockedPair: (board, pencils, findAll = false) => {
+    return techniques._almostLockedSets(board, pencils, 2, findAll); // pass findAll
   },
 
-  almostLockedTriple: (board, pencils) => {
-    return techniques._almostLockedSets(board, pencils, 3);
+  almostLockedTriple: (board, pencils, findAll = false) => {
+    return techniques._almostLockedSets(board, pencils, 3, findAll); // pass findAll
   },
 
-  sueDeCoq: (board, pencils) => {
+  sueDeCoq: (board, pencils, findAll = false) => {
+    const results = [];
     const bitFor = (d) => 1 << (d - 1);
     const maskFromSet = (s) => {
       let m = 0;
@@ -5571,7 +5739,7 @@ const techniques = {
                         detailStr += `, (${maskToDigitsStr(overlapMask)}) appears twice`;
                       }
 
-                      return {
+                      const resultObj = {
                         change: true,
                         type: "remove",
                         cells: eliminations,
@@ -5656,6 +5824,8 @@ const techniques = {
                           );
                         },
                       };
+                      if (!findAll) return resultObj;
+                      results.push(resultObj);
                     }
                   }
                 }
@@ -5666,10 +5836,11 @@ const techniques = {
       }
     }
 
-    return { change: false, type: null, cells: [] };
+    return findAll ? results : { change: false };
   },
 
-  firework: (board, pencils) => {
+  firework: (board, pencils, findAll = false) => {
+    const results = [];
     const bitFor = (d) => 1 << (d - 1);
     const maskFromSet = (s) => {
       let m = 0;
@@ -5921,7 +6092,7 @@ const techniques = {
                                   const rowAhsStr = formatRC(rowAhsCells);
                                   const colAhsStr = formatRC(colAhsCells);
 
-                                  return {
+                                  const resultObj = {
                                     change: true,
                                     type: "remove",
                                     cells: eliminations,
@@ -5976,6 +6147,8 @@ const techniques = {
                                       });
                                     },
                                   };
+                                  if (!findAll) return resultObj;
+                                  results.push(resultObj);
                                 }
                               }
                             }
@@ -5986,7 +6159,7 @@ const techniques = {
       }
     }
 
-    return { change: false, type: null, cells: [] };
+    return findAll ? results : { change: false };
   },
 
   // --- Unified AIC Helpers ---
@@ -6424,7 +6597,8 @@ const techniques = {
   },
 
   // --- Main Finder ---
-  _findAIC: (board, pencils, options) => {
+  // --- Main Finder ---
+  _findAIC: (board, pencils, options, findAll = false) => {
     const {
       maxLength = 16,
       hintType = "digit",
@@ -6487,12 +6661,14 @@ const techniques = {
     };
 
     let result = { change: false };
+    let results = []; // NEW: Array to collect all results for View All Techniques
     let currentTargetLen = bivalueOnly ? 8 : 6;
     let foundPathAtTargetLen = false;
 
     // --- DFS Traversal ---
     const dfs = (chain, visited, hasGrouped) => {
-      if (result.change) return;
+      // MODIFIED: Only abort globally if we are NOT trying to find all results
+      if (result.change && !findAll) return;
 
       // Strict depth limit to guarantee shortest chain first
       if (chain.length > currentTargetLen) return;
@@ -6516,7 +6692,6 @@ const techniques = {
       }
 
       if (shouldCheck && reachedTarget) {
-        // <--- USE THE VARIABLES HERE
         const start = chain[0];
         const end = chain[chain.length - 1];
 
@@ -6527,7 +6702,6 @@ const techniques = {
           const isContinuous = wNeighbors.some((n) => n.key === start.key);
 
           if (isContinuous) {
-            // if ((start.key < end.key) | (chain.length === 4)) return;
             const fullChain = [...chain, start];
 
             for (let i = 1; i < fullChain.length - 1; i += 2) {
@@ -6567,7 +6741,8 @@ const techniques = {
               const visualChain = [...chain];
               const visualElims = [...elims];
 
-              result = {
+              // MODIFIED: Create standard result object
+              const res = {
                 change: true,
                 type: "remove",
                 cells: elims,
@@ -6668,7 +6843,15 @@ const techniques = {
                   }
                 },
               };
-              return;
+
+              // NEW: Handle findAll logic
+              if (!findAll) {
+                result = res;
+                return;
+              } else {
+                results.push(res);
+                return; // Stop exploring this specific chain path
+              }
             }
           }
 
@@ -6713,11 +6896,24 @@ const techniques = {
             }
 
             if (elims.length > 0) {
+              // NEW: Check for cannibalic chain (eliminates a candidate active on the chain)
+              const isCannibalic = elims.some((el) =>
+                chain.some(
+                  (node) =>
+                    node.digit === el.num &&
+                    node.cells.some((c) => c[0] === el.r && c[1] === el.c),
+                ),
+              );
+
+              if (findAll && isCannibalic) {
+                return; // Discard this chain and backtrack
+              }
               // VERY IMPORTANT: Clone the chain for the visual callback so it survives DFS backtracking
               const visualChain = [...chain];
               const visualElims = [...elims];
 
-              result = {
+              // MODIFIED: Create standard result object
+              const res = {
                 change: true,
                 type: "remove",
                 cells: elims,
@@ -6813,7 +7009,15 @@ const techniques = {
                   }
                 },
               };
-              return;
+
+              // NEW: Handle findAll logic
+              if (!findAll) {
+                result = res;
+                return;
+              } else {
+                results.push(res);
+                return; // Stop exploring this specific chain path
+              }
             }
           }
         }
@@ -6866,7 +7070,8 @@ const techniques = {
           dfs(chain, visited, hasGrouped || nextNode.count > 1);
           chain.pop();
           visited.delete(nextNode.key);
-          if (result.change) return;
+          // MODIFIED: Only short-circuit if not finding all
+          if (result.change && !findAll) return;
         }
       }
     };
@@ -6905,15 +7110,16 @@ const techniques = {
       foundPathAtTargetLen = false; // <--- RESET FLAG FOR THIS DEPTH
 
       for (const key of strongLinks.keys()) {
-        if (result.change) break;
+        // MODIFIED: Only break if not finding all
+        if (result.change && !findAll) break;
         const startNode = nodeMap.get(key);
         if (startNode) {
           dfs([startNode], new Set([key]), startNode.count > 1);
         }
       }
 
-      // Exit loop early if a chain was found at this depth
-      if (result.change) {
+      // MODIFIED: Only exit loop early if a chain was found AND we are not finding all
+      if (result.change && !findAll) {
         break;
       }
 
@@ -6923,7 +7129,8 @@ const techniques = {
       }
     }
 
-    return result;
+    // NEW: Return array of results if findAll is true
+    return findAll ? results : result;
   },
 
   // --- Optimized XY-Chain Graph Builder ---
@@ -6994,62 +7201,87 @@ const techniques = {
 
   // --- Technique Wrappers ---
 
-  xChain: (board, pencils) => {
+  xChain: (board, pencils, findAll = false) => {
     _prXC = true;
-    return techniques._findAIC(board, pencils, {
-      singleDigit: true,
-      useGrouped: false,
-      bivalueOnly: false,
-      maxLength: 10,
-      hintType: "digit",
-      nameOverride: "X-Chain",
-    });
+    return techniques._findAIC(
+      board,
+      pencils,
+      {
+        singleDigit: true,
+        useGrouped: false,
+        bivalueOnly: false,
+        maxLength: 10,
+        hintType: "digit",
+        nameOverride: "X-Chain",
+      },
+      findAll,
+    );
   },
 
-  groupedXChain: (board, pencils) => {
+  groupedXChain: (board, pencils, findAll = false) => {
     _prgXC = true;
-    return techniques._findAIC(board, pencils, {
-      singleDigit: true,
-      useGrouped: true,
-      bivalueOnly: false,
-      maxLength: 10,
-      hintType: "digit",
-      nameOverride: "Grouped X-Chain",
-    });
+    return techniques._findAIC(
+      board,
+      pencils,
+      {
+        singleDigit: true,
+        useGrouped: true,
+        bivalueOnly: false,
+        maxLength: 10,
+        hintType: "digit",
+        nameOverride: "Grouped X-Chain",
+      },
+      findAll,
+    );
   },
 
-  xyChain: (board, pencils) => {
-    return techniques._findAIC(board, pencils, {
-      singleDigit: false,
-      useGrouped: false,
-      bivalueOnly: true,
-      maxLength: 20,
-      hintType: "startCell",
-      nameOverride: "XY-Chain",
-    });
+  xyChain: (board, pencils, findAll = false) => {
+    return techniques._findAIC(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        useGrouped: false,
+        bivalueOnly: true,
+        maxLength: 20,
+        hintType: "startCell",
+        nameOverride: "XY-Chain",
+      },
+      findAll,
+    );
   },
 
-  alternatingInferenceChain: (board, pencils) => {
+  alternatingInferenceChain: (board, pencils, findAll = false) => {
     _prAIC = true;
-    return techniques._findAIC(board, pencils, {
-      singleDigit: false,
-      useGrouped: false,
-      bivalueOnly: false,
-      maxLength: 20,
-      hintType: "strongLink",
-    });
+    return techniques._findAIC(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        useGrouped: false,
+        bivalueOnly: false,
+        maxLength: 20,
+        hintType: "strongLink",
+      },
+      findAll,
+    );
   },
 
-  groupedAIC: (board, pencils) => {
+  groupedAIC: (board, pencils, findAll = false) => {
     _prgAIC = true;
-    return techniques._findAIC(board, pencils, {
-      singleDigit: false,
-      useGrouped: true,
-      bivalueOnly: false,
-      maxLength: 20,
-      hintType: "strongLink",
-      nameOverride: "Grouped AIC",
-    });
+    return techniques._findAIC(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        useGrouped: true,
+        bivalueOnly: false,
+        maxLength: 20,
+        hintType: "strongLink",
+        nameOverride: "Grouped AIC",
+      },
+      findAll,
+    );
   },
 
   // --- BITWISE HELPERS ---
@@ -7313,7 +7545,505 @@ const techniques = {
     return elims;
   },
 
-  alsXZ: (board, pencils, wxyzOnly = false) => {
+  /**
+   * Core DFS logic for Almost Locked Set Chains.
+   * Supports both Ring (Continuous Loop) and Linear Chain eliminations.
+   */
+  _alsChainCore: (
+    board,
+    pencils,
+    minLen,
+    maxLen,
+    nameOverride = "ALS Chain",
+    sizePairFilter = null,
+    findAll = false,
+  ) => {
+    let results = [];
+    let found = false;
+    let resultToReturn = { change: false };
+
+    // Helper: Eliminate RCC from common peers of the link (Used for Rings)
+    const eliminateRccPeers = (alsA, alsB, rccDigit, outElims) => {
+      let changed = false;
+      const allCells =
+        alsA.candidatePositions[rccDigit - 1] |
+        alsB.candidatePositions[rccDigit - 1];
+      const peerMask = techniques._findCommonPeersBS(allCells);
+      techniques._processElims(peerMask, rccDigit, pencils, outElims);
+      if (outElims.length > 0) changed = true;
+      return changed;
+    };
+
+    const eliminateNonRcc = (A, nonRccMask, outElims) => {
+      let changed = false;
+      const zMaskA = A.mask & ~nonRccMask;
+      const zDigitsA = techniques._bits.maskToDigits(zMaskA);
+      for (const z of zDigitsA) {
+        const pm = techniques._findCommonPeersBS(A.candidatePositions[z - 1]);
+        techniques._processElims(pm, z, pencils, outElims);
+      }
+      if (outElims.length > 0) changed = true;
+      return changed;
+    };
+
+    const createResult = (
+      path,
+      isRingResult,
+      eliminations,
+      successTarget,
+      successClosingRcc,
+    ) => {
+      const uniqueElims = Array.from(
+        new Set(eliminations.map(JSON.stringify)),
+      ).map(JSON.parse);
+
+      // --- Hint Construction ---
+      let info = "";
+      if (nameOverride === "WXYZ-Wing" && path.length === 2) {
+        const alsA = _alsLookup[path[0].hash];
+        const alsB = _alsLookup[path[1].hash];
+        const pivot = alsA.size === 1 ? alsA : alsB;
+        const [pr, pc] = pivot.cells[0];
+        info = `Bivalue cell at r${pr + 1}c${pc + 1}`;
+      } else if (nameOverride === "ALS XY-Wing" && path.length === 3) {
+        const pivotNode = _alsLookup[path[1].hash];
+        const pivotLoc = techniques._fmtNode(pivotNode);
+
+        const rcc1 = path[1].viaDigit;
+        const rcc2 = path[2].viaDigit;
+
+        info = `Pivot ALS: -(${rcc1}=${rcc2})${pivotLoc}-`;
+      } else {
+        const startNode = _alsLookup[path[0].hash];
+        const firstRcc = path[1].viaDigit;
+
+        const remMask = startNode.candidates & ~(1 << (firstRcc - 1));
+        const remStr = techniques._bits.maskToDigits(remMask).join("");
+        const loc = techniques._fmtNode(startNode);
+
+        info = `Start with (${remStr}=${firstRcc})${loc}`;
+      }
+
+      // Build the Detail String
+      let detail = "";
+      const fmtALS = (als) => {
+        if (als.unitName && als.unitName.startsWith("Box")) {
+          const b = [
+            ...new Set(
+              als.cells.map(
+                ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
+              ),
+            ),
+          ];
+          const pts = [
+            ...new Set(
+              als.cells.map(
+                ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+              ),
+            ),
+          ]
+            .sort((a, b) => a - b)
+            .join("");
+          return `b${b}p${pts}`;
+        } else {
+          const rs = [...new Set(als.cells.map(([r, c]) => r + 1))]
+            .sort((a, b) => a - b)
+            .join("");
+          const cs = [...new Set(als.cells.map(([r, c]) => c + 1))]
+            .sort((a, b) => a - b)
+            .join("");
+          return `r${rs}c${cs}`;
+        }
+      };
+
+      const pieces = [];
+      for (let i = 0; i < path.length; i++) {
+        const als = _alsLookup[path[i].hash];
+        // Determine entering and exiting digits
+        const d_in =
+          i === 0
+            ? isRingResult
+              ? successClosingRcc
+              : successTarget.join("")
+            : path[i].viaDigit;
+        const d_out =
+          i === path.length - 1
+            ? isRingResult
+              ? successClosingRcc
+              : successTarget.join("")
+            : path[i + 1].viaDigit;
+
+        pieces.push(`(${d_in}=${d_out})${fmtALS(als)}`);
+      }
+      detail = pieces.join("-");
+      if (isRingResult) {
+        detail += "-(Ring)";
+      }
+      if (nameOverride === "ALS Chain") detail = `[${path.length}] ` + detail;
+
+      // Deep capture necessary properties to avoid relying on global _alsLookup in UI callback
+      const visualPath = path.map((step) => ({
+        viaDigit: step.viaDigit,
+        alsCells: [..._alsLookup[step.hash].cells],
+      }));
+      const v_isRingResult = isRingResult;
+      const v_successTargets = successTarget;
+      const v_successClosingRcc = successClosingRcc;
+
+      const snap_nodes = (() => {
+        const nodes = [];
+        visualPath.forEach((step, i) => {
+          const d_in =
+            i === 0
+              ? v_isRingResult
+                ? v_successClosingRcc
+                : v_successTargets[0]
+              : step.viaDigit;
+          const d_out =
+            i === visualPath.length - 1
+              ? v_isRingResult
+                ? v_successClosingRcc
+                : v_successTargets[0]
+              : visualPath[i + 1].viaDigit;
+
+          nodes.push({
+            cells: step.alsCells.filter(([r, c]) => pencils[r][c].has(d_in)),
+            digit: d_in,
+          });
+          nodes.push({
+            cells: step.alsCells.filter(([r, c]) => pencils[r][c].has(d_out)),
+            digit: d_out,
+          });
+        });
+        return nodes;
+      })();
+
+      return {
+        change: true,
+        type: "remove",
+        cells: uniqueElims,
+        hint: {
+          name: nameOverride,
+          mainInfo: info,
+          detail: detail,
+        },
+        applyVisuals: () => {
+          highlightedDigit = null;
+          highlightState = 0;
+
+          const alsColors = [6, 7, 2, 3, 4, 5]; // Color loop
+
+          visualPath.forEach((step, i) => {
+            // Color ALS cells
+            step.alsCells.forEach(([r, c]) => {
+              if (!boardState[r][c].cellColor) {
+                boardState[r][c].cellColor = cellColorPalette[alsColors[i % 6]];
+              }
+            });
+          });
+
+          // Color elimination candidate in color 1
+          uniqueElims.forEach((el) =>
+            boardState[el.r][el.c].pencilColors.set(
+              el.num,
+              candidateColorPalette[0],
+            ),
+          );
+
+          const nodes = snap_nodes;
+
+          const getClosestCells = (cellsA, cellsB) => {
+            if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
+              return null;
+            let minD = Infinity;
+            let bestA = cellsA[0];
+            let bestB = cellsB[0];
+            for (const a of cellsA) {
+              for (const b of cellsB) {
+                const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+                if (d < minD) {
+                  minD = d;
+                  bestA = a;
+                  bestB = b;
+                }
+              }
+            }
+            return [bestA, bestB];
+          };
+
+          const drawGroup = (cells, digit, colorIdx) => {
+            if (cells.length > 1) {
+              for (let k = 0; k < cells.length - 1; k++) {
+                drawnLines.push({
+                  r1: cells[k][0],
+                  c1: cells[k][1],
+                  n1: digit,
+                  r2: cells[k + 1][0],
+                  c2: cells[k + 1][1],
+                  n2: digit,
+                  color: lineColorPalette[colorIdx], // Color matching candidate
+                  style: "solid",
+                });
+              }
+            }
+          };
+
+          for (let k = 0; k < nodes.length; k++) {
+            const node = nodes[k];
+            const colorIdx = k % 2 === 0 ? 4 : 5; // Alternating candidate color 5 and 6
+
+            // Color candidate nodes
+            node.cells.forEach(([r, c]) =>
+              boardState[r][c].pencilColors.set(
+                node.digit,
+                candidateColorPalette[colorIdx],
+              ),
+            );
+
+            // Connect grouped candidates' links with the same candidate color
+            drawGroup(node.cells, node.digit, colorIdx);
+
+            // Connect adjacent nodes
+            if (k < nodes.length - 1) {
+              const nextNode = nodes[k + 1];
+              const closest = getClosestCells(node.cells, nextNode.cells);
+              if (closest) {
+                const isInner = k % 2 === 0;
+                drawnLines.push({
+                  r1: closest[0][0],
+                  c1: closest[0][1],
+                  n1: node.digit,
+                  r2: closest[1][0],
+                  c2: closest[1][1],
+                  n2: nextNode.digit,
+                  color: lineColorPalette[0], // Solid/Dash in Color 1
+                  style: isInner ? "solid" : "dash", // Inner ALS solid, intra ALS dash
+                });
+              }
+            }
+          }
+
+          // Ring connection
+          if (v_isRingResult && nodes.length > 1) {
+            const firstNode = nodes[0];
+            const lastNode = nodes[nodes.length - 1];
+            const closest = getClosestCells(lastNode.cells, firstNode.cells);
+            if (closest) {
+              drawnLines.push({
+                r1: closest[0][0],
+                c1: closest[0][1],
+                n1: lastNode.digit,
+                r2: closest[1][0],
+                c2: closest[1][1],
+                n2: firstNode.digit,
+                color: lineColorPalette[0],
+                style: "dash", // Ring in dash Color 1
+              });
+            }
+          }
+        },
+      };
+    };
+
+    let currentTargetLen = minLen;
+
+    // DFS Function
+    const dfs = (path, visited) => {
+      if (found && !findAll) return;
+
+      const lastStep = path[path.length - 1];
+      const neighbors = _alsRccMap[lastStep.hash];
+      if (!neighbors) return;
+
+      for (const { hash: nbrHash, digit: d } of neighbors) {
+        if (found && !findAll) return;
+
+        // Cannot use the same digit to enter and exit an ALS
+        if (d === lastStep.viaDigit) continue;
+        if (visited.has(nbrHash)) continue;
+
+        if (sizePairFilter && path.length === 1) {
+          const alsStart = _alsLookup[path[0].hash];
+          const alsNext = _alsLookup[nbrHash];
+          if (!sizePairFilter(alsStart, alsNext)) continue;
+        }
+
+        // Prepare next step
+        path.push({ hash: nbrHash, viaDigit: d });
+        visited.add(nbrHash);
+
+        const len = path.length;
+
+        // Check Constraints
+        if (len === currentTargetLen && path[0].hash < nbrHash) {
+          if (minLen === 2 && _prALSXY && len === 3) {
+            // skip, we do this in alsXYWing explicitly
+          } else {
+            const alsStart = _alsLookup[path[0].hash];
+            const alsEnd = _alsLookup[nbrHash];
+            let isRing = false;
+
+            // --- 1. PRIORITY: Check for Ring (Continuous Loop) ---
+            const endNeighbors = _alsRccMap[alsEnd.hash];
+            if (endNeighbors) {
+              for (const {
+                hash: closingHash,
+                digit: closingRcc,
+              } of endNeighbors) {
+                if (closingHash === alsStart.hash) {
+                  const startExitDigit = path[1].viaDigit;
+                  const endEntryDigit = d;
+
+                  if (
+                    closingRcc !== startExitDigit &&
+                    closingRcc !== endEntryDigit
+                  ) {
+                    isRing = true;
+
+                    let ringChange = false;
+                    let localElims = [];
+                    // A. Internal links
+                    for (let i = 0; i < path.length - 1; i++) {
+                      const a = _alsLookup[path[i].hash];
+                      const b = _alsLookup[path[i + 1].hash];
+                      const rcc = path[i + 1].viaDigit;
+                      if (eliminateRccPeers(a, b, rcc, localElims))
+                        ringChange = true;
+                    }
+                    // B. Closing link
+                    if (
+                      eliminateRccPeers(
+                        alsEnd,
+                        alsStart,
+                        closingRcc,
+                        localElims,
+                      )
+                    )
+                      ringChange = true;
+
+                    // C. non-Rcc in ALS
+                    const nonRccStartbm =
+                      (1 << (closingRcc - 1)) | (1 << (startExitDigit - 1));
+                    if (eliminateNonRcc(alsStart, nonRccStartbm, localElims))
+                      ringChange = true;
+                    for (let i = 1; i < path.length - 1; i++) {
+                      const alsMid = _alsLookup[path[i].hash];
+                      const nonRccMidbm =
+                        (1 << (path[i].viaDigit - 1)) |
+                        (1 << (path[i + 1].viaDigit - 1));
+                      if (eliminateNonRcc(alsMid, nonRccMidbm, localElims))
+                        ringChange = true;
+                    }
+                    const nonRccEndbm =
+                      (1 << (endEntryDigit - 1)) | (1 << (closingRcc - 1));
+                    if (eliminateNonRcc(alsEnd, nonRccEndbm, localElims))
+                      ringChange = true;
+
+                    if (ringChange) {
+                      const res = createResult(
+                        path,
+                        true,
+                        localElims,
+                        [],
+                        closingRcc,
+                      );
+                      if (!findAll) {
+                        found = true;
+                        resultToReturn = res;
+                        return;
+                      } else {
+                        results.push(res);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            // --- 2. If not a Ring, Check Linear Chain Elimination ---
+            if (!isRing) {
+              const commonMask = alsStart.candidates & alsEnd.candidates;
+              if (commonMask !== 0) {
+                const disallow1 = path[1].viaDigit; // Exit from start
+                const disallow2 = d; // Entry to end
+
+                let localChange = false;
+                let foundZs = [];
+                let localElims = [];
+
+                // Iterate bits in commonMask
+                const zDigits = techniques._bits.maskToDigits(commonMask);
+                for (const z of zDigits) {
+                  if (z === disallow1 || z === disallow2) continue;
+
+                  // Check common peers of 'z' in Start and End
+                  const zPosStart = alsStart.candidatePositions[z - 1];
+                  const zPosEnd = alsEnd.candidatePositions[z - 1];
+                  const allZPos = zPosStart | zPosEnd;
+
+                  const peerMask = techniques._findCommonPeersBS(allZPos);
+
+                  // Capture length before processing to check if new elims added
+                  const prevLen = localElims.length;
+                  techniques._processElims(peerMask, z, pencils, localElims);
+                  if (localElims.length > prevLen) {
+                    localChange = true;
+                    foundZs.push(z);
+                  }
+                }
+
+                if (localChange) {
+                  const res = createResult(
+                    path,
+                    false,
+                    localElims,
+                    foundZs,
+                    null,
+                  );
+                  if (!findAll) {
+                    found = true;
+                    resultToReturn = res;
+                    return;
+                  } else {
+                    results.push(res);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if ((!found || findAll) && len < currentTargetLen) {
+          dfs(path, visited);
+        }
+
+        // Backtrack
+        path.pop();
+        visited.delete(nbrHash);
+      }
+    };
+
+    // Start DFS from every ALS
+    for (
+      currentTargetLen = minLen;
+      currentTargetLen <= maxLen;
+      currentTargetLen++
+    ) {
+      for (const als of _alsCache) {
+        if (found && !findAll) break;
+        dfs([{ hash: als.hash, viaDigit: 0 }], new Set([als.hash]));
+      }
+      if (found && !findAll) break;
+    }
+
+    if (findAll) {
+      return results.length > 0 ? results : { change: false };
+    } else {
+      return resultToReturn;
+    }
+  },
+
+  alsXZ: (board, pencils, wxyzOnly = false, findAll = false) => {
     _alsCache = [];
 
     if (wxyzOnly) {
@@ -7337,15 +8067,67 @@ const techniques = {
       : null;
 
     const name = wxyzOnly ? "WXYZ-Wing" : "ALS XZ-Rule";
-    return techniques._alsChainCore(board, pencils, 2, 2, name, sizePairFilter);
+    return techniques._alsChainCore(
+      board,
+      pencils,
+      2,
+      2,
+      name,
+      sizePairFilter,
+      findAll,
+    );
   },
 
-  wxyzWing: (board, pencils) => {
-    return techniques.alsXZ(board, pencils, true);
+  wxyzWing: (board, pencils, findAll = false) => {
+    return techniques.alsXZ(board, pencils, true, findAll);
+  },
+
+  /**
+   * Almost Locked Set XY-Wing Wrapper
+   * Length 3 chain (ALS A - ALS B - ALS C)
+   * Corresponds to C++: als_xy_wing()
+   */
+  alsXYWing: (board, pencils, findAll = false) => {
+    _prALSXY = true;
+    if (_alsCache.length === 0)
+      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
+    if (Object.keys(_alsDigitCommonPeers).length === 0) {
+      techniques._buildAlsDigitCommonPeers();
+      techniques._buildAlsRccMap();
+    }
+
+    return techniques._alsChainCore(
+      board,
+      pencils,
+      3,
+      3,
+      "ALS XY-Wing",
+      null,
+      findAll,
+    );
+  },
+
+  alsChain: (board, pencils, findAll = false) => {
+    if (_alsCache.length === 0)
+      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
+    if (Object.keys(_alsDigitCommonPeers).length === 0) {
+      techniques._buildAlsDigitCommonPeers();
+      techniques._buildAlsRccMap();
+    }
+    let minlen = !_prALSXZ ? 2 : !_prALSXY ? 3 : 4;
+    return techniques._alsChainCore(
+      board,
+      pencils,
+      minlen,
+      5,
+      "ALS Chain",
+      null,
+      findAll,
+    );
   },
 
   // --- AHS COLLECTION ENGINE ---
-  _collectAllAHS: (board, pencils) => {
+  _collectAllAHS: (board, pencils, findAll = false) => {
     if (_ahsCache && _ahsCache.length > 0) return _ahsCache;
 
     const ahses = [];
@@ -7536,6 +8318,7 @@ const techniques = {
     minLength,
     maxLength,
     nameOverride = "AHS Chain",
+    findAll = false,
   ) => {
     // Custom unique filter that prioritizes "cell" source eliminations
     const getUnique = (arr) => {
@@ -7584,7 +8367,7 @@ const techniques = {
       [...pencils[r][c]].filter((d) => ahs.digits.has(d)).join("");
 
     // Utilize globally cached AHS mappings
-    const ahses = techniques._collectAllAHS(board, pencils);
+    const ahses = techniques._collectAllAHS(board, pencils, (findAll = false));
     techniques._buildAhsMaps(ahses, pencils);
 
     // --- VISUAL HELPERS ---
@@ -7734,6 +8517,7 @@ const techniques = {
     };
 
     let foundResult = null;
+    let allResults = [];
 
     // UPDATED: Replaced endD/endExc with startD/endD and startExc/endExc
     const buildDetailStr = (
@@ -8232,15 +9016,17 @@ const techniques = {
     let currentTargetLen = minLength;
     // DFS Execution
     const findPaths = (currentIdx, path, visited) => {
-      if (foundResult) return;
+      if (foundResult && !findAll) return;
 
       if (path.length === currentTargetLen) {
         if (minLength === 2 && _prAHSXY && path.length === 3) return;
         if (path[0].ahsIdx < path[path.length - 1].ahsIdx) {
           const res = evaluatePath(path);
-          if (res && res.change) {
+          if (!findAll) {
             foundResult = res;
             return;
+          } else {
+            allResults.push(res);
           }
         }
       }
@@ -8267,7 +9053,7 @@ const techniques = {
           path.pop();
           visited.delete(nextIdx);
 
-          if (foundResult) return;
+          if (foundResult && !findAll) return;
         }
       }
     };
@@ -8281,29 +9067,47 @@ const techniques = {
       for (let i = 0; i < ahses.length; i++) {
         const visited = new Set([i]);
         findPaths(i, [{ ahsIdx: i, edge: null }], visited);
-        if (foundResult) break;
+        if (foundResult && !findAll) break;
       }
-      if (foundResult) return foundResult;
+      if (foundResult && !findAll) return foundResult;
     }
 
+    if (findAll) {
+      return allResults.length > 0 ? allResults : { change: false };
+    }
     return { change: false };
   },
 
   // --- Almost Hidden Set ---
-  ahsXZ: (board, pencils) => {
+  ahsXZ: (board, pencils, findAll = false) => {
     _prAHSXZ = true;
-    return techniques._ahsChainCore(board, pencils, 2, 2, "AHS-XZ");
+    return techniques._ahsChainCore(board, pencils, 2, 2, "AHS-XZ", findAll);
   },
 
-  ahsXYWing: (board, pencils) => {
+  ahsXYWing: (board, pencils, findAll = false) => {
     _prAHSXY = true;
     // XY-Wing is strictly an Almost Hidden Set Chain of length 3
-    return techniques._ahsChainCore(board, pencils, 3, 3, "AHS XY-Wing");
+    return techniques._ahsChainCore(
+      board,
+      pencils,
+      3,
+      3,
+      "AHS XY-Wing",
+      findAll,
+    );
   },
 
-  ahsChain: (board, pencils) => {
+  ahsChain: (board, pencils, findAll = false) => {
     let minlen = !_prAHSXZ ? 2 : !_prAHSXY ? 3 : 4;
-    return techniques._ahsChainCore(board, pencils, minlen, 5);
+    // FIX: Properly pass "AHS Chain" as the nameOverride so findAll lands in the correct parameter slot
+    return techniques._ahsChainCore(
+      board,
+      pencils,
+      minlen,
+      5,
+      "AHS Chain",
+      findAll,
+    );
   },
 
   // --- Almost Locked Set Chain SUPPORT STRUCTURES ---
@@ -8406,505 +9210,6 @@ const techniques = {
     }
   },
 
-  /**
-   * Core DFS logic for Almost Locked Set Chains.
-   * Supports both Ring (Continuous Loop) and Linear Chain eliminations.
-   * Corresponds to C++: als_chain_core
-   */
-  _alsChainCore: (
-    board,
-    pencils,
-    minLen,
-    maxLen,
-    nameOverride = "ALS Chain",
-    sizePairFilter = null,
-  ) => {
-    let eliminations = [];
-    let found = false;
-    let successPath = null; // To store the path that triggered the elimination
-    let isRingResult = false;
-    let successTarget = [];
-    let successClosingRcc = 0;
-
-    // Helper: Eliminate RCC from common peers of the link (Used for Rings)
-    const eliminateRccPeers = (alsA, alsB, rccDigit) => {
-      let changed = false;
-      const allCells =
-        alsA.candidatePositions[rccDigit - 1] |
-        alsB.candidatePositions[rccDigit - 1];
-      const peerMask = techniques._findCommonPeersBS(allCells);
-      techniques._processElims(peerMask, rccDigit, pencils, eliminations);
-      if (eliminations.length > 0) changed = true;
-      return changed;
-    };
-
-    const eliminateNonRcc = (A, nonRccMask) => {
-      let changed = false;
-      const zMaskA = A.mask & ~nonRccMask;
-      const zDigitsA = techniques._bits.maskToDigits(zMaskA);
-      for (const z of zDigitsA) {
-        const pm = techniques._findCommonPeersBS(A.candidatePositions[z - 1]);
-        techniques._processElims(pm, z, pencils, eliminations);
-      }
-      if (eliminations.length > 0) changed = true;
-      return changed;
-    };
-
-    let currentTargetLen = minLen;
-
-    // DFS Function
-    const dfs = (path, visited) => {
-      if (found) return;
-
-      const lastStep = path[path.length - 1];
-      const neighbors = _alsRccMap[lastStep.hash];
-      if (!neighbors) return;
-
-      for (const { hash: nbrHash, digit: d } of neighbors) {
-        if (found) return;
-
-        // Cannot use the same digit to enter and exit an ALS
-        if (d === lastStep.viaDigit) continue;
-        if (visited.has(nbrHash)) continue;
-
-        if (sizePairFilter && path.length === 1) {
-          // Only filter at the very first extension (start -> first neighbor),
-          // which is the only hop for length-2 chains
-          const alsStart = _alsLookup[path[0].hash];
-          const alsNext = _alsLookup[nbrHash];
-          if (!sizePairFilter(alsStart, alsNext)) continue;
-        }
-
-        // Prepare next step
-        path.push({ hash: nbrHash, viaDigit: d });
-        visited.add(nbrHash);
-
-        const len = path.length;
-
-        // Check Constraints
-        if (len === currentTargetLen && path[0].hash < nbrHash) {
-          if (minLen === 2 && _prALSXY && len === 3) continue;
-          const alsStart = _alsLookup[path[0].hash];
-          const alsEnd = _alsLookup[nbrHash];
-          let isRing = false;
-
-          // --- 1. PRIORITY: Check for Ring (Continuous Loop) ---
-          const endNeighbors = _alsRccMap[alsEnd.hash];
-          if (endNeighbors) {
-            for (const {
-              hash: closingHash,
-              digit: closingRcc,
-            } of endNeighbors) {
-              if (closingHash === alsStart.hash) {
-                const startExitDigit = path[1].viaDigit;
-                const endEntryDigit = d;
-
-                if (
-                  closingRcc !== startExitDigit &&
-                  closingRcc !== endEntryDigit
-                ) {
-                  isRing = true;
-
-                  let ringChange = false;
-                  // A. Internal links
-                  for (let i = 0; i < path.length - 1; i++) {
-                    const a = _alsLookup[path[i].hash];
-                    const b = _alsLookup[path[i + 1].hash];
-                    const rcc = path[i + 1].viaDigit;
-                    if (eliminateRccPeers(a, b, rcc)) ringChange = true;
-                  }
-                  // B. Closing link
-                  if (eliminateRccPeers(alsEnd, alsStart, closingRcc))
-                    ringChange = true;
-
-                  // C. non-Rcc in ALS
-                  const nonRccStartbm =
-                    (1 << (closingRcc - 1)) | (1 << (startExitDigit - 1));
-                  if (eliminateNonRcc(alsStart, nonRccStartbm))
-                    ringChange = true;
-                  for (let i = 1; i < path.length - 1; i++) {
-                    const alsMid = _alsLookup[path[i].hash];
-                    const nonRccMidbm =
-                      (1 << (path[i].viaDigit - 1)) |
-                      (1 << (path[i + 1].viaDigit - 1));
-                    if (eliminateNonRcc(alsMid, nonRccMidbm)) ringChange = true;
-                  }
-                  const nonRccEndbm =
-                    (1 << (endEntryDigit - 1)) | (1 << (closingRcc - 1));
-                  if (eliminateNonRcc(alsEnd, nonRccEndbm)) ringChange = true;
-
-                  if (ringChange) {
-                    found = true;
-                    successPath = [...path]; // Capture path
-                    isRingResult = true;
-                    successClosingRcc = closingRcc;
-                    return;
-                  }
-                }
-              }
-            }
-          }
-
-          // --- 2. If not a Ring, Check Linear Chain Elimination ---
-          if (!found && !isRing) {
-            const commonMask = alsStart.candidates & alsEnd.candidates;
-            if (commonMask !== 0) {
-              const disallow1 = path[1].viaDigit; // Exit from start
-              const disallow2 = d; // Entry to end
-
-              let localChange = false;
-              let foundZs = [];
-
-              // Iterate bits in commonMask
-              const zDigits = techniques._bits.maskToDigits(commonMask);
-              for (const z of zDigits) {
-                if (z === disallow1 || z === disallow2) continue;
-
-                // Check common peers of 'z' in Start and End
-                const zPosStart = alsStart.candidatePositions[z - 1];
-                const zPosEnd = alsEnd.candidatePositions[z - 1];
-                const allZPos = zPosStart | zPosEnd;
-
-                const peerMask = techniques._findCommonPeersBS(allZPos);
-
-                // Capture length before processing to check if new elims added
-                const prevLen = eliminations.length;
-                techniques._processElims(peerMask, z, pencils, eliminations);
-                if (eliminations.length > prevLen) {
-                  localChange = true;
-                  foundZs.push(z);
-                }
-              }
-
-              if (localChange) {
-                found = true;
-                successPath = [...path]; // Capture path
-                isRingResult = false;
-                successTarget = foundZs;
-              }
-            }
-          }
-        }
-
-        if (!found && len < currentTargetLen) {
-          dfs(path, visited);
-        }
-
-        // Backtrack
-        path.pop();
-        visited.delete(nbrHash);
-      }
-    };
-
-    // Start DFS from every ALS
-    for (
-      currentTargetLen = minLen;
-      currentTargetLen <= maxLen;
-      currentTargetLen++
-    ) {
-      for (const als of _alsCache) {
-        if (found) break;
-        dfs([{ hash: als.hash, viaDigit: 0 }], new Set([als.hash]));
-      }
-      if (found) break;
-    }
-
-    if (found && eliminations.length > 0) {
-      const uniqueElims = Array.from(
-        new Set(eliminations.map(JSON.stringify)),
-      ).map(JSON.parse);
-
-      // --- Hint Construction ---
-      let info = "";
-      if (
-        nameOverride === "WXYZ-Wing" &&
-        successPath &&
-        successPath.length === 2
-      ) {
-        const alsA = _alsLookup[successPath[0].hash];
-        const alsB = _alsLookup[successPath[1].hash];
-        const pivot = alsA.size === 1 ? alsA : alsB;
-        const [pr, pc] = pivot.cells[0];
-        info = `Bivalue cell at r${pr + 1}c${pc + 1}`;
-      } else if (
-        nameOverride === "ALS XY-Wing" &&
-        successPath &&
-        successPath.length === 3
-      ) {
-        const pivotNode = _alsLookup[successPath[1].hash];
-        const pivotLoc = techniques._fmtNode(pivotNode);
-
-        const rcc1 = successPath[1].viaDigit;
-        const rcc2 = successPath[2].viaDigit;
-
-        info = `Pivot ALS: -(${rcc1}=${rcc2})${pivotLoc}-`;
-      } else if (successPath) {
-        const startNode = _alsLookup[successPath[0].hash];
-        const firstRcc = successPath[1].viaDigit;
-
-        const remMask = startNode.candidates & ~(1 << (firstRcc - 1));
-        const remStr = techniques._bits.maskToDigits(remMask).join("");
-        const loc = techniques._fmtNode(startNode);
-
-        info = `Start with (${remStr}=${firstRcc})${loc}`;
-      }
-
-      // Build the Detail String
-      let detail = "";
-      if (successPath) {
-        const fmtALS = (als) => {
-          if (als.unitName && als.unitName.startsWith("Box")) {
-            const b = [
-              ...new Set(
-                als.cells.map(
-                  ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
-                ),
-              ),
-            ];
-            const pts = [
-              ...new Set(
-                als.cells.map(
-                  ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                ),
-              ),
-            ]
-              .sort((a, b) => a - b)
-              .join("");
-            return `b${b}p${pts}`;
-          } else {
-            const rs = [...new Set(als.cells.map(([r, c]) => r + 1))]
-              .sort((a, b) => a - b)
-              .join("");
-            const cs = [...new Set(als.cells.map(([r, c]) => c + 1))]
-              .sort((a, b) => a - b)
-              .join("");
-            return `r${rs}c${cs}`;
-          }
-        };
-
-        const pieces = [];
-        for (let i = 0; i < successPath.length; i++) {
-          const als = _alsLookup[successPath[i].hash];
-          // Determine entering and exiting digits
-          const d_in =
-            i === 0
-              ? isRingResult
-                ? successClosingRcc
-                : successTarget.join("")
-              : successPath[i].viaDigit;
-          const d_out =
-            i === successPath.length - 1
-              ? isRingResult
-                ? successClosingRcc
-                : successTarget.join("")
-              : successPath[i + 1].viaDigit;
-
-          pieces.push(`(${d_in}=${d_out})${fmtALS(als)}`);
-        }
-        detail = pieces.join("-");
-        if (isRingResult) {
-          detail += "-(Ring)";
-        }
-        if (nameOverride === "ALS Chain")
-          detail = `[${successPath.length}] ` + detail;
-      }
-
-      // Deep capture necessary properties to avoid relying on global _alsLookup in UI callback
-      const visualPath = successPath.map((step) => ({
-        viaDigit: step.viaDigit,
-        alsCells: [..._alsLookup[step.hash].cells],
-      }));
-      const v_isRingResult = isRingResult;
-      const v_successTargets = successTarget; // <-- CHANGED: renamed to plural
-      const v_successClosingRcc = successClosingRcc;
-
-      const snap_nodes = (() => {
-        const nodes = [];
-        visualPath.forEach((step, i) => {
-          const d_in =
-            i === 0
-              ? v_isRingResult
-                ? v_successClosingRcc
-                : v_successTargets[0]
-              : step.viaDigit;
-          const d_out =
-            i === visualPath.length - 1
-              ? v_isRingResult
-                ? v_successClosingRcc
-                : v_successTargets[0]
-              : visualPath[i + 1].viaDigit;
-
-          nodes.push({
-            cells: step.alsCells.filter(([r, c]) => pencils[r][c].has(d_in)),
-            digit: d_in,
-          });
-          // ... (rest of your node push logic remains exactly the same)
-          nodes.push({
-            cells: step.alsCells.filter(([r, c]) => pencils[r][c].has(d_out)),
-            digit: d_out,
-          });
-        });
-        return nodes;
-      })();
-
-      return {
-        change: true,
-        type: "remove",
-        cells: uniqueElims,
-        hint: {
-          name: nameOverride,
-          mainInfo: info,
-          detail: detail,
-        },
-        applyVisuals: () => {
-          highlightedDigit = null;
-          highlightState = 0;
-
-          const alsColors = [6, 7, 2, 3, 4, 5]; // Color loop
-
-          visualPath.forEach((step, i) => {
-            // Color ALS cells
-            step.alsCells.forEach(([r, c]) => {
-              if (!boardState[r][c].cellColor) {
-                boardState[r][c].cellColor = cellColorPalette[alsColors[i % 6]];
-              }
-            });
-          });
-
-          // Color elimination candidate in color 1
-          uniqueElims.forEach((el) =>
-            boardState[el.r][el.c].pencilColors.set(
-              el.num,
-              candidateColorPalette[0],
-            ),
-          );
-
-          const nodes = snap_nodes;
-
-          const getClosestCells = (cellsA, cellsB) => {
-            if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
-              return null;
-            let minD = Infinity;
-            let bestA = cellsA[0];
-            let bestB = cellsB[0];
-            for (const a of cellsA) {
-              for (const b of cellsB) {
-                const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                if (d < minD) {
-                  minD = d;
-                  bestA = a;
-                  bestB = b;
-                }
-              }
-            }
-            return [bestA, bestB];
-          };
-
-          const drawGroup = (cells, digit, colorIdx) => {
-            if (cells.length > 1) {
-              for (let k = 0; k < cells.length - 1; k++) {
-                drawnLines.push({
-                  r1: cells[k][0],
-                  c1: cells[k][1],
-                  n1: digit,
-                  r2: cells[k + 1][0],
-                  c2: cells[k + 1][1],
-                  n2: digit,
-                  color: lineColorPalette[colorIdx], // Color matching candidate
-                  style: "solid",
-                });
-              }
-            }
-          };
-
-          for (let k = 0; k < nodes.length; k++) {
-            const node = nodes[k];
-            const colorIdx = k % 2 === 0 ? 4 : 5; // Alternating candidate color 5 and 6
-
-            // Color candidate nodes
-            node.cells.forEach(([r, c]) =>
-              boardState[r][c].pencilColors.set(
-                node.digit,
-                candidateColorPalette[colorIdx],
-              ),
-            );
-
-            // Connect grouped candidates' links with the same candidate color
-            drawGroup(node.cells, node.digit, colorIdx);
-
-            // Connect adjacent nodes
-            if (k < nodes.length - 1) {
-              const nextNode = nodes[k + 1];
-              const closest = getClosestCells(node.cells, nextNode.cells);
-              if (closest) {
-                const isInner = k % 2 === 0;
-                drawnLines.push({
-                  r1: closest[0][0],
-                  c1: closest[0][1],
-                  n1: node.digit,
-                  r2: closest[1][0],
-                  c2: closest[1][1],
-                  n2: nextNode.digit,
-                  color: lineColorPalette[0], // Solid/Dash in Color 1
-                  style: isInner ? "solid" : "dash", // Inner ALS solid, intra ALS dash
-                });
-              }
-            }
-          }
-
-          // Ring connection
-          if (v_isRingResult && nodes.length > 1) {
-            const firstNode = nodes[0];
-            const lastNode = nodes[nodes.length - 1];
-            const closest = getClosestCells(lastNode.cells, firstNode.cells);
-            if (closest) {
-              drawnLines.push({
-                r1: closest[0][0],
-                c1: closest[0][1],
-                n1: lastNode.digit,
-                r2: closest[1][0],
-                c2: closest[1][1],
-                n2: firstNode.digit,
-                color: lineColorPalette[0],
-                style: "dash", // Ring in dash Color 1
-              });
-            }
-          }
-        },
-      };
-    }
-
-    return { change: false };
-  },
-
-  /**
-   * Almost Locked Set XY-Wing Wrapper
-   * Length 3 chain (ALS A - ALS B - ALS C)
-   * Corresponds to C++: als_xy_wing()
-   */
-  alsXYWing: (board, pencils) => {
-    _prALSXY = true;
-    if (_alsCache.length === 0)
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-    if (Object.keys(_alsDigitCommonPeers).length === 0) {
-      techniques._buildAlsDigitCommonPeers();
-      techniques._buildAlsRccMap();
-    }
-
-    return techniques._alsChainCore(board, pencils, 3, 3, "ALS XY-Wing");
-  },
-
-  alsChain: (board, pencils) => {
-    if (_alsCache.length === 0)
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-    if (Object.keys(_alsDigitCommonPeers).length === 0) {
-      techniques._buildAlsDigitCommonPeers();
-      techniques._buildAlsRccMap();
-    }
-    let minlen = !_prALSXZ ? 2 : !_prALSXY ? 3 : 4;
-    return techniques._alsChainCore(board, pencils, minlen, 5, "ALS Chain");
-  },
-
   // --- Almost Locked Set W-Wing & HELPERS ---
 
   _digitRowMasks: [],
@@ -8915,7 +9220,7 @@ const techniques = {
    * Precomputes bitmasks for candidate locations for every digit in every unit.
    * Corresponds to C++: precompute_digit_locations()
    */
-  _precomputeDigitLocations: (board, pencils) => {
+  _precomputeDigitLocations: (board, pencils, findAll = false) => {
     // Initialize 9x9 arrays with 0 (for digits 1-9)
     techniques._digitRowMasks = Array.from({ length: 9 }, () =>
       new Int32Array(9).fill(0),
@@ -9034,7 +9339,7 @@ const techniques = {
     return (unitMask & ~combined) === 0;
   },
 
-  alsWWing: (board, pencils) => {
+  alsWWing: (board, pencils, findAll = false) => {
     if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
@@ -9043,9 +9348,10 @@ const techniques = {
       techniques._buildAlsRccMap();
     }
 
-    techniques._precomputeDigitLocations(board, pencils);
+    techniques._precomputeDigitLocations(board, pencils, (findAll = false));
 
     const alses = _alsCache;
+    let results = [];
 
     // Helper: Eliminate d from common peers of the ALS's d-cells AND the house cells they cover
     const eliminateAlsCoverPeers = (als, d, uType, uIdx) => {
@@ -9413,7 +9719,7 @@ const techniques = {
           const snap_A_cells = A.cells.map(([r, c]) => [r, c]);
           const snap_B_cells = B.cells.map(([r, c]) => [r, c]);
 
-          return {
+          const resultObj = {
             change: true,
             type: "remove",
             cells: uniqueElims,
@@ -9534,14 +9840,18 @@ const techniques = {
               }
             },
           };
+
+          if (!findAll) return resultObj;
+          results.push(resultObj);
         }
       }
     }
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
   // --- CELL DEATH BLOSSOM ---
-  cellDeathBlossom: (board, pencils) => {
+  cellDeathBlossom: (board, pencils, findAll = false) => {
+    const results = [];
     if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
@@ -9861,7 +10171,7 @@ const techniques = {
         const uniqueElims = Array.from(
           new Set(eliminations.map(JSON.stringify)),
         ).map(JSON.parse);
-        return {
+        const resultObj = {
           change: true,
           type: "remove",
           cells: uniqueElims,
@@ -9992,14 +10302,17 @@ const techniques = {
             });
           },
         };
+        if (!findAll) return resultObj;
+        results.push(resultObj);
       }
     }
 
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
   // --- REGION DEATH BLOSSOM ---
-  regionDeathBlossom: (board, pencils) => {
+  regionDeathBlossom: (board, pencils, findAll = false) => {
+    const results = [];
     if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
@@ -10345,7 +10658,7 @@ const techniques = {
               ? `Col ${uIdx + 1}`
               : `Box ${uIdx + 1}`;
 
-        return {
+        const resultObj = {
           change: true,
           type: "remove",
           cells: uniqueElims,
@@ -10478,13 +10791,16 @@ const techniques = {
             });
           },
         };
+        if (!findAll) return resultObj;
+        results.push(resultObj);
       }
     }
 
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  _complexFishCore: (board, pencils, fishSize, isMutant) => {
+  _complexFishCore: (board, pencils, fishSize, isMutant, findAll = false) => {
+    let results = [];
     // Constants for Unit Types
     const U_ROW = 0,
       U_COL = 1,
@@ -10712,9 +11028,9 @@ const techniques = {
         if (B < 3) continue;
 
         // Base Triple Loop
-        for (let ia = 0; ia < B - 2 && !changed; ia++) {
-          for (let ib = ia + 1; ib < B - 1 && !changed; ib++) {
-            for (let ic = ib + 1; ic < B && !changed; ic++) {
+        for (let ia = 0; ia < B - 2 && (!changed || findAll); ia++) {
+          for (let ib = ia + 1; ib < B - 1 && (!changed || findAll); ib++) {
+            for (let ic = ib + 1; ic < B && (!changed || findAll); ic++) {
               const baseMask =
                 baseUnits[ia].mask | baseUnits[ib].mask | baseUnits[ic].mask;
 
@@ -10745,9 +11061,17 @@ const techniques = {
               const C = finalCoverUnits.length;
 
               // Cover Triple Loop
-              for (let ca = 0; ca < C - 2 && !changed; ca++) {
-                for (let cbx = ca + 1; cbx < C - 1 && !changed; cbx++) {
-                  for (let cc = cbx + 1; cc < C && !changed; cc++) {
+              for (let ca = 0; ca < C - 2 && (!changed || findAll); ca++) {
+                for (
+                  let cbx = ca + 1;
+                  cbx < C - 1 && (!changed || findAll);
+                  cbx++
+                ) {
+                  for (
+                    let cc = cbx + 1;
+                    cc < C && (!changed || findAll);
+                    cc++
+                  ) {
                     const coverMask =
                       finalCoverUnits[ca].mask |
                       finalCoverUnits[cbx].mask |
@@ -10921,7 +11245,7 @@ const techniques = {
                         detailStr += `, Fin ${formatFins(allFinsMask)}`;
                       }
 
-                      return {
+                      const resultObj = {
                         change: true,
                         type: "remove",
                         cells: elims,
@@ -10992,6 +11316,8 @@ const techniques = {
                           );
                         },
                       };
+                      if (!findAll) return resultObj;
+                      results.push(resultObj);
                     }
                   }
                 }
@@ -11001,18 +11327,18 @@ const techniques = {
         }
       } // End Base Loops
 
-      if (changed) break;
+      if (changed && !findAll) break;
       memoSet.add(memoKey); // Cache processed result
     }
 
-    return { change: false };
+    return findAll ? results : { change: false };
   },
 
-  finnedFrankenSwordfish: (board, pencils) => {
-    return techniques._complexFishCore(board, pencils, 3, false);
+  finnedFrankenSwordfish: (board, pencils, findAll = false) => {
+    return techniques._complexFishCore(board, pencils, 3, false, findAll);
   },
 
-  finnedMutantSwordfish: (board, pencils) => {
-    return techniques._complexFishCore(board, pencils, 3, true);
+  finnedMutantSwordfish: (board, pencils, findAll = false) => {
+    return techniques._complexFishCore(board, pencils, 3, true, findAll);
   },
 };
