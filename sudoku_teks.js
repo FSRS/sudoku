@@ -8935,8 +8935,6 @@ const techniques = {
                       false,
                     );
                   }
-                  // Draw a visual dashed line representing the continuous interaction
-                  finalRingRcds.push({ d1, d2, exc1: [exc1], exc2: [exc2] });
                 }
               }
             }
