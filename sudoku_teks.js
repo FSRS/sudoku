@@ -24,6 +24,7 @@ let _prXYw = false;
 let _prXYZw = false;
 let _prWw = false;
 
+let _prXw = false;
 let _prSky = false;
 let _prKite = false;
 let _prCrane = false;
@@ -177,6 +178,7 @@ const techniques = {
     _prXYZw = false;
     _prWw = false;
 
+    _prXw = false;
     _prSky = false;
     _prKite = false;
     _prCrane = false;
@@ -1056,6 +1058,7 @@ const techniques = {
 
   fish: (board, pencils, size, findAll = false) => {
     const results = [];
+    if (size === 2) _prXw = true;
     for (const isRowBased of [true, false]) {
       for (let num = 1; num <= 9; num++) {
         const candidatesInDim = [];
@@ -2013,6 +2016,14 @@ const techniques = {
           const p2 = isRowBased
             ? [link2.line, peak2Loc]
             : [peak2Loc, link2.line];
+
+          if (
+            peak1Loc === peak2Loc ||
+            (Math.floor(p1[0] / 3) === Math.floor(p2[0] / 3) &&
+              Math.floor(p1[1] / 3) === Math.floor(p2[1] / 3))
+          ) {
+            continue;
+          }
 
           const removals = [];
           for (const [r, c] of techniques._commonVisibleCells(p1, p2)) {
@@ -7081,6 +7092,7 @@ const techniques = {
     if (!useGrouped) {
       // X-Chain
       if (
+        _prXw &&
         (_prSky || _prgSky) &&
         (_prKite || _prgKite) &&
         (_prCrane || _prgCrane)
