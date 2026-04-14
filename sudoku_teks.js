@@ -2018,9 +2018,7 @@ const techniques = {
             : [peak2Loc, link2.line];
 
           if (
-            peak1Loc === peak2Loc ||
-            (Math.floor(p1[0] / 3) === Math.floor(p2[0] / 3) &&
-              Math.floor(p1[1] / 3) === Math.floor(p2[1] / 3))
+            peak1Loc === peak2Loc
           ) {
             continue;
           }
