@@ -89,6 +89,13 @@ let vatCurrentBoard = null;
 let vatCurrentPencils = null;
 let vatActiveTechniques = [];
 
+let selectionMode = "cellFirst";
+let activeSelectedDigit = null;
+let multiSelectedCells = new Set(); // Stores format "row,col"
+let isDraggingGrid = false;
+let dragProcessedCells = new Set();
+let dragInitialBoardSnapshot = null;
+
 const lastUsedColors = {
   draw: { solid: null, dash: null },
   color: { cell: null, candidate: null },
@@ -280,13 +287,24 @@ function updateButtonLabels() {
     modeToggleButton.textContent = isMobile ? "Pen." : "Pen. (Z)";
     modeToggleButton.dataset.tooltip =
       "Pencil Mode: Click a cell, then a digit to toggle a candidate. (Z to switch)";
+
+    // NEW: Apply pencil color class
+    modeToggleButton.classList.remove("active");
+    modeToggleButton.classList.add("active-green");
   } else {
     modeToggleButton.textContent = isMobile ? "Num." : "Num. (Z)";
     if (currentMode === "concrete") {
       modeToggleButton.dataset.tooltip =
         "Number Mode: Click a cell, then a digit to set its value. (Z to switch)";
+
+      // NEW: Apply concrete color class
+      modeToggleButton.classList.remove("active-green");
+      modeToggleButton.classList.add("active");
     } else {
       modeToggleButton.dataset.tooltip = "Switch to Number/Pencil mode (Z)";
+
+      // NEW: Remove highlights if another tool (Color/Draw) is active
+      modeToggleButton.classList.remove("active", "active-green");
     }
   }
 
@@ -316,14 +334,25 @@ function updateButtonLabels() {
       colorButton.textContent = isMobile ? "Cell" : "Color: Cell";
       colorButton.dataset.tooltip =
         "Color Cell Mode: Pick a color, then click a cell to paint it. (C to switch)";
+
+      // NEW: Apply cell color class
+      colorButton.classList.remove("active-green");
+      colorButton.classList.add("active");
     } else {
       colorButton.textContent = isMobile ? "Cand." : "Color: Cand.";
       colorButton.dataset.tooltip =
         "Color Candidate Mode: Pick a color, then click a candidate to paint it. (C to switch)";
+
+      // NEW: Apply candidate color class
+      colorButton.classList.remove("active");
+      colorButton.classList.add("active-green");
     }
   } else {
     colorButton.textContent = isMobile ? "Color" : "Color (C)";
     colorButton.dataset.tooltip = "Switch to Color mode (C)";
+
+    // NEW: Remove highlights if another tool is active
+    colorButton.classList.remove("active", "active-green");
   }
 
   formatToggleBtn.style.display = "none";
@@ -552,8 +581,15 @@ function updateControls() {
       const btn = document.createElement("button");
       btn.textContent = i;
       btn.dataset.number = i;
-      btn.className =
-        "p-2 text-lg font-bold border rounded-md shadow-sm hover:bg-gray-100 h-12";
+
+      // Check if Digit First mode is active and this digit is selected
+      if (selectionMode === "digitFirst" && activeSelectedDigit === i) {
+        btn.className =
+          "p-2 text-lg font-bold border rounded-md shadow-sm h-12 transition-colors bg-indigo-600 text-white border-indigo-700";
+      } else {
+        btn.className =
+          "p-2 text-lg font-bold border rounded-md shadow-sm h-12 transition-colors bg-white hover:bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-slate-600";
+      }
       numberPad.appendChild(btn);
     });
   }
@@ -892,18 +928,21 @@ function renderBoard() {
       }
     };
 
-    if (row === selectedCell.row && col === selectedCell.col) {
+    if (
+      multiSelectedCells.has(`${row},${col}`) ||
+      (row === selectedCell.row && col === selectedCell.col)
+    ) {
       const useGreenHighlight =
         currentMode === "pencil" ||
         (currentMode === "color" && coloringSubMode === "candidate") ||
-        (currentMode === "draw" && drawSubMode === "dash"); // ADD THIS CHECK
-
+        (currentMode === "draw" && drawSubMode === "dash");
       if (useGreenHighlight) {
         cell.classList.add("selected-green");
       } else {
         cell.classList.add("selected");
       }
     }
+
     const content = document.createElement("div");
     content.className = "cell-content";
     if (state.value !== 0) {
@@ -1630,6 +1669,11 @@ function setupEventListeners() {
   initTheme();
   updateColorPalettes();
 
+  const savedSelMode = localStorage.getItem("sudokuSelectionMode");
+  if (savedSelMode) selectionMode = savedSelMode;
+  const savedDispFormat = localStorage.getItem("sudokuDisplayFormat");
+  if (savedDispFormat) candidatePopupFormat = savedDispFormat;
+
   gridContainer.style.userSelect = "none";
   gridContainer.addEventListener("dragstart", (e) => e.preventDefault());
 
@@ -1638,6 +1682,151 @@ function setupEventListeners() {
   loadExperimentalModePreference();
 
   gridContainer.addEventListener("click", handleCellClick);
+  // NEW: Pointer Drag Logic
+  gridContainer.addEventListener("pointerdown", (e) => {
+    if (
+      isSolverMode ||
+      (currentMode !== "concrete" && currentMode !== "pencil")
+    )
+      return;
+
+    if (isExperimentalMode && e.target.closest(".pencil-mark")) {
+      return;
+    }
+
+    const cell = e.target.closest(".sudoku-cell");
+    if (!cell) return;
+
+    isDraggingGrid = true;
+    dragProcessedCells.clear();
+    const r = parseInt(cell.dataset.row);
+    const c = parseInt(cell.dataset.col);
+    const cellKey = `${r},${c}`;
+    const cellState = boardState[r][c];
+
+    // NEW: Turn off digit selection and highlight if a concrete cell is clicked
+    if (selectionMode === "digitFirst" && cellState.value !== 0) {
+      activeSelectedDigit = null;
+      if (highlightState !== 2) {
+        if (highlightedDigit !== cellState.value) {
+          highlightedDigit = cellState.value;
+          highlightState = 1;
+        } else {
+          highlightedDigit = null;
+          highlightState = 0;
+        }
+      }
+      updateControls();
+      renderBoard();
+      return;
+    }
+
+    if (selectionMode === "cellFirst") {
+      if ((!e.ctrlKey && !e.shiftKey) || isExperimentalMode)
+        multiSelectedCells.clear();
+      multiSelectedCells.add(cellKey);
+      selectedCell = { row: r, col: c };
+
+      // Cell Highlighting Logic
+      if (highlightState === 0 && cellState.pencils.size === 2) {
+        highlightedDigit = null;
+        highlightState = 2;
+      } else if (cellState.value !== 0) {
+        if (highlightedDigit !== cellState.value) {
+          highlightedDigit = cellState.value;
+          highlightState = 1;
+        } else {
+          highlightedDigit = null;
+          highlightState = 0;
+        }
+      }
+
+      renderBoard();
+    } else if (selectionMode === "digitFirst" && activeSelectedDigit !== null) {
+      // NEW: Take a deep snapshot of the board values and pencil marks BEFORE modifying
+      dragInitialBoardSnapshot = boardState.map((row) =>
+        row.map((cell) => ({
+          value: cell.value,
+          pencils: new Set(cell.pencils),
+        })),
+      );
+
+      dragProcessedCells.add(cellKey);
+      applyDigitToCell(r, c, activeSelectedDigit);
+      renderBoard();
+    }
+  });
+
+  gridContainer.addEventListener("pointermove", (e) => {
+    if (!isDraggingGrid) return;
+    if (isExperimentalMode) return;
+    // Find element under pointer (vital for touch dragging across elements)
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const targetCell = el ? el.closest(".sudoku-cell") : null;
+    if (!targetCell) return;
+
+    const r = parseInt(targetCell.dataset.row);
+    const c = parseInt(targetCell.dataset.col);
+    const cellKey = `${r},${c}`;
+
+    if (selectionMode === "cellFirst") {
+      if (!multiSelectedCells.has(cellKey)) {
+        multiSelectedCells.add(cellKey);
+        selectedCell = { row: r, col: c };
+
+        // Multi-cell select in concrete -> switch to pencil
+        if (multiSelectedCells.size > 1 && currentMode === "concrete") {
+          currentMode = "pencil";
+          updateButtonLabels();
+          updateControls();
+        }
+
+        renderBoard();
+      }
+    } else if (selectionMode === "digitFirst" && activeSelectedDigit !== null) {
+      if (!dragProcessedCells.has(cellKey)) {
+        // NEW: Multi-cell drag in concrete -> Completely restore board state, then switch
+        if (dragProcessedCells.size === 1 && currentMode === "concrete") {
+          // 1. Restore the EXACT board state from before the first click
+          for (let i = 0; i < 9; i++) {
+            for (let j = 0; j < 9; j++) {
+              boardState[i][j].value = dragInitialBoardSnapshot[i][j].value;
+              boardState[i][j].pencils = new Set(
+                dragInitialBoardSnapshot[i][j].pencils,
+              );
+            }
+          }
+
+          // 2. Switch UI and internal state to pencil mode
+          currentMode = "pencil";
+          updateButtonLabels();
+          updateControls();
+
+          // 3. Apply the selected digit as a pencil toggle to the FIRST cell
+          const firstKey = Array.from(dragProcessedCells)[0];
+          const [fr, fc] = firstKey.split(",").map(Number);
+          applyDigitToCell(fr, fc, activeSelectedDigit);
+        }
+
+        // 4. Process the current cell (the second or subsequent cell in the drag)
+        dragProcessedCells.add(cellKey);
+        applyDigitToCell(r, c, activeSelectedDigit);
+        renderBoard();
+      }
+    }
+  });
+
+  window.addEventListener("pointerup", () => {
+    if (isDraggingGrid) {
+      isDraggingGrid = false;
+      if (selectionMode === "digitFirst" && dragProcessedCells.size > 0) {
+        if (!timerInterval) startTimer(currentElapsedTime);
+        saveState();
+        onBoardUpdated();
+        checkCompletion();
+      }
+    }
+  });
   modeSelector.addEventListener("click", (e) => handleModeChange(e));
   numberPad.addEventListener("click", handleNumberPadClick);
   loadBtn.addEventListener("click", () => loadPuzzle(puzzleStringInput.value));
@@ -1788,7 +1977,7 @@ function setupEventListeners() {
   const executeFormatToggle = () => {
     candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
     const tip = `Candidate display set to ${
-      candidatePopupFormat === "A" ? "Numpad (A)" : "Phone (B)"
+      candidatePopupFormat === "A" ? "Phone (A)" : "Numpad (B)"
     } layout. (Press 'D' to toggle)`;
     showMessage(tip, "gray");
 
@@ -2151,6 +2340,12 @@ function setupEventListeners() {
       return;
     }
     isExperimentalMode = !isExperimentalMode;
+    if (isExperimentalMode) {
+      multiSelectedCells.clear();
+      if (selectedCell.row !== null && selectedCell.col !== null) {
+        multiSelectedCells.add(`${selectedCell.row},${selectedCell.col}`);
+      }
+    }
     saveExperimentalModePreference();
     updateButtonLabels();
     let tip = "";
@@ -3169,6 +3364,33 @@ function handleModeChange(e) {
   }
 }
 
+function applyDigitToCell(r, c, num) {
+  const cellState = boardState[r][c];
+  if (cellState.isGiven) return false;
+
+  let changeMade = false;
+  if (currentMode === "concrete") {
+    const oldValue = cellState.value;
+    const newValue = oldValue === num ? 0 : num;
+    if (oldValue !== newValue) {
+      cellState.value = newValue;
+      if (newValue !== 0) {
+        cellState.pencils.clear();
+        if (typeof autoEliminatePencils === "function")
+          autoEliminatePencils(r, c, newValue);
+      }
+      changeMade = true;
+    }
+  } else if (currentMode === "pencil") {
+    if (cellState.value === 0) {
+      if (cellState.pencils.has(num)) cellState.pencils.delete(num);
+      else cellState.pencils.add(num);
+      changeMade = true;
+    }
+  }
+  return changeMade;
+}
+
 function handleNumberPadClick(e) {
   const btn = e.target.closest("button");
   if (!btn) return;
@@ -3220,54 +3442,46 @@ function handleNumberPadClick(e) {
 
   // Handle Number Input (Concrete / Pencil)
   const num = parseInt(btn.dataset.number);
-  if (selectedCell.row !== null) {
-    const { row, col } = selectedCell;
-    const cellState = boardState[row][col];
 
-    if (cellState.isGiven) {
-      if (currentMode === "concrete" || currentMode === "pencil") {
-        if (highlightedDigit !== num) {
-          highlightedDigit = num;
-          highlightState = 1;
-        } else {
-          highlightedDigit = null;
-          highlightState = 0;
-        }
-        renderBoard();
+  // NEW: Digit First Logic
+  if (selectionMode === "digitFirst") {
+    activeSelectedDigit = activeSelectedDigit === num ? null : num;
+
+    // NEW: Highlight that digit (unless bivalues are highlighted)
+    if (highlightState !== 2) {
+      if (activeSelectedDigit !== null) {
+        highlightedDigit = activeSelectedDigit;
+        highlightState = 1;
+      } else {
+        highlightedDigit = null;
+        highlightState = 0;
       }
-      return;
     }
 
-    let changeMade = false;
-    if (currentMode === "concrete") {
-      const oldValue = cellState.value;
-      const newValue = oldValue === num ? 0 : num;
-      if (oldValue !== newValue) {
-        cellState.value = newValue;
-        if (newValue !== 0) {
-          cellState.pencils.clear();
-          autoEliminatePencils(row, col, newValue);
-        }
-        changeMade = true;
-      }
-    } else {
-      if (cellState.value === 0) {
-        if (cellState.pencils.has(num)) {
-          cellState.pencils.delete(num);
-        } else {
-          cellState.pencils.add(num);
-        }
-        changeMade = true;
-      }
-    }
-    if (changeMade) {
-      if (!timerInterval) startTimer(currentElapsedTime);
-      saveState();
-      onBoardUpdated();
-      checkCompletion();
-    } else {
-      renderBoard();
-    }
+    updateControls(); // Visually update the Numpad
+    multiSelectedCells.clear();
+    renderBoard();
+    return;
+  }
+
+  // NEW: Cell First Logic (Multi-cell support)
+  let anyChange = false;
+  if (multiSelectedCells.size > 0) {
+    multiSelectedCells.forEach((cellKey) => {
+      const [r, c] = cellKey.split(",").map(Number);
+      if (applyDigitToCell(r, c, num)) anyChange = true;
+    });
+  } else if (selectedCell.row !== null) {
+    // Fallback for single cell standard click
+    if (applyDigitToCell(selectedCell.row, selectedCell.col, num))
+      anyChange = true;
+  }
+
+  if (anyChange) {
+    if (!timerInterval) startTimer(currentElapsedTime);
+    saveState();
+    onBoardUpdated();
+    checkCompletion();
   }
 }
 
@@ -7199,6 +7413,10 @@ function openPreferencesModal() {
     else listContainer.insertBefore(dragging, afterElement);
   });
 
+  // Sync UI selects with current global state
+  document.getElementById("pref-selection-mode").value = selectionMode;
+  document.getElementById("pref-display-format").value = candidatePopupFormat;
+
   modal.classList.remove("hidden");
   modal.classList.add("flex");
 }
@@ -7228,6 +7446,26 @@ document.addEventListener("DOMContentLoaded", () => {
   document
     .getElementById("pref-save-btn")
     .addEventListener("click", async () => {
+      const newSelectionMode = document.getElementById(
+        "pref-selection-mode",
+      ).value;
+      if (selectionMode !== newSelectionMode) {
+        selectionMode = newSelectionMode;
+        selectedCell = { row: null, col: null };
+        multiSelectedCells.clear();
+        activeSelectedDigit = null;
+      }
+
+      candidatePopupFormat = document.getElementById(
+        "pref-display-format",
+      ).value;
+      localStorage.setItem("sudokuSelectionMode", selectionMode);
+      localStorage.setItem("sudokuDisplayFormat", candidatePopupFormat);
+
+      // NEW: Instantly apply the UI changes
+      updateControls();
+      renderBoard();
+
       const items = document.querySelectorAll(".sortable-item");
       const prefs = Array.from(items).map((item) => {
         const defaultScore = parseInt(

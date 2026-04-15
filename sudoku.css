@@ -1494,7 +1494,7 @@ button:disabled:hover {
 
 /* Constrain the Preferences Modal height */
 #preferences-modal > div {
-  max-height: 75vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
 }
@@ -1567,6 +1567,7 @@ button:disabled:hover {
 .sudoku-grid {
   position: relative;
   container-type: inline-size;
+  touch-action: none;
 }
 
 .solver-active-textarea {
