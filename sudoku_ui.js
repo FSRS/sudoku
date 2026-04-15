@@ -88,6 +88,7 @@ let vatMaxLevel = 6;
 let vatCurrentBoard = null;
 let vatCurrentPencils = null;
 let vatActiveTechniques = [];
+let vatSelectedHint = null;
 
 let selectionMode = "cellFirst";
 let activeSelectedDigit = null;
@@ -107,6 +108,30 @@ let _activeTechniqueOrder = null; // cached after first evaluation
 
 function getTechniqueOrder() {
   return _activeTechniqueOrder || getDefaultTechniques();
+}
+
+function updateSolverToggleButton() {
+  const btn = document.getElementById("toggle-solver-mode-btn");
+  if (!btn) return;
+  const isMobile = window.innerWidth <= 550;
+
+  if (isViewAllTechniquesMode && vatSelectedHint) {
+    btn.textContent = isMobile ? "Apply & Eval" : "Apply & Re-evaluate (A)";
+    btn.className =
+      "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors";
+    btn.dataset.tooltip =
+      "Apply selected technique and re-evaluate from this step";
+  } else if (isSolverMode) {
+    btn.textContent = isMobile ? "Exit Solver Mode" : "Exit Solver Mode (S)";
+    btn.className =
+      "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
+    btn.dataset.tooltip = "Exit solver and return to playing mode";
+  } else {
+    btn.textContent = isMobile ? "Solver Mode" : "Enter Solver Mode (S)";
+    btn.className =
+      "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
+    btn.dataset.tooltip = "Enter solver mode to analyze the board";
+  }
 }
 
 function initTheme() {
@@ -362,18 +387,8 @@ function updateButtonLabels() {
   exptModeBtn.textContent =
     (isExperimentalMode ? "Expt!" : "Expt.") + exptShortcut;
 
-  const toggleSolverBtn = document.getElementById("toggle-solver-mode-btn");
-  if (toggleSolverBtn) {
-    if (isSolverMode) {
-      toggleSolverBtn.textContent = isMobile
-        ? "Exit Solver Mode"
-        : "Exit Solver Mode (S)";
-    } else {
-      toggleSolverBtn.textContent = isMobile
-        ? "Solver Mode"
-        : "Enter Solver Mode (S)";
-    }
-  }
+  updateSolverToggleButton();
+
   // --- UPDATED LOGIC START ---
   if (isExperimentalMode) {
     // 1. Add active class
@@ -463,7 +478,9 @@ function addSudokuCoachLink(puzzleString) {
     hideTooltip(btn);
     if (activeTooltipElement === btn) activeTooltipElement = null;
 
-    if (isSolverMode) {
+    if (isViewAllTechniquesMode && vatSelectedHint) {
+      applyVatAndReevaluate();
+    } else if (isSolverMode) {
       exitSolverMode();
     } else {
       solve(); // Enter solver mode
@@ -2730,12 +2747,43 @@ function handleKeyDown(e) {
   }
 
   if (isSolverMode) {
+    if (isViewAllTechniquesMode) {
+      if (key_lower === "b" && !isCtrlOrCmd) {
+        e.preventDefault();
+        exitViewAllTechniquesMode();
+        return;
+      }
+      if (key_lower === "a" && !isCtrlOrCmd && vatSelectedHint) {
+        e.preventDefault();
+        applyVatAndReevaluate();
+        return;
+      }
+    } else {
+      if (key_lower === "a" && !isCtrlOrCmd) {
+        e.preventDefault();
+        const vatBtn = document.getElementById("solver-view-all-btn");
+        if (
+          vatBtn &&
+          !vatBtn.disabled &&
+          !vatBtn.classList.contains("hidden")
+        ) {
+          enterViewAllTechniquesMode();
+        }
+        return;
+      }
+    }
+
     if (
       (key_lower === "s" || key_lower === "q" || key === "Escape") &&
       !isCtrlOrCmd
     ) {
-      const toggleBtn = document.getElementById("toggle-solver-mode-btn");
-      if (toggleBtn) toggleBtn.click();
+      if (key === "Escape" && isViewAllTechniquesMode) {
+        e.preventDefault();
+        exitViewAllTechniquesMode();
+        return;
+      }
+      e.preventDefault();
+      exitSolverMode();
       return;
     }
     if (key_lower === "d" && !isCtrlOrCmd) {
@@ -2779,7 +2827,8 @@ function handleKeyDown(e) {
       isFormatOpen ||
       isShareOpen ||
       isCompShareOpen ||
-      isResetOpen
+      isResetOpen ||
+      isPrefOpen
     )
   ) {
     e.preventDefault();
@@ -4492,24 +4541,28 @@ function enterSolverModeUI() {
     return;
   }
 
-  timerWasRunningBeforeSolver = !!timerInterval;
-  stopTimer();
+  if (!isSolverMode) {
+    timerWasRunningBeforeSolver = !!timerInterval;
+    stopTimer();
 
-  if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
-  if (typeof savePuzzleProgress === "function") savePuzzleProgress();
+    if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
+    if (typeof savePuzzleProgress === "function") savePuzzleProgress();
 
-  document.querySelectorAll(".custom-tooltip").forEach((tooltip) => {
-    tooltip.remove();
-  });
-  activeTooltipElement = null;
+    document.querySelectorAll(".custom-tooltip").forEach((tooltip) => {
+      tooltip.remove();
+    });
+    activeTooltipElement = null;
 
-  userBoardSnapshot = cloneBoardState(boardState);
-  userLinesSnapshot = JSON.parse(JSON.stringify(drawnLines));
+    userBoardSnapshot = cloneBoardState(boardState);
+    userLinesSnapshot = JSON.parse(JSON.stringify(drawnLines));
 
-  userHighlightStateSnapshot = highlightState;
-  userHighlightedDigitSnapshot = highlightedDigit;
+    userHighlightStateSnapshot = highlightState;
+    userHighlightedDigitSnapshot = highlightedDigit;
+  }
 
   isSolverMode = true;
+  updateSolverToggleButton();
+
   document.getElementById("action-buttons-container").classList.add("hidden");
   document.getElementById("solver-bar-container").classList.remove("hidden");
   document.getElementById("solver-bar-container").classList.add("flex");
@@ -4521,14 +4574,6 @@ function enterSolverModeUI() {
   document.getElementById("number-pad").classList.remove("grid");
 
   puzzleStringInput.classList.add("solver-active-textarea");
-
-  // Update toggle button text
-  const toggleBtn = document.getElementById("toggle-solver-mode-btn");
-  const isMobile = window.innerWidth <= 550;
-  if (toggleBtn)
-    toggleBtn.textContent = isMobile
-      ? "Exit Solver Mode"
-      : "Exit Solver Mode  (S)";
 
   setupTimelineDragging();
   buildSolverTimeline();
@@ -4669,10 +4714,12 @@ async function proceedToSolverMode() {
 
 function exitSolverMode() {
   if (isViewAllTechniquesMode) {
-    exitViewAllTechniquesMode(); // Clean up VAT state first
+    exitViewAllTechniquesMode(true); // Clean up VAT state first without rendering
   }
   isViewAllTechniquesMode = false;
   isSolverMode = false;
+  vatSelectedHint = null;
+
   document
     .getElementById("action-buttons-container")
     .classList.remove("hidden");
@@ -4691,12 +4738,7 @@ function exitSolverMode() {
     puzzleStringInput.style.height = puzzleStringInput.scrollHeight + "px";
   });
 
-  // Restore toggle button text
-  const toggleBtn = document.getElementById("toggle-solver-mode-btn");
-  if (toggleBtn) {
-    const isMobile = window.innerWidth <= 550;
-    toggleBtn.textContent = isMobile ? "Solver Mode" : "Enter Solver Mode (S)";
-  }
+  updateSolverToggleButton();
 
   // Restore exactly from the pre-solver snapshot
   if (userBoardSnapshot) {
@@ -4731,6 +4773,8 @@ function enterViewAllTechniquesMode() {
   if (!step) return;
 
   isViewAllTechniquesMode = true;
+  vatSelectedHint = null;
+  updateSolverToggleButton();
 
   // Hide solver controls, show back button
   document.getElementById("solver-prev-btn").classList.add("hidden");
@@ -4782,8 +4826,10 @@ function enterViewAllTechniquesMode() {
   searchAndAppendVatLevel(currentLevel, true);
 }
 
-function exitViewAllTechniquesMode() {
+function exitViewAllTechniquesMode(skipRender = false) {
   isViewAllTechniquesMode = false;
+  vatSelectedHint = null;
+  updateSolverToggleButton();
 
   // Restore solver controls and hide VAT text
   document.getElementById("solver-prev-btn").classList.remove("hidden");
@@ -4791,7 +4837,7 @@ function exitViewAllTechniquesMode() {
   document.getElementById("solver-view-all-btn").classList.remove("hidden");
 
   document.getElementById("solver-back-from-all-btn").classList.add("hidden");
-  document.getElementById("vat-mode-text").classList.add("hidden"); // <-- ADD THIS
+  document.getElementById("vat-mode-text").classList.add("hidden");
 
   document.getElementById("solver-step-fraction").classList.remove("hidden");
   document.getElementById("solver-timeline-wrapper").classList.remove("hidden");
@@ -4800,8 +4846,74 @@ function exitViewAllTechniquesMode() {
   if (searchBtn) searchBtn.classList.add("hidden");
 
   // Restore normal solver summary
-  buildSolverSummary();
-  renderSolverStep(currentSolverStep);
+  if (!skipRender) {
+    buildSolverSummary();
+    renderSolverStep(currentSolverStep);
+  }
+}
+
+async function applyVatAndReevaluate() {
+  if (!isViewAllTechniquesMode || !vatSelectedHint) return;
+
+  // 0. Update base boardState to match the current solver step BEFORE applying the hint
+  const currentStep = solverSteps[currentSolverStep];
+
+  // FIX: Changed from currentStep.boardSnapshot to currentStep.board and currentStep.pencils
+  if (currentStep && currentStep.board && currentStep.pencils) {
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        boardState[r][c].value = currentStep.board[r][c];
+        boardState[r][c].pencils = new Set(currentStep.pencils[r][c]);
+      }
+    }
+  }
+
+  // 1. Apply the hint to boardState
+  const result = vatSelectedHint;
+  if (result.type === "place") {
+    boardState[result.r][result.c].value = result.num;
+    boardState[result.r][result.c].pencils.clear();
+    for (let i = 0; i < 9; i++) {
+      boardState[result.r][i].pencils.delete(result.num);
+      boardState[i][result.c].pencils.delete(result.num);
+    }
+    const boxR = Math.floor(result.r / 3) * 3,
+      boxC = Math.floor(result.c / 3) * 3;
+    for (let i = 0; i < 3; i++)
+      for (let j = 0; j < 3; j++)
+        boardState[boxR + i][boxC + j].pencils.delete(result.num);
+  } else if (result.type === "remove") {
+    result.cells.forEach(({ r, c, num }) =>
+      boardState[r][c].pencils.delete(num),
+    );
+  }
+
+  // 2. Clear current step drawings/colors
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      boardState[r][c].cellColor = null;
+      boardState[r][c].pencilColors.clear();
+    }
+  }
+  drawnLines = [];
+  drawingState = null;
+
+  // 3. Reset VAT state without re-rendering old state
+  exitViewAllTechniquesMode(true);
+
+  // 4. Re-evaluate
+  if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
+  const evalId = ++currentEvaluationId;
+  showMessage("Re-evaluating from new state...", "blue");
+
+  techniqueResultCache.clear();
+
+  // FIX: Pass force: true to bypass the early return in evaluateBoardDifficulty
+  await evaluateBoardDifficulty({ waitForFrame: false, force: true });
+
+  if (currentEvaluationId !== evalId) return;
+
+  enterSolverModeUI();
 }
 
 // Inside sudoku_ui.js
@@ -4961,6 +5073,9 @@ function buildViewAllTechniquesList(step) {
       // Click on sub-item applies visuals
       childRow.addEventListener("click", (e) => {
         e.stopPropagation(); // Prevent the parent click event from firing
+
+        vatSelectedHint = subItem.result;
+        updateSolverToggleButton();
 
         // Reset board visuals
         boardState = cloneToBoardState(board, pencils);
@@ -5214,6 +5329,8 @@ function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
           childRow.addEventListener("click", (e) => {
             e.stopPropagation();
 
+            vatSelectedHint = subItem.result;
+            updateSolverToggleButton();
             // Note: Use VAT specific board states here
             boardState = cloneToBoardState(vatCurrentBoard, vatCurrentPencils);
             drawnLines = [];
@@ -5301,7 +5418,7 @@ function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
         searchBtn.onclick = () => {
           const nextLvlToRun = vatNextLevel;
           vatNextLevel++;
-          searchAndAppendVatLevel(nextLvlToRun, false);
+          searchAndAppendVatLevel(nextLvlToRun, true);
         };
         searchBtn.classList.remove("hidden");
       } else {
@@ -6314,9 +6431,8 @@ function getBoardStateHash(board, pencils) {
 }
 
 async function evaluateBoardDifficulty(opts = {}) {
-  if (isSolverMode) return;
-  // [FIX] Support options to skip frame waiting for more robust initialization
-  const { waitForFrame = true } = opts;
+  const { waitForFrame = true, force = false } = opts;
+  if (isSolverMode && !force) return;
 
   const techniqueOrder = getActiveTechniques();
 
@@ -6956,7 +7072,7 @@ function getDefaultTechniques() {
     { name: "Grouped AIC", func: techniques.groupedAIC, level: 8, score: 300 },
     {
       name: "Almost Locked Set XZ-Rule",
-      func: techniques.alsXZ,
+      func: (b, p, findAll) => techniques.alsXZ(b, p, false, findAll),
       level: 8,
       score: 300,
     },
@@ -7521,22 +7637,39 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // --- DEFAULT BUTTON ---
+  // --- DEFAULT BUTTON ---
   document
     .getElementById("pref-default-btn")
     .addEventListener("click", async () => {
       // 1. Wipe the local cache
       localStorage.removeItem("sudokuTechniquePrefs");
 
-      // 2. Close the modal
+      // 2. Reset Input Mode to "Cell first"
+      selectionMode = "cellFirst";
+      const cellFirstRadio = document.getElementById("mode-cell-first");
+      if (cellFirstRadio) cellFirstRadio.checked = true;
+
+      // 3. Reset Candidate Display layout to "Phone (A)"
+      candidatePopupFormat = "A";
+
+      // Save the default modes so they persist on page refresh
+      localStorage.setItem("sudokuSelectionMode", selectionMode);
+      localStorage.setItem("sudokuDisplayFormat", candidatePopupFormat);
+
+      updateControls();
+      renderBoard();
+
+      // 4. Close the modal
       document.getElementById("preferences-modal").classList.add("hidden");
       document.getElementById("preferences-modal").classList.remove("flex");
 
-      // 3. Safely exit solver mode and wipe cache
+      // 5. Safely exit solver mode and wipe cache
       if (typeof isSolverMode !== "undefined" && isSolverMode) exitSolverMode();
-      if (typeof techniqueResultCache !== "undefined")
+      if (typeof techniqueResultCache !== "undefined") {
         techniqueResultCache.clear();
+      }
 
-      // 4. Force a fresh "Refresh/Re-evaluation" using defaults
+      // 6. Force a fresh "Refresh/Re-evaluation" using defaults
       currentEvaluationId++;
       showMessage("Defaults restored! Re-evaluating board...", "blue");
 

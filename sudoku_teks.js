@@ -2017,9 +2017,7 @@ const techniques = {
             ? [link2.line, peak2Loc]
             : [peak2Loc, link2.line];
 
-          if (
-            peak1Loc === peak2Loc
-          ) {
+          if (peak1Loc === peak2Loc) {
             continue;
           }
 
@@ -9476,6 +9474,7 @@ const techniques = {
         }
 
         if (rccMask === 0) continue;
+        if (virtualRccs.length === 0) continue;
 
         // --- ELIMINATIONS ---
         const rccCount = techniques._bits.popcount(rccMask);
@@ -9632,7 +9631,6 @@ const techniques = {
               detail = `(${v2.d}=${v1.d})${alsAStr}-(${v1.d})(${link1})-(${v1.d}=${v2.d})${alsBStr}-(${v2.d})(${link2})-(Ring)`;
             }
           }
-
           // --- PREPARE SNAP NODES FOR VISUALS ---
           const targetDigitsArray = [
             ...new Set(uniqueElims.map((e) => e.num)),
