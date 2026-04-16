@@ -1118,21 +1118,6 @@ function renderBoard() {
             e.stopPropagation();
             if (isSolverMode) return;
 
-            // FIX: Clear old multi-selection when interacting with candidates in Color/Draw modes
-            if (currentMode === "draw" || currentMode === "color") {
-                multiSelectedCells.clear();
-                selectedCell = {row: null, col: null};
-            }
-
-            if (isExperimentalMode && (currentMode === "concrete" || currentMode === "pencil")) {
-                if (selectionMode === "cellFirst") {
-                    multiSelectedCells.clear();
-                    multiSelectedCells.add(`${row},${col}`);
-                    selectedCell = { row, col };
-                    // renderBoard();
-                }
-            }
-
             if (currentMode === "draw") {
               handleDrawClick(row, col, i);
             } else if (
@@ -1802,7 +1787,7 @@ function setupEventListeners() {
     const cellKey = `${r},${c}`;
 
     if (selectionMode === "cellFirst") {
-      if (!isExperimentalMode && !multiSelectedCells.has(cellKey)) {
+      if (!multiSelectedCells.has(cellKey)) {
         multiSelectedCells.add(cellKey);
         selectedCell = { row: r, col: c };
 
@@ -3163,27 +3148,11 @@ function handleCellClick(e) {
   if (isSolverMode) return;
   const cell = e.target.closest(".sudoku-cell");
   if (!cell) return;
-
-  // FIX: Clear multi-selection from other modes if we are clicking in Color/Draw mode
-  if (currentMode === "color" || currentMode === "draw") {
-    multiSelectedCells.clear();
-  }
-
   selectedCell.row = parseInt(cell.dataset.row);
   selectedCell.col = parseInt(cell.dataset.col);
-
-  // FIX: Ensure old focus is removed and only the newly clicked cell is outlined in Cell First mode
-  if (selectionMode === "cellFirst") {
-    if ((!e.ctrlKey && !e.shiftKey) || isExperimentalMode) {
-      multiSelectedCells.clear();
-    }
-    multiSelectedCells.add(`${selectedCell.row},${selectedCell.col}`);
-  }
-
   const cellState = boardState[selectedCell.row][selectedCell.col];
   const isMobile = window.innerWidth <= 550;
   let needsRenderOnly = false;
-
   if (currentMode === "color") {
     if (coloringSubMode === "cell" && selectedColor) {
       const oldColor = cellState.cellColor;
@@ -3212,10 +3181,20 @@ function handleCellClick(e) {
       needsRenderOnly = true;
     }
   } else {
-    // FIX: Removed highlight toggling from click event (pointerdown handles it natively without double-toggling on touch)
+    if (highlightState === 0 && cellState.pencils.size === 2) {
+      highlightedDigit = null;
+      highlightState = 2;
+    } else if (cellState.value !== 0) {
+      if (highlightedDigit !== cellState.value) {
+        highlightedDigit = cellState.value;
+        highlightState = 1;
+      } else {
+        highlightedDigit = null;
+        highlightState = 0;
+      }
+    }
     needsRenderOnly = true;
   }
-
   if (needsRenderOnly) {
     renderBoard();
   }
@@ -3534,7 +3513,7 @@ function handleNumberPadClick(e) {
     return;
   }
 
-// NEW: Cell First Logic (Multi-cell support)
+  // NEW: Cell First Logic (Multi-cell support)
   let anyChange = false;
   if (multiSelectedCells.size > 0) {
     multiSelectedCells.forEach((cellKey) => {
@@ -3552,30 +3531,6 @@ function handleNumberPadClick(e) {
     saveState();
     onBoardUpdated();
     checkCompletion();
-  } else if (selectionMode === "cellFirst") {
-    // FIX: Focus given cell + numpad click -> highlight digit
-    let hasGiven = false;
-    if (multiSelectedCells.size > 0) {
-      for (let cellKey of multiSelectedCells) {
-        const [r, c] = cellKey.split(",").map(Number);
-        if (boardState[r][c].isGiven) { hasGiven = true; break; }
-      }
-    } else if (selectedCell.row !== null) {
-      if (boardState[selectedCell.row][selectedCell.col].isGiven) hasGiven = true;
-    }
-
-    if (hasGiven) {
-      if (highlightState !== 2) {
-        if (highlightedDigit !== num) {
-          highlightedDigit = num;
-          highlightState = 1;
-        } else {
-          highlightedDigit = null;
-          highlightState = 0;
-        }
-      }
-      renderBoard();
-    }
   }
 }
 
