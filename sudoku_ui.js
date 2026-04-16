@@ -1805,7 +1805,7 @@ function setupEventListeners() {
   const executeFormatToggle = () => {
     candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
     const tip = `Candidate display set to ${
-      candidatePopupFormat === "A" ? "Numpad (A)" : "Phone (B)"
+      candidatePopupFormat === "A" ? "Phone (A)" : "Numpad (B)"
     } layout. (Press 'D' to toggle)`;
     showMessage(tip, "gray");
 
@@ -2553,7 +2553,7 @@ function handleKeyDown(e) {
 
   if (isSolverMode) {
     if (isViewAllTechniquesMode) {
-      if (key_lower === "b" && !isCtrlOrCmd) {
+      if ((key_lower === "b" || key_lower === "q") && !isCtrlOrCmd) {
         e.preventDefault();
         exitViewAllTechniquesMode();
         return;
@@ -7406,16 +7406,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // 1. Wipe the local cache
       localStorage.removeItem("sudokuTechniquePrefs");
 
-      // 2. Reset Input Mode to "Cell first"
-      selectionMode = "cellFirst";
-      const cellFirstRadio = document.getElementById("mode-cell-first");
-      if (cellFirstRadio) cellFirstRadio.checked = true;
-
       // 3. Reset Candidate Display layout to "Phone (A)"
       candidatePopupFormat = "A";
 
-      // Save the default modes so they persist on page refresh
-      localStorage.setItem("sudokuSelectionMode", selectionMode);
       localStorage.setItem("sudokuDisplayFormat", candidatePopupFormat);
 
       updateControls();
