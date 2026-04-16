@@ -8527,7 +8527,7 @@ const techniques = {
     let foundResult = null;
     let allResults = [];
 
-    // UPDATED: Replaced endD/endExc with startD/endD and startExc/endExc
+    // UPDATED: Added startIsRcd and endIsRcd to handle asymmetric Type 3 links
     const buildDetailStr = (
       path,
       cCell,
@@ -8536,6 +8536,8 @@ const techniques = {
       startExc,
       endExc,
       isRing,
+      startIsRcd = true,
+      endIsRcd = true,
     ) => {
       const formatGrouped = (cells, ahs) => {
         if (ahs.type === "box") {
@@ -8591,9 +8593,9 @@ const techniques = {
             inCell = cCell;
             inIsRcd = false;
           } else {
-            inCell = startExc; // UPDATED
-            inIsRcd = true;
-            inD = startD; // UPDATED
+            inCell = startExc;
+            inIsRcd = startIsRcd; // UPDATED
+            inD = startD;
           }
         } else {
           const prevEdge = path[i].edge;
@@ -8612,8 +8614,8 @@ const techniques = {
             outCell = cCell;
             outIsRcd = false;
           } else {
-            outCell = endExc; // UPDATED
-            outIsRcd = true;
+            outCell = endExc;
+            outIsRcd = endIsRcd; // UPDATED
             outD = endD;
           }
         } else {
@@ -8635,7 +8637,6 @@ const techniques = {
 
       return parts.join("-") + (isRing ? "-(Ring)" : "");
     };
-
     const processRingEdges = (pathArray, closingLink, removals) => {
       const getLinkCells = (edge, isTo) => {
         if (!edge) return null;
@@ -8882,61 +8883,86 @@ const techniques = {
         }
       }
 
-      // 3. NEW: Different Digit Exclusive Cell check (Non-Ring Weak Link)
-      for (const d1 of firstAhs.digits) {
-        const excFirsts = firstAhs.exclusiveCellsMap.get(d1) || [];
-        for (const exc1 of excFirsts) {
-          if (cellEq(exc1, firstUsedCell)) continue;
+      // 3. NEW: Non-Ring Weak Link (Exclusive Cell to Non-RCC Cell)
+      const checkAsymmetricLink = (
+        sourceAhs,
+        targetAhs,
+        sourceUsedCell,
+        targetUsedCell,
+        isForward,
+      ) => {
+        for (const d of sourceAhs.digits) {
+          const excCells = sourceAhs.exclusiveCellsMap.get(d) || [];
+          for (const excCell of excCells) {
+            // Must be a non-RCC cell for the source
+            if (cellEq(excCell, sourceUsedCell)) continue;
 
-          for (const d2 of lastAhs.digits) {
-            if (d1 === d2) continue; // Handled by same-digit RCD check
-            const excLasts = lastAhs.exclusiveCellsMap.get(d2) || [];
-            for (const exc2 of excLasts) {
-              if (cellEq(exc2, lastUsedCell)) continue;
+            const targetCellsWithElims = [];
 
-              if (techniques._sees(exc1, exc2)) {
-                let localRemovals = [];
-                let removed = false;
+            for (const targetCell of targetAhs.cells) {
+              // Must be a non-RCC cell for the target
+              if (cellEq(targetCell, targetUsedCell)) continue;
+              if (cellEq(excCell, targetCell)) continue;
 
-                // Eliminate each other's digit from the endpoints
-                if (pencils[exc1[0]][exc1[1]].has(d2)) {
-                  localRemovals.push({
-                    r: exc1[0],
-                    c: exc1[1],
-                    num: d2,
-                    source: "digit",
-                  });
-                  removed = true;
-                }
-                if (pencils[exc2[0]][exc2[1]].has(d1)) {
-                  localRemovals.push({
-                    r: exc2[0],
-                    c: exc2[1],
-                    num: d1,
-                    source: "digit",
-                  });
-                  removed = true;
-                }
+              // The digit 'd' must NOT be a core AHS digit of the target AHS
+              if (targetAhs.digits.has(d)) continue;
 
-                if (removed) {
-                  removals.push(...localRemovals);
-                  if (!finalDetailStr) {
-                    finalDetailStr = buildDetailStr(
-                      path,
-                      null,
-                      d1,
-                      d2,
-                      exc1,
-                      exc2,
-                      false,
-                    );
-                  }
-                }
+              if (
+                techniques._sees(excCell, targetCell) &&
+                pencils[targetCell[0]][targetCell[1]].has(d)
+              ) {
+                targetCellsWithElims.push(targetCell);
+              }
+            }
+
+            if (targetCellsWithElims.length > 0) {
+              targetCellsWithElims.forEach((tc) => {
+                removals.push({
+                  r: tc[0],
+                  c: tc[1],
+                  num: d,
+                  source: "digit",
+                });
+              });
+
+              if (!finalDetailStr) {
+                // If forward: start is exclusive cell, end is grouped non-RCC cells
+                // If backward: start is grouped non-RCC cells, end is exclusive cell
+                const startExc = isForward ? excCell : targetCellsWithElims;
+                const endExc = isForward ? targetCellsWithElims : excCell;
+                const startIsRcd = isForward ? true : false;
+                const endIsRcd = isForward ? false : true;
+                const sD = isForward ? d : null;
+                const eD = isForward ? null : d;
+
+                finalDetailStr = buildDetailStr(
+                  path,
+                  null, // cCell
+                  sD,
+                  eD,
+                  startExc,
+                  endExc,
+                  false, // isRing
+                  startIsRcd,
+                  endIsRcd,
+                );
               }
             }
           }
         }
-      }
+      };
+
+      // Check Direction 1: Start AHS exclusive cell sees Close AHS non-RCC cell
+      checkAsymmetricLink(firstAhs, lastAhs, firstUsedCell, lastUsedCell, true);
+
+      // Check Direction 2: Close AHS exclusive cell sees Start AHS non-RCC cell
+      checkAsymmetricLink(
+        lastAhs,
+        firstAhs,
+        lastUsedCell,
+        firstUsedCell,
+        false,
+      );
 
       if (removals.length > 0) {
         return makeResult(
