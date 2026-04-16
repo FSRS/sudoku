@@ -1383,27 +1383,31 @@ function showTooltip(targetElement) {
   const targetRect = targetElement.getBoundingClientRect();
   const tooltipRect = tooltipEl.getBoundingClientRect();
 
-  // Define which elements should have their tooltips appear below on mobile
+  // Define which elements should have their tooltips appear below the button (on smaller screens)
   const elementsForBottomTooltip = [
     "mode-toggle-btn",
+    "format-toggle-btn",
     "expt-mode-btn",
     "difficulty-lamp",
     "vague-hint-btn",
   ];
-  const isColorButton = targetElement.dataset.mode === "color"; // Special check for the color button
+  // Check for both the color and draw buttons via their data attributes
+  const isModeButton =
+    targetElement.dataset.mode === "color" ||
+    targetElement.dataset.mode === "draw";
 
   let top;
   let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
 
-  // Conditionally position the tooltip below the button on mobile for specific elements
+  // Position the tooltip below the button for grid-adjacent elements ONLY IF screen width < 880px
   if (
-    isMobile &&
-    (elementsForBottomTooltip.includes(targetElement.id) || isColorButton)
+    (elementsForBottomTooltip.includes(targetElement.id) || isModeButton) &&
+    window.innerWidth < 880
   ) {
     // Position BELOW the button
     top = targetRect.bottom + 8; // 8px gap
   } else {
-    // Default position: ABOVE the element
+    // Default position: ABOVE the element (applies to desktop >= 880px or non-grid buttons)
     top = targetRect.top - tooltipRect.height - 8; // 8px gap
   }
   // Boundary checks
