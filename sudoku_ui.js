@@ -2748,7 +2748,7 @@ function handleKeyDown(e) {
 
   if (isSolverMode) {
     if (isViewAllTechniquesMode) {
-      if ((key_lower === "b" || key_lower === "q") && !isCtrlOrCmd) {
+      if (key_lower === "b" && !isCtrlOrCmd) {
         e.preventDefault();
         exitViewAllTechniquesMode();
         return;
