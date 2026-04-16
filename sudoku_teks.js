@@ -8637,6 +8637,7 @@ const techniques = {
 
       return parts.join("-") + (isRing ? "-(Ring)" : "");
     };
+
     const processRingEdges = (pathArray, closingLink, removals) => {
       const getLinkCells = (edge, isTo) => {
         if (!edge) return null;
@@ -8892,6 +8893,8 @@ const techniques = {
         isForward,
       ) => {
         for (const d of sourceAhs.digits) {
+          // The digit 'd' must NOT be a core AHS digit of the target AHS
+          if (targetAhs.digits.has(d)) continue;
           const excCells = sourceAhs.exclusiveCellsMap.get(d) || [];
           for (const excCell of excCells) {
             // Must be a non-RCC cell for the source
@@ -8903,9 +8906,6 @@ const techniques = {
               // Must be a non-RCC cell for the target
               if (cellEq(targetCell, targetUsedCell)) continue;
               if (cellEq(excCell, targetCell)) continue;
-
-              // The digit 'd' must NOT be a core AHS digit of the target AHS
-              if (targetAhs.digits.has(d)) continue;
 
               if (
                 techniques._sees(excCell, targetCell) &&
