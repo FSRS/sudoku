@@ -40,6 +40,7 @@ let _prgAIC = false;
 
 let _prALSXZ = false;
 let _prALSXY = false;
+let _prALSW = false;
 
 let _prAHSXZ = false;
 let _prAHSXY = false;
@@ -195,6 +196,7 @@ const techniques = {
 
     _prALSXZ = false;
     _prALSXY = false;
+    _prALSW = false;
 
     _prAHSXZ = false;
     _prAHSXY = false;
@@ -9372,6 +9374,7 @@ const techniques = {
   },
 
   alsWWing: (board, pencils, findAll = false) => {
+    _prALSW = true;
     if (_alsCache.length === 0)
       _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
 
@@ -9936,12 +9939,13 @@ const techniques = {
     }
 
     // 3. Collect Stem Cells (Cells with 3 to 5 candidates)
+    let minCount = _prALSXY ? 3 : 2;
     const stems = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         const mask = techniques._bits.maskFromSet(pencils[r][c]);
         const count = techniques._bits.popcount(mask);
-        if (count >= 3 && count <= 5) {
+        if (count >= minCount && count <= 5) {
           stems.push({ r, c, mask, count, id: r * 9 + c });
         }
       }
@@ -10395,6 +10399,7 @@ const techniques = {
     }
 
     // 3. Collect Stem Regions (A digit appearing 3 to 5 times in a house)
+    let minCount = _prALSW ? 3 : 2;
     const stems = [];
     for (let d = 1; d <= 9; d++) {
       for (let u = 0; u < 27; u++) {
@@ -10412,7 +10417,7 @@ const techniques = {
           }
         }
 
-        if (stemCells.length >= 3 && stemCells.length <= 5) {
+        if (stemCells.length >= minCount && stemCells.length <= 5) {
           stems.push({
             digit: d,
             uType,
@@ -10473,6 +10478,7 @@ const techniques = {
       const chosen = [];
       const seenCombos = new Set();
       let foundAny = false;
+      let successChosen = [];
       const eliminations = [];
       let detailStr = "";
 
