@@ -5708,6 +5708,7 @@ const techniques = {
                   const D_mask = A.mask;
                   const E_mask = B.mask;
                   const remaining_V = V_mask & ~(D_mask | E_mask);
+                  const overlapMask = D_mask & E_mask;
 
                   // dynamically checking against C.length - totalExtra
                   // (evaluates to C.length - 2 for standard, C.length - 3 for AALS)
@@ -5720,11 +5721,10 @@ const techniques = {
                         A.positions,
                         remaining_V,
                       );
-                      recordRemovalsFromMask(
-                        box_pool,
-                        B.positions,
-                        remaining_V,
-                      );
+                      recordRemovalsFromMask(box_pool, new Set(), remaining_V);
+                    }
+                    if (overlapMask > 0) {
+                      recordRemovalsFromMask(C_full, B.positions, overlapMask);
                     }
                     if (eliminations.length > 0) {
                       const hintName = "Sue de Coq";
@@ -5743,7 +5743,6 @@ const techniques = {
 
                       let detailStr = `Intersection ${strC}, Off-intersection ${strA} and ${strB}, Digit (${strDigits})`;
 
-                      const overlapMask = A.mask & B.mask;
                       if (overlapMask > 0) {
                         detailStr += `, (${maskToDigitsStr(overlapMask)}) appears twice`;
                       }
