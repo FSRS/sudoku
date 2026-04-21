@@ -4264,10 +4264,10 @@ const techniques = {
                 uniqueRemovals(removals),
               ),
             };
+            if (!findAll) return resultObj;
+            results.push(resultObj);
+            continue;
           }
-          if (!findAll) return resultObj;
-          results.push(resultObj);
-          continue;
         }
       }
 
