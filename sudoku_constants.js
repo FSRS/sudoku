@@ -101,7 +101,7 @@ const levelTips = [
   "Lv. 7: Grouped X-Chain, Alternating Inference Chain",
   "Lv. 8: Grouped Alternating Inference Chain, ALS-XZ",
   "Lv. 9: ALS XY-/W-Wing, AHS-XZ/XY-Wing",
-  "Lv. 10: ALS-Chain, Death Blossom, Finned Franken/Mutant Swordfish",
+  "Lv. 10: ALS/AHS-Chain, Death Blossom, Finned Franken/Mutant Swordfish",
 ];
 
 const PALETTES = {
