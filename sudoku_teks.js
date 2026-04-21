@@ -6670,7 +6670,6 @@ const techniques = {
 
     let result = { change: false };
     let results = []; // NEW: Array to collect all results for View All Techniques
-    let currentTargetLen = bivalueOnly ? 8 : 6;
     let foundPathAtTargetLen = false;
 
     // --- DFS Traversal ---
@@ -7086,20 +7085,24 @@ const techniques = {
 
     let minTargetLen = 6;
 
-    if (!useGrouped) {
-      // X-Chain
-      if (
-        _prXw &&
-        (_prSky || _prgSky) &&
-        (_prKite || _prgKite) &&
-        (_prCrane || _prgCrane)
-      ) {
-        minTargetLen = 4;
-      }
-    } else {
-      // Grouped X-Chain
-      if (_prgSky && _prgKite && _prgCrane) {
-        minTargetLen = 4;
+    if (!bivalueOnly) {
+      if (!useGrouped) {
+        // X-Chain
+        if (
+          !(
+            _prXw &&
+            (_prSky || _prgSky) &&
+            (_prKite || _prgKite) &&
+            (_prCrane || _prgCrane)
+          )
+        ) {
+          minTargetLen = 4;
+        }
+      } else {
+        // Grouped X-Chain
+        if (_prgSky && _prgKite && _prgCrane) {
+          minTargetLen = 4;
+        }
       }
     }
     if (!singleDigit) {
@@ -7110,7 +7113,7 @@ const techniques = {
     }
 
     // --- Iterative Deepening Framework ---
-    // Start at length 6, incrementing by 2 up to maxLength to guarantee the shortest chain first.
+    // Start at minTargetLen, incrementing by 2 up to maxLength to guarantee the shortest chain first.
     for (
       currentTargetLen = minTargetLen;
       currentTargetLen <= maxLength;
