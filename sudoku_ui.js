@@ -6310,6 +6310,8 @@ async function evaluateBoardDifficulty(opts = {}) {
 
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore}${star})`;
+    } else if (customScoreEvaluated > 0) {
+      puzzleScoreEl.textContent = `~${customScoreEvaluated} (${lastValidScore}${star})`;
     } else {
       puzzleScoreEl.textContent = `(${lastValidScore}${star})`;
     }
@@ -6588,8 +6590,10 @@ async function evaluateBoardDifficulty(opts = {}) {
 
       if (currentPuzzleScore > 0) {
         puzzleScoreEl.textContent = `~${currentPuzzleScore}${scoreSuffix}`;
+      } else if (customScoreEvaluated > 0) {
+        puzzleScoreEl.textContent = `~${customScoreEvaluated}${scoreSuffix}`;
       } else if (lastValidScore > 0) {
-        puzzleScoreEl.textContent = `(${lastValidScore}${star})`;
+        puzzleScoreEl.textContent = scoreSuffix;
       }
     } else {
       updateLamp("magenta");
