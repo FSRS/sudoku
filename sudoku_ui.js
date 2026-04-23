@@ -4959,10 +4959,22 @@ function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
     const list = document.getElementById("solver-summary-list");
     const isDark = document.documentElement.classList.contains("dark");
 
-    // Gather techniques matching the target level
-    let techsToSearch = vatActiveTechniques.filter(
-      (t) => t.level === levelToSearch,
+    const step = solverSteps[currentSolverStep];
+    const currentTechIndex = vatActiveTechniques.findIndex(
+      (t) => t.name === step.techName,
     );
+    const currentLevel =
+      currentTechIndex !== -1
+        ? vatActiveTechniques[currentTechIndex].level || 0
+        : 0;
+
+    // Gather techniques matching the target level, skipping previous techniques in the order for the current level
+    let techsToSearch = vatActiveTechniques.filter((t, index) => {
+      if (t.level !== levelToSearch) return false;
+      if (levelToSearch === currentLevel && index < currentTechIndex)
+        return false;
+      return true;
+    });
 
     // Always prepend "Eliminate Candidates" if requested
     if (includeEliminate) {
@@ -6929,6 +6941,12 @@ function getDefaultTechniques() {
       func: techniques.finnedMutantSwordfish,
       level: 10,
       score: 470,
+    },
+    {
+      name: "Blossom Loop",
+      func: techniques.blossomLoop,
+      level: 10,
+      score: 480,
     },
   ].map((t) => ({ ...t, defaultEnabled: t.defaultEnabled !== false }));
 }
