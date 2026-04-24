@@ -11384,8 +11384,8 @@ const techniques = {
 
   blossomLoop: (board, pencils, findAll = false) => {
     const results = [];
-    const MAX_RING_LEN = 12;
-    const MAX_BURR_LEN = 11;
+    const MAX_RING_LEN = 14;
+    const MAX_BURR_LEN = 15;
     // 1. Ensure AIC graph is built
     const prarr = [_prXC, _prgXC, _prAIC, _prgAIC];
     const prcount = prarr.reduce(
@@ -11588,27 +11588,27 @@ const techniques = {
       ringDfs(A, [A], new Set([A.key]));
       for (const ring of ringPaths) {
         if (results.length > 0 && !findAll) return results[0];
-        // Gather Ring Eliminations
-        const ringElims = [];
-        const ringElimMap = new Map(); // Key -> elim object
+        // Gather Ring Eliminations GROUPED by weak link
+        const ringWeakLinkElims = [];
+        let totalRingElims = 0;
+
         // Weak links in the ring: A-N1, N2-N3, ..., Nm-B
         for (let i = 0; i < ring.length - 1; i += 2) {
           const elims = getWeakLinkElims(ring[i], ring[i + 1]);
-          for (const e of elims) {
-            const key = `${e.r},${e.c},${e.num}`;
-            if (!ringElimMap.has(key)) {
-              ringElimMap.set(key, e);
-              ringElims.push(e);
-            }
-          }
+          ringWeakLinkElims.push(elims);
+          totalRingElims += elims.length;
         }
-        if (ringElims.length === 0) continue;
+
+        if (totalRingElims === 0) continue;
+
         // DFS for Burring Chain: T -W- M1 =S= M2 ... =S= E
         const burrPaths = [];
-        // Initialize visited set with the Ring nodes so the burring chain doesn't cross the ring
+
+        // Initialize visited set with the Ring nodes so the burring chain doesn't reuse exact keys
         const burrVisited = new Set();
         for (const rNode of ring) burrVisited.add(rNode.key);
         burrVisited.add(T.key);
+
         const burrDfs = (curr, path, visited) => {
           if (path.length > MAX_BURR_LEN) return;
 
@@ -11617,14 +11617,12 @@ const techniques = {
           if (L > 1) {
             const endNode = path[L - 1];
             if (L % 2 === 0) {
-              // Chain length is even. The end node was reached via a WEAK link.
               const wNeighbors = weakLinks.get(endNode.key) || [];
               for (let i = 0; i < L; i += 2) {
                 if (i === L - 2) continue;
                 if (wNeighbors.some((n) => n.key === path[i].key)) return;
               }
             } else {
-              // Chain length is odd. The end node was reached via a STRONG link.
               const sNeighbors = strongLinks.get(endNode.key) || [];
               for (let i = 1; i < L; i += 2) {
                 if (i === L - 2) continue;
@@ -11639,6 +11637,18 @@ const techniques = {
             const wNeighbors = weakLinks.get(curr.key) || [];
             for (const n of wNeighbors) {
               if (!visited.has(n.key)) {
+                // Prevent burring chain from starting by weakly linking back to the almost strong link (A or B)
+                if (path.length === 1 && n.digit === A.digit) {
+                  const overlapsAB = n.cells.some(
+                    (c1) =>
+                      A.cells.some(
+                        (cA) => cA[0] === c1[0] && cA[1] === c1[1],
+                      ) ||
+                      B.cells.some((cB) => cB[0] === c1[0] && cB[1] === c1[1]),
+                  );
+                  if (overlapsAB) continue;
+                }
+
                 visited.add(n.key);
                 path.push(n);
                 burrDfs(n, path, visited);
@@ -11650,14 +11660,16 @@ const techniques = {
             // Next is STRONG
             const sNeighbors = strongLinks.get(curr.key) || [];
 
-            // Check if ANY strong neighbor IS one of the ring eliminations
             for (const n of sNeighbors) {
-              const isElim = n.cells.every(([nr, nc]) =>
-                ringElims.some(
-                  (e) => e.r === nr && e.c === nc && e.num === n.digit,
+              // FIX: A grouped node must be fully eliminated by the SAME weak link
+              const isElim = ringWeakLinkElims.some((wElims) =>
+                n.cells.every(([nr, nc]) =>
+                  wElims.some(
+                    (e) => e.r === nr && e.c === nc && e.num === n.digit,
+                  ),
                 ),
               );
-              // Ensure the final elimination node hasn't already been visited!
+
               if (isElim && !visited.has(n.key)) {
                 burrPaths.push([...path, n]);
                 return; // Just need one valid path
@@ -11676,6 +11688,7 @@ const techniques = {
             }
           }
         };
+
         burrDfs(T, [T], burrVisited);
         for (const burr of burrPaths) {
           // Found a valid burring chain!
@@ -11784,7 +11797,7 @@ const techniques = {
                 for (let i = 1; i < visualBurrChain.length; i++) {
                   const node = visualBurrChain[i];
                   node.cells.forEach(([cr, cc]) => {
-                    const colorIdx = i % 2 === 0 ? 3 : 2;
+                    const colorIdx = i % 2 === 0 ? 7 : 6;
                     // Don't overwrite thorn color or ring colors if they overlap
                     if (!boardState[cr][cc].pencilColors.has(node.digit)) {
                       boardState[cr][cc].pencilColors.set(
@@ -11846,7 +11859,7 @@ const techniques = {
                 // Pre-draw Burring Chain groups matching NODE colors
                 // Start from 2 because 0 is pseudoAB, and 1 is T (already drawn above)
                 for (let i = 2; i < visualBurrChain.length; i++) {
-                  const colorIdx = i % 2 === 0 ? 3 : 2;
+                  const colorIdx = i % 2 === 0 ? 7 : 6;
                   drawGroup(visualBurrChain[i], colorIdx);
                 }
 
