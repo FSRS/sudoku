@@ -11652,17 +11652,15 @@ const techniques = {
 
             // Check if ANY strong neighbor IS one of the ring eliminations
             for (const n of sNeighbors) {
-              if (n.count === 1) {
-                const [nr, nc] = n.cells[0];
-                const isElim = ringElims.some(
+              const isElim = n.cells.every(([nr, nc]) =>
+                ringElims.some(
                   (e) => e.r === nr && e.c === nc && e.num === n.digit,
-                );
-
-                // Ensure the final elimination node hasn't already been visited!
-                if (isElim && !visited.has(n.key)) {
-                  burrPaths.push([...path, n]);
-                  return; // Just need one valid path
-                }
+                ),
+              );
+              // Ensure the final elimination node hasn't already been visited!
+              if (isElim && !visited.has(n.key)) {
+                burrPaths.push([...path, n]);
+                return; // Just need one valid path
               }
             }
 
