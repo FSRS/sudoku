@@ -938,7 +938,9 @@
 ================================================================================
 */
 body {
-  font-family: "Fira Code", "Nanum Gothic Coding", "M PLUS 1 Code", monospace;
+  font-family:
+    "Pretendard JP Variable", "Pretendard JP", Pretendard, "Fira Code",
+    monospace;
   background-color: var(--nc-bg-1);
   color: var(--nc-tx-1);
 }
@@ -989,6 +991,7 @@ button:disabled:hover {
 }
 
 #year-sticker {
+  font-family: "Fira Code", monospace;
   display: inline-block;
   position: relative;
 
@@ -2037,6 +2040,7 @@ html.dark {
   }
 
   #puzzle-string {
+    font-family: "Fira Code", monospace;
     min-height: 48px !important;
     max-height: clamp(48px, 70vw - 560px, 216px) !important;
     overflow-y: auto !important; /* Enable vertical scroll if max is reached */
@@ -2082,4 +2086,9 @@ html.dark .sortable-item.dragging {
 }
 .drag-handle:active {
   cursor: grabbing;
+}
+
+#sudoku-title-text,
+#sudoku-title-calligraphy-text {
+  font-family: "Fira Code", monospace;
 }
