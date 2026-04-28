@@ -2040,7 +2040,6 @@ html.dark {
   }
 
   #puzzle-string {
-    font-family: "Fira Code", monospace;
     min-height: 48px !important;
     max-height: clamp(48px, 70vw - 560px, 216px) !important;
     overflow-y: auto !important; /* Enable vertical scroll if max is reached */
@@ -2089,6 +2088,7 @@ html.dark .sortable-item.dragging {
 }
 
 #sudoku-title-text,
-#sudoku-title-calligraphy-text {
+#sudoku-title-calligraphy-text,
+#puzzle-string {
   font-family: "Fira Code", monospace;
 }
