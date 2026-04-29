@@ -6711,31 +6711,58 @@ const techniques = {
           if (isContinuous) {
             const fullChain = [...chain, start];
 
-            for (let i = 1; i < fullChain.length - 1; i += 2) {
-              const u = fullChain[i];
-              const v = fullChain[i + 1];
+            if (bivalueOnly) {
+              // Legacy XY-Chain Ring Logic
+              for (let i = 1; i < fullChain.length - 1; i += 2) {
+                const u = fullChain[i];
+                const v = fullChain[i + 1];
 
-              if (u.digit === v.digit) {
-                // Weak link between same digits (different cells)
-                _getCommonPeers(u, v).forEach(({ r, c }) => {
-                  const inU = u.cells.some(
-                    (cell) => cell[0] === r && cell[1] === c,
-                  );
-                  const inV = v.cells.some(
-                    (cell) => cell[0] === r && cell[1] === c,
-                  );
-                  if (!inU && !inV && pencils[r][c].has(u.digit)) {
-                    elims.push({ r, c, num: u.digit });
-                  }
-                });
-              } else {
-                // Weak link within a cell (different digits)
-                if (!bivalueOnly && u.count === 1 && v.count === 1) {
-                  const [r, c] = u.cells[0];
-                  if (v.cells[0][0] === r && v.cells[0][1] === c) {
-                    for (const cand of pencils[r][c]) {
-                      if (cand !== u.digit && cand !== v.digit) {
-                        elims.push({ r, c, num: cand });
+                if (u.digit === v.digit) {
+                  _getCommonPeers(u, v).forEach(({ r, c }) => {
+                    const inU = u.cells.some(
+                      (cell) => cell[0] === r && cell[1] === c,
+                    );
+                    const inV = v.cells.some(
+                      (cell) => cell[0] === r && cell[1] === c,
+                    );
+                    if (!inU && !inV && pencils[r][c].has(u.digit)) {
+                      if (
+                        !elims.some(
+                          (e) => e.r === r && e.c === c && e.num === u.digit,
+                        )
+                      ) {
+                        elims.push({ r, c, num: u.digit });
+                      }
+                    }
+                  });
+                }
+              }
+            } else {
+              // NEW: Generic AIC Ring logic using weak-link map intersection
+              for (let i = 1; i < fullChain.length - 1; i += 2) {
+                const u = fullChain[i];
+                const v = fullChain[i + 1];
+
+                const uWeak = weakLinks.get(u.key) || [];
+                const vWeak = weakLinks.get(v.key) || [];
+                const vWeakKeys = new Set(vWeak.map((n) => n.key));
+
+                for (const z of uWeak) {
+                  if (vWeakKeys.has(z.key)) {
+                    // Found common weak-link node Z
+                    if (z.key !== u.key && z.key !== v.key && z.count === 1) {
+                      const [zr, zc] = z.cells[0];
+                      const inChain = fullChain.some((n) => n.key === z.key);
+
+                      if (!inChain && pencils[zr][zc].has(z.digit)) {
+                        if (
+                          !elims.some(
+                            (e) =>
+                              e.r === zr && e.c === zc && e.num === z.digit,
+                          )
+                        ) {
+                          elims.push({ r: zr, c: zc, num: z.digit });
+                        }
                       }
                     }
                   }
@@ -6748,11 +6775,15 @@ const techniques = {
               const visualChain = [...chain];
               const visualElims = [...elims];
 
+              const uniqueElims = Array.from(
+                new Set(elims.map(JSON.stringify)),
+              ).map(JSON.parse);
+
               // MODIFIED: Create standard result object
               const res = {
                 change: true,
                 type: "remove",
-                cells: elims,
+                cells: uniqueElims,
                 hint: {
                   name: (options.nameOverride || "AIC").includes("Chain")
                     ? (options.nameOverride || "AIC").replace("Chain", "Ring")
@@ -6864,39 +6895,54 @@ const techniques = {
 
           // --- Standard Check: Discontinuous Chain ---
           if (!isContinuous) {
-            if (start.digit === end.digit) {
-              // Type 1: Start(d) ... End(d) => mutual peers != d
-              const peers = _getCommonPeers(start, end);
-              peers.forEach(({ r, c }) => {
-                const inStart = start.cells.some(
-                  (cell) => cell[0] === r && cell[1] === c,
-                );
-                const inEnd = end.cells.some(
-                  (cell) => cell[0] === r && cell[1] === c,
-                );
-                if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
-                  elims.push({ r, c, num: start.digit });
-                }
-              });
-            } else {
-              if (!bivalueOnly) {
-                // Type 2: Start(d1) ... End(d2) => Start sees End
-                if (end.count === 1) {
-                  const [er, ec] = end.cells[0];
-                  const seesStart = start.cells.every((sc) =>
-                    techniques._sees(sc, [er, ec]),
+            if (bivalueOnly) {
+              // Legacy XY-Chain Discontinuous Logic (Type 1 only, ends share digit)
+              if (start.digit === end.digit) {
+                const peers = _getCommonPeers(start, end);
+                peers.forEach(({ r, c }) => {
+                  const inStart = start.cells.some(
+                    (cell) => cell[0] === r && cell[1] === c,
                   );
-                  if (seesStart && pencils[er][ec].has(start.digit)) {
-                    elims.push({ r: er, c: ec, num: start.digit });
+                  const inEnd = end.cells.some(
+                    (cell) => cell[0] === r && cell[1] === c,
+                  );
+                  if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
+                    if (
+                      !elims.some(
+                        (e) => e.r === r && e.c === c && e.num === start.digit,
+                      )
+                    ) {
+                      elims.push({ r, c, num: start.digit });
+                    }
                   }
-                }
-                if (start.count === 1) {
-                  const [sr, sc] = start.cells[0];
-                  const seesEnd = end.cells.every((ec) =>
-                    techniques._sees(ec, [sr, sc]),
-                  );
-                  if (seesEnd && pencils[sr][sc].has(end.digit)) {
-                    elims.push({ r: sr, c: sc, num: end.digit });
+                });
+              }
+            } else {
+              // NEW: Generic AIC Discontinuous logic using weak-link map intersection
+              const startWeak = weakLinks.get(start.key) || [];
+              const endWeak = weakLinks.get(end.key) || [];
+              const endWeakKeys = new Set(endWeak.map((n) => n.key));
+
+              for (const z of startWeak) {
+                if (endWeakKeys.has(z.key)) {
+                  // Node Z is weakly linked to both ends
+                  if (
+                    z.key !== start.key &&
+                    z.key !== end.key &&
+                    z.count === 1
+                  ) {
+                    const [zr, zc] = z.cells[0];
+                    const inChain = chain.some((n) => n.key === z.key);
+
+                    if (!inChain && pencils[zr][zc].has(z.digit)) {
+                      if (
+                        !elims.some(
+                          (e) => e.r === zr && e.c === zc && e.num === z.digit,
+                        )
+                      ) {
+                        elims.push({ r: zr, c: zc, num: z.digit });
+                      }
+                    }
                   }
                 }
               }
@@ -6918,12 +6964,14 @@ const techniques = {
               // VERY IMPORTANT: Clone the chain for the visual callback so it survives DFS backtracking
               const visualChain = [...chain];
               const visualElims = [...elims];
-
+              const uniqueElims = Array.from(
+                new Set(elims.map(JSON.stringify)),
+              ).map(JSON.parse);
               // MODIFIED: Create standard result object
               const res = {
                 change: true,
                 type: "remove",
-                cells: elims,
+                cells: uniqueElims,
                 hint: {
                   name: options.nameOverride || "AIC",
                   mainInfo: techniques._getHintInfo(chain, hintType),
