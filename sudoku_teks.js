@@ -6233,6 +6233,21 @@ const techniques = {
     return result;
   },
 
+  // Add this right below the existing `fmtALS` helper inside _alsChainCore
+  fmtAlsNode: (alsNode) => {
+    // If it's a Box ALS, format as bp
+    if (alsNode.unitName && alsNode.unitName.startsWith("Box")) {
+      const boxIdx = parseInt(alsNode.unitName.match(/\d+/)[0]) - 1;
+      const points = alsNode.cells
+        .map(([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1)
+        .sort((a, b) => a - b)
+        .join("");
+      return `b${boxIdx + 1}p${points}`;
+    }
+    // Otherwise, fallback to the standard global rc formatting
+    return techniques._fmtNode(alsNode);
+  },
+
   _getHintInfo: (chain, hintType) => {
     const startNode = chain[0];
     const nextNode = chain[1];
@@ -7667,7 +7682,7 @@ const techniques = {
         info = `Bivalue cell at r${pr + 1}c${pc + 1}`;
       } else if (nameOverride === "ALS XY-Wing" && path.length === 3) {
         const pivotNode = _alsLookup[path[1].hash];
-        const pivotLoc = techniques._fmtNode(pivotNode);
+        const pivotLoc = techniques.fmtAlsNode(pivotNode);
 
         const rcc1 = path[1].viaDigit;
         const rcc2 = path[2].viaDigit;
@@ -7679,7 +7694,7 @@ const techniques = {
 
         const remMask = startNode.candidates & ~(1 << (firstRcc - 1));
         const remStr = techniques._bits.maskToDigits(remMask).join("");
-        const loc = techniques._fmtNode(startNode);
+        const loc = techniques.fmtAlsNode(startNode);
 
         info = `Start with (${remStr}=${firstRcc})${loc}`;
       }
