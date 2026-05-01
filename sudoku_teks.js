@@ -7693,10 +7693,10 @@ const techniques = {
         const firstRcc = path[1].viaDigit;
 
         const remMask = startNode.candidates & ~(1 << (firstRcc - 1));
-        const remStr = techniques._bits.maskToDigits(remMask).join("");
+        const zStr = isRingResult ? successClosingRcc : successTarget.join("");
         const loc = techniques.fmtAlsNode(startNode);
 
-        info = `Start with (${remStr}=${firstRcc})${loc}`;
+        info = `Start with (${zStr}=${firstRcc})${loc}`;
       }
 
       // Build the Detail String
