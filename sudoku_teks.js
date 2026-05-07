@@ -8202,7 +8202,7 @@ const techniques = {
   },
 
   // --- AHS COLLECTION ENGINE ---
-  _collectAllAHS: (board, pencils, findAll = false) => {
+  _collectAllAHS: (board, pencils) => {
     if (_ahsCache && _ahsCache.length > 0) return _ahsCache;
 
     const ahses = [];
@@ -8442,7 +8442,7 @@ const techniques = {
       [...pencils[r][c]].filter((d) => ahs.digits.has(d)).join("");
 
     // Utilize globally cached AHS mappings
-    const ahses = techniques._collectAllAHS(board, pencils, (findAll = false));
+    const ahses = techniques._collectAllAHS(board, pencils);
     techniques._buildAhsMaps(ahses, pencils);
 
     // --- VISUAL HELPERS ---
@@ -9125,7 +9125,7 @@ const techniques = {
             foundResult = res;
             return;
           } else {
-            allResults.push(res);
+            if (res !== null) allResults.push(res); // ← guard against null
           }
         }
       }
@@ -9319,7 +9319,7 @@ const techniques = {
    * Precomputes bitmasks for candidate locations for every digit in every unit.
    * Corresponds to C++: precompute_digit_locations()
    */
-  _precomputeDigitLocations: (board, pencils, findAll = false) => {
+  _precomputeDigitLocations: (board, pencils) => {
     // Initialize 9x9 arrays with 0 (for digits 1-9)
     techniques._digitRowMasks = Array.from({ length: 9 }, () =>
       new Int32Array(9).fill(0),
@@ -9448,7 +9448,7 @@ const techniques = {
       techniques._buildAlsRccMap();
     }
 
-    techniques._precomputeDigitLocations(board, pencils, (findAll = false));
+    techniques._precomputeDigitLocations(board, pencils);
 
     const alses = _alsCache;
     let results = [];
