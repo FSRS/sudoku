@@ -45,6 +45,29 @@ let _prALSW = false;
 let _prAHSXZ = false;
 let _prAHSXY = false;
 
+const SEES_MATRIX = new Uint8Array(81 * 81);
+for (let id1 = 0; id1 < 81; id1++) {
+  for (let id2 = 0; id2 < 81; id2++) {
+    if ((PEER_MAP[id1] & (1n << BigInt(id2))) !== 0n) {
+      SEES_MATRIX[id1 * 81 + id2] = 1;
+    }
+  }
+}
+
+const _getUniqueRemovals = (arr) => {
+  const seen = new Uint8Array(4096);
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    const el = arr[i];
+    const key = (el.r << 8) | (el.c << 4) | el.num;
+    if (seen[key] === 0) {
+      seen[key] = 1;
+      result.push(el);
+    }
+  }
+  return result;
+};
+
 const techniques = {
   _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
   _getPointIndex: (r, c) => Math.floor(r % 3) * 3 + Math.floor(c % 3),
@@ -55,8 +78,7 @@ const techniques = {
   _sees: (cell1, cell2) => {
     const id1 = cell1[0] * 9 + cell1[1];
     const id2 = cell2[0] * 9 + cell2[1];
-    // Check if the bit for id2 is enabled in id1's peer mask using Bitwise AND
-    return (PEER_MAP[id1] & CELL_MASK[id2]) !== 0n;
+    return SEES_MATRIX[id1 * 81 + id2] === 1;
   },
 
   _commonVisibleCells: (cell1, cell2) => {
@@ -117,8 +139,10 @@ const techniques = {
   combinations: function* (arr, size) {
     if (size > arr.length) return;
     const indices = Array.from({ length: size }, (_, i) => i);
+    const result = new Array(size); // Pre-allocate
     while (true) {
-      yield indices.map((i) => arr[i]);
+      for (let k = 0; k < size; k++) result[k] = arr[indices[k]];
+      yield result.slice();
       let i = size - 1;
       while (i >= 0 && indices[i] === i + arr.length - size) {
         i--;
@@ -233,9 +257,7 @@ const techniques = {
     }
     if (removals.length > 0) {
       // De-duplicate removals (a cell can be a peer in multiple ways)
-      const uniqueRemovals = Array.from(
-        new Set(removals.map(JSON.stringify)),
-      ).map(JSON.parse);
+      const uniqueRemovals = _getUniqueRemovals(removals);
       const res = {
         change: true,
         type: "remove",
@@ -2889,10 +2911,6 @@ const techniques = {
       pencils[r][c].has(d1) &&
       pencils[r][c].has(d2);
 
-    const uniqueRemovals = (arr) => {
-      return Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
-    };
-
     const formatRC = (cells) => {
       if (!cells || cells.length === 0) return "";
       const norm = cells.map((c) => [
@@ -3050,7 +3068,7 @@ const techniques = {
           const resultObj = {
             change: true,
             type: "remove",
-            cells: uniqueRemovals(removals),
+            cells: _getUniqueRemovals(removals),
             hint: {
               name: "Unique Rectangle Type 1",
               mainInfo: `using Digits (${d1}${d2})`,
@@ -3061,7 +3079,7 @@ const techniques = {
               cells,
               d1,
               d2,
-              uniqueRemovals(removals),
+              _getUniqueRemovals(removals),
             ),
           };
           if (!findAll) return resultObj;
@@ -3098,7 +3116,7 @@ const techniques = {
               const resultObj = {
                 change: true,
                 type: "remove",
-                cells: uniqueRemovals(removals),
+                cells: _getUniqueRemovals(removals),
                 hint: {
                   name:
                     extraCells.length === 2
@@ -3112,7 +3130,7 @@ const techniques = {
                   cells,
                   d1,
                   d2,
-                  uniqueRemovals(removals),
+                  _getUniqueRemovals(removals),
                 ),
               };
 
@@ -3162,7 +3180,7 @@ const techniques = {
                   }
                   if (removals.length > 0)
                     return {
-                      removals: uniqueRemovals(removals),
+                      removals: _getUniqueRemovals(removals),
                       chosen,
                       union,
                     };
@@ -3218,7 +3236,7 @@ const techniques = {
                   cells,
                   d1,
                   d2,
-                  uniqueRemovals(res.removals),
+                  _getUniqueRemovals(res.removals),
                   { subsetCells: res.chosen, subsetCands: res.union },
                 ), // Changed union to res.unions
               };
@@ -3272,7 +3290,7 @@ const techniques = {
                 const resultObj = {
                   change: true,
                   type: "remove",
-                  cells: uniqueRemovals(removals),
+                  cells: _getUniqueRemovals(removals),
                   hint: {
                     name: "Unique Rectangle Type 4",
                     mainInfo: `using Digits (${d1}${d2})`,
@@ -3283,7 +3301,7 @@ const techniques = {
                     cells,
                     d1,
                     d2,
-                    uniqueRemovals(removals),
+                    _getUniqueRemovals(removals),
                     { restrictedDigit: u, e1: [e1r, e1c], e2: [e2r, e2c] },
                   ),
                 };
@@ -3322,7 +3340,7 @@ const techniques = {
                 const resultObj = {
                   change: true,
                   type: "remove",
-                  cells: uniqueRemovals(removals),
+                  cells: _getUniqueRemovals(removals),
                   hint: {
                     name: "Unique Rectangle Type 6",
                     mainInfo: `using Digits (${d1}${d2})`,
@@ -3333,7 +3351,7 @@ const techniques = {
                     cells,
                     d1,
                     d2,
-                    uniqueRemovals(removals),
+                    _getUniqueRemovals(removals),
                     { restrictedDigit: u },
                   ),
                 };
@@ -3646,9 +3664,7 @@ const techniques = {
       }
 
       if (removals.length > 0) {
-        const uniqueRemovals = Array.from(
-          new Set(removals.map(JSON.stringify)),
-        ).map(JSON.parse);
+        const uniqueRemovals = _getUniqueRemovals(removals);
         if (uniqueRemovals.length > 0) {
           const basePosStr = getBasePosStr(cells);
           const guardiansStr = getGuardiansStr(extraCells, d1, d2, pencils);
@@ -4002,10 +4018,6 @@ const techniques = {
     const ers = techniques._findExtendedRectangles(pencils);
     if (ers.length === 0) return { change: false };
 
-    const uniqueRemovals = (arr) => {
-      return Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
-    };
-
     const formatRC = (cells) => {
       if (!cells || cells.length === 0) return "";
       const norm = cells.map((c) => [
@@ -4198,7 +4210,7 @@ const techniques = {
           const resultObj = {
             change: true,
             type: "remove",
-            cells: uniqueRemovals(removals),
+            cells: _getUniqueRemovals(removals),
             hint: {
               name: "Extended Unique Rectangle Type 1",
               mainInfo: `Digits (${baseDigitsStr})`,
@@ -4208,7 +4220,7 @@ const techniques = {
               1,
               cells,
               digits,
-              uniqueRemovals(removals),
+              _getUniqueRemovals(removals),
             ),
           };
           if (!findAll) return resultObj;
@@ -4251,7 +4263,7 @@ const techniques = {
             const resultObj = {
               change: true,
               type: "remove",
-              cells: uniqueRemovals(removals),
+              cells: _getUniqueRemovals(removals),
               hint: {
                 name: "Extended Unique Rectangle Type 2",
                 mainInfo: `Digits (${baseDigitsStr})`,
@@ -4261,7 +4273,7 @@ const techniques = {
                 2,
                 cells,
                 digits,
-                uniqueRemovals(removals),
+                _getUniqueRemovals(removals),
               ),
             };
             if (!findAll) return resultObj;
@@ -4356,7 +4368,7 @@ const techniques = {
               const resultObj = {
                 change: true,
                 type: "remove",
-                cells: uniqueRemovals(res.removals),
+                cells: _getUniqueRemovals(res.removals),
                 hint: {
                   name: "Extended Unique Rectangle Type 3",
                   mainInfo: `Digits (${baseDigitsStr})`,
@@ -4366,7 +4378,7 @@ const techniques = {
                   3,
                   cells,
                   digits,
-                  uniqueRemovals(res.removals),
+                  _getUniqueRemovals(res.removals),
                   { subsetCells: res.chosen, subsetCands: res.union },
                 ),
               };
@@ -4447,7 +4459,7 @@ const techniques = {
                 const resultObj = {
                   change: true,
                   type: "remove",
-                  cells: uniqueRemovals(removals),
+                  cells: _getUniqueRemovals(removals),
                   hint: {
                     name: "Extended Unique Rectangle Type 4",
                     mainInfo: `Digits (${baseDigitsStr})`,
@@ -4457,7 +4469,7 @@ const techniques = {
                     4,
                     cells,
                     digits,
-                    uniqueRemovals(removals),
+                    _getUniqueRemovals(removals),
                     { restrictedDigit: d, e1: [e1r, e1c], e2: [e2r, e2c] },
                   ),
                 };
@@ -4522,7 +4534,7 @@ const techniques = {
                 const resultObj = {
                   change: true,
                   type: "remove",
-                  cells: uniqueRemovals(removals),
+                  cells: _getUniqueRemovals(removals),
                   hint: {
                     name: "Extended Unique Rectangle Type 6",
                     mainInfo: `Digits (${baseDigitsStr})`,
@@ -4532,7 +4544,7 @@ const techniques = {
                     6,
                     cells,
                     digits,
-                    uniqueRemovals(removals),
+                    _getUniqueRemovals(removals),
                     { restrictedDigit: d, is_3x2 },
                   ),
                 };
@@ -4724,10 +4736,6 @@ const techniques = {
     const hexagons = techniques._findUniqueHexagons(pencils);
     if (hexagons.length === 0) return { change: false };
 
-    const uniqueRemovals = (arr) => {
-      return Array.from(new Set(arr.map(JSON.stringify))).map(JSON.parse);
-    };
-
     const formatRC = (cells) => {
       if (!cells || cells.length === 0) return "";
       const norm = cells.map((c) => [
@@ -4890,7 +4898,7 @@ const techniques = {
           const resultObj = {
             change: true,
             type: "remove",
-            cells: uniqueRemovals(removals),
+            cells: _getUniqueRemovals(removals),
             hint: {
               name: "Unique Loop Type 1",
               mainInfo: `using Digits (${baseDigitsStr})`,
@@ -4900,7 +4908,7 @@ const techniques = {
               1,
               cells,
               digits,
-              uniqueRemovals(removals),
+              _getUniqueRemovals(removals),
             ),
           };
           if (!findAll) return resultObj;
@@ -4941,7 +4949,7 @@ const techniques = {
             const resultObj = {
               change: true,
               type: "remove",
-              cells: uniqueRemovals(removals),
+              cells: _getUniqueRemovals(removals),
               hint: {
                 name:
                   extra_cells.length === 2
@@ -4954,7 +4962,7 @@ const techniques = {
                 extra_cells.length === 2 ? 2 : 5,
                 cells,
                 digits,
-                uniqueRemovals(removals),
+                _getUniqueRemovals(removals),
               ),
             };
             if (!findAll) return resultObj;
@@ -5042,7 +5050,7 @@ const techniques = {
               const resultObj = {
                 change: true,
                 type: "remove",
-                cells: uniqueRemovals(res.removals),
+                cells: _getUniqueRemovals(res.removals),
                 hint: {
                   name: "Unique Loop Type 3",
                   mainInfo: `using Digits (${baseDigitsStr})`,
@@ -5052,7 +5060,7 @@ const techniques = {
                   3,
                   cells,
                   digits,
-                  uniqueRemovals(res.removals),
+                  _getUniqueRemovals(res.removals),
                   { subsetCells: res.chosen, subsetCands: res.union },
                 ),
               };
@@ -5119,7 +5127,7 @@ const techniques = {
                 const resultObj = {
                   change: true,
                   type: "remove",
-                  cells: uniqueRemovals(removals),
+                  cells: _getUniqueRemovals(removals),
                   hint: {
                     name: "Unique Loop Type 4",
                     mainInfo: `using Digits (${baseDigitsStr})`,
@@ -5129,7 +5137,7 @@ const techniques = {
                     4,
                     cells,
                     digits,
-                    uniqueRemovals(removals),
+                    _getUniqueRemovals(removals),
                     {
                       restrictedDigit: d,
                       e1: [e1r, e1c],
@@ -5211,7 +5219,7 @@ const techniques = {
                   const resultObj = {
                     change: true,
                     type: "remove",
-                    cells: uniqueRemovals(removals),
+                    cells: _getUniqueRemovals(removals),
                     hint: {
                       name: "Unique Loop Type 6",
                       mainInfo: `using Digits (${baseDigitsStr})`,
@@ -5221,7 +5229,7 @@ const techniques = {
                       6,
                       cells,
                       digits,
-                      uniqueRemovals(removals),
+                      _getUniqueRemovals(removals),
                       { restrictedDigit: u },
                     ),
                   };
@@ -5420,9 +5428,17 @@ const techniques = {
                 elims.push(...removeCandidates(emptyBaseCells, V, ignoreSet));
 
                 if (elims.length > 0) {
-                  const uniqueElims = Array.from(
-                    new Set(elims.map(JSON.stringify)),
-                  ).map(JSON.parse);
+                  const uniqueElims = [];
+                  const seen = new Set();
+                  for (let i = 0; i < elims.length; i++) {
+                    const el = elims[i];
+                    // Create a unique 12-bit integer key for r, c, num
+                    const key = (el.r << 8) | (el.c << 4) | el.num;
+                    if (!seen.has(key)) {
+                      seen.add(key);
+                      uniqueElims.push(el);
+                    }
+                  }
 
                   const digitsStr = Array.from(V)
                     .sort((a, b) => a - b)
@@ -6620,7 +6636,6 @@ const techniques = {
   },
 
   // --- Main Finder ---
-  // --- Main Finder ---
   _findAIC: (board, pencils, options, findAll = false) => {
     const {
       maxLength = 16,
@@ -6667,16 +6682,73 @@ const techniques = {
       weakLinks = techniques._mergeMaps(...weakMaps);
     }
 
-    // --- Helper: Find common peers ---
+    // --- 1. Pre-Compile Graph to Integer Adjacency Lists ---
+    // This turns string lookups and Map iteration into flat array lookups
+    const keyToId = Object.create(null);
+    const idToNode = [];
+    let idCounter = 0;
+
+    for (const [key, node] of nodeMap.entries()) {
+      keyToId[key] = idCounter;
+      idToNode[idCounter] = node;
+      idCounter++;
+    }
+
+    const MAX_NODES = idCounter;
+    const strongAdj = new Array(MAX_NODES);
+    const weakAdj = new Array(MAX_NODES);
+
+    for (let i = 0; i < MAX_NODES; i++) {
+      strongAdj[i] = [];
+      weakAdj[i] = [];
+    }
+
+    for (const [key, neighbors] of strongLinks.entries()) {
+      const uId = keyToId[key];
+      if (uId !== undefined) {
+        for (const n of neighbors) {
+          const vId = keyToId[n.key];
+          if (vId !== undefined) strongAdj[uId].push(vId);
+        }
+      }
+    }
+
+    for (const [key, neighbors] of weakLinks.entries()) {
+      const uId = keyToId[key];
+      if (uId !== undefined) {
+        for (const n of neighbors) {
+          const vId = keyToId[n.key];
+          if (vId !== undefined) weakAdj[uId].push(vId);
+        }
+      }
+    }
+
+    // --- Helper: Find common peers (Optimized for bivalue legacy rings) ---
     const _getCommonPeers = (nA, nB) => {
       const targets = [];
-      const _sees = techniques._sees;
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           if (board[r][c] !== 0) continue;
           const target = [r, c];
-          if (!nA.cells.every((cA) => _sees(target, cA))) continue;
-          if (!nB.cells.every((cB) => _sees(target, cB))) continue;
+
+          let seesA = true;
+          for (let i = 0; i < nA.cells.length; i++) {
+            if (!techniques._sees(target, nA.cells[i])) {
+              seesA = false;
+              break;
+            }
+          }
+          if (!seesA) continue;
+
+          let seesB = true;
+          for (let i = 0; i < nB.cells.length; i++) {
+            if (!techniques._sees(target, nB.cells[i])) {
+              seesB = false;
+              break;
+            }
+          }
+          if (!seesB) continue;
+
           targets.push({ r, c });
         }
       }
@@ -6684,20 +6756,28 @@ const techniques = {
     };
 
     let result = { change: false };
-    let results = []; // NEW: Array to collect all results for View All Techniques
+    let results = [];
     let foundPathAtTargetLen = false;
 
+    // --- PRE-ALLOCATED DFS DATA STRUCTURES ---
+    const SHARED_VISITED_AIC = new Uint8Array(MAX_NODES);
+    const SHARED_PATH_AIC = new Array(maxLength + 2);
+
     // --- DFS Traversal ---
-    const dfs = (chain, visited, hasGrouped) => {
-      // MODIFIED: Only abort globally if we are NOT trying to find all results
+    const dfs = (depth, hasGrouped) => {
       if (result.change && !findAll) return;
 
-      // Strict depth limit to guarantee shortest chain first
-      if (chain.length > currentTargetLen) return;
+      const currentLen = depth + 1;
+      if (currentLen > currentTargetLen) return;
+
+      const startNode = SHARED_PATH_AIC[0];
+      const endNode = SHARED_PATH_AIC[depth];
+
+      const startNodeId = keyToId[startNode.key];
+      const endNodeId = keyToId[endNode.key];
 
       const reachedTarget =
-        chain.length === currentTargetLen &&
-        chain[0].key > chain[chain.length - 1].key;
+        currentLen === currentTargetLen && startNode.key > endNode.key;
 
       if (reachedTarget) {
         foundPathAtTargetLen = true;
@@ -6714,70 +6794,100 @@ const techniques = {
       }
 
       if (shouldCheck && reachedTarget) {
-        const start = chain[0];
-        const end = chain[chain.length - 1];
+        // Fast Continuous Ring Check utilizing integer adjacency
+        const isContinuous = weakAdj[endNodeId].includes(startNodeId);
 
-        // --- Check for Continuous Loop ---
         if (true) {
           const elims = [];
-          const wNeighbors = weakLinks.get(end.key) || [];
-          const isContinuous = wNeighbors.some((n) => n.key === start.key);
 
           if (isContinuous) {
-            const fullChain = [...chain, start];
+            // Helper to treat the path as a loop without allocating a new Array
+            const getNode = (idx) =>
+              idx === currentLen ? startNode : SHARED_PATH_AIC[idx];
 
             if (bivalueOnly) {
               // Legacy XY-Chain Ring Logic
-              for (let i = 1; i < fullChain.length - 1; i += 2) {
-                const u = fullChain[i];
-                const v = fullChain[i + 1];
+              for (let i = 1; i < currentLen; i += 2) {
+                const u = getNode(i);
+                const v = getNode(i + 1);
 
                 if (u.digit === v.digit) {
-                  _getCommonPeers(u, v).forEach(({ r, c }) => {
-                    const inU = u.cells.some(
-                      (cell) => cell[0] === r && cell[1] === c,
-                    );
-                    const inV = v.cells.some(
-                      (cell) => cell[0] === r && cell[1] === c,
-                    );
-                    if (!inU && !inV && pencils[r][c].has(u.digit)) {
-                      if (
-                        !elims.some(
-                          (e) => e.r === r && e.c === c && e.num === u.digit,
-                        )
-                      ) {
-                        elims.push({ r, c, num: u.digit });
+                  const peers = _getCommonPeers(u, v);
+                  for (let p = 0; p < peers.length; p++) {
+                    const { r, c } = peers[p];
+
+                    let inU = false,
+                      inV = false;
+                    for (let cu = 0; cu < u.cells.length; cu++) {
+                      if (u.cells[cu][0] === r && u.cells[cu][1] === c) {
+                        inU = true;
+                        break;
                       }
                     }
-                  });
+                    for (let cv = 0; cv < v.cells.length; cv++) {
+                      if (v.cells[cv][0] === r && v.cells[cv][1] === c) {
+                        inV = true;
+                        break;
+                      }
+                    }
+
+                    if (!inU && !inV && pencils[r][c].has(u.digit)) {
+                      let duplicate = false;
+                      for (let e = 0; e < elims.length; e++) {
+                        if (
+                          elims[e].r === r &&
+                          elims[e].c === c &&
+                          elims[e].num === u.digit
+                        ) {
+                          duplicate = true;
+                          break;
+                        }
+                      }
+                      if (!duplicate) elims.push({ r, c, num: u.digit });
+                    }
+                  }
                 }
               }
             } else {
-              // NEW: Generic AIC Ring logic using weak-link map intersection
-              for (let i = 1; i < fullChain.length - 1; i += 2) {
-                const u = fullChain[i];
-                const v = fullChain[i + 1];
+              // Generic AIC Ring logic via incredibly fast integer adjacency intersects
+              for (let i = 1; i < currentLen; i += 2) {
+                const uNode = getNode(i);
+                const vNode = getNode(i + 1);
 
-                const uWeak = weakLinks.get(u.key) || [];
-                const vWeak = weakLinks.get(v.key) || [];
-                const vWeakKeys = new Set(vWeak.map((n) => n.key));
+                const uId = keyToId[uNode.key];
+                const vId = keyToId[vNode.key];
 
-                for (const z of uWeak) {
-                  if (vWeakKeys.has(z.key)) {
-                    // Found common weak-link node Z
-                    if (z.key !== u.key && z.key !== v.key && z.count === 1) {
-                      const [zr, zc] = z.cells[0];
-                      const inChain = fullChain.some((n) => n.key === z.key);
+                const uWeak = weakAdj[uId];
+                const vWeak = weakAdj[vId];
 
-                      if (!inChain && pencils[zr][zc].has(z.digit)) {
-                        if (
-                          !elims.some(
-                            (e) =>
-                              e.r === zr && e.c === zc && e.num === z.digit,
-                          )
-                        ) {
-                          elims.push({ r: zr, c: zc, num: z.digit });
+                for (let j = 0; j < uWeak.length; j++) {
+                  const zId = uWeak[j];
+                  if (vWeak.includes(zId)) {
+                    // Common weak node found.
+                    // SHARED_VISITED_AIC[zId] === 0 natively checks if it's currently part of the chain!
+                    if (
+                      zId !== uId &&
+                      zId !== vId &&
+                      idToNode[zId].count === 1 &&
+                      SHARED_VISITED_AIC[zId] === 0
+                    ) {
+                      const zNode = idToNode[zId];
+                      const [zr, zc] = zNode.cells[0];
+
+                      if (pencils[zr][zc].has(zNode.digit)) {
+                        let duplicate = false;
+                        for (let e = 0; e < elims.length; e++) {
+                          if (
+                            elims[e].r === zr &&
+                            elims[e].c === zc &&
+                            elims[e].num === zNode.digit
+                          ) {
+                            duplicate = true;
+                            break;
+                          }
                         }
+                        if (!duplicate)
+                          elims.push({ r: zr, c: zc, num: zNode.digit });
                       }
                     }
                   }
@@ -6786,15 +6896,19 @@ const techniques = {
             }
 
             if (elims.length > 0) {
-              // VERY IMPORTANT: Clone the chain for the visual callback so it survives DFS backtracking
-              const visualChain = [...chain];
-              const visualElims = [...elims];
+              const visualChain = SHARED_PATH_AIC.slice(0, currentLen);
+              const uniqueElims = [];
+              const seen = new Uint8Array(4096);
 
-              const uniqueElims = Array.from(
-                new Set(elims.map(JSON.stringify)),
-              ).map(JSON.parse);
+              for (let i = 0; i < elims.length; i++) {
+                const el = elims[i];
+                const key = (el.r << 8) | (el.c << 4) | el.num;
+                if (seen[key] === 0) {
+                  seen[key] = 1;
+                  uniqueElims.push(el);
+                }
+              }
 
-              // MODIFIED: Create standard result object
               const res = {
                 change: true,
                 type: "remove",
@@ -6804,10 +6918,10 @@ const techniques = {
                     ? (options.nameOverride || "AIC").replace("Chain", "Ring")
                     : (options.nameOverride || "AIC") + " Ring",
                   mainInfo:
-                    techniques._getHintInfo(chain, hintType) + " (Ring)",
+                    techniques._getHintInfo(visualChain, hintType) + " (Ring)",
                   detail:
-                    `[${chain.length}] ` +
-                    techniques._buildChainDetail(chain, options) +
+                    `[${currentLen}] ` +
+                    techniques._buildChainDetail(visualChain, options) +
                     "-(Ring)",
                 },
                 applyVisuals: () => {
@@ -6832,7 +6946,7 @@ const techniques = {
                     });
                   });
 
-                  visualElims.forEach((el) =>
+                  uniqueElims.forEach((el) =>
                     boardState[el.r][el.c].pencilColors.set(
                       el.num,
                       candidateColorPalette[0],
@@ -6873,14 +6987,14 @@ const techniques = {
                     return [bestA, bestB];
                   };
 
-                  const fullChain = [...visualChain, visualChain[0]];
-                  for (let i = 0; i < fullChain.length - 1; i++) {
-                    const u = fullChain[i];
-                    const v = fullChain[i + 1];
+                  const fullVisualChain = [...visualChain, visualChain[0]];
+                  for (let i = 0; i < fullVisualChain.length - 1; i++) {
+                    const u = fullVisualChain[i];
+                    const v = fullVisualChain[i + 1];
 
                     if (i === 0) drawGroup(u, 0);
                     if (i < visualChain.length)
-                      drawGroup(v, (i + 1) % visualChain.length); // Handle wrap around index
+                      drawGroup(v, (i + 1) % visualChain.length);
 
                     const [cA, cB] = getClosestCells(u, v);
                     drawnLines.push({
@@ -6897,13 +7011,12 @@ const techniques = {
                 },
               };
 
-              // NEW: Handle findAll logic
               if (!findAll) {
                 result = res;
                 return;
               } else {
                 results.push(res);
-                return; // Stop exploring this specific chain path
+                return;
               }
             }
           }
@@ -6911,52 +7024,83 @@ const techniques = {
           // --- Standard Check: Discontinuous Chain ---
           if (!isContinuous) {
             if (bivalueOnly) {
-              // Legacy XY-Chain Discontinuous Logic (Type 1 only, ends share digit)
-              if (start.digit === end.digit) {
-                const peers = _getCommonPeers(start, end);
-                peers.forEach(({ r, c }) => {
-                  const inStart = start.cells.some(
-                    (cell) => cell[0] === r && cell[1] === c,
-                  );
-                  const inEnd = end.cells.some(
-                    (cell) => cell[0] === r && cell[1] === c,
-                  );
-                  if (!inStart && !inEnd && pencils[r][c].has(start.digit)) {
+              if (startNode.digit === endNode.digit) {
+                const peers = _getCommonPeers(startNode, endNode);
+                for (let p = 0; p < peers.length; p++) {
+                  const { r, c } = peers[p];
+
+                  let inStart = false,
+                    inEnd = false;
+                  for (let cu = 0; cu < startNode.cells.length; cu++) {
                     if (
-                      !elims.some(
-                        (e) => e.r === r && e.c === c && e.num === start.digit,
-                      )
+                      startNode.cells[cu][0] === r &&
+                      startNode.cells[cu][1] === c
                     ) {
-                      elims.push({ r, c, num: start.digit });
+                      inStart = true;
+                      break;
                     }
                   }
-                });
+                  for (let cv = 0; cv < endNode.cells.length; cv++) {
+                    if (
+                      endNode.cells[cv][0] === r &&
+                      endNode.cells[cv][1] === c
+                    ) {
+                      inEnd = true;
+                      break;
+                    }
+                  }
+
+                  if (
+                    !inStart &&
+                    !inEnd &&
+                    pencils[r][c].has(startNode.digit)
+                  ) {
+                    let duplicate = false;
+                    for (let e = 0; e < elims.length; e++) {
+                      if (
+                        elims[e].r === r &&
+                        elims[e].c === c &&
+                        elims[e].num === startNode.digit
+                      ) {
+                        duplicate = true;
+                        break;
+                      }
+                    }
+                    if (!duplicate) elims.push({ r, c, num: startNode.digit });
+                  }
+                }
               }
             } else {
-              // NEW: Generic AIC Discontinuous logic using weak-link map intersection
-              const startWeak = weakLinks.get(start.key) || [];
-              const endWeak = weakLinks.get(end.key) || [];
-              const endWeakKeys = new Set(endWeak.map((n) => n.key));
+              const startWeak = weakAdj[startNodeId];
+              const endWeak = weakAdj[endNodeId];
 
-              for (const z of startWeak) {
-                if (endWeakKeys.has(z.key)) {
-                  // Node Z is weakly linked to both ends
+              for (let j = 0; j < startWeak.length; j++) {
+                const zId = startWeak[j];
+                if (endWeak.includes(zId)) {
+                  // Common weak node found off-chain
                   if (
-                    z.key !== start.key &&
-                    z.key !== end.key &&
-                    z.count === 1
+                    zId !== startNodeId &&
+                    zId !== endNodeId &&
+                    idToNode[zId].count === 1 &&
+                    SHARED_VISITED_AIC[zId] === 0
                   ) {
-                    const [zr, zc] = z.cells[0];
-                    const inChain = chain.some((n) => n.key === z.key);
+                    const zNode = idToNode[zId];
+                    const [zr, zc] = zNode.cells[0];
 
-                    if (!inChain && pencils[zr][zc].has(z.digit)) {
-                      if (
-                        !elims.some(
-                          (e) => e.r === zr && e.c === zc && e.num === z.digit,
-                        )
-                      ) {
-                        elims.push({ r: zr, c: zc, num: z.digit });
+                    if (pencils[zr][zc].has(zNode.digit)) {
+                      let duplicate = false;
+                      for (let e = 0; e < elims.length; e++) {
+                        if (
+                          elims[e].r === zr &&
+                          elims[e].c === zc &&
+                          elims[e].num === zNode.digit
+                        ) {
+                          duplicate = true;
+                          break;
+                        }
                       }
+                      if (!duplicate)
+                        elims.push({ r: zr, c: zc, num: zNode.digit });
                     }
                   }
                 }
@@ -6964,35 +7108,28 @@ const techniques = {
             }
 
             if (elims.length > 0) {
-              // NEW: Check for cannibalic chain (eliminates a candidate active on the chain)
-              const isCannibalic = elims.some((el) =>
-                chain.some(
-                  (node) =>
-                    node.digit === el.num &&
-                    node.cells.some((c) => c[0] === el.r && c[1] === el.c),
-                ),
-              );
-
-              if (findAll && isCannibalic) {
-                return; // Discard this chain and backtrack
+              const visualChain = SHARED_PATH_AIC.slice(0, currentLen);
+              const uniqueElims = [];
+              const seen = new Uint8Array(4096);
+              for (let i = 0; i < elims.length; i++) {
+                const el = elims[i];
+                const key = (el.r << 8) | (el.c << 4) | el.num;
+                if (seen[key] === 0) {
+                  seen[key] = 1;
+                  uniqueElims.push(el);
+                }
               }
-              // VERY IMPORTANT: Clone the chain for the visual callback so it survives DFS backtracking
-              const visualChain = [...chain];
-              const visualElims = [...elims];
-              const uniqueElims = Array.from(
-                new Set(elims.map(JSON.stringify)),
-              ).map(JSON.parse);
-              // MODIFIED: Create standard result object
+
               const res = {
                 change: true,
                 type: "remove",
                 cells: uniqueElims,
                 hint: {
                   name: options.nameOverride || "AIC",
-                  mainInfo: techniques._getHintInfo(chain, hintType),
+                  mainInfo: techniques._getHintInfo(visualChain, hintType),
                   detail:
-                    `[${chain.length}] ` +
-                    techniques._buildChainDetail(chain, options),
+                    `[${currentLen}] ` +
+                    techniques._buildChainDetail(visualChain, options),
                 },
                 applyVisuals: () => {
                   if (singleDigit) {
@@ -7016,7 +7153,7 @@ const techniques = {
                     });
                   });
 
-                  visualElims.forEach((el) =>
+                  uniqueElims.forEach((el) =>
                     boardState[el.r][el.c].pencilColors.set(
                       el.num,
                       candidateColorPalette[0],
@@ -7025,7 +7162,7 @@ const techniques = {
 
                   const drawGroup = (node, idx) => {
                     if (node.cells.length > 1) {
-                      const colorIdx = idx % 2 === 0 ? 5 : 4; // Dynamically match candidate color
+                      const colorIdx = idx % 2 === 0 ? 5 : 4;
                       for (let i = 0; i < node.cells.length - 1; i++) {
                         drawnLines.push({
                           r1: node.cells[i][0],
@@ -7080,67 +7217,59 @@ const techniques = {
                 },
               };
 
-              // NEW: Handle findAll logic
               if (!findAll) {
                 result = res;
                 return;
               } else {
                 results.push(res);
-                return; // Stop exploring this specific chain path
+                return;
               }
             }
           }
         }
       }
 
-      const L = chain.length;
-      const endNode = chain[L - 1];
-
-      if (L % 2 === 0) {
-        // Chain length is even. The end node was reached via a strong link.
-        const sNeighbors = strongLinks.get(endNode.key) || [];
-
-        // Loop through odd-th nodes (1-based), which are even indices (0, 2, 4...)
-        for (let i = 0; i < L; i += 2) {
-          if (i === L - 2) continue; // Except adjacent node
-
-          if (L === currentTargetLen) {
-            if (i === 0) continue; // Except first node if reached target length
-            if (sNeighbors.some((n) => n.key === chain[i].key)) return; // Revert
-          } else {
-            if (sNeighbors.some((n) => n.key === chain[i].key)) return; // Revert
-          }
+      // Chain Parity Validations
+      if (currentLen % 2 === 0) {
+        // Even: Arrived via strong link
+        const sNeighbors = strongAdj[endNodeId];
+        for (let i = 0; i < currentLen; i += 2) {
+          if (i === currentLen - 2) continue;
+          if (currentLen === currentTargetLen && i === 0) continue;
+          if (sNeighbors.includes(keyToId[SHARED_PATH_AIC[i].key])) return;
         }
       } else {
-        // Chain length is odd. The end node was reached via a weak link.
-        if (L > 1) {
-          // Skip if it's the very first node
-          const wNeighbors = weakLinks.get(endNode.key) || [];
-
-          // Loop through even-th nodes (1-based), which are odd indices (1, 3, 5...)
-          for (let i = 1; i < L; i += 2) {
-            if (i === L - 2) continue; // Except adjacent node
-            if (i === 1) continue; // Except "first node" of the even-th sequence
-
-            if (wNeighbors.some((n) => n.key === chain[i].key)) return; // Revert
+        // Odd: Arrived via weak link
+        if (currentLen > 1) {
+          const wNeighbors = weakAdj[endNodeId];
+          for (let i = 1; i < currentLen; i += 2) {
+            if (i === currentLen - 2) continue;
+            if (i === 1) continue;
+            if (wNeighbors.includes(keyToId[SHARED_PATH_AIC[i].key])) return;
           }
         }
       }
 
-      // --- Continue DFS ---
-      const currentNode = chain[chain.length - 1];
-      const isStrongTurn = chain.length % 2 !== 0; // Alternate Strong/Weak
-      const nextMap = isStrongTurn ? strongLinks : weakLinks;
+      // --- DFS Exploration via Pointer Recursion ---
+      const isStrongTurn = currentLen % 2 !== 0;
+      const nextAdjList = isStrongTurn
+        ? strongAdj[endNodeId]
+        : weakAdj[endNodeId];
 
-      const neighbors = nextMap.get(currentNode.key) || [];
-      for (const nextNode of neighbors) {
-        if (!visited.has(nextNode.key)) {
-          visited.add(nextNode.key);
-          chain.push(nextNode);
-          dfs(chain, visited, hasGrouped || nextNode.count > 1);
-          chain.pop();
-          visited.delete(nextNode.key);
-          // MODIFIED: Only short-circuit if not finding all
+      for (let i = 0; i < nextAdjList.length; i++) {
+        const nextId = nextAdjList[i];
+
+        // Instant typed array check
+        if (SHARED_VISITED_AIC[nextId] === 0) {
+          const nextNode = idToNode[nextId];
+
+          SHARED_VISITED_AIC[nextId] = 1;
+          SHARED_PATH_AIC[depth + 1] = nextNode;
+
+          dfs(depth + 1, hasGrouped || nextNode.count > 1);
+
+          SHARED_VISITED_AIC[nextId] = 0; // Instant un-mark back-track
+
           if (result.change && !findAll) return;
         }
       }
@@ -7150,7 +7279,6 @@ const techniques = {
 
     if (!bivalueOnly) {
       if (!useGrouped) {
-        // X-Chain
         if (
           !(
             _prXw &&
@@ -7162,7 +7290,6 @@ const techniques = {
           minTargetLen = 4;
         }
       } else {
-        // Grouped X-Chain
         if (_prgSky && _prgKite && _prgCrane) {
           minTargetLen = 4;
         }
@@ -7176,35 +7303,37 @@ const techniques = {
     }
 
     // --- Iterative Deepening Framework ---
-    // Start at minTargetLen, incrementing by 2 up to maxLength to guarantee the shortest chain first.
     for (
       currentTargetLen = minTargetLen;
       currentTargetLen <= maxLength;
       currentTargetLen += 2
     ) {
-      foundPathAtTargetLen = false; // <--- RESET FLAG FOR THIS DEPTH
+      foundPathAtTargetLen = false;
 
-      for (const key of strongLinks.keys()) {
-        // MODIFIED: Only break if not finding all
+      for (const [key, id] of Object.entries(keyToId)) {
         if (result.change && !findAll) break;
-        const startNode = nodeMap.get(key);
-        if (startNode) {
-          dfs([startNode], new Set([key]), startNode.count > 1);
+
+        // Only start from nodes that have strong links
+        if (strongAdj[id].length > 0) {
+          const startNode = idToNode[id];
+          SHARED_VISITED_AIC[id] = 1;
+          SHARED_PATH_AIC[0] = startNode;
+
+          dfs(0, startNode.count > 1);
+
+          SHARED_VISITED_AIC[id] = 0;
         }
       }
 
-      // MODIFIED: Only exit loop early if a chain was found AND we are not finding all
       if (result.change && !findAll) {
         break;
       }
 
-      // If no chain met the length and key criteria at this depth, longer depths are impossible.
       if (!foundPathAtTargetLen) {
         break;
       }
     }
 
-    // NEW: Return array of results if findAll is true
     return findAll ? results : result;
   },
 
@@ -7633,6 +7762,15 @@ const techniques = {
     sizePairFilter = null,
     findAll = false,
   ) => {
+    // 1. Map string/complex hashes to simple 0-based integers for the Uint8Array
+    const hashToId = Object.create(null);
+    for (let i = 0; i < _alsCache.length; i++) {
+      hashToId[_alsCache[i].hash] = i;
+    }
+
+    // 2. Clear out shared structures
+    SHARED_VISITED_ALS = new Uint8Array(4096);
+    SHARED_PATH_ALS = new Array(20);
     let results = [];
     let found = false;
     let resultToReturn = { change: false };
@@ -7668,9 +7806,17 @@ const techniques = {
       successTarget,
       successClosingRcc,
     ) => {
-      const uniqueElims = Array.from(
-        new Set(eliminations.map(JSON.stringify)),
-      ).map(JSON.parse);
+      const uniqueElims = [];
+      const seen = new Set();
+      for (let i = 0; i < eliminations.length; i++) {
+        const el = eliminations[i];
+        // Create a unique 12-bit integer key for r, c, num
+        const key = (el.r << 8) | (el.c << 4) | el.num;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueElims.push(el);
+        }
+      }
 
       // --- Hint Construction ---
       let info = "";
@@ -7922,51 +8068,63 @@ const techniques = {
 
     let currentTargetLen = minLen;
 
-    // DFS Function
-    const dfs = (path, visited) => {
+    // 3. Ultra-Fast Pointer-Based DFS Function
+    const dfs = (depth) => {
       if (found && !findAll) return;
 
-      const lastStep = path[path.length - 1];
+      const lastStep = SHARED_PATH_ALS[depth];
       const neighbors = _alsRccMap[lastStep.hash];
       if (!neighbors) return;
 
-      for (const { hash: nbrHash, digit: d } of neighbors) {
+      // Use a fast standard loop over neighbors
+      for (let n = 0; n < neighbors.length; n++) {
         if (found && !findAll) return;
+
+        const neighbor = neighbors[n];
+        const nbrHash = neighbor.hash;
+        const d = neighbor.digit;
 
         // Cannot use the same digit to enter and exit an ALS
         if (d === lastStep.viaDigit) continue;
-        if (visited.has(nbrHash)) continue;
 
-        if (sizePairFilter && path.length === 1) {
-          const alsStart = _alsLookup[path[0].hash];
+        // Fast Uint8Array Check using mapped ID
+        const nbrId = hashToId[nbrHash];
+        if (SHARED_VISITED_ALS[nbrId] === 1) continue;
+
+        if (sizePairFilter && depth === 0) {
+          // depth 0 means path length is 1
+          const alsStart = _alsLookup[SHARED_PATH_ALS[0].hash];
           const alsNext = _alsLookup[nbrHash];
           if (!sizePairFilter(alsStart, alsNext)) continue;
         }
 
-        // Prepare next step
-        path.push({ hash: nbrHash, viaDigit: d });
-        visited.add(nbrHash);
+        // Prepare next step pointer
+        const nextDepth = depth + 1;
+        SHARED_PATH_ALS[nextDepth] = { hash: nbrHash, viaDigit: d };
+        SHARED_VISITED_ALS[nbrId] = 1;
 
-        const len = path.length;
+        const len = nextDepth + 1;
+        const currentPathSlice = SHARED_PATH_ALS.slice(0, len); // Needed for validations
 
         // Check Constraints
-        if (len === currentTargetLen && path[0].hash < nbrHash) {
+        if (len === currentTargetLen && SHARED_PATH_ALS[0].hash < nbrHash) {
           if (minLen === 2 && _prALSXY && len === 3) {
             // skip, we do this in alsXYWing explicitly
           } else {
-            const alsStart = _alsLookup[path[0].hash];
+            const alsStart = _alsLookup[SHARED_PATH_ALS[0].hash];
             const alsEnd = _alsLookup[nbrHash];
             let isRing = false;
 
             // --- 1. PRIORITY: Check for Ring (Continuous Loop) ---
             const endNeighbors = _alsRccMap[alsEnd.hash];
             if (endNeighbors) {
-              for (const {
-                hash: closingHash,
-                digit: closingRcc,
-              } of endNeighbors) {
+              for (let en = 0; en < endNeighbors.length; en++) {
+                const endNeighbor = endNeighbors[en];
+                const closingHash = endNeighbor.hash;
+                const closingRcc = endNeighbor.digit;
+
                 if (closingHash === alsStart.hash) {
-                  const startExitDigit = path[1].viaDigit;
+                  const startExitDigit = SHARED_PATH_ALS[1].viaDigit;
                   const endEntryDigit = d;
 
                   if (
@@ -7978,10 +8136,10 @@ const techniques = {
                     let ringChange = false;
                     let localElims = [];
                     // A. Internal links
-                    for (let i = 0; i < path.length - 1; i++) {
-                      const a = _alsLookup[path[i].hash];
-                      const b = _alsLookup[path[i + 1].hash];
-                      const rcc = path[i + 1].viaDigit;
+                    for (let i = 0; i < currentPathSlice.length - 1; i++) {
+                      const a = _alsLookup[currentPathSlice[i].hash];
+                      const b = _alsLookup[currentPathSlice[i + 1].hash];
+                      const rcc = currentPathSlice[i + 1].viaDigit;
                       if (eliminateRccPeers(a, b, rcc, localElims))
                         ringChange = true;
                     }
@@ -8001,14 +8159,16 @@ const techniques = {
                       (1 << (closingRcc - 1)) | (1 << (startExitDigit - 1));
                     if (eliminateNonRcc(alsStart, nonRccStartbm, localElims))
                       ringChange = true;
-                    for (let i = 1; i < path.length - 1; i++) {
-                      const alsMid = _alsLookup[path[i].hash];
+
+                    for (let i = 1; i < currentPathSlice.length - 1; i++) {
+                      const alsMid = _alsLookup[currentPathSlice[i].hash];
                       const nonRccMidbm =
-                        (1 << (path[i].viaDigit - 1)) |
-                        (1 << (path[i + 1].viaDigit - 1));
+                        (1 << (currentPathSlice[i].viaDigit - 1)) |
+                        (1 << (currentPathSlice[i + 1].viaDigit - 1));
                       if (eliminateNonRcc(alsMid, nonRccMidbm, localElims))
                         ringChange = true;
                     }
+
                     const nonRccEndbm =
                       (1 << (endEntryDigit - 1)) | (1 << (closingRcc - 1));
                     if (eliminateNonRcc(alsEnd, nonRccEndbm, localElims))
@@ -8016,7 +8176,7 @@ const techniques = {
 
                     if (ringChange) {
                       const res = createResult(
-                        path,
+                        currentPathSlice,
                         true,
                         localElims,
                         [],
@@ -8039,7 +8199,7 @@ const techniques = {
             if (!isRing) {
               const commonMask = alsStart.candidates & alsEnd.candidates;
               if (commonMask !== 0) {
-                const disallow1 = path[1].viaDigit; // Exit from start
+                const disallow1 = SHARED_PATH_ALS[1].viaDigit; // Exit from start
                 const disallow2 = d; // Entry to end
 
                 let localChange = false;
@@ -8069,7 +8229,7 @@ const techniques = {
 
                 if (localChange) {
                   const res = createResult(
-                    path,
+                    currentPathSlice,
                     false,
                     localElims,
                     foundZs,
@@ -8089,12 +8249,11 @@ const techniques = {
         }
 
         if ((!found || findAll) && len < currentTargetLen) {
-          dfs(path, visited);
+          dfs(nextDepth);
         }
 
-        // Backtrack
-        path.pop();
-        visited.delete(nbrHash);
+        // BACKTRACK: Instantly unset the memory slot
+        SHARED_VISITED_ALS[nbrId] = 0;
       }
     };
 
@@ -8104,9 +8263,19 @@ const techniques = {
       currentTargetLen <= maxLen;
       currentTargetLen++
     ) {
-      for (const als of _alsCache) {
+      for (let i = 0; i < _alsCache.length; i++) {
         if (found && !findAll) break;
-        dfs([{ hash: als.hash, viaDigit: 0 }], new Set([als.hash]));
+
+        const als = _alsCache[i];
+        const alsId = hashToId[als.hash];
+
+        // Manually write the root node to depth 0
+        SHARED_PATH_ALS[0] = { hash: als.hash, viaDigit: 0 };
+        SHARED_VISITED_ALS[alsId] = 1;
+
+        dfs(0); // Trigger DFS passing `0` as the initial depth
+
+        SHARED_VISITED_ALS[alsId] = 0; // Backtrack the root node
       }
       if (found && !findAll) break;
     }
@@ -8397,14 +8566,24 @@ const techniques = {
   ) => {
     // Custom unique filter that prioritizes "cell" source eliminations
     const getUnique = (arr) => {
-      const map = new Map();
-      arr.forEach((el) => {
-        const key = `${el.r},${el.c},${el.num}`;
-        if (!map.has(key) || el.source === "cell") {
-          map.set(key, el);
+      const seenIndex = new Array(4096); // Pre-allocated sparse array
+      const result = [];
+
+      for (let i = 0; i < arr.length; i++) {
+        const el = arr[i];
+        const key = (el.r << 8) | (el.c << 4) | el.num;
+
+        const existingIndex = seenIndex[key];
+
+        if (existingIndex === undefined) {
+          seenIndex[key] = result.length;
+          result.push(el);
+        } else if (el.source === "cell") {
+          result[existingIndex] = el;
         }
-      });
-      return Array.from(map.values());
+      }
+
+      return result;
     };
 
     const cellEq = (c1, c2) => c1 && c2 && c1[0] === c2[0] && c1[1] === c2[1];
@@ -8461,7 +8640,6 @@ const techniques = {
 
         const ahsColors = [5, 6, 7, 2, 3, 4];
 
-        // 1. Color AHS cells and their respective AHS digits
         chain.forEach((ahs, i) => {
           const cColor = ahsColors[i % 6];
           ahs.cells.forEach(([r, c]) => {
@@ -8479,7 +8657,6 @@ const techniques = {
 
         const rccSet = new Set();
 
-        // 2. Color standard intra-chain RCCs (Cell Color 2)
         if (rccs) {
           rccs.forEach(([r, c]) => {
             boardState[r][c].cellColor = cellColorPalette[1];
@@ -8487,7 +8664,6 @@ const techniques = {
           });
         }
 
-        // 2b. Draw standard intra-chain RCDs (Line Color 1)
         if (rcds && rcds.length > 0) {
           rcds.forEach((edge) => {
             drawnLines.push({
@@ -8503,9 +8679,7 @@ const techniques = {
           });
         }
 
-        // 3. Handle Ring Connections between both end AHSes
         if (isRing || (ringRcds && ringRcds.length > 0)) {
-          // UPDATED to always draw weak external links
           if (ringRccs && ringRccs.length > 0) {
             ringRccs.forEach(([r, c]) => {
               boardState[r][c].cellColor = cellColorPalette[1];
@@ -8514,7 +8688,6 @@ const techniques = {
           }
           if (ringRcds && ringRcds.length > 0) {
             ringRcds.forEach((rcd) => {
-              // UPDATED: Support diff digits (d1/d2) for non-ring weak links
               const num1 = rcd.d1 !== undefined ? rcd.d1 : rcd.d;
               const num2 = rcd.d2 !== undefined ? rcd.d2 : rcd.d;
               rcd.exc1.forEach((c1) => {
@@ -8535,21 +8708,18 @@ const techniques = {
           }
         }
 
-        // 4. Color Non-RCC common AHS cells with eliminations
         uniqueElims.forEach((el) => {
           if (!rccSet.has(`${el.r},${el.c}`) && el.source === "cell") {
-            // Filter chain to find how many AHSes contain this specific cell
             const containingAHSCount = chain.filter((ahs) =>
               ahs.cells.some(([ar, ac]) => ar === el.r && ac === el.c),
-            ).length; // Only apply coloring if the cell is shared by 2 or more AHSes
+            ).length;
 
             if (containingAHSCount >= 2) {
-              boardState[el.r][el.c].cellColor = cellColorPalette[0]; // Cell Color 1
+              boardState[el.r][el.c].cellColor = cellColorPalette[0];
             }
           }
         });
 
-        // 5. Color Eliminations (Candidate Color 1)
         uniqueElims.forEach((el) => {
           boardState[el.r][el.c].pencilColors.set(
             el.num,
@@ -8568,19 +8738,27 @@ const techniques = {
 
       // 1. Check for RCCs
       const rccs = _ahsRccMap.get(key) || [];
-      for (const rcc of rccs) edges.push({ type: "rcc", cell: rcc });
+      for (let i = 0; i < rccs.length; i++)
+        edges.push({ type: "rcc", cell: rccs[i] });
 
-      // 2. Check for RCDs (Exclusive cells seeing each other)
+      // 2. Check for RCDs
       const aFrom = ahses[fromIdx];
       const aTo = ahses[toIdx];
-      const sharedDigits = [...aFrom.digits].filter((d) => aTo.digits.has(d));
 
-      for (const d of sharedDigits) {
+      const sharedDigits = [];
+      for (const d of aFrom.digits) {
+        if (aTo.digits.has(d)) sharedDigits.push(d);
+      }
+
+      for (let i = 0; i < sharedDigits.length; i++) {
+        const d = sharedDigits[i];
         const excFroms = aFrom.exclusiveCellsMap.get(d) || [];
         const excTos = aTo.exclusiveCellsMap.get(d) || [];
 
-        for (const exc1 of excFroms) {
-          for (const exc2 of excTos) {
+        for (let e1 = 0; e1 < excFroms.length; e1++) {
+          for (let e2 = 0; e2 < excTos.length; e2++) {
+            const exc1 = excFroms[e1];
+            const exc2 = excTos[e2];
             if (!cellEq(exc1, exc2) && techniques._sees(exc1, exc2)) {
               edges.push({ type: "rcd", d, excFrom: exc1, excTo: exc2 });
             }
@@ -8594,7 +8772,6 @@ const techniques = {
     let foundResult = null;
     let allResults = [];
 
-    // UPDATED: Added startIsRcd and endIsRcd to handle asymmetric Type 3 links
     const buildDetailStr = (
       path,
       cCell,
@@ -8661,7 +8838,7 @@ const techniques = {
             inIsRcd = false;
           } else {
             inCell = startExc;
-            inIsRcd = startIsRcd; // UPDATED
+            inIsRcd = startIsRcd;
             inD = startD;
           }
         } else {
@@ -8682,7 +8859,7 @@ const techniques = {
             outIsRcd = false;
           } else {
             outCell = endExc;
-            outIsRcd = endIsRcd; // UPDATED
+            outIsRcd = endIsRcd;
             outD = endD;
           }
         } else {
@@ -8712,7 +8889,6 @@ const techniques = {
         return isTo ? edge.excTo : edge.excFrom;
       };
 
-      // 1. Process intermediate RCC logic (union candidates)
       for (let i = 1; i < pathArray.length; i++) {
         const edge = pathArray[i].edge;
         if (edge.type === "rcc") {
@@ -8730,8 +8906,6 @@ const techniques = {
             }
           }
         } else if (edge.type === "rcd") {
-          // 1B: If inter-AHS link is via seeing exclusive cells with the same digit,
-          // remove that digit from the exclusive cells' common peers.
           const exc1 = edge.excFrom;
           const exc2 = edge.excTo;
           const d = edge.d;
@@ -8752,7 +8926,6 @@ const techniques = {
         }
       }
 
-      // 2. Process Ring Elimination - for each AHS, remove off-AHS digits from NON-LINK cells
       for (let i = 0; i < pathArray.length; i++) {
         const ahs = ahses[pathArray[i].ahsIdx];
         let cellIn, cellOut;
@@ -8802,7 +8975,6 @@ const techniques = {
       let finalRingRccs = [];
       let finalRingRcds = [];
 
-      // 1. Common Cell check
       const commonCells = firstAhs.cells.filter((c) =>
         lastAhs.cells.some((c2) => cellEq(c, c2)),
       );
@@ -8865,7 +9037,6 @@ const techniques = {
         }
       }
 
-      // 2. Same Digit RCD check
       const sharedDigits = [...firstAhs.digits].filter((d) =>
         lastAhs.digits.has(d),
       );
@@ -8951,7 +9122,6 @@ const techniques = {
         }
       }
 
-      // 3. NEW: Non-Ring Weak Link (Exclusive Cell to Non-RCC Cell)
       const checkAsymmetricLink = (
         sourceAhs,
         targetAhs,
@@ -8960,17 +9130,14 @@ const techniques = {
         isForward,
       ) => {
         for (const d of sourceAhs.digits) {
-          // The digit 'd' must NOT be a core AHS digit of the target AHS
           if (targetAhs.digits.has(d)) continue;
           const excCells = sourceAhs.exclusiveCellsMap.get(d) || [];
           for (const excCell of excCells) {
-            // Must be a non-RCC cell for the source
             if (cellEq(excCell, sourceUsedCell)) continue;
 
             const targetCellsWithElims = [];
 
             for (const targetCell of targetAhs.cells) {
-              // Must be a non-RCC cell for the target
               if (cellEq(targetCell, targetUsedCell)) continue;
               if (cellEq(excCell, targetCell)) continue;
 
@@ -8993,8 +9160,6 @@ const techniques = {
               });
 
               if (!finalDetailStr) {
-                // If forward: start is exclusive cell, end is grouped non-RCC cells
-                // If backward: start is grouped non-RCC cells, end is exclusive cell
                 const startExc = isForward ? excCell : targetCellsWithElims;
                 const endExc = isForward ? targetCellsWithElims : excCell;
                 const startIsRcd = isForward ? true : false;
@@ -9004,12 +9169,12 @@ const techniques = {
 
                 finalDetailStr = buildDetailStr(
                   path,
-                  null, // cCell
+                  null,
                   sD,
                   eD,
                   startExc,
                   endExc,
-                  false, // isRing
+                  false,
                   startIsRcd,
                   endIsRcd,
                 );
@@ -9019,10 +9184,7 @@ const techniques = {
         }
       };
 
-      // Check Direction 1: Start AHS exclusive cell sees Close AHS non-RCC cell
       checkAsymmetricLink(firstAhs, lastAhs, firstUsedCell, lastUsedCell, true);
-
-      // Check Direction 2: Close AHS exclusive cell sees Start AHS non-RCC cell
       checkAsymmetricLink(
         lastAhs,
         firstAhs,
@@ -9113,32 +9275,52 @@ const techniques = {
     };
 
     let currentTargetLen = minLength;
-    // DFS Execution
-    const findPaths = (currentIdx, path, visited) => {
+
+    // --- PRE-ALLOCATED DFS DATA STRUCTURES ---
+    const SHARED_VISITED_AHS = new Uint8Array(4096);
+    const SHARED_PATH_AHS = new Array(20);
+
+    // --- ULTRA-FAST POINTER-BASED DFS EXECUTION ---
+    const dfs = (depth) => {
       if (foundResult && !findAll) return;
 
-      if (path.length === currentTargetLen) {
-        if (minLength === 2 && _prAHSXY && path.length === 3) return;
-        if (path[0].ahsIdx < path[path.length - 1].ahsIdx) {
-          const res = evaluatePath(path);
-          if (!findAll) {
-            foundResult = res;
-            return;
-          } else {
-            if (res !== null) allResults.push(res); // ← guard against null
+      const currentLen = depth + 1;
+      const currentPathStep = SHARED_PATH_AHS[depth];
+      const currentIdx = currentPathStep.ahsIdx;
+
+      // When reaching target length
+      if (currentLen === currentTargetLen) {
+        if (minLength === 2 && _prAHSXY && currentLen === 3) return;
+
+        const rootIdx = SHARED_PATH_AHS[0].ahsIdx;
+        if (rootIdx < currentIdx) {
+          // Slice only when evaluating a completed chain
+          const currentPathSlice = SHARED_PATH_AHS.slice(0, currentLen);
+          const res = evaluatePath(currentPathSlice);
+          if (res !== null) {
+            if (!findAll) {
+              foundResult = res;
+              return;
+            } else {
+              allResults.push(res);
+            }
           }
         }
+        return; // Don't drill deeper than max target length
       }
 
-      if (path.length === currentTargetLen) return;
-
+      // Fast standard loop to explore neighbors
       for (let nextIdx = 0; nextIdx < ahses.length; nextIdx++) {
-        if (visited.has(nextIdx)) continue;
+        // Instant check to avoid visiting already visited sets
+        if (SHARED_VISITED_AHS[nextIdx] === 1) continue;
+
         const edges = getEdges(currentIdx, nextIdx);
 
-        for (const edge of edges) {
-          const lastEdge = path[path.length - 1].edge;
+        for (let e = 0; e < edges.length; e++) {
+          const edge = edges[e];
+          const lastEdge = currentPathStep.edge;
 
+          // Prevent U-turns utilizing the same cell in/out
           if (lastEdge) {
             const cellIn =
               lastEdge.type === "rcc" ? lastEdge.cell : lastEdge.excTo;
@@ -9146,11 +9328,15 @@ const techniques = {
             if (cellEq(cellIn, cellOut)) continue;
           }
 
-          visited.add(nextIdx);
-          path.push({ ahsIdx: nextIdx, edge: edge });
-          findPaths(nextIdx, path, visited);
-          path.pop();
-          visited.delete(nextIdx);
+          // Progress depth pointer
+          const nextDepth = depth + 1;
+          SHARED_VISITED_AHS[nextIdx] = 1;
+          SHARED_PATH_AHS[nextDepth] = { ahsIdx: nextIdx, edge: edge };
+
+          dfs(nextDepth);
+
+          // BACKTRACK instantly
+          SHARED_VISITED_AHS[nextIdx] = 0;
 
           if (foundResult && !findAll) return;
         }
@@ -9164,9 +9350,16 @@ const techniques = {
       currentTargetLen++
     ) {
       for (let i = 0; i < ahses.length; i++) {
-        const visited = new Set([i]);
-        findPaths(i, [{ ahsIdx: i, edge: null }], visited);
         if (foundResult && !findAll) break;
+
+        // Write the root node to depth 0
+        SHARED_VISITED_AHS[i] = 1;
+        SHARED_PATH_AHS[0] = { ahsIdx: i, edge: null };
+
+        dfs(0);
+
+        // Backtrack root
+        SHARED_VISITED_AHS[i] = 0;
       }
       if (foundResult && !findAll) return foundResult;
     }
@@ -9603,9 +9796,17 @@ const techniques = {
         }
 
         if (elims.length > 0) {
-          const uniqueElims = Array.from(
-            new Set(elims.map(JSON.stringify)),
-          ).map(JSON.parse);
+          const uniqueElims = [];
+          const seen = new Set();
+          for (let i = 0; i < elims.length; i++) {
+            const el = elims[i];
+            // Create a unique 12-bit integer key for r, c, num
+            const key = (el.r << 8) | (el.c << 4) | el.num;
+            if (!seen.has(key)) {
+              seen.add(key);
+              uniqueElims.push(el);
+            }
+          }
 
           // --- Formatting Helpers ---
           const fmtALS = (als) => {
@@ -10269,9 +10470,17 @@ const techniques = {
 
       // If eliminations found for this stem, return immediately
       if (foundAny && eliminations.length > 0) {
-        const uniqueElims = Array.from(
-          new Set(eliminations.map(JSON.stringify)),
-        ).map(JSON.parse);
+        const uniqueElims = [];
+        const seen = new Set();
+        for (let i = 0; i < eliminations.length; i++) {
+          const el = eliminations[i];
+          // Create a unique 12-bit integer key for r, c, num
+          const key = (el.r << 8) | (el.c << 4) | el.num;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueElims.push(el);
+          }
+        }
         const resultObj = {
           change: true,
           type: "remove",
@@ -10750,9 +10959,17 @@ const techniques = {
 
       // If eliminations found for this stem, return immediately
       if (foundAny && eliminations.length > 0) {
-        const uniqueElims = Array.from(
-          new Set(eliminations.map(JSON.stringify)),
-        ).map(JSON.parse);
+        const uniqueElims = [];
+        const seen = new Set();
+        for (let i = 0; i < eliminations.length; i++) {
+          const el = eliminations[i];
+          // Create a unique 12-bit integer key for r, c, num
+          const key = (el.r << 8) | (el.c << 4) | el.num;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueElims.push(el);
+          }
+        }
 
         const unitName =
           uType === "row"
