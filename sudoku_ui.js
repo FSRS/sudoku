@@ -481,7 +481,7 @@ function initBoardState() {
 function createGrid() {
   gridContainer.innerHTML = "";
 
-  // 1. Generate the Grid Rows & Cells FIRST
+  // 1. Generate the Grid Rows, Cells, and Internal Skeletons
   for (let i = 0; i < 9; i++) {
     const rowEl = document.createElement("div");
     rowEl.className = "grid-row flex";
@@ -490,14 +490,33 @@ function createGrid() {
       cellEl.className = "sudoku-cell";
       cellEl.dataset.row = i;
       cellEl.dataset.col = j;
+
+      // -- NEW: Pre-build the DOM skeleton for each cell --
+      const contentEl = document.createElement("div");
+      contentEl.className = "cell-content";
+
+      const pencilGridEl = document.createElement("div");
+      pencilGridEl.className = "pencil-grid";
+
+      // Create 9 generic pencil marks
+      for (let k = 0; k < 9; k++) {
+        const markEl = document.createElement("div");
+        markEl.className = "pencil-mark";
+        // Store an index so we can map digits A/B layouts later
+        markEl.dataset.index = k;
+        pencilGridEl.appendChild(markEl);
+      }
+
+      contentEl.appendChild(pencilGridEl);
+      cellEl.appendChild(contentEl);
+      // ----------------------------------------------------
+
       rowEl.appendChild(cellEl);
     }
     gridContainer.appendChild(rowEl);
   }
 
   // 2. Add the SVG Drawing Layer LAST
-  // Placing it last ensures it doesn't offset the :nth-child CSS selectors for the rows,
-  // while z-index/absolute positioning keeps it visually on top.
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.id = "drawing-layer";
   svg.setAttribute(
@@ -755,6 +774,12 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
 function renderBoard() {
   const cells = gridContainer.querySelectorAll(".sudoku-cell");
   const isMobile = window.innerWidth <= 550;
+
+  // Define layout orders once outside the loop
+  const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
+  const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
+
   cells.forEach((cell) => {
     const row = parseInt(cell.dataset.row);
     const col = parseInt(cell.dataset.col);
@@ -766,385 +791,24 @@ function renderBoard() {
       cell.tooltipInstance = null;
     }
 
-    cell.innerHTML = "";
-    cell.classList.remove(
-      "selected",
-      "selected-green",
-      "invalid",
-      "highlighted",
-    );
-    cell.style.backgroundColor = state.cellColor || "";
-
-    // Remove old handlers before adding new ones
-    cell.onmouseover = null;
-    cell.onmouseout = null;
-
+    // 1. Update Cell Backgrounds & Classes
+    cell.className = "sudoku-cell"; // Reset base class
     if (state.cellColor) {
       cell.classList.add("has-color");
+      cell.style.backgroundColor = state.cellColor;
     } else {
-      cell.classList.remove("has-color");
+      cell.style.backgroundColor = "";
     }
 
-    // --- HELPER: Get Alternate Color (Shared between Cell and Candidate) ---
-    // --- HELPER: Get Alternate Color (Shared between Cell and Candidate) ---
-    const getAltColor = () => {
-      if (currentMode === "color") {
-        let altColor = null;
-        let palette = [];
-        if (coloringSubMode === "candidate") {
-          altColor = lastUsedColors.color.prevCandidate;
-          palette = candidateColorPalette;
-        } else if (coloringSubMode === "cell") {
-          altColor = lastUsedColors.color.prevCell;
-          palette = cellColorPalette;
-        }
-
-        if (!altColor || altColor === selectedColor) {
-          let currentIndex = palette.indexOf(selectedColor);
-          if (currentIndex === -1) currentIndex = 0;
-          let fallbackIndex = (currentIndex + 2) % palette.length;
-          altColor = palette[fallbackIndex];
-        }
-        return altColor;
-      }
-      return null;
-    };
-
-    // --- NEW: SUPPRESSION FLAG ---
-    let suppressCellPreview = false;
-
-    // --- CELL LEVEL ALTERNATE ACTION (Right Click / Long Press) ---
-    const executeCellAlternateAction = () => {
-      if (!isExperimentalMode) return;
-      if (currentMode === "color" && coloringSubMode === "cell") {
-        const altColor = getAltColor();
-
-        suppressCellPreview = true; // Prevent hover from hiding the applied color
-
-        if (state.cellColor === altColor) {
-          state.cellColor = null;
-          cell.style.backgroundColor = "";
-        } else {
-          state.cellColor = altColor;
-          cell.style.backgroundColor = altColor;
-        }
-        saveState();
-      }
-    };
-
-    // Desktop Cell Events
-    cell.onmousedown = null;
-    cell.onmouseup = null;
-    cell.onmouseleave = null;
-
-    cell.oncontextmenu = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (isSolverMode) return;
-      executeCellAlternateAction(); // Cleaned up
-    };
-
-    // Intercept standard click if long press fired
-    cell.onclick = (e) => {
-      if (isSolverMode) return;
-      if (
-        currentMode === "color" &&
-        coloringSubMode === "cell" &&
-        selectedColor
-      ) {
-        e.stopPropagation();
-
-        if (selectedCell.row !== null && selectedCell.col !== null) {
-          const prevCellEl = gridContainer.querySelector(
-            `.sudoku-cell[data-row="${selectedCell.row}"][data-col="${selectedCell.col}"]`,
-          );
-          if (prevCellEl)
-            prevCellEl.classList.remove("selected", "selected-green");
-        }
-        selectedCell.row = row;
-        selectedCell.col = col;
-        cell.classList.add("selected");
-
-        suppressCellPreview = true;
-
-        if (state.cellColor === selectedColor) {
-          state.cellColor = null;
-          cell.style.backgroundColor = "";
-        } else {
-          state.cellColor = selectedColor;
-          cell.style.backgroundColor = selectedColor;
-        }
-        saveState();
-      }
-    };
-
-    // --- STANDARD CELL HOVER ---
-    cell.onmouseover = () => {
-      if (isSolverMode) return;
-      if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
-
-      currentlyHoveredElement = cell;
-      if (window.matchMedia("(hover: hover)").matches) {
-        if (
-          currentMode === "color" &&
-          coloringSubMode === "cell" &&
-          selectedColor
-        ) {
-          if (!suppressCellPreview) {
-            cell.style.backgroundColor = selectedColor;
-          } else {
-            cell.style.backgroundColor = state.cellColor || "";
-          }
-        }
-      }
-    };
-
-    cell.onmouseout = () => {
-      if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
-
-      currentlyHoveredElement = null;
-      suppressCellPreview = false;
-      if (currentMode === "color" && coloringSubMode === "cell") {
-        cell.style.backgroundColor = state.cellColor || "";
-      }
-    };
-
+    // Apply selection/highlight classes
     if (row === selectedCell.row && col === selectedCell.col) {
       const useGreenHighlight =
         currentMode === "pencil" ||
         (currentMode === "color" && coloringSubMode === "candidate") ||
-        (currentMode === "draw" && drawSubMode === "dash"); // ADD THIS CHECK
-
-      if (useGreenHighlight) {
-        cell.classList.add("selected-green");
-      } else {
-        cell.classList.add("selected");
-      }
+        (currentMode === "draw" && drawSubMode === "dash");
+      cell.classList.add(useGreenHighlight ? "selected-green" : "selected");
     }
-    const content = document.createElement("div");
-    content.className = "cell-content";
-    if (state.value !== 0) {
-      content.textContent = state.value;
-      content.classList.add(state.isGiven ? "given-value" : "user-value");
-    } else if (!arePencilsHidden && state.pencils.size > 0) {
-      const pencilGrid = document.createElement("div");
-      pencilGrid.className = "pencil-grid";
-      const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-      const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
-      const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
-      currentOrder.forEach((i) => {
-        const mark = document.createElement("div");
-        mark.className = "pencil-mark";
-        if (state.pencils.has(i)) {
-          mark.textContent = i;
-          if (state.pencilColors.has(i)) {
-            mark.style.color = state.pencilColors.get(i);
-          }
-          const allowInteraction =
-            !isMobile ||
-            (isMobile && (isExperimentalMode || currentMode === "draw"));
-          // --- NEW: SUPPRESSION FLAG FOR CANDIDATE ---
-          let suppressCandidatePreview = false;
 
-          // --- HELPER: Logic for Alternate Action (Right Click / Long Press) ---
-          const executeAlternateAction = () => {
-            if (!isExperimentalMode) return;
-
-            const cellState = boardState[row][col];
-
-            // 1. Alternate action on Candidate in Number mode -> Erase candidate
-            if (currentMode === "concrete") {
-              if (cellState.pencils.has(i)) {
-                if (!timerInterval) startTimer(currentElapsedTime);
-                cellState.pencils.delete(i);
-                saveState();
-                onBoardUpdated();
-              }
-            }
-            // 2. Alternate action on Candidate in Draw mode -> Draw dash line
-            else if (currentMode === "draw") {
-              const dashColor = lastUsedColors.draw.dash || lineColorPalette[0];
-              handleDrawClick(row, col, i, "dash", dashColor);
-            }
-            // 3. Alternate action in Color:Cell mode -> Color CELL
-            else if (currentMode === "color" && coloringSubMode === "cell") {
-              const altColor = getAltColor();
-              const currentCellColor = cellState.cellColor;
-
-              suppressCellPreview = true; // Prevent hover from hiding the applied color
-
-              if (currentCellColor === altColor) {
-                cellState.cellColor = null;
-                cell.style.backgroundColor = ""; // Local DOM update on parent cell
-              } else {
-                cellState.cellColor = altColor;
-                cell.style.backgroundColor = altColor; // Local DOM update on parent cell
-              }
-              saveState();
-            }
-            // 4. Alternate action on Candidate in Color:Candidate mode -> Color CANDIDATE
-            else if (
-              currentMode === "color" &&
-              coloringSubMode === "candidate"
-            ) {
-              const altColor = getAltColor();
-              const currentColor = cellState.pencilColors.get(i);
-
-              suppressCandidatePreview = true; // Prevent hover from hiding the applied color
-
-              if (currentColor === altColor) {
-                cellState.pencilColors.delete(i);
-                mark.style.color = ""; // Local DOM update on candidate
-              } else {
-                cellState.pencilColors.set(i, altColor);
-                mark.style.color = altColor; // Local DOM update on candidate
-              }
-              saveState();
-            }
-          };
-
-          // --- STANDARD HOVER & CONTEXT MENU ---
-          mark.addEventListener("mouseover", (e) => {
-            if (isSolverMode) return;
-            if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
-            e.stopPropagation();
-            currentlyHoveredElement = mark;
-
-            if (window.matchMedia("(hover: hover)").matches) {
-              if (
-                currentMode === "color" &&
-                coloringSubMode === "candidate" &&
-                selectedColor
-              ) {
-                if (!suppressCandidatePreview) {
-                  mark.style.color = selectedColor;
-                } else {
-                  mark.style.color =
-                    boardState[row][col].pencilColors.get(i) || "";
-                }
-              } else if (
-                currentMode === "color" &&
-                coloringSubMode === "cell" &&
-                selectedColor
-              ) {
-                if (!suppressCellPreview) {
-                  cell.style.backgroundColor = selectedColor;
-                } else {
-                  cell.style.backgroundColor =
-                    boardState[row][col].cellColor || "";
-                }
-              }
-            }
-          });
-
-          mark.addEventListener("mouseout", (e) => {
-            if (Date.now() - (window.lastTouchTime || 0) < 500) return; // IGNORE GHOST HOVERS
-            e.stopPropagation();
-            currentlyHoveredElement = null;
-            const cellState = boardState[row][col];
-
-            suppressCandidatePreview = false;
-            suppressCellPreview = false;
-
-            if (currentMode === "color" && coloringSubMode === "cell") {
-              cell.style.backgroundColor = cellState.cellColor || "";
-            }
-            mark.style.color = cellState.pencilColors.get(i) || "";
-          });
-
-          mark.addEventListener("contextmenu", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (isSolverMode) return;
-            executeAlternateAction();
-          });
-
-          // --- LEFT CLICK / NORMAL TAP ---
-          mark.addEventListener("click", (e) => {
-            const isCurrentlyMobile = window.innerWidth <= 550;
-            const canInteractDirectly =
-              (!isCurrentlyMobile &&
-                (isExperimentalMode ||
-                  currentMode === "draw" ||
-                  currentMode === "color")) ||
-              (isCurrentlyMobile &&
-                (isExperimentalMode || currentMode === "draw"));
-
-            if (!canInteractDirectly) {
-              // Let the click bubble up to the cell to trigger handleCellClick.
-              // Fixes unresponsive cell selection and missing candidate modal in mobile Expt OFF.
-              return;
-            }
-
-            e.stopPropagation();
-            if (isSolverMode) return;
-
-            if (currentMode === "draw") {
-              handleDrawClick(row, col, i);
-            } else if (
-              currentMode === "color" &&
-              coloringSubMode === "candidate" &&
-              selectedColor
-            ) {
-              const cellState = boardState[row][col];
-              const currentColor = cellState.pencilColors.get(i);
-
-              suppressCandidatePreview = true; // Apply here so left-clicks don't flash incorrectly
-
-              if (currentColor === selectedColor) {
-                cellState.pencilColors.delete(i);
-                mark.style.color = "";
-              } else {
-                cellState.pencilColors.set(i, selectedColor);
-                mark.style.color = selectedColor;
-              }
-              saveState();
-            }
-            // Handle left click for Color:Cell mode on a candidate
-            else if (
-              currentMode === "color" &&
-              coloringSubMode === "cell" &&
-              selectedColor
-            ) {
-              const cellState = boardState[row][col];
-              const currentCellColor = cellState.cellColor;
-
-              suppressCellPreview = true; // Apply here so left-clicks don't flash incorrectly
-
-              if (currentCellColor === selectedColor) {
-                cellState.cellColor = null;
-                cell.style.backgroundColor = "";
-              } else {
-                cellState.cellColor = selectedColor;
-                cell.style.backgroundColor = selectedColor;
-              }
-              saveState();
-            } else if (isExperimentalMode && currentMode === "pencil") {
-              const cellState = boardState[row][col];
-              if (cellState.pencils.has(i)) {
-                if (!timerInterval) startTimer(currentElapsedTime);
-                cellState.pencils.delete(i);
-                saveState();
-                onBoardUpdated();
-              }
-            } else if (isExperimentalMode && currentMode === "concrete") {
-              const cellState = boardState[row][col];
-              if (cellState.isGiven) return;
-              if (!timerInterval) startTimer(currentElapsedTime);
-              cellState.value = i;
-              cellState.pencils.clear();
-              autoEliminatePencils(row, col, i);
-              saveState();
-              onBoardUpdated();
-              checkCompletion();
-            }
-          });
-        }
-        pencilGrid.appendChild(mark);
-      });
-      content.appendChild(pencilGrid);
-    }
-    cell.appendChild(content);
     if (highlightState === 1 && highlightedDigit !== null) {
       if (
         state.value === highlightedDigit ||
@@ -1157,7 +821,55 @@ function renderBoard() {
         cell.classList.add("highlighted");
       }
     }
+
+    // 2. Update Content Elements (No DOM destruction!)
+    const content = cell.querySelector(".cell-content");
+    const pencilGrid = cell.querySelector(".pencil-grid");
+
+    // Clear custom big-number text if it existed
+    // We use a safe check to only wipe text nodes, not our DOM skeleton
+    Array.from(content.childNodes).forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) node.remove();
+    });
+
+    if (state.value !== 0) {
+      // It's a concrete number
+      content.appendChild(document.createTextNode(state.value));
+      content.className = `cell-content ${state.isGiven ? "given-value" : "user-value"}`;
+      if (pencilGrid) pencilGrid.style.display = "none";
+    } else {
+      // It's an empty cell with potential pencil marks
+      content.className = "cell-content";
+
+      if (!arePencilsHidden && state.pencils.size > 0) {
+        pencilGrid.style.display = "grid";
+        const marks = pencilGrid.querySelectorAll(".pencil-mark");
+
+        marks.forEach((mark, index) => {
+          const digit = currentOrder[index];
+          mark.dataset.num = digit; // Save digit for event delegation later
+
+          if (state.pencils.has(digit)) {
+            mark.textContent = digit;
+            mark.style.visibility = "visible";
+            mark.style.color = state.pencilColors.has(digit)
+              ? state.pencilColors.get(digit)
+              : "";
+
+            // Reapply suppression overrides if hover states mandate it (handled by delegation, but visually reset here)
+            mark.dataset.currentColor = mark.style.color;
+          } else {
+            mark.style.visibility = "hidden";
+            mark.textContent = "";
+            mark.style.color = "";
+          }
+        });
+      } else {
+        if (pencilGrid) pencilGrid.style.display = "none";
+      }
+    }
   });
+
   validateBoard();
 }
 
@@ -1654,11 +1366,250 @@ function setupEventListeners() {
   gridContainer.style.userSelect = "none";
   gridContainer.addEventListener("dragstart", (e) => e.preventDefault());
 
-  gridContainer.addEventListener("contextmenu", (e) => e.preventDefault());
-
   loadExperimentalModePreference();
 
-  gridContainer.addEventListener("click", handleCellClick);
+  // ========================================================================
+  // EVENT DELEGATION FOR SUDOKU GRID (Click, Right-Click, Hover)
+  // ========================================================================
+
+  // --- 1. HOVER IN (Mouseover) ---
+  gridContainer.addEventListener("mouseover", (e) => {
+    if (isSolverMode) return;
+    if (Date.now() - (window.lastTouchTime || 0) < 500) return; // Ignore ghost hovers
+    if (!window.matchMedia("(hover: hover)").matches) return; // Desktop only
+
+    const cell = e.target.closest(".sudoku-cell");
+    if (!cell) return;
+
+    const mark = e.target.closest(".pencil-mark");
+    currentlyHoveredElement = mark || cell;
+
+    if (currentMode === "color" && selectedColor) {
+      if (
+        coloringSubMode === "cell" &&
+        !cell.classList.contains("suppress-hover")
+      ) {
+        cell.style.backgroundColor = selectedColor;
+      } else if (
+        coloringSubMode === "candidate" &&
+        mark &&
+        mark.style.visibility !== "hidden" &&
+        !mark.classList.contains("suppress-hover")
+      ) {
+        mark.style.color = selectedColor;
+      }
+    }
+  });
+
+  // --- 2. HOVER OUT (Mouseout) ---
+  gridContainer.addEventListener("mouseout", (e) => {
+    if (isSolverMode) return;
+    if (Date.now() - (window.lastTouchTime || 0) < 500) return;
+
+    const cell = e.target.closest(".sudoku-cell");
+    if (!cell) return;
+
+    const row = parseInt(cell.dataset.row);
+    const col = parseInt(cell.dataset.col);
+    const cellState = boardState[row][col];
+    const mark = e.target.closest(".pencil-mark");
+
+    currentlyHoveredElement = null;
+
+    // Remove suppression flags when mouse leaves
+    if (mark) mark.classList.remove("suppress-hover");
+    cell.classList.remove("suppress-hover");
+
+    // Restore accurate colors from board state
+    if (currentMode === "color") {
+      if (coloringSubMode === "cell") {
+        cell.style.backgroundColor = cellState.cellColor || "";
+      }
+      if (mark && mark.dataset.num) {
+        const num = parseInt(mark.dataset.num);
+        mark.style.color = cellState.pencilColors.get(num) || "";
+      }
+    }
+  });
+
+  // --- 3. LEFT CLICK / TAP ---
+  gridContainer.addEventListener("click", (e) => {
+    if (isSolverMode) return;
+
+    const mark = e.target.closest(".pencil-mark");
+    const cell = e.target.closest(".sudoku-cell");
+
+    if (!cell) return;
+
+    const row = parseInt(cell.dataset.row);
+    const col = parseInt(cell.dataset.col);
+    const cellState = boardState[row][col];
+
+    // Sub-case A: Clicked a valid Pencil Mark
+    if (mark && mark.style.visibility !== "hidden") {
+      const i = parseInt(mark.dataset.num);
+      const isCurrentlyMobile = window.innerWidth <= 550;
+      const canInteractDirectly =
+        (!isCurrentlyMobile &&
+          (isExperimentalMode ||
+            currentMode === "draw" ||
+            currentMode === "color")) ||
+        (isCurrentlyMobile && (isExperimentalMode || currentMode === "draw"));
+
+      if (!canInteractDirectly) {
+        handleCellClick({ target: cell }); // Fallback to cell click
+        return;
+      }
+
+      e.stopPropagation();
+
+      if (currentMode === "draw") {
+        handleDrawClick(row, col, i);
+      } else if (
+        currentMode === "color" &&
+        coloringSubMode === "candidate" &&
+        selectedColor
+      ) {
+        mark.classList.add("suppress-hover"); // Prevent hover flicker
+        const currentColor = cellState.pencilColors.get(i);
+        if (currentColor === selectedColor) {
+          cellState.pencilColors.delete(i);
+        } else {
+          cellState.pencilColors.set(i, selectedColor);
+        }
+        saveState();
+        renderBoard();
+      } else if (
+        currentMode === "color" &&
+        coloringSubMode === "cell" &&
+        selectedColor
+      ) {
+        cell.classList.add("suppress-hover"); // Prevent hover flicker
+        if (cellState.cellColor === selectedColor) {
+          cellState.cellColor = null;
+        } else {
+          cellState.cellColor = selectedColor;
+        }
+        saveState();
+        renderBoard();
+      } else if (isExperimentalMode && currentMode === "pencil") {
+        if (cellState.pencils.has(i)) {
+          if (!timerInterval) startTimer(currentElapsedTime);
+          cellState.pencils.delete(i);
+          saveState();
+          onBoardUpdated();
+        }
+      } else if (isExperimentalMode && currentMode === "concrete") {
+        if (cellState.isGiven) return;
+        if (!timerInterval) startTimer(currentElapsedTime);
+        cellState.value = i;
+        cellState.pencils.clear();
+        autoEliminatePencils(row, col, i);
+        saveState();
+        onBoardUpdated();
+        checkCompletion();
+      }
+    }
+    // Sub-case B: Clicked the Cell body
+    else {
+      if (
+        currentMode === "color" &&
+        coloringSubMode === "cell" &&
+        selectedColor
+      ) {
+        cell.classList.add("suppress-hover");
+        if (cellState.cellColor === selectedColor) {
+          cellState.cellColor = null;
+        } else {
+          cellState.cellColor = selectedColor;
+        }
+        saveState();
+        renderBoard();
+      } else {
+        handleCellClick({ target: cell });
+      }
+    }
+  });
+
+  // --- 4. RIGHT CLICK / LONG PRESS ---
+  gridContainer.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    if (isSolverMode || !isExperimentalMode) return;
+
+    const cell = e.target.closest(".sudoku-cell");
+    if (!cell) return;
+
+    const mark = e.target.closest(".pencil-mark");
+    const row = parseInt(cell.dataset.row);
+    const col = parseInt(cell.dataset.col);
+    const cellState = boardState[row][col];
+
+    // Helper: Get alternate color for right-click painting
+    const getAltColor = () => {
+      let altColor = null;
+      let palette = [];
+      if (coloringSubMode === "candidate") {
+        altColor = lastUsedColors.color.prevCandidate;
+        palette = candidateColorPalette;
+      } else if (coloringSubMode === "cell") {
+        altColor = lastUsedColors.color.prevCell;
+        palette = cellColorPalette;
+      }
+      if (!altColor || altColor === selectedColor) {
+        let currentIndex = palette.indexOf(selectedColor);
+        if (currentIndex === -1) currentIndex = 0;
+        altColor = palette[(currentIndex + 2) % palette.length];
+      }
+      return altColor;
+    };
+
+    // Sub-case A: Right-clicked a Pencil Mark
+    if (mark && mark.style.visibility !== "hidden") {
+      e.stopPropagation();
+      const i = parseInt(mark.dataset.num);
+
+      if (currentMode === "concrete") {
+        if (cellState.pencils.has(i)) {
+          if (!timerInterval) startTimer(currentElapsedTime);
+          cellState.pencils.delete(i);
+          saveState();
+          onBoardUpdated();
+        }
+      } else if (currentMode === "draw") {
+        const dashColor = lastUsedColors.draw.dash || lineColorPalette[0];
+        handleDrawClick(row, col, i, "dash", dashColor);
+      } else if (currentMode === "color" && coloringSubMode === "cell") {
+        cell.classList.add("suppress-hover");
+        const altColor = getAltColor();
+        cellState.cellColor =
+          cellState.cellColor === altColor ? null : altColor;
+        saveState();
+        renderBoard();
+      } else if (currentMode === "color" && coloringSubMode === "candidate") {
+        mark.classList.add("suppress-hover");
+        const altColor = getAltColor();
+        if (cellState.pencilColors.get(i) === altColor) {
+          cellState.pencilColors.delete(i);
+        } else {
+          cellState.pencilColors.set(i, altColor);
+        }
+        saveState();
+        renderBoard();
+      }
+    }
+    // Sub-case B: Right-clicked the Cell body
+    else {
+      if (currentMode === "color" && coloringSubMode === "cell") {
+        cell.classList.add("suppress-hover");
+        const altColor = getAltColor();
+        cellState.cellColor =
+          cellState.cellColor === altColor ? null : altColor;
+        saveState();
+        renderBoard();
+      }
+    }
+  });
+
   modeSelector.addEventListener("click", (e) => handleModeChange(e));
   numberPad.addEventListener("click", handleNumberPadClick);
   loadBtn.addEventListener("click", () => loadPuzzle(puzzleStringInput.value));
