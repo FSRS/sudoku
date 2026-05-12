@@ -3909,6 +3909,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }
 
   renderBoard();
+  renderLines();
   savePuzzleTimer();
 
   currentPuzzleKey = isCustomPuzzle
@@ -4249,8 +4250,6 @@ function applySavedProgress(puzzleData) {
       currentCell.pencilColors = new Map(savedCell.pc || []);
     }
   }
-
-  renderLines();
 
   showMessage("Loaded saved progress.", "green");
   return typeof savedGame.time === "number" ? savedGame.time : 0;

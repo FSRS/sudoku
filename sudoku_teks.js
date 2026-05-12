@@ -8780,7 +8780,7 @@ const techniques = {
       startExc,
       endExc,
       isRing,
-      startIsRcd = true,
+      startIsRcd = true, // Kept for signature compatibility, though unused internally now
       endIsRcd = true,
     ) => {
       const formatGrouped = (cells, ahs) => {
@@ -8806,76 +8806,39 @@ const techniques = {
         }
       };
 
-      const getStr = (cellData, isRcd, d, ahs) => {
-        if (isRcd) return `(${d})${fmtCell(cellData[0], cellData[1], ahs)}`;
-
+      const getCellStr = (cellData, ahs) => {
         if (Array.isArray(cellData) && Array.isArray(cellData[0])) {
           if (cellData.length === 1) {
-            return `(${getCands(cellData[0][0], cellData[0][1], ahs)})${fmtCell(cellData[0][0], cellData[0][1], ahs)}`;
+            return fmtCell(cellData[0][0], cellData[0][1], ahs);
           }
-          const unionCands = new Set();
-          for (const [r, c] of cellData) {
-            for (const cand of pencils[r][c]) {
-              if (ahs.digits.has(cand)) unionCands.add(cand);
-            }
-          }
-          const candStr = [...unionCands].sort((a, b) => a - b).join("");
-          return `(${candStr})${formatGrouped(cellData, ahs)}`;
+          return formatGrouped(cellData, ahs);
         }
-
-        return `(${getCands(cellData[0], cellData[1], ahs)})${fmtCell(cellData[0], cellData[1], ahs)}`;
+        return fmtCell(cellData[0], cellData[1], ahs);
       };
 
       const parts = [];
       for (let i = 0; i < path.length; i++) {
         const ahs = ahses[path[i].ahsIdx];
-        let inCell, inIsRcd, inD;
-        let outCell, outIsRcd, outD;
+        let inCell, outCell;
 
         if (i === 0) {
-          if (cCell) {
-            inCell = cCell;
-            inIsRcd = false;
-          } else {
-            inCell = startExc;
-            inIsRcd = startIsRcd;
-            inD = startD;
-          }
+          inCell = cCell ? cCell : startExc;
         } else {
           const prevEdge = path[i].edge;
-          if (prevEdge.type === "rcc") {
-            inCell = prevEdge.cell;
-            inIsRcd = false;
-          } else {
-            inCell = prevEdge.excTo;
-            inIsRcd = true;
-            inD = prevEdge.d;
-          }
+          inCell = prevEdge.type === "rcc" ? prevEdge.cell : prevEdge.excTo;
         }
 
         if (i === path.length - 1) {
-          if (cCell) {
-            outCell = cCell;
-            outIsRcd = false;
-          } else {
-            outCell = endExc;
-            outIsRcd = endIsRcd;
-            outD = endD;
-          }
+          outCell = cCell ? cCell : endExc;
         } else {
           const nextEdge = path[i + 1].edge;
-          if (nextEdge.type === "rcc") {
-            outCell = nextEdge.cell;
-            outIsRcd = false;
-          } else {
-            outCell = nextEdge.excFrom;
-            outIsRcd = true;
-            outD = nextEdge.d;
-          }
+          outCell = nextEdge.type === "rcc" ? nextEdge.cell : nextEdge.excFrom;
         }
 
+        const ahsDigitsStr = [...ahs.digits].sort((a, b) => a - b).join("");
+
         parts.push(
-          `(${getStr(inCell, inIsRcd, inD, ahs)}=${getStr(outCell, outIsRcd, outD, ahs)})${formatAHS(ahs)}`,
+          `(${ahsDigitsStr})(${getCellStr(inCell, ahs)}=${getCellStr(outCell, ahs)})`,
         );
       }
 
