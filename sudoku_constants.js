@@ -173,6 +173,7 @@ let isAutoPencilPending = false;
 let isSolvePending = false;
 let autoPencilTipTimer = null;
 let lampEvaluationTimeout = null;
+let copyTipTimer = null;
 let currentLampColor = "gray";
 let isExperimentalMode = false;
 

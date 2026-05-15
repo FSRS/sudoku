@@ -45,6 +45,29 @@ let _prALSW = false;
 let _prAHSXZ = false;
 let _prAHSXY = false;
 
+window.addCellColor = function (r, c, color) {
+  const existing = boardState[r][c].cellColor;
+  if (!existing) {
+    boardState[r][c].cellColor = [color]; // Starts as array to support splitting
+  } else if (Array.isArray(existing)) {
+    if (!existing.includes(color)) existing.push(color);
+  } else {
+    if (existing !== color) boardState[r][c].cellColor = [existing, color];
+  }
+};
+
+window.addCandidateColor = function (r, c, num, color) {
+  const existing = boardState[r][c].pencilColors.get(num);
+  if (!existing) {
+    boardState[r][c].pencilColors.set(num, [color]);
+  } else if (Array.isArray(existing)) {
+    if (!existing.includes(color)) existing.push(color);
+  } else {
+    if (existing !== color)
+      boardState[r][c].pencilColors.set(num, [existing, color]);
+  }
+};
+
 const SEES_MATRIX = new Uint8Array(81 * 81);
 for (let id1 = 0; id1 < 81; id1++) {
   for (let id2 = 0; id2 < 81; id2++) {
@@ -7955,24 +7978,23 @@ const techniques = {
           const alsColors = [6, 7, 2, 3, 4, 5]; // Color loop
 
           visualPath.forEach((step, i) => {
-            // Color ALS cells
+            // Color ALS cells (Supports Multiple Colors)
             step.alsCells.forEach(([r, c]) => {
-              if (!boardState[r][c].cellColor) {
-                boardState[r][c].cellColor = cellColorPalette[alsColors[i % 6]];
-              }
+              window.addCellColor(r, c, cellColorPalette[alsColors[i % 6]]);
             });
           });
 
           // Color elimination candidate in color 1
           uniqueElims.forEach((el) =>
-            boardState[el.r][el.c].pencilColors.set(
+            window.addCandidateColor(
+              el.r,
+              el.c,
               el.num,
               candidateColorPalette[0],
             ),
           );
 
           const nodes = snap_nodes;
-
           const getClosestCells = (cellsA, cellsB) => {
             if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
               return null;
@@ -8013,9 +8035,11 @@ const techniques = {
             const node = nodes[k];
             const colorIdx = k % 2 === 0 ? 4 : 5; // Alternating candidate color 5 and 6
 
-            // Color candidate nodes
+            // Color candidate nodes (Supports Multiple Colors)
             node.cells.forEach(([r, c]) =>
-              boardState[r][c].pencilColors.set(
+              window.addCandidateColor(
+                r,
+                c,
                 node.digit,
                 candidateColorPalette[colorIdx],
               ),
@@ -8643,10 +8667,12 @@ const techniques = {
         chain.forEach((ahs, i) => {
           const cColor = ahsColors[i % 6];
           ahs.cells.forEach(([r, c]) => {
-            boardState[r][c].cellColor = cellColorPalette[cColor];
+            window.addCellColor(r, c, cellColorPalette[cColor]);
             ahs.digits.forEach((d) => {
               if (boardState[r][c].pencils.has(d)) {
-                boardState[r][c].pencilColors.set(
+                window.addCandidateColor(
+                  r,
+                  c,
                   d,
                   candidateColorPalette[cColor],
                 );
@@ -8656,10 +8682,9 @@ const techniques = {
         });
 
         const rccSet = new Set();
-
         if (rccs) {
           rccs.forEach(([r, c]) => {
-            boardState[r][c].cellColor = cellColorPalette[1];
+            window.addCellColor(r, c, cellColorPalette[1]);
             rccSet.add(`${r},${c}`);
           });
         }
@@ -8682,10 +8707,10 @@ const techniques = {
         if (isRing || (ringRcds && ringRcds.length > 0)) {
           if (ringRccs && ringRccs.length > 0) {
             ringRccs.forEach(([r, c]) => {
-              boardState[r][c].cellColor = cellColorPalette[1];
               rccSet.add(`${r},${c}`);
             });
           }
+
           if (ringRcds && ringRcds.length > 0) {
             ringRcds.forEach((rcd) => {
               const num1 = rcd.d1 !== undefined ? rcd.d1 : rcd.d;
@@ -8713,15 +8738,13 @@ const techniques = {
             const containingAHSCount = chain.filter((ahs) =>
               ahs.cells.some(([ar, ac]) => ar === el.r && ac === el.c),
             ).length;
-
-            if (containingAHSCount >= 2) {
-              boardState[el.r][el.c].cellColor = cellColorPalette[0];
-            }
           }
         });
 
         uniqueElims.forEach((el) => {
-          boardState[el.r][el.c].pencilColors.set(
+          window.addCandidateColor(
+            el.r,
+            el.c,
             el.num,
             candidateColorPalette[0],
           );

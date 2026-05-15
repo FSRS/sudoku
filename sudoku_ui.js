@@ -31,6 +31,7 @@ const copyBtn = document.getElementById("copy-btn");
 const copyModal = document.getElementById("copy-modal");
 const copyInitialBtn = document.getElementById("copy-initial-btn");
 const copyCurrentBtn = document.getElementById("copy-current-btn");
+const copyImageBtn = document.getElementById("copy-image-btn");
 const copyCancelBtn = document.getElementById("copy-cancel-btn");
 const shareBtn = document.getElementById("share-btn");
 const shareModal = document.getElementById("share-modal");
@@ -205,6 +206,11 @@ function swapThemeColors() {
   // Helper function to find a color's index and map it to the new palette
   const mapColor = (color, oldPal, newPal) => {
     if (!color) return color;
+    if (Array.isArray(color))
+      return color.map((c) => {
+        const idx = oldPal.indexOf(c);
+        return idx !== -1 && newPal[idx] ? newPal[idx] : c;
+      });
     const idx = oldPal.indexOf(color);
     return idx !== -1 && newPal[idx] ? newPal[idx] : color;
   };
@@ -771,11 +777,23 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
   updatePreview(); // Clear the dynamic preview layer
 }
 
+// --- ADD THIS HELPER JUST ABOVE renderBoard() ---
+function getGradientBackground(colors) {
+  if (!Array.isArray(colors) || colors.length === 1) return colors[0] || "";
+  const step = 100 / colors.length;
+  let gradient = "linear-gradient(to right, ";
+  colors.forEach((c, i) => {
+    gradient += `${c} ${i * step}%, ${c} ${(i + 1) * step}%${i < colors.length - 1 ? ", " : ""}`;
+  });
+  gradient += ")";
+  return gradient;
+}
+// ------------------------------------------------
+
 function renderBoard() {
   const cells = gridContainer.querySelectorAll(".sudoku-cell");
   const isMobile = window.innerWidth <= 550;
 
-  // Define layout orders once outside the loop
   const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
   const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
@@ -785,19 +803,22 @@ function renderBoard() {
     const col = parseInt(cell.dataset.col);
     const state = boardState[row][col];
 
-    // Clear previous tooltip if exists
     if (cell.tooltipInstance) {
       cell.tooltipInstance.remove();
       cell.tooltipInstance = null;
     }
 
-    // 1. Update Cell Backgrounds & Classes
-    cell.className = "sudoku-cell"; // Reset base class
+    // 1. UPDATED: Cell Backgrounds (Support for Multiple Colors)
+    cell.className = "sudoku-cell";
     if (state.cellColor) {
       cell.classList.add("has-color");
-      cell.style.backgroundColor = state.cellColor;
+      if (Array.isArray(state.cellColor)) {
+        cell.style.background = getGradientBackground(state.cellColor);
+      } else {
+        cell.style.background = state.cellColor;
+      }
     } else {
-      cell.style.backgroundColor = "";
+      cell.style.background = "";
     }
 
     // Apply selection/highlight classes
@@ -822,23 +843,19 @@ function renderBoard() {
       }
     }
 
-    // 2. Update Content Elements (No DOM destruction!)
+    // 2. Update Content Elements
     const content = cell.querySelector(".cell-content");
     const pencilGrid = cell.querySelector(".pencil-grid");
 
-    // Clear custom big-number text if it existed
-    // We use a safe check to only wipe text nodes, not our DOM skeleton
     Array.from(content.childNodes).forEach((node) => {
       if (node.nodeType === Node.TEXT_NODE) node.remove();
     });
 
     if (state.value !== 0) {
-      // It's a concrete number
       content.appendChild(document.createTextNode(state.value));
       content.className = `cell-content ${state.isGiven ? "given-value" : "user-value"}`;
       if (pencilGrid) pencilGrid.style.display = "none";
     } else {
-      // It's an empty cell with potential pencil marks
       content.className = "cell-content";
 
       if (!arePencilsHidden && state.pencils.size > 0) {
@@ -847,21 +864,46 @@ function renderBoard() {
 
         marks.forEach((mark, index) => {
           const digit = currentOrder[index];
-          mark.dataset.num = digit; // Save digit for event delegation later
+          mark.dataset.num = digit;
 
           if (state.pencils.has(digit)) {
             mark.textContent = digit;
             mark.style.visibility = "visible";
-            mark.style.color = state.pencilColors.has(digit)
-              ? state.pencilColors.get(digit)
-              : "";
 
-            // Reapply suppression overrides if hover states mandate it (handled by delegation, but visually reset here)
-            mark.dataset.currentColor = mark.style.color;
+            // 3. UPDATED: Candidate Colors (Support for Multiple Colors via CSS text clip)
+            const pColor = state.pencilColors.get(digit);
+            if (pColor) {
+              if (Array.isArray(pColor)) {
+                mark.style.background = getGradientBackground(pColor); // Changed from backgroundImage
+                mark.style.webkitBackgroundClip = "text";
+                mark.style.backgroundClip = "text"; // Added standard property
+                mark.style.webkitTextFillColor = "transparent";
+                mark.style.color = "transparent";
+              } else {
+                mark.style.background = ""; // Cleared properly
+                mark.style.webkitBackgroundClip = "";
+                mark.style.backgroundClip = "";
+                mark.style.webkitTextFillColor = "";
+                mark.style.color = pColor;
+              }
+            } else {
+              mark.style.background = "";
+              mark.style.webkitBackgroundClip = "";
+              mark.style.backgroundClip = "";
+              mark.style.webkitTextFillColor = "";
+              mark.style.color = "";
+            }
+
+            mark.dataset.currentColor = Array.isArray(pColor)
+              ? JSON.stringify(pColor)
+              : pColor;
           } else {
             mark.style.visibility = "hidden";
             mark.textContent = "";
             mark.style.color = "";
+            mark.style.backgroundImage = "none";
+            mark.style.webkitBackgroundClip = "initial";
+            mark.style.webkitTextFillColor = "initial";
           }
         });
       } else {
@@ -1396,6 +1438,11 @@ function setupEventListeners() {
         mark.style.visibility !== "hidden" &&
         !mark.classList.contains("suppress-hover")
       ) {
+        // Clear background clip styles so the solid hover color is visible
+        mark.style.background = "";
+        mark.style.webkitBackgroundClip = "";
+        mark.style.backgroundClip = "";
+        mark.style.webkitTextFillColor = "";
         mark.style.color = selectedColor;
       }
     }
@@ -1423,11 +1470,28 @@ function setupEventListeners() {
     // Restore accurate colors from board state
     if (currentMode === "color") {
       if (coloringSubMode === "cell") {
-        cell.style.backgroundColor = cellState.cellColor || "";
+        if (Array.isArray(cellState.cellColor)) {
+          cell.style.background = getGradientBackground(cellState.cellColor);
+        } else {
+          cell.style.background = cellState.cellColor || "";
+        }
       }
       if (mark && mark.dataset.num) {
         const num = parseInt(mark.dataset.num);
-        mark.style.color = cellState.pencilColors.get(num) || "";
+        const pColor = cellState.pencilColors.get(num);
+        if (Array.isArray(pColor)) {
+          mark.style.background = getGradientBackground(pColor);
+          mark.style.webkitBackgroundClip = "text";
+          mark.style.backgroundClip = "text";
+          mark.style.webkitTextFillColor = "transparent";
+          mark.style.color = "transparent";
+        } else {
+          mark.style.background = "";
+          mark.style.webkitBackgroundClip = "";
+          mark.style.backgroundClip = "";
+          mark.style.webkitTextFillColor = "";
+          mark.style.color = pColor || "";
+        }
       }
     }
   });
@@ -1656,6 +1720,12 @@ function setupEventListeners() {
         console.error("Copy failed:", err);
         showMessage("Failed to copy to clipboard.", "red");
       });
+    copyModal.classList.add("hidden");
+    copyModal.classList.remove("flex");
+  });
+
+  copyImageBtn.addEventListener("click", () => {
+    copyGridAsImage(); // Generates the image and handles its own toast notifications
     copyModal.classList.add("hidden");
     copyModal.classList.remove("flex");
   });
@@ -2569,6 +2639,26 @@ function handleKeyDown(e) {
       return;
     }
 
+    // --- NEW: Handle Ctrl+C / Cmd+C inside Solver/VAT Mode ---
+    if (isCtrlOrCmd && key_lower === "c") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        copyGridAsImage();
+      } else {
+        const asciiBoard = generateAsciiGrid();
+        navigator.clipboard
+          .writeText(asciiBoard)
+          .then(() => {
+            showMessage("Board state copied to clipboard!", "green");
+          })
+          .catch((err) => {
+            console.error("Copy failed:", err);
+            showMessage("Failed to copy to clipboard.", "red");
+          });
+      }
+      return;
+    }
+
     // Disable all other shortcuts (except standard browser controls like copy/reload/inspect)
     if (!isCtrlOrCmd || !["c", "v", "r", "i"].includes(key_lower)) {
       e.preventDefault();
@@ -2592,16 +2682,20 @@ function handleKeyDown(e) {
     )
   ) {
     e.preventDefault();
-    const asciiBoard = generateAsciiGrid();
-    navigator.clipboard
-      .writeText(asciiBoard)
-      .then(() => {
-        showMessage("Board state copied to clipboard!", "green");
-      })
-      .catch((err) => {
-        console.error("Copy failed:", err);
-        showMessage("Failed to copy to clipboard.", "red");
-      });
+    if (e.shiftKey) {
+      copyGridAsImage();
+    } else {
+      const asciiBoard = generateAsciiGrid();
+      navigator.clipboard
+        .writeText(asciiBoard)
+        .then(() => {
+          showMessage("Board state copied to clipboard!", "green");
+        })
+        .catch((err) => {
+          console.error("Copy failed:", err);
+          showMessage("Failed to copy to clipboard.", "red");
+        });
+    }
     return;
   }
   if (e.altKey && key_lower === "w") {
@@ -3703,6 +3797,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   puzzleStringInput.style.height = puzzleStringInput.scrollHeight + "px";
 
   if (autoPencilTipTimer) clearTimeout(autoPencilTipTimer);
+  if (copyTipTimer) clearTimeout(copyTipTimer);
   if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
 
   // FORCE EXIT SOLVER MODE IF ACTIVE
@@ -3962,6 +4057,19 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       showMessage(tip, "gray");
     }
   }, 10000);
+
+  copyTipTimer = setTimeout(() => {
+    const isMobile = window.innerWidth <= 550;
+    if (!isMobile) {
+      // Detect if the user is on a Mac/iOS device
+      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+      const modifierKey = isMac ? "Cmd" : "Ctrl";
+
+      const tip = `Tip: Press <span class='shortcut-highlight'>${modifierKey}+C</span> to copy the grid as text, or <span class='shortcut-highlight'>${modifierKey}+Shift+C</span> to copy as an image.`;
+
+      showMessage(tip, "gray");
+    }
+  }, 15000); // Shows 15 seconds after the puzzle loads (5s after the Auto-Pencil tip)
 
   // checkCompletion();
 }
@@ -5861,13 +5969,27 @@ function formatTime(ms) {
 
 function cloneBoardState(state) {
   return state.map((row) =>
-    row.map((cell) => ({
-      value: cell.value,
-      isGiven: cell.isGiven,
-      pencils: new Set(cell.pencils),
-      cellColor: cell.cellColor,
-      pencilColors: new Map(cell.pencilColors),
-    })),
+    row.map((cell) => {
+      // Create deep copies of arrays if multiple colors exist
+      let clonedCellColor = cell.cellColor;
+      if (Array.isArray(cell.cellColor)) clonedCellColor = [...cell.cellColor];
+
+      let clonedPencilColors = new Map();
+      cell.pencilColors.forEach((color, digit) => {
+        clonedPencilColors.set(
+          digit,
+          Array.isArray(color) ? [...color] : color,
+        );
+      });
+
+      return {
+        value: cell.value,
+        isGiven: cell.isGiven,
+        pencils: new Set(cell.pencils),
+        cellColor: clonedCellColor,
+        pencilColors: clonedPencilColors,
+      };
+    }),
   );
 }
 
@@ -7510,6 +7632,256 @@ function generateAsciiGrid() {
   output += makeLine("'", "'", "'", "'", "-"); // Bot
   return output;
 }
+
+// --- Image Grid Generation ---
+function copyGridAsImage() {
+  const size = 900; // High-res 900x900 output
+  const cellSize = size / 9;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  // 1. Fill Background (Always White)
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+
+  // --- NEW HELPER: Force Light Mode Colors ---
+  const isDark = document.documentElement.classList.contains("dark");
+  const getLightColor = (color, type) => {
+    // If not in dark mode or color is missing, use as-is
+    if (!color || !isDark) return color;
+
+    let darkPal, lightPal;
+    if (type === "cell") {
+      darkPal = typeof colorPalette800 !== "undefined" ? colorPalette800 : [];
+      lightPal = typeof colorPalette300 !== "undefined" ? colorPalette300 : [];
+    } else if (type === "candidate") {
+      darkPal = typeof colorPalette400 !== "undefined" ? colorPalette400 : [];
+      lightPal = typeof colorPalette600 !== "undefined" ? colorPalette600 : [];
+    } else if (type === "line") {
+      darkPal = typeof colorPalette600 !== "undefined" ? colorPalette600 : [];
+      lightPal = typeof colorPalette450 !== "undefined" ? colorPalette450 : [];
+    } else {
+      return color;
+    }
+
+    const idx = darkPal.indexOf(color);
+    return idx !== -1 && lightPal[idx] ? lightPal[idx] : color;
+  };
+
+  // 2. Fill Colored Cells (Support Array stripes)
+  ctx.globalAlpha = 0.4;
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = boardState[r][c];
+      if (cell.cellColor) {
+        if (Array.isArray(cell.cellColor)) {
+          const colors = cell.cellColor.map((col) =>
+            getLightColor(col, "cell"),
+          );
+          const stripeWidth = cellSize / colors.length;
+          colors.forEach((color, i) => {
+            ctx.fillStyle = color;
+            ctx.fillRect(
+              c * cellSize + i * stripeWidth,
+              r * cellSize,
+              stripeWidth,
+              cellSize,
+            );
+          });
+        } else {
+          ctx.fillStyle = getLightColor(cell.cellColor, "cell");
+          ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+  }
+  ctx.globalAlpha = 1.0;
+
+  // 3. Draw Grid Lines (Hardcoded to dark colors for white background)
+  for (let i = 0; i <= 9; i++) {
+    const isMajor = i % 3 === 0;
+    ctx.beginPath();
+    ctx.moveTo(i * cellSize, 0);
+    ctx.lineTo(i * cellSize, size);
+    ctx.lineWidth = isMajor ? 4 : 1.5;
+    ctx.strokeStyle = isMajor ? "#111827" : "#9ca3af";
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, i * cellSize);
+    ctx.lineTo(size, i * cellSize);
+    ctx.lineWidth = isMajor ? 4 : 1.5;
+    ctx.strokeStyle = isMajor ? "#111827" : "#9ca3af";
+    ctx.stroke();
+  }
+
+  // Redraw outer border to ensure it isn't clipped
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "#111827";
+  ctx.strokeRect(0, 0, size, size);
+
+  // Helper for candidate coordinates
+  const format =
+    typeof candidatePopupFormat !== "undefined" ? candidatePopupFormat : "A";
+  const getCandCoords = (r, c, n) => {
+    const order =
+      format === "A"
+        ? [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        : [7, 8, 9, 4, 5, 6, 1, 2, 3];
+    const idx = order.indexOf(n);
+    const subR = Math.floor(idx / 3);
+    const subC = idx % 3;
+    return {
+      x: c * cellSize + subC * (cellSize / 3) + cellSize / 6,
+      y: r * cellSize + subR * (cellSize / 3) + cellSize / 6,
+    };
+  };
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  // 4. Draw Lines First (Behind Candidates)
+
+  drawnLines.forEach((line) => {
+    // --- ADDED: Set transparency dynamically based on line style ---
+    ctx.globalAlpha = line.style === "dash" ? 0.45 : 0.6;
+
+    const start = getCandCoords(line.r1, line.c1, line.n1);
+    const end = getCandCoords(line.r2, line.c2, line.n2);
+
+    const radiusVal = line.style === "solid" ? 14 : 10;
+
+    let x1 = start.x,
+      y1 = start.y,
+      x2 = end.x,
+      y2 = end.y;
+    const dx = x2 - x1,
+      dy = y2 - y1;
+    const originalLen = Math.sqrt(dx * dx + dy * dy);
+
+    // Shorten the endpoints so they don't overlap the numbers
+    if (originalLen > radiusVal * 2) {
+      x1 += (dx / originalLen) * radiusVal;
+      y1 += (dy / originalLen) * radiusVal;
+      x2 -= (dx / originalLen) * radiusVal;
+      y2 -= (dy / originalLen) * radiusVal;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+
+    if (line.style === "dash") {
+      // Calculate current vector and length after shortening
+      const cDx = x2 - x1;
+      const cDy = y2 - y1;
+      const cLen = Math.sqrt(cDx * cDx + cDy * cDy);
+
+      // Find the midpoint
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+
+      // Calculate perpendicular (normal) vector
+      const nx = -cDy / cLen;
+      const ny = cDx / cLen;
+
+      // Set the intensity of the curve (15% of the line's length)
+      const curveOffset = cLen * 0.15;
+
+      const cpX = midX + nx * curveOffset;
+      const cpY = midY + ny * curveOffset;
+
+      // Draw curved line
+      ctx.quadraticCurveTo(cpX, cpY, x2, y2);
+    } else {
+      // Draw straight line for solid
+      ctx.lineTo(x2, y2);
+    }
+
+    ctx.strokeStyle = getLightColor(line.color, "line"); // Apply Light Mode Color
+    ctx.lineWidth = line.style === "solid" ? 6 : 4;
+    ctx.setLineDash(line.style === "dash" ? [12, 12] : []);
+    ctx.lineCap = "round";
+    ctx.stroke();
+  });
+
+  // Reset opacity back to 100% for text rendering
+  ctx.globalAlpha = 1.0;
+  // 5. Draw Numbers and Candidates
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = boardState[r][c];
+
+      if (cell.value !== 0) {
+        // Concrete Numbers
+        ctx.font = cell.isGiven ? "600 60px sans-serif" : "400 60px sans-serif";
+        ctx.fillStyle = cell.isGiven ? "#111827" : "#4a6da7"; // Dark colors for white BG
+        ctx.fillText(
+          cell.value,
+          c * cellSize + cellSize / 2,
+          r * cellSize + cellSize / 2 + 4,
+        );
+      } else if (cell.pencils.size > 0) {
+        // Pencil Marks (Support Array gradients)
+        ctx.font = "700 24px sans-serif";
+        for (let n of cell.pencils) {
+          const coords = getCandCoords(r, c, n);
+          let candColor = cell.pencilColors.has(n)
+            ? cell.pencilColors.get(n)
+            : "#6b7280";
+
+          if (Array.isArray(candColor)) {
+            const textWidth = ctx.measureText(n).width;
+            const grad = ctx.createLinearGradient(
+              coords.x - textWidth / 2,
+              coords.y,
+              coords.x + textWidth / 2,
+              coords.y,
+            );
+            const colors = candColor.map((col) =>
+              getLightColor(col, "candidate"),
+            );
+            const step = 1 / colors.length;
+            colors.forEach((color, i) => {
+              grad.addColorStop(i * step, color);
+              grad.addColorStop((i + 1) * step, color);
+            });
+            ctx.fillStyle = grad;
+          } else {
+            ctx.fillStyle = getLightColor(candColor, "candidate");
+          }
+          ctx.fillText(n, coords.x, coords.y + 2);
+        }
+      }
+    }
+  }
+
+  // 6. Output to Clipboard
+  try {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        showMessage("Failed to generate image.", "red");
+        return;
+      }
+      const item = new ClipboardItem({ "image/png": blob });
+      navigator.clipboard
+        .write([item])
+        .then(() => {
+          showMessage("Image copied to clipboard!", "green");
+        })
+        .catch((err) => {
+          console.error("Clipboard write failed:", err);
+          showMessage("Clipboard access denied. Check permissions.", "red");
+        });
+    }, "image/png");
+  } catch (err) {
+    console.error("Canvas toBlob failed:", err);
+    showMessage("Failed to copy image to clipboard.", "red");
+  }
+}
+
 /**
  * specific helper to map hex codes to "[Color N]" format
  */
