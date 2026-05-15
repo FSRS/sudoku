@@ -7923,7 +7923,8 @@ const techniques = {
       if (isRingResult) {
         detail += "-(Ring)";
       }
-      if (nameOverride === "ALS Chain") detail = `[${path.length}] ` + detail;
+      if (nameOverride === "ALS Chain")
+        detail = `[${2 * path.length}] ` + detail;
 
       // Deep capture necessary properties to avoid relying on global _alsLookup in UI callback
       const visualPath = path.map((step) => ({
@@ -8684,7 +8685,6 @@ const techniques = {
         const rccSet = new Set();
         if (rccs) {
           rccs.forEach(([r, c]) => {
-            window.addCellColor(r, c, cellColorPalette[1]);
             rccSet.add(`${r},${c}`);
           });
         }
@@ -9237,7 +9237,7 @@ const techniques = {
 
       const uniqueElims = getUnique(removals);
       const pathLength =
-        nameOverride === "AHS Chain" ? `[${path.length}] ` : "";
+        nameOverride === "AHS Chain" ? `[${2 * path.length}] ` : "";
 
       return {
         change: true,
@@ -10523,9 +10523,9 @@ const techniques = {
               const als = alses[petal.alsIdx];
               const cColor = alsColors[i % 6];
 
-              // Color petal ALS
+              // Color petal ALS (Supports Multiple Colors for overlapping)
               als.cells.forEach(([ar, ac]) => {
-                boardState[ar][ac].cellColor = cellColorPalette[cColor];
+                window.addCellColor(ar, ac, cellColorPalette[cColor]);
               });
 
               // Process stem candidates covered by this petal
@@ -10533,8 +10533,10 @@ const techniques = {
                 petal.covers & stemMask,
               );
               coveredDigits.forEach((p) => {
-                // Highlight stem candidate
-                boardState[stem.r][stem.c].pencilColors.set(
+                // Highlight stem candidate (Supports Multiple Colors)
+                window.addCandidateColor(
+                  stem.r,
+                  stem.c,
                   p,
                   candidateColorPalette[cColor],
                 );
@@ -11020,9 +11022,9 @@ const techniques = {
               const als = alses[petal.alsIdx];
               const cColor = alsColors[i % 6];
 
-              // Color petal ALS
+              // Color petal ALS (Supports Multiple Colors for overlapping)
               als.cells.forEach(([ar, ac]) => {
-                boardState[ar][ac].cellColor = cellColorPalette[cColor];
+                window.addCellColor(ar, ac, cellColorPalette[cColor]);
               });
 
               // Find stem cells covered by this petal
@@ -11031,8 +11033,10 @@ const techniques = {
                   const sCell = stemCells[k];
                   const p = stemDigit;
 
-                  // Highlight stem candidate
-                  boardState[sCell.r][sCell.c].pencilColors.set(
+                  // Highlight stem candidate (Supports Multiple Colors)
+                  window.addCandidateColor(
+                    sCell.r,
+                    sCell.c,
                     p,
                     candidateColorPalette[cColor],
                   );
