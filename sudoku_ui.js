@@ -7747,7 +7747,7 @@ function copyGridAsImage() {
 
   drawnLines.forEach((line) => {
     // --- ADDED: Set transparency dynamically based on line style ---
-    ctx.globalAlpha = line.style === "dash" ? 0.45 : 0.6;
+    ctx.globalAlpha = line.style === "dash" ? 0.5 : 0.6;
 
     const start = getCandCoords(line.r1, line.c1, line.n1);
     const end = getCandCoords(line.r2, line.c2, line.n2);
@@ -7790,8 +7790,20 @@ function copyGridAsImage() {
       // Set the intensity of the curve (15% of the line's length)
       const curveOffset = cLen * 0.15;
 
-      const cpX = midX + nx * curveOffset;
-      const cpY = midY + ny * curveOffset;
+      let cpX = midX + nx * curveOffset;
+      let cpY = midY + ny * curveOffset;
+
+      const safeMargin = 15;
+      if (
+        cpX < safeMargin ||
+        cpX > size - safeMargin ||
+        cpY < safeMargin ||
+        cpY > size - safeMargin
+      ) {
+        // If the curve bows outward past the edge, flip the normal vector to bow inward
+        cpX = midX - nx * curveOffset;
+        cpY = midY - ny * curveOffset;
+      }
 
       // Draw curved line
       ctx.quadraticCurveTo(cpX, cpY, x2, y2);
