@@ -7784,11 +7784,19 @@ function copyGridAsImage() {
       const midY = (y1 + y2) / 2;
 
       // Calculate perpendicular (normal) vector
-      const nx = -cDy / cLen;
-      const ny = cDx / cLen;
+      let nx = -cDy / cLen;
+      let ny = cDx / cLen;
 
-      // Set the intensity of the curve (15% of the line's length)
-      const curveOffset = cLen * 0.15;
+      // --- NEW: Enforce consistent curve direction ---
+      // This prevents parallel lines drawn in opposite directions from intersecting
+      if (ny < 0 || (ny === 0 && nx < 0)) {
+        nx = -nx;
+        ny = -ny;
+      }
+
+      // --- NEW: Cap the intensity of the curve ---
+      // Uses 12% of length (down from 15%) and caps the maximum bow distance to 45px
+      const curveOffset = Math.min(cLen * 0.12, 45);
 
       let cpX = midX + nx * curveOffset;
       let cpY = midY + ny * curveOffset;
