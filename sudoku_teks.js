@@ -10019,14 +10019,15 @@ const techniques = {
               highlightedDigit = null;
               highlightState = 0;
 
-              // Color the 2 ALSes (Color 7 and 8)
-              snap_A_cells.forEach(
-                ([r, c]) => (boardState[r][c].cellColor = cellColorPalette[6]),
-              );
-              snap_B_cells.forEach(
-                ([r, c]) => (boardState[r][c].cellColor = cellColorPalette[7]),
-              );
+              // Color the 2 ALSes (Supports Multiple Colors for overlapping)
+              snap_A_cells.forEach(([r, c]) => {
+                window.addCellColor(r, c, cellColorPalette[6]);
+              });
+              snap_B_cells.forEach(([r, c]) => {
+                window.addCellColor(r, c, cellColorPalette[7]);
+              });
 
+              // Color eliminations
               uniqueElims.forEach((el) =>
                 boardState[el.r][el.c].pencilColors.set(
                   el.num,
@@ -10076,7 +10077,10 @@ const techniques = {
                 const colorIdx = k % 2 === 0 ? 4 : 5;
 
                 node.cells.forEach(([r, c]) => {
-                  boardState[r][c].pencilColors.set(
+                  // Highlight candidates (Supports Multiple Colors)
+                  window.addCandidateColor(
+                    r,
+                    c,
                     node.digit,
                     candidateColorPalette[colorIdx],
                   );
