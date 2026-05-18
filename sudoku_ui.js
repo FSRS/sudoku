@@ -861,6 +861,19 @@ function renderBoard() {
 
     // 1. UPDATED: Cell Backgrounds (Support for Multiple Colors)
     cell.className = "sudoku-cell";
+
+    const isMultiCell = Array.isArray(state.cellColor);
+    if (cell.dataset.wasMulti === "true" && !isMultiCell) {
+      cell.style.transition = "none";
+      // Restore the CSS transition after the browser paints the single color
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          cell.style.transition = "";
+        });
+      });
+    }
+    cell.dataset.wasMulti = isMultiCell ? "true" : "false";
+
     if (state.cellColor) {
       cell.classList.add("has-color");
       if (Array.isArray(state.cellColor)) {
@@ -923,6 +936,19 @@ function renderBoard() {
 
             // 3. UPDATED: Candidate Colors (Support for Multiple Colors via CSS text clip)
             const pColor = state.pencilColors.get(digit);
+
+            const isMultiCand = Array.isArray(pColor);
+            if (mark.dataset.wasMulti === "true" && !isMultiCand) {
+              mark.style.transition = "none";
+              // Restore the CSS transition after the browser paints the single color
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  mark.style.transition = "";
+                });
+              });
+            }
+            mark.dataset.wasMulti = isMultiCand ? "true" : "false";
+
             if (pColor) {
               if (Array.isArray(pColor)) {
                 mark.style.background = getGradientBackground(
