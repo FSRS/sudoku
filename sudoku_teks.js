@@ -815,11 +815,12 @@ const techniques = {
                   ? [lineCells, boxCells]
                   : [boxCells, lineCells];
 
-                color8Cells.forEach(([cr, cc]) => {
-                  boardState[cr][cc].cellColor = cellColorPalette[7];
-                });
                 color7Cells.forEach(([cr, cc]) => {
-                  boardState[cr][cc].cellColor = cellColorPalette[6];
+                  window.addCellColor(cr, cc, cellColorPalette[6]);
+                });
+
+                color8Cells.forEach(([cr, cc]) => {
+                  window.addCellColor(cr, cc, cellColorPalette[7]);
                 });
 
                 // Highlight the source candidates
@@ -1173,18 +1174,12 @@ const techniques = {
                 applyVisuals: () => {
                   highlightedDigit = num;
                   highlightState = 1;
-                  // Color cover cells first (Color 8)
-                  allSecondaryIndices.forEach((secIdx) => {
-                    for (let p = 0; p < 9; p++) {
-                      const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
-                      boardState[cr][cc].cellColor = cellColorPalette[7];
-                    }
-                  });
+
                   // Color base cells over cover (Color 7)
                   primaryLineIndices.forEach((primIdx) => {
                     for (let p = 0; p < 9; p++) {
                       const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
-                      boardState[cr][cc].cellColor = cellColorPalette[6];
+                      window.addCellColor(cr, cc, cellColorPalette[6]);
 
                       // FIX: Use boardState.pencils instead of local pencils
                       if (boardState[cr][cc].pencils.has(num)) {
@@ -1195,6 +1190,15 @@ const techniques = {
                       }
                     }
                   });
+
+                  // Color cover cells first (Color 8)
+                  allSecondaryIndices.forEach((secIdx) => {
+                    for (let p = 0; p < 9; p++) {
+                      const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
+                      window.addCellColor(cr, cc, cellColorPalette[7]);
+                    }
+                  });
+
                   removals.forEach((el) =>
                     boardState[el.r][el.c].pencilColors.set(
                       el.num,
@@ -1393,16 +1397,10 @@ const techniques = {
               applyVisuals: () => {
                 highlightedDigit = num;
                 highlightState = 1;
-                coverBaseSet.forEach((secIdx) => {
-                  for (let p = 0; p < 9; p++) {
-                    const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
-                    boardState[cr][cc].cellColor = cellColorPalette[7]; // Cover 8
-                  }
-                });
                 baseLineIndices.forEach((primIdx) => {
                   for (let p = 0; p < 9; p++) {
                     const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
-                    boardState[cr][cc].cellColor = cellColorPalette[6]; // Base 7
+                    window.addCellColor(cr, cc, cellColorPalette[6]); // Base 7
 
                     // FIX: Use boardState.pencils instead of local pencils
                     if (boardState[cr][cc].pencils.has(num)) {
@@ -1413,9 +1411,14 @@ const techniques = {
                     }
                   }
                 });
-                fins.forEach(
-                  ([fr, fc]) =>
-                    (boardState[fr][fc].cellColor = cellColorPalette[8]),
+                coverBaseSet.forEach((secIdx) => {
+                  for (let p = 0; p < 9; p++) {
+                    const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
+                    window.addCellColor(cr, cc, cellColorPalette[7]); // Cover 8
+                  }
+                });
+                fins.forEach(([fr, fc]) =>
+                  window.addCellColor(fr, fc, cellColorPalette[8]),
                 ); // Fin 9
                 removals.forEach((el) =>
                   boardState[el.r][el.c].pencilColors.set(
@@ -5495,7 +5498,7 @@ const techniques = {
                       const digits = [...V];
 
                       baseCells.forEach(([cr, cc]) => {
-                        boardState[cr][cc].cellColor = cellColorPalette[6];
+                        window.addCellColor(cr, cc, cellColorPalette[6]);
                         digits.forEach((d) => {
                           if (boardState[cr][cc].pencils.has(d))
                             boardState[cr][cc].pencilColors.set(
@@ -5506,7 +5509,8 @@ const techniques = {
                       });
 
                       inIntersection.forEach(({ r: cr, c: cc }) => {
-                        boardState[cr][cc].cellColor = cellColorPalette[7];
+                        window.addCellColor(cr, cc, cellColorPalette[6]);
+                        window.addCellColor(cr, cc, cellColorPalette[7]);
                         digits.forEach((d) => {
                           if (boardState[cr][cc].pencils.has(d))
                             boardState[cr][cc].pencilColors.set(
@@ -5517,7 +5521,7 @@ const techniques = {
                       });
 
                       outsideIntersection.forEach(({ r: cr, c: cc }) => {
-                        boardState[cr][cc].cellColor = cellColorPalette[8];
+                        window.addCellColor(cr, cc, cellColorPalette[7]);
                         digits.forEach((d) => {
                           if (boardState[cr][cc].pencils.has(d))
                             boardState[cr][cc].pencilColors.set(
@@ -5799,24 +5803,21 @@ const techniques = {
                           highlightedDigit = null;
                           highlightState = 0;
 
-                          // 1. Color pattern cells
-                          // Intersection (Color 8)
-                          C.forEach(
-                            ([r, c]) =>
-                              (boardState[r][c].cellColor =
-                                cellColorPalette[7]),
+                          // 1. Color pattern cells using multi-coloring
+                          // Line cells (Intersection + Off-intersection line)
+                          C.forEach(([r, c]) =>
+                            window.addCellColor(r, c, cellColorPalette[7]),
                           );
-                          // Off-intersection line (Color 9)
-                          aCells.forEach(
-                            ([r, c]) =>
-                              (boardState[r][c].cellColor =
-                                cellColorPalette[8]),
+                          aCells.forEach(([r, c]) =>
+                            window.addCellColor(r, c, cellColorPalette[7]),
                           );
-                          // Off-intersection box (Color 7)
-                          bCells.forEach(
-                            ([r, c]) =>
-                              (boardState[r][c].cellColor =
-                                cellColorPalette[6]),
+
+                          // Box cells (Intersection + Off-intersection box)
+                          C.forEach(([r, c]) =>
+                            window.addCellColor(r, c, cellColorPalette[6]),
+                          );
+                          bCells.forEach(([r, c]) =>
+                            window.addCellColor(r, c, cellColorPalette[6]),
                           );
 
                           // 2. Identify candidate digit subsets
@@ -6152,10 +6153,13 @@ const techniques = {
                                       highlightedDigit = null;
                                       highlightState = 0;
 
-                                      // Color Row AHS (Cell Color 7)
+                                      // Color Row AHS
                                       rowAhsCells.forEach(([r, c]) => {
-                                        boardState[r][c].cellColor =
-                                          cellColorPalette[6];
+                                        window.addCellColor(
+                                          r,
+                                          c,
+                                          cellColorPalette[6],
+                                        );
                                         ahsDigitArr.forEach((d) => {
                                           if (boardState[r][c].pencils.has(d)) {
                                             boardState[r][c].pencilColors.set(
@@ -6166,14 +6170,13 @@ const techniques = {
                                         });
                                       });
 
-                                      // Color Col AHS (Cell Color 9) & Intersection (Cell Color 8)
+                                      // Color Col AHS
                                       colAhsCells.forEach(([r, c]) => {
-                                        const isIntersect = rowAhsCells.some(
-                                          ([rr, cc]) => rr === r && cc === c,
+                                        window.addCellColor(
+                                          r,
+                                          c,
+                                          cellColorPalette[7],
                                         );
-                                        boardState[r][c].cellColor = isIntersect
-                                          ? cellColorPalette[7]
-                                          : cellColorPalette[8];
 
                                         ahsDigitArr.forEach((d) => {
                                           if (boardState[r][c].pencils.has(d)) {
@@ -11575,28 +11578,17 @@ const techniques = {
                           const uTypeToName = (t) =>
                             t === U_ROW ? "row" : t === U_COL ? "col" : "box";
 
-                          // Color Cover Units (Color 8)
-                          [
-                            finalCoverUnits[ca],
-                            finalCoverUnits[cbx],
-                            finalCoverUnits[cc],
-                          ].forEach((u) => {
-                            techniques
-                              ._getUnitCells(uTypeToName(u.type), u.index)
-                              .forEach(([cr, cc]) => {
-                                boardState[cr][cc].cellColor =
-                                  cellColorPalette[7];
-                              });
-                          });
-
                           // Color Base Units over Cover Units (Color 7)
                           [baseUnits[ia], baseUnits[ib], baseUnits[ic]].forEach(
                             (u) => {
                               techniques
                                 ._getUnitCells(uTypeToName(u.type), u.index)
                                 .forEach(([cr, cc]) => {
-                                  boardState[cr][cc].cellColor =
-                                    cellColorPalette[6];
+                                  window.addCellColor(
+                                    cr,
+                                    cc,
+                                    cellColorPalette[6],
+                                  );
 
                                   // FIX: Use boardState.pencils instead of local pencils
                                   if (boardState[cr][cc].pencils.has(num)) {
@@ -11608,14 +11600,34 @@ const techniques = {
                                 });
                             },
                           );
+
+                          // Color Cover Units (Color 8)
+                          [
+                            finalCoverUnits[ca],
+                            finalCoverUnits[cbx],
+                            finalCoverUnits[cc],
+                          ].forEach((u) => {
+                            techniques
+                              ._getUnitCells(uTypeToName(u.type), u.index)
+                              .forEach(([cr, cc]) => {
+                                window.addCellColor(
+                                  cr,
+                                  cc,
+                                  cellColorPalette[7],
+                                );
+                              });
+                          });
+
                           // Color Fins over Base/Cover (Color 9)
                           let mF = allFinsMask; // BigInt mask for all fins
                           let idxF = 0;
                           while (mF !== 0n) {
                             if (mF & 1n) {
-                              boardState[Math.floor(idxF / 9)][
-                                idxF % 9
-                              ].cellColor = cellColorPalette[8];
+                              window.addCellColor(
+                                Math.floor(idxF / 9),
+                                idxF % 9,
+                                cellColorPalette[8],
+                              );
                             }
                             mF >>= 1n;
                             idxF++;
