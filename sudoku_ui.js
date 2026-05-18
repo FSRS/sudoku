@@ -662,7 +662,6 @@ function getCandidateCenter(r, c, n) {
   return { x, y };
 }
 
-// Update the entire handleDrawClick function to this:
 function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
   // Determine active style/color taking right-click overrides into account
   const initStyle = overrideStyle || drawSubMode;
@@ -677,6 +676,17 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
       color: initColor, // Store color in drawing state
     };
     updatePreview(); // Initialize the preview (start circle)
+
+    // --- NEW: Temporarily update color pad to reflect active drawing style ---
+    if (currentMode === "draw") {
+      selectedColor = initColor;
+      const numpadButtons = document
+        .getElementById("number-pad")
+        .querySelectorAll(".color-btn");
+      numpadButtons.forEach((b) => {
+        b.classList.toggle("selected", b.dataset.color === selectedColor);
+      });
+    }
     return;
   }
 
@@ -688,6 +698,17 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
   ) {
     drawingState = null;
     updatePreview(); // Clear the preview
+
+    // --- NEW: Restore original sub-mode color ---
+    if (currentMode === "draw") {
+      selectedColor = lastUsedColors.draw[drawSubMode] || lineColorPalette[0];
+      const numpadButtons = document
+        .getElementById("number-pad")
+        .querySelectorAll(".color-btn");
+      numpadButtons.forEach((b) => {
+        b.classList.toggle("selected", b.dataset.color === selectedColor);
+      });
+    }
     return;
   }
 
@@ -775,9 +796,18 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
 
   renderLines(); // Update the static SVG layer
   updatePreview(); // Clear the dynamic preview layer
+
+  if (currentMode === "draw") {
+    selectedColor = lastUsedColors.draw[drawSubMode] || lineColorPalette[0];
+    const numpadButtons = document
+      .getElementById("number-pad")
+      .querySelectorAll(".color-btn");
+    numpadButtons.forEach((b) => {
+      b.classList.toggle("selected", b.dataset.color === selectedColor);
+    });
+  }
 }
 
-// --- ADD THIS HELPER JUST ABOVE renderBoard() ---
 function getGradientBackground(colors) {
   if (!Array.isArray(colors) || colors.length === 1) return colors[0] || "";
   const step = 100 / colors.length;
@@ -788,7 +818,28 @@ function getGradientBackground(colors) {
   gradient += ")";
   return gradient;
 }
-// ------------------------------------------------
+
+function toggleColor(existingColor, newColor) {
+  if (!newColor) return existingColor;
+  if (!existingColor) return newColor;
+
+  // Convert to array for processing
+  let colorArray = Array.isArray(existingColor)
+    ? [...existingColor]
+    : [existingColor];
+
+  // Toggle logic: If color exists, remove it. Otherwise, add it.
+  if (colorArray.includes(newColor)) {
+    colorArray = colorArray.filter((c) => c !== newColor);
+  } else {
+    colorArray.push(newColor);
+  }
+
+  // Convert back to simple values if 0 or 1 colors remain
+  if (colorArray.length === 0) return null;
+  if (colorArray.length === 1) return colorArray[0];
+  return colorArray;
+}
 
 function renderBoard() {
   const cells = gridContainer.querySelectorAll(".sudoku-cell");
@@ -1536,11 +1587,11 @@ function setupEventListeners() {
       ) {
         mark.classList.add("suppress-hover"); // Prevent hover flicker
         const currentColor = cellState.pencilColors.get(i);
-        if (currentColor === selectedColor) {
-          cellState.pencilColors.delete(i);
-        } else {
-          cellState.pencilColors.set(i, selectedColor);
-        }
+        const newColor = toggleColor(currentColor, selectedColor);
+
+        if (newColor === null) cellState.pencilColors.delete(i);
+        else cellState.pencilColors.set(i, newColor);
+
         saveState();
         renderBoard();
       } else if (
@@ -1549,11 +1600,7 @@ function setupEventListeners() {
         selectedColor
       ) {
         cell.classList.add("suppress-hover"); // Prevent hover flicker
-        if (cellState.cellColor === selectedColor) {
-          cellState.cellColor = null;
-        } else {
-          cellState.cellColor = selectedColor;
-        }
+        cellState.cellColor = toggleColor(cellState.cellColor, selectedColor);
         saveState();
         renderBoard();
       } else if (isExperimentalMode && currentMode === "pencil") {
@@ -1582,11 +1629,7 @@ function setupEventListeners() {
         selectedColor
       ) {
         cell.classList.add("suppress-hover");
-        if (cellState.cellColor === selectedColor) {
-          cellState.cellColor = null;
-        } else {
-          cellState.cellColor = selectedColor;
-        }
+        cellState.cellColor = toggleColor(cellState.cellColor, selectedColor);
         saveState();
         renderBoard();
       } else {
@@ -1645,18 +1688,18 @@ function setupEventListeners() {
       } else if (currentMode === "color" && coloringSubMode === "cell") {
         cell.classList.add("suppress-hover");
         const altColor = getAltColor();
-        cellState.cellColor =
-          cellState.cellColor === altColor ? null : altColor;
+        cellState.cellColor = toggleColor(cellState.cellColor, altColor);
         saveState();
         renderBoard();
       } else if (currentMode === "color" && coloringSubMode === "candidate") {
         mark.classList.add("suppress-hover");
         const altColor = getAltColor();
-        if (cellState.pencilColors.get(i) === altColor) {
-          cellState.pencilColors.delete(i);
-        } else {
-          cellState.pencilColors.set(i, altColor);
-        }
+        const currentColor = cellState.pencilColors.get(i);
+        const newColor = toggleColor(currentColor, altColor);
+
+        if (newColor === null) cellState.pencilColors.delete(i);
+        else cellState.pencilColors.set(i, newColor);
+
         saveState();
         renderBoard();
       }
@@ -1666,8 +1709,7 @@ function setupEventListeners() {
       if (currentMode === "color" && coloringSubMode === "cell") {
         cell.classList.add("suppress-hover");
         const altColor = getAltColor();
-        cellState.cellColor =
-          cellState.cellColor === altColor ? null : altColor;
+        cellState.cellColor = toggleColor(cellState.cellColor, altColor);
         saveState();
         renderBoard();
       }
@@ -3009,12 +3051,8 @@ function handleCellClick(e) {
   let needsRenderOnly = false;
   if (currentMode === "color") {
     if (coloringSubMode === "cell" && selectedColor) {
-      const oldColor = cellState.cellColor;
-      const newColor = oldColor === selectedColor ? null : selectedColor;
-      if (oldColor !== newColor) {
-        cellState.cellColor = newColor;
-        saveState();
-      }
+      cellState.cellColor = toggleColor(cellState.cellColor, selectedColor);
+      saveState();
       needsRenderOnly = true;
     } else if (coloringSubMode === "candidate") {
       if (cellState.value !== 0) {
@@ -3104,10 +3142,21 @@ function handleModeChange(e) {
     if (currentMode !== "draw") {
       currentMode = "draw";
       drawSubMode = "solid";
+      drawingState = null; // Reset only when newly entering draw mode
     } else {
       drawSubMode = drawSubMode === "solid" ? "dash" : "solid";
+      // UPDATED: Update style AND instantly restore the saved color for the new sub-mode
+      if (drawingState) {
+        drawingState.style = drawSubMode;
+
+        // Fetch the saved color for the newly toggled mode (or fallback to the first color)
+        const restoredColor =
+          lastUsedColors.draw[drawSubMode] || lineColorPalette[0];
+        drawingState.color = restoredColor;
+
+        updatePreview();
+      }
     }
-    drawingState = null;
   }
   // 2. Handle Logic/Color Clicks (Switching AWAY from Draw)
   else if (
@@ -3116,6 +3165,7 @@ function handleModeChange(e) {
   ) {
     if (currentMode === "draw") {
       drawingState = null;
+      updatePreview(); // Ensure the preview line is cleared visually
     }
   }
 
@@ -3276,7 +3326,16 @@ function handleNumberPadClick(e) {
     const newColor = btn.dataset.color;
 
     if (currentMode === "draw") {
-      lastUsedColors.draw[drawSubMode] = newColor;
+      // --- UPDATED: Save color to the active drawing style if overriding ---
+      const activeStyle =
+        drawingState && drawingState.style ? drawingState.style : drawSubMode;
+      lastUsedColors.draw[activeStyle] = newColor;
+
+      // Update the active drawing state color instantly
+      if (drawingState) {
+        drawingState.color = newColor;
+        updatePreview();
+      }
     } else {
       // Track previous color for both candidate and cell submodes
       if (
@@ -3680,15 +3739,25 @@ function showCandidatePopup(row, col) {
     if (cellState.pencils.has(i)) {
       btn.classList.add("hover:bg-gray-200", "dark:hover:bg-slate-600");
       if (cellState.pencilColors.has(i)) {
-        btn.style.backgroundColor = cellState.pencilColors.get(i);
+        const pColor = cellState.pencilColors.get(i);
+        // FIX: Display gradient background if it's an array of multiple colors
+        if (Array.isArray(pColor)) {
+          btn.style.background = getGradientBackground(pColor);
+        } else {
+          btn.style.background = pColor;
+        }
       }
       btn.onclick = () => {
         const currentColor = cellState.pencilColors.get(i);
-        if (currentColor === selectedColor) {
+        // FIX: Process toggling array vs string transparently
+        const newColor = toggleColor(currentColor, selectedColor);
+
+        if (newColor === null) {
           cellState.pencilColors.delete(i);
         } else {
-          cellState.pencilColors.set(i, selectedColor);
+          cellState.pencilColors.set(i, newColor);
         }
+
         saveState();
         candidateModal.classList.add("hidden");
         onBoardUpdated();
