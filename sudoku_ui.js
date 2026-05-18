@@ -808,10 +808,10 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
   }
 }
 
-function getGradientBackground(colors) {
+function getGradientBackground(colors, direction = "to right") {
   if (!Array.isArray(colors) || colors.length === 1) return colors[0] || "";
   const step = 100 / colors.length;
-  let gradient = "linear-gradient(to right, ";
+  let gradient = `linear-gradient(${direction}, `;
   colors.forEach((c, i) => {
     gradient += `${c} ${i * step}%, ${c} ${(i + 1) * step}%${i < colors.length - 1 ? ", " : ""}`;
   });
@@ -925,9 +925,12 @@ function renderBoard() {
             const pColor = state.pencilColors.get(digit);
             if (pColor) {
               if (Array.isArray(pColor)) {
-                mark.style.background = getGradientBackground(pColor); // Changed from backgroundImage
+                mark.style.background = getGradientBackground(
+                  pColor,
+                  "to bottom",
+                ); // Added "to bottom"
                 mark.style.webkitBackgroundClip = "text";
-                mark.style.backgroundClip = "text"; // Added standard property
+                mark.style.backgroundClip = "text";
                 mark.style.webkitTextFillColor = "transparent";
                 mark.style.color = "transparent";
               } else {
@@ -1478,23 +1481,38 @@ function setupEventListeners() {
     currentlyHoveredElement = mark || cell;
 
     if (currentMode === "color" && selectedColor) {
+      const row = parseInt(cell.dataset.row);
+      const col = parseInt(cell.dataset.col);
+      const cellState = boardState[row][col];
+
       if (
         coloringSubMode === "cell" &&
         !cell.classList.contains("suppress-hover")
       ) {
-        cell.style.backgroundColor = selectedColor;
+        if (Array.isArray(cellState.cellColor)) {
+          // Multi-colored: Apply solid gradient hack to prevent flashing
+          cell.style.backgroundImage = `linear-gradient(${selectedColor}, ${selectedColor})`;
+        } else {
+          // Single or Empty: Use standard property to preserve CSS transitions
+          cell.style.backgroundImage = "none";
+          cell.style.backgroundColor = selectedColor;
+        }
       } else if (
         coloringSubMode === "candidate" &&
         mark &&
         mark.style.visibility !== "hidden" &&
         !mark.classList.contains("suppress-hover")
       ) {
-        // Clear background clip styles so the solid hover color is visible
-        mark.style.background = "";
-        mark.style.webkitBackgroundClip = "";
-        mark.style.backgroundClip = "";
-        mark.style.webkitTextFillColor = "";
-        mark.style.color = selectedColor;
+        const num = parseInt(mark.dataset.num);
+        const pColor = cellState.pencilColors.get(num);
+
+        if (Array.isArray(pColor)) {
+          // Multi-colored: Apply solid gradient hack
+          mark.style.backgroundImage = `linear-gradient(${selectedColor}, ${selectedColor})`;
+        } else {
+          // Single or Empty: Use standard color to preserve CSS transitions
+          mark.style.color = selectedColor;
+        }
       }
     }
   });
@@ -1522,6 +1540,7 @@ function setupEventListeners() {
     if (currentMode === "color") {
       if (coloringSubMode === "cell") {
         if (Array.isArray(cellState.cellColor)) {
+          // Use shorthand 'background' to overwrite the separated image/color we set on hover
           cell.style.background = getGradientBackground(cellState.cellColor);
         } else {
           cell.style.background = cellState.cellColor || "";
@@ -1531,12 +1550,14 @@ function setupEventListeners() {
         const num = parseInt(mark.dataset.num);
         const pColor = cellState.pencilColors.get(num);
         if (Array.isArray(pColor)) {
-          mark.style.background = getGradientBackground(pColor);
+          // Restore gradient
+          mark.style.background = getGradientBackground(pColor, "to bottom");
           mark.style.webkitBackgroundClip = "text";
           mark.style.backgroundClip = "text";
           mark.style.webkitTextFillColor = "transparent";
           mark.style.color = "transparent";
         } else {
+          // Restore solid
           mark.style.background = "";
           mark.style.webkitBackgroundClip = "";
           mark.style.backgroundClip = "";
@@ -3364,12 +3385,34 @@ function handleNumberPadClick(e) {
 
     // Immediate preview effect (only for Color mode)
     if (currentMode === "color" && currentlyHoveredElement) {
-      if (coloringSubMode === "cell") {
-        if (currentlyHoveredElement.classList.contains("sudoku-cell")) {
-          currentlyHoveredElement.style.backgroundColor = selectedColor;
+      const cell = currentlyHoveredElement.closest(".sudoku-cell");
+
+      if (cell) {
+        const row = parseInt(cell.dataset.row);
+        const col = parseInt(cell.dataset.col);
+        const cellState = boardState[row][col];
+
+        if (coloringSubMode === "cell") {
+          if (currentlyHoveredElement.classList.contains("sudoku-cell")) {
+            if (Array.isArray(cellState.cellColor)) {
+              currentlyHoveredElement.style.backgroundImage = `linear-gradient(${selectedColor}, ${selectedColor})`;
+            } else {
+              currentlyHoveredElement.style.backgroundImage = "none";
+              currentlyHoveredElement.style.backgroundColor = selectedColor;
+            }
+          }
+        } else if (coloringSubMode === "candidate") {
+          if (currentlyHoveredElement.classList.contains("pencil-mark")) {
+            const num = parseInt(currentlyHoveredElement.dataset.num);
+            const pColor = cellState.pencilColors.get(num);
+
+            if (Array.isArray(pColor)) {
+              currentlyHoveredElement.style.backgroundImage = `linear-gradient(${selectedColor}, ${selectedColor})`;
+            } else {
+              currentlyHoveredElement.style.color = selectedColor;
+            }
+          }
         }
-      } else if (coloringSubMode === "candidate") {
-        currentlyHoveredElement.style.color = selectedColor;
       }
     }
     return; // Exits the function early if a color was clicked
@@ -3740,13 +3783,13 @@ function showCandidatePopup(row, col) {
       btn.classList.add("hover:bg-gray-200", "dark:hover:bg-slate-600");
       if (cellState.pencilColors.has(i)) {
         const pColor = cellState.pencilColors.get(i);
-        // FIX: Display gradient background if it's an array of multiple colors
         if (Array.isArray(pColor)) {
-          btn.style.background = getGradientBackground(pColor);
+          btn.style.background = getGradientBackground(pColor, "to bottom"); // Added "to bottom"
         } else {
           btn.style.background = pColor;
         }
       }
+
       btn.onclick = () => {
         const currentColor = cellState.pencilColors.get(i);
         // FIX: Process toggling array vs string transparently
