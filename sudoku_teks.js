@@ -1418,8 +1418,8 @@ const techniques = {
                   }
                 });
                 fins.forEach(([fr, fc]) =>
-                  window.addCellColor(fr, fc, cellColorPalette[8]),
-                ); // Fin 9
+                  window.addCellColor(fr, fc, cellColorPalette[5]),
+                );
                 removals.forEach((el) =>
                   boardState[el.r][el.c].pencilColors.set(
                     el.num,
@@ -11618,7 +11618,7 @@ const techniques = {
                               });
                           });
 
-                          // Color Fins over Base/Cover (Color 9)
+                          // Color Fins over Base/Cover
                           let mF = allFinsMask; // BigInt mask for all fins
                           let idxF = 0;
                           while (mF !== 0n) {
@@ -11626,7 +11626,7 @@ const techniques = {
                               window.addCellColor(
                                 Math.floor(idxF / 9),
                                 idxF % 9,
-                                cellColorPalette[8],
+                                cellColorPalette[5],
                               );
                             }
                             mF >>= 1n;
