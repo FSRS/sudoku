@@ -7129,6 +7129,12 @@ function getDefaultTechniques() {
       score: 370,
     },
     {
+      name: "Almost Locked Set AIC",
+      func: (b, p) => techniques.alsAic(b, p),
+      level: 10,
+      score: 390,
+    },
+    {
       name: "Cell Death Blossom",
       func: techniques.cellDeathBlossom,
       level: 10,

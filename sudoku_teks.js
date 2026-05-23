@@ -37,6 +37,7 @@ let _prXC = false;
 let _prgXC = false;
 let _prAIC = false;
 let _prgAIC = false;
+let _prALSAIC = false;
 
 let _prALSXZ = false;
 let _prALSXY = false;
@@ -240,6 +241,7 @@ const techniques = {
     _prgXC = false;
     _prAIC = false;
     _prgAIC = false;
+    _prALSAIC = false;
 
     _prALSXZ = false;
     _prALSXY = false;
@@ -6321,19 +6323,26 @@ const techniques = {
 
   _buildChainDetail: (chain, options) => {
     const parts = [];
-    let lastDigit = null; // Track the digit of the previous link
+    let lastDigit = null;
 
     for (let i = 0; i < chain.length - 1; i += 2) {
       const A = chain[i];
       const B = chain[i + 1];
 
       if (A.digit !== B.digit) {
-        // In-cell strong link (Bivalue / Intra-cell)
-        const strA = techniques._fmtNode(A);
-        parts.push(`(${A.digit}=${B.digit})${strA}`);
+        // Check if it's an ALS-derived strong link
+        const linkKey = `${A.key}_${B.key}`;
+        const als = techniques._aicCache.alsLinkMap?.get(linkKey);
 
-        // Reset lastDigit so the next inter-cell link explicitly declares its starting digit
-        lastDigit = null;
+        if (als) {
+          const strALS = techniques.fmtAlsNode(als);
+          parts.push(`(${A.digit}=${B.digit})${strALS}`);
+        } else {
+          // Standard In-cell strong link (Bivalue / Intra-cell)
+          const strA = techniques._fmtNode(A);
+          parts.push(`(${A.digit}=${B.digit})${strA}`);
+        }
+        lastDigit = null; // Reset
       } else {
         // Inter-cell strong link
         const allCells = [...A.cells, ...B.cells];
@@ -6412,10 +6421,12 @@ const techniques = {
       const boxCells = techniques
         ._getUnitCells("box", b)
         .filter(([r, c]) => pencils[r][c].has(d));
+
       if (boxCells.length < 2) continue;
 
-      const rowMap = new Map(),
-        colMap = new Map();
+      const rowMap = new Map();
+      const colMap = new Map();
+
       boxCells.forEach((cell) => {
         if (!rowMap.has(cell[0])) rowMap.set(cell[0], []);
         if (!colMap.has(cell[1])) colMap.set(cell[1], []);
@@ -6423,52 +6434,39 @@ const techniques = {
         colMap.get(cell[1]).push(cell);
       });
 
-      // Add Row/Col Groups
+      // Add Row/Col Groups (and natively handle subsets for cross-patterns)
       [...rowMap.values(), ...colMap.values()].forEach((g) => {
-        if (g.length >= 2) groups.push(_create(g, d));
-      });
+        if (g.length === 3) {
+          // 1. Add the full 3-cell grouped node
+          groups.push(_create(g, d));
 
-      // 5-Cell Cross Pattern
-      if (boxCells.length === 5) {
-        const r3 = [...rowMap.values()].find((g) => g.length === 3);
-        const c3 = [...colMap.values()].find((g) => g.length === 3);
-        if (r3 && c3) {
-          const rSet = new Set(r3.map((c) => c.join(",")));
-          const overlap = c3.find((c) => rSet.has(c.join(",")));
-          if (overlap) {
-            const overlapStr = overlap.join(",");
-            groups.push(
-              _create(
-                r3.filter((c) => c.join(",") !== overlapStr),
-                d,
-              ),
-            );
-            groups.push(
-              _create(
-                c3.filter((c) => c.join(",") !== overlapStr),
-                d,
-              ),
-            );
-          }
+          // 2. Add all three possible 2-cell subsets
+          groups.push(_create([g[0], g[1]], d));
+          groups.push(_create([g[0], g[2]], d));
+          groups.push(_create([g[1], g[2]], d));
+        } else if (g.length === 2) {
+          // Add the standard 2-cell grouped node
+          groups.push(_create(g, d));
         }
-      }
+      });
     }
+
     return groups;
   },
   // --- Global Cache for AIC Graph ---
   _aicCache: {
     valid: false,
-    // Maps
     singleNodes: [],
     groupedNodes: [],
-    nodeMap: new Map(), // key -> Node
-    // Links (Adjacency Maps: NodeKey -> [Node])
-    strongLinksSingle: new Map(), // Single <-> Single (Same Digit)
-    weakLinksSingle: new Map(), // Single <-> Single (Same Digit)
-    strongLinksInCell: new Map(), // Single <-> Single (Diff Digit)
-    weakLinksInCell: new Map(), // Single <-> Single (Diff Digit)
-    strongLinksGrouped: new Map(), // Involving Groups
-    weakLinksGrouped: new Map(), // Involving Groups
+    nodeMap: new Map(),
+    strongLinksSingle: new Map(),
+    weakLinksSingle: new Map(),
+    strongLinksInCell: new Map(),
+    weakLinksInCell: new Map(),
+    strongLinksGrouped: new Map(),
+    weakLinksGrouped: new Map(),
+    strongLinksAls: new Map(),
+    alsLinkMap: new Map(), // Maps node key pairs to their ALS for visualization
   },
 
   _resetAICCache: () => {
@@ -6483,9 +6481,10 @@ const techniques = {
       weakLinksInCell: new Map(),
       strongLinksGrouped: new Map(),
       weakLinksGrouped: new Map(),
+      strongLinksAls: new Map(),
+      alsLinkMap: new Map(),
     };
   },
-
   // --- Graph Building (Incremental) ---
 
   _ensureSingleNodesAndLinks: (pencils) => {
@@ -6642,6 +6641,73 @@ const techniques = {
     }
   },
 
+  _ensureAlsLinks: (board, pencils) => {
+    const cache = techniques._aicCache;
+    if (cache.strongLinksAls.size > 0) return;
+
+    if (_alsCache.length === 0) {
+      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
+    }
+
+    for (const als of _alsCache) {
+      const cands = techniques._bits.maskToDigits(als.candidates);
+      if (cands.length < 3) continue;
+
+      const alsNodes = [];
+      for (const d of cands) {
+        const dCells = als.cells.filter(([r, c]) => pencils[r][c].has(d));
+        if (dCells.length === 0) continue;
+
+        // Initialize tracking variables with the first cell's properties
+        const r0 = dCells[0][0];
+        const c0 = dCells[0][1];
+        const b0 = Math.floor(r0 / 3) * 3 + Math.floor(c0 / 3);
+
+        let isSameBox = true;
+        let isSameRow = true;
+        let isSameCol = true;
+        let cellMask = 0;
+
+        // Verify if all cells fall within a single box-line intersection
+        for (const [r, c] of dCells) {
+          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+
+          if (b !== b0) isSameBox = false;
+          if (r !== r0) isSameRow = false;
+          if (c !== c0) isSameCol = false;
+
+          cellMask |= 1 << ((r % 3) * 3 + (c % 3));
+        }
+
+        // Must be in the same box AND (same row OR same column)
+        if (isSameBox && (isSameRow || isSameCol)) {
+          const key = techniques._enc17(d, b0, cellMask);
+          const node = cache.nodeMap.get(key);
+          if (node) {
+            alsNodes.push(node);
+          }
+        }
+      }
+
+      // Create a strong link between all valid nodes in this ALS
+      for (let i = 0; i < alsNodes.length; i++) {
+        for (let j = i + 1; j < alsNodes.length; j++) {
+          const u = alsNodes[i];
+          const v = alsNodes[j];
+
+          techniques._addLink(cache.strongLinksAls, u, v);
+          techniques._addLink(cache.strongLinksAls, v, u);
+
+          // Save the reference for visual coloring and hint generation
+          const linkKey1 = `${u.key}_${v.key}`;
+          const linkKey2 = `${v.key}_${u.key}`;
+          cache.alsLinkMap.set(linkKey1, als);
+          cache.alsLinkMap.set(linkKey2, als);
+        }
+      }
+    }
+  },
+
   _addLink: (map, u, v) => {
     if (!map.has(u.key)) map.set(u.key, []);
     map.get(u.key).push(v);
@@ -6669,6 +6735,8 @@ const techniques = {
       singleDigit = false,
       useGrouped = false,
       bivalueOnly = false,
+      useAls = false,
+      nameOverride = null, // Use specific name override if available
     } = options;
 
     let strongLinks, weakLinks, nodeMap;
@@ -6680,26 +6748,32 @@ const techniques = {
       weakLinks = graph.weakLinks;
       nodeMap = graph.nodeMap;
     } else {
-      const prarr = [_prXC, _prgXC, _prAIC, _prgAIC];
+      const prarr = [_prXC, _prgXC, _prAIC, _prgAIC, _prALSAIC];
       const prcount = prarr.reduce(
         (prcnt, val) => (val === true ? prcnt + 1 : prcnt),
         0,
       );
       if (prcount === 1) techniques._resetAICCache();
+
       techniques._ensureSingleNodesAndLinks(pencils);
-      if (useGrouped) {
+
+      if (useGrouped || useAls) {
         techniques._ensureGroupedNodesAndLinks(pencils);
+      }
+      if (useAls) {
+        techniques._ensureAlsLinks(board, pencils);
       }
       if (!singleDigit) {
         techniques._ensureInCellLinks(pencils);
       }
-
       const cache = techniques._aicCache;
       nodeMap = cache.nodeMap;
 
       const strongMaps = [cache.strongLinksSingle];
-      if (useGrouped) strongMaps.push(cache.strongLinksGrouped);
+      if (useGrouped || useAls) strongMaps.push(cache.strongLinksGrouped);
       if (!singleDigit) strongMaps.push(cache.strongLinksInCell);
+      if (useAls) strongMaps.push(cache.strongLinksAls);
+
       strongLinks = techniques._mergeMaps(...strongMaps);
 
       const weakMaps = [cache.weakLinksSingle];
@@ -6709,7 +6783,6 @@ const techniques = {
     }
 
     // --- 1. Pre-Compile Graph to Integer Adjacency Lists ---
-    // This turns string lookups and Map iteration into flat array lookups
     const keyToId = Object.create(null);
     const idToNode = [];
     let idCounter = 0;
@@ -6820,19 +6893,16 @@ const techniques = {
       }
 
       if (shouldCheck && reachedTarget) {
-        // Fast Continuous Ring Check utilizing integer adjacency
         const isContinuous = weakAdj[endNodeId].includes(startNodeId);
 
         if (true) {
           const elims = [];
 
           if (isContinuous) {
-            // Helper to treat the path as a loop without allocating a new Array
             const getNode = (idx) =>
               idx === currentLen ? startNode : SHARED_PATH_AIC[idx];
 
             if (bivalueOnly) {
-              // Legacy XY-Chain Ring Logic
               for (let i = 1; i < currentLen; i += 2) {
                 const u = getNode(i);
                 const v = getNode(i + 1);
@@ -6875,7 +6945,6 @@ const techniques = {
                 }
               }
             } else {
-              // Generic AIC Ring logic via incredibly fast integer adjacency intersects
               for (let i = 1; i < currentLen; i += 2) {
                 const uNode = getNode(i);
                 const vNode = getNode(i + 1);
@@ -6889,8 +6958,6 @@ const techniques = {
                 for (let j = 0; j < uWeak.length; j++) {
                   const zId = uWeak[j];
                   if (vWeak.includes(zId)) {
-                    // Common weak node found.
-                    // SHARED_VISITED_AIC[zId] === 0 natively checks if it's currently part of the chain!
                     if (
                       zId !== uId &&
                       zId !== vId &&
@@ -6921,6 +6988,66 @@ const techniques = {
               }
             }
 
+            if (useAls) {
+              // Iterate over the strong links in the ring (even indices)
+              for (let i = 0; i < currentLen; i += 2) {
+                const u = getNode(i);
+                const v = getNode(i + 1);
+
+                // If the digits differ, it might be an ALS strong link
+                if (u.digit !== v.digit) {
+                  const linkKey = `${u.key}_${v.key}`;
+                  const als = techniques._aicCache.alsLinkMap?.get(linkKey);
+
+                  if (als) {
+                    // Create a mask of the two RCCs used to enter/exit the ALS
+                    const linkedMask =
+                      (1 << (u.digit - 1)) | (1 << (v.digit - 1));
+
+                    // Isolate the unlinked digits
+                    const unlinkedMask = als.candidates & ~linkedMask;
+
+                    if (unlinkedMask !== 0) {
+                      const unlinkedDigits =
+                        techniques._bits.maskToDigits(unlinkedMask);
+
+                      for (const z of unlinkedDigits) {
+                        // Find common peers of all cells in the ALS containing digit 'z'
+                        const zPos = als.candidatePositions[z - 1];
+                        const peerMask = techniques._findCommonPeersBS(zPos);
+
+                        // Process the peer mask to add eliminations
+                        let m = peerMask;
+                        let idx = 0;
+                        while (m !== 0n) {
+                          if (m & 1n) {
+                            const r = Math.floor(idx / 9);
+                            const c = idx % 9;
+                            if (pencils[r][c].has(z)) {
+                              let duplicate = false;
+                              for (let e = 0; e < elims.length; e++) {
+                                if (
+                                  elims[e].r === r &&
+                                  elims[e].c === c &&
+                                  elims[e].num === z
+                                ) {
+                                  duplicate = true;
+                                  break;
+                                }
+                              }
+                              if (!duplicate) elims.push({ r, c, num: z });
+                            }
+                          }
+                          m >>= 1n;
+                          idx++;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
             if (elims.length > 0) {
               const visualChain = SHARED_PATH_AIC.slice(0, currentLen);
               const uniqueElims = [];
@@ -6932,6 +7059,23 @@ const techniques = {
                 if (seen[key] === 0) {
                   seen[key] = 1;
                   uniqueElims.push(el);
+                }
+              }
+
+              // --- CAPTURE ALS CELLS SYNCHRONOUSLY ---
+              const usedAlses = [];
+              if (useAls) {
+                const fullVisualChain = [...visualChain, visualChain[0]];
+                for (let i = 0; i < fullVisualChain.length - 1; i++) {
+                  const u = fullVisualChain[i];
+                  const v = fullVisualChain[i + 1];
+                  if (u.digit !== v.digit) {
+                    const linkKey = `${u.key}_${v.key}`;
+                    const als = techniques._aicCache.alsLinkMap?.get(linkKey);
+                    if (als) {
+                      usedAlses.push(als.cells);
+                    }
+                  }
                 }
               }
 
@@ -6979,6 +7123,17 @@ const techniques = {
                     ),
                   );
 
+                  // Render captured ALS cells
+                  if (useAls) {
+                    const alsColors = [6, 7, 2, 3, 4, 5];
+                    usedAlses.forEach((cells, idx) => {
+                      const colorCode = alsColors[idx % 6];
+                      cells.forEach(([r, c]) => {
+                        window.addCellColor(r, c, cellColorPalette[colorCode]);
+                      });
+                    });
+                  }
+
                   const drawGroup = (node) => {
                     if (node.cells.length > 1) {
                       for (let i = 0; i < node.cells.length - 1; i++) {
@@ -7014,6 +7169,7 @@ const techniques = {
                   };
 
                   const fullVisualChain = [...visualChain, visualChain[0]];
+
                   for (let i = 0; i < fullVisualChain.length - 1; i++) {
                     const u = fullVisualChain[i];
                     const v = fullVisualChain[i + 1];
@@ -7103,7 +7259,6 @@ const techniques = {
               for (let j = 0; j < startWeak.length; j++) {
                 const zId = startWeak[j];
                 if (endWeak.includes(zId)) {
-                  // Common weak node found off-chain
                   if (
                     zId !== startNodeId &&
                     zId !== endNodeId &&
@@ -7146,6 +7301,22 @@ const techniques = {
                 }
               }
 
+              // --- CAPTURE ALS CELLS SYNCHRONOUSLY ---
+              const usedAlses = [];
+              if (useAls) {
+                for (let i = 0; i < visualChain.length - 1; i++) {
+                  const u = visualChain[i];
+                  const v = visualChain[i + 1];
+                  if (u.digit !== v.digit) {
+                    const linkKey = `${u.key}_${v.key}`;
+                    const als = techniques._aicCache.alsLinkMap?.get(linkKey);
+                    if (als) {
+                      usedAlses.push(als.cells);
+                    }
+                  }
+                }
+              }
+
               const res = {
                 change: true,
                 type: "remove",
@@ -7185,6 +7356,17 @@ const techniques = {
                       candidateColorPalette[0],
                     ),
                   );
+
+                  // Render captured ALS cells
+                  if (useAls) {
+                    const alsColors = [6, 7, 2, 3, 4, 5];
+                    usedAlses.forEach((cells, idx) => {
+                      const colorCode = alsColors[idx % 6];
+                      cells.forEach(([r, c]) => {
+                        window.addCellColor(r, c, cellColorPalette[colorCode]);
+                      });
+                    });
+                  }
 
                   const drawGroup = (node, idx) => {
                     if (node.cells.length > 1) {
@@ -7257,7 +7439,6 @@ const techniques = {
 
       // Chain Parity Validations
       if (currentLen % 2 === 0) {
-        // Even: Arrived via strong link
         const sNeighbors = strongAdj[endNodeId];
         for (let i = 0; i < currentLen; i += 2) {
           if (i === currentLen - 2) continue;
@@ -7265,7 +7446,6 @@ const techniques = {
           if (sNeighbors.includes(keyToId[SHARED_PATH_AIC[i].key])) return;
         }
       } else {
-        // Odd: Arrived via weak link
         if (currentLen > 1) {
           const wNeighbors = weakAdj[endNodeId];
           for (let i = 1; i < currentLen; i += 2) {
@@ -7285,7 +7465,6 @@ const techniques = {
       for (let i = 0; i < nextAdjList.length; i++) {
         const nextId = nextAdjList[i];
 
-        // Instant typed array check
         if (SHARED_VISITED_AIC[nextId] === 0) {
           const nextNode = idToNode[nextId];
 
@@ -7294,7 +7473,7 @@ const techniques = {
 
           dfs(depth + 1, hasGrouped || nextNode.count > 1);
 
-          SHARED_VISITED_AIC[nextId] = 0; // Instant un-mark back-track
+          SHARED_VISITED_AIC[nextId] = 0;
 
           if (result.change && !findAll) return;
         }
@@ -7303,28 +7482,32 @@ const techniques = {
 
     let minTargetLen = 6;
 
-    if (!bivalueOnly) {
-      if (!useGrouped) {
-        if (
-          !(
-            _prXw &&
-            (_prSky || _prgSky) &&
-            (_prKite || _prgKite) &&
-            (_prCrane || _prgCrane)
-          )
-        ) {
-          minTargetLen = 4;
-        }
-      } else {
-        if (_prgSky && _prgKite && _prgCrane) {
-          minTargetLen = 4;
+    if (useAls) {
+      minTargetLen = 4;
+    } else {
+      if (!bivalueOnly) {
+        if (!useGrouped) {
+          if (
+            !(
+              _prXw &&
+              (_prSky || _prgSky) &&
+              (_prKite || _prgKite) &&
+              (_prCrane || _prgCrane)
+            )
+          ) {
+            minTargetLen = 4;
+          }
+        } else {
+          if (_prgSky && _prgKite && _prgCrane) {
+            minTargetLen = 4;
+          }
         }
       }
-    }
-    if (!singleDigit) {
-      if (!_prNpair || !_prHpair) minTargetLen = 4;
-      else if (bivalueOnly) {
-        if (_prNpair && _prXYw) minTargetLen = 8;
+      if (!singleDigit) {
+        if (!_prNpair || !_prHpair) minTargetLen = 4;
+        else if (bivalueOnly) {
+          if (_prNpair && _prXYw) minTargetLen = 8;
+        }
       }
     }
 
@@ -7339,7 +7522,6 @@ const techniques = {
       for (const [key, id] of Object.entries(keyToId)) {
         if (result.change && !findAll) break;
 
-        // Only start from nodes that have strong links
         if (strongAdj[id].length > 0) {
           const startNode = idToNode[id];
           SHARED_VISITED_AIC[id] = 1;
@@ -8394,6 +8576,25 @@ const techniques = {
       5,
       "ALS Chain",
       null,
+      findAll,
+    );
+  },
+
+  alsAic: (board, pencils, findAll = false) => {
+    _prALSAIC = true;
+    // Note: Depends on both _prAIC and _prgAIC state if you have caching flags mapped
+    return techniques._findAIC(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        useGrouped: true,
+        useAls: true,
+        bivalueOnly: false,
+        maxLength: 20,
+        hintType: "strongLink",
+        nameOverride: "ALS-AIC",
+      },
       findAll,
     );
   },
@@ -11672,6 +11873,7 @@ const techniques = {
     const results = [];
     const MAX_RING_LEN = 14;
     const MAX_BURR_LEN = 15;
+
     // 1. Ensure AIC graph is built
     const prarr = [_prXC, _prgXC, _prAIC, _prgAIC];
     const prcount = prarr.reduce(
@@ -11681,18 +11883,22 @@ const techniques = {
     if (prcount === 0) techniques._resetAICCache();
     techniques._ensureSingleNodesAndLinks(pencils);
     techniques._ensureGroupedNodesAndLinks(pencils);
+    techniques._ensureAlsLinks(board, pencils);
     techniques._ensureInCellLinks(pencils);
     const cache = techniques._aicCache;
+
     const strongLinks = techniques._mergeMaps(
       cache.strongLinksSingle,
       cache.strongLinksGrouped,
       cache.strongLinksInCell,
+      cache.strongLinksAls,
     );
     const weakLinks = techniques._mergeMaps(
       cache.weakLinksSingle,
       cache.weakLinksGrouped,
       cache.weakLinksInCell,
     );
+
     // Helper: Get eliminations for a weak link
     const getWeakLinkElims = (u, v) => {
       let elims = [];
@@ -11728,8 +11934,10 @@ const techniques = {
       }
       return elims;
     };
+
     // 2. Find all ASLs (Almost Strong Links hindered by one thorn)
     const asls = [];
+
     // 2a. In-unit ASLs
     for (let d = 1; d <= 9; d++) {
       for (let u = 0; u < 27; u++) {
@@ -11776,6 +11984,7 @@ const techniques = {
         }
       }
     }
+
     // 2b. In-cell ASLs
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -11810,9 +12019,11 @@ const techniques = {
         }
       }
     }
+
     // 3. Process each ASL to find Rings and Burring Chains
     for (const { A, B, T } of asls) {
       if (results.length > 0 && !findAll) return results[0];
+
       // DFS for Almost Ring: A -W- N1 =S= N2 ... -W- B
       const ringPaths = [];
       const ringDfs = (curr, path, visited) => {
@@ -11823,20 +12034,16 @@ const techniques = {
         if (L > 1) {
           const endNode = path[L - 1];
           if (L % 2 === 0) {
-            // Chain length is even. The end node was reached via a WEAK link.
             const wNeighbors = weakLinks.get(endNode.key) || [];
-            // Loop through nodes at even indices (0, 2, 4...)
             for (let i = 0; i < L; i += 2) {
-              if (i === L - 2) continue; // Except adjacent node
-              if (wNeighbors.some((n) => n.key === path[i].key)) return; // Shortcut found, revert
+              if (i === L - 2) continue;
+              if (wNeighbors.some((n) => n.key === path[i].key)) return;
             }
           } else {
-            // Chain length is odd. The end node was reached via a STRONG link.
             const sNeighbors = strongLinks.get(endNode.key) || [];
-            // Loop through nodes at odd indices (1, 3, 5...)
             for (let i = 1; i < L; i += 2) {
-              if (i === L - 2) continue; // Except adjacent node
-              if (sNeighbors.some((n) => n.key === path[i].key)) return; // Shortcut found, revert
+              if (i === L - 2) continue;
+              if (sNeighbors.some((n) => n.key === path[i].key)) return;
             }
           }
         }
@@ -11871,14 +12078,16 @@ const techniques = {
           }
         }
       };
+
       ringDfs(A, [A], new Set([A.key]));
+
       for (const ring of ringPaths) {
         if (results.length > 0 && !findAll) return results[0];
+
         // Gather Ring Eliminations GROUPED by weak link
         const ringWeakLinkElims = [];
         let totalRingElims = 0;
 
-        // Weak links in the ring: A-N1, N2-N3, ..., Nm-B
         for (let i = 0; i < ring.length - 1; i += 2) {
           const elims = getWeakLinkElims(ring[i], ring[i + 1]);
           ringWeakLinkElims.push(elims);
@@ -11889,8 +12098,6 @@ const techniques = {
 
         // DFS for Burring Chain: T -W- M1 =S= M2 ... =S= E
         const burrPaths = [];
-
-        // Initialize visited set with the Ring nodes so the burring chain doesn't reuse exact keys
         const burrVisited = new Set();
         for (const rNode of ring) burrVisited.add(rNode.key);
         burrVisited.add(T.key);
@@ -11923,7 +12130,6 @@ const techniques = {
             const wNeighbors = weakLinks.get(curr.key) || [];
             for (const n of wNeighbors) {
               if (!visited.has(n.key)) {
-                // Prevent burring chain from starting by weakly linking back to the almost strong link (A or B)
                 if (path.length === 1 && n.digit === A.digit) {
                   const overlapsAB = n.cells.some(
                     (c1) =>
@@ -11934,7 +12140,6 @@ const techniques = {
                   );
                   if (overlapsAB) continue;
                 }
-
                 visited.add(n.key);
                 path.push(n);
                 burrDfs(n, path, visited);
@@ -11945,9 +12150,7 @@ const techniques = {
           } else {
             // Next is STRONG
             const sNeighbors = strongLinks.get(curr.key) || [];
-
             for (const n of sNeighbors) {
-              // FIX: A grouped node must be fully eliminated by the SAME weak link
               const isElim = ringWeakLinkElims.some((wElims) =>
                 n.cells.every(([nr, nc]) =>
                   wElims.some(
@@ -11958,11 +12161,10 @@ const techniques = {
 
               if (isElim && !visited.has(n.key)) {
                 burrPaths.push([...path, n]);
-                return; // Just need one valid path
+                return;
               }
             }
 
-            // Continue the DFS if it's not the target elimination
             for (const n of sNeighbors) {
               if (!visited.has(n.key)) {
                 visited.add(n.key);
@@ -11976,24 +12178,24 @@ const techniques = {
         };
 
         burrDfs(T, [T], burrVisited);
+
         for (const burr of burrPaths) {
-          // Found a valid burring chain!
           const targetElimNode = burr[burr.length - 1];
           const finalElims = [];
-          // Helper: Checks if a cell sees all cells of a given node
+
           const seesNode = (r, c, node) => {
             for (const nc of node.cells) {
-              if (r === nc[0] && c === nc[1]) continue; // In the same cell, they mutually see each other
+              if (r === nc[0] && c === nc[1]) continue;
               if (!techniques._sees([r, c], nc)) return false;
             }
             return true;
           };
-          // 1. Gather ring eliminations, with special rule for the connected weak link
+
+          // 1. Gather ring eliminations
           for (let i = 0; i < ring.length - 1; i += 2) {
             const u = ring[i];
             const v = ring[i + 1];
             const wElims = getWeakLinkElims(u, v);
-            // Check if this is the weak link connected to the burring chain end
             const isConnected = targetElimNode.cells.every((tc) =>
               wElims.some(
                 (e) =>
@@ -12004,20 +12206,122 @@ const techniques = {
             );
             for (const e of wElims) {
               if (isConnected) {
-                // It already sees 'u' and 'v' (because it's in wElims).
-                // Now strictly enforce it MUST ALSO see the burring chain end.
                 if (!seesNode(e.r, e.c, targetElimNode)) {
-                  continue; // Skip if it doesn't see the burring chain end
+                  continue;
                 }
               }
               finalElims.push(e);
             }
           }
+
+          // 1b. Gather ALS unlinked digit eliminations for ring strong links
+          // In the ring, strong links are at odd indices: 1-2, 3-4, etc.
+          for (let i = 1; i < ring.length - 1; i += 2) {
+            const u = ring[i];
+            const v = ring[i + 1];
+            if (u.digit !== v.digit) {
+              const linkKey = `${u.key}_${v.key}`;
+              const als = cache.alsLinkMap?.get(linkKey);
+
+              if (als) {
+                // Mask out the two RCC digits linking the chain
+                const linkedMask = (1 << (u.digit - 1)) | (1 << (v.digit - 1));
+                const unlinkedMask = als.candidates & ~linkedMask;
+
+                if (unlinkedMask !== 0) {
+                  const unlinkedDigits =
+                    techniques._bits.maskToDigits(unlinkedMask);
+                  for (const z of unlinkedDigits) {
+                    const zPos = als.candidatePositions[z - 1];
+                    const peerMask = techniques._findCommonPeersBS(zPos);
+
+                    const aElims = [];
+                    let m = peerMask;
+                    let idx = 0;
+
+                    // Iterate BigInt mask to find visible cells containing digit 'z'
+                    while (m !== 0n) {
+                      if (m & 1n) {
+                        const r = Math.floor(idx / 9);
+                        const c = idx % 9;
+                        if (pencils[r][c].has(z)) {
+                          aElims.push({ r, c, num: z });
+                        }
+                      }
+                      m >>= 1n;
+                      idx++;
+                    }
+
+                    // Apply the same Blossom Loop connectivity validation
+                    if (aElims.length > 0) {
+                      const isConnected = targetElimNode.cells.every((tc) =>
+                        aElims.some(
+                          (e) =>
+                            e.r === tc[0] &&
+                            e.c === tc[1] &&
+                            e.num === targetElimNode.digit,
+                        ),
+                      );
+                      for (const e of aElims) {
+                        if (isConnected) {
+                          if (!seesNode(e.r, e.c, targetElimNode)) continue;
+                        }
+                        finalElims.push(e);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
           // 2. Gather off-link candidates of weak links in the burring chain
           for (let i = 0; i < burr.length - 1; i += 2) {
             finalElims.push(...getWeakLinkElims(burr[i], burr[i + 1]));
           }
-          // 3. Robustly filter out the Thorn (T) and the Burring Chain's other end (targetElimNode)
+
+          // 2b. Gather ALS unlinked digit eliminations for burring chain strong links
+          for (let i = 1; i < burr.length - 1; i += 2) {
+            const u = burr[i];
+            const v = burr[i + 1];
+            if (u.digit !== v.digit) {
+              const linkKey = `${u.key}_${v.key}`;
+              const als = cache.alsLinkMap?.get(linkKey);
+
+              if (als) {
+                // Mask out the two RCC digits linking the chain
+                const linkedMask = (1 << (u.digit - 1)) | (1 << (v.digit - 1));
+                const unlinkedMask = als.candidates & ~linkedMask;
+
+                if (unlinkedMask !== 0) {
+                  const unlinkedDigits =
+                    techniques._bits.maskToDigits(unlinkedMask);
+                  for (const z of unlinkedDigits) {
+                    const zPos = als.candidatePositions[z - 1];
+                    const peerMask = techniques._findCommonPeersBS(zPos);
+
+                    let m = peerMask;
+                    let idx = 0;
+
+                    // Iterate BigInt mask to find visible cells containing digit 'z'
+                    while (m !== 0n) {
+                      if (m & 1n) {
+                        const r = Math.floor(idx / 9);
+                        const c = idx % 9;
+                        if (pencils[r][c].has(z)) {
+                          finalElims.push({ r, c, num: z });
+                        }
+                      }
+                      m >>= 1n;
+                      idx++;
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // 3. Robustly filter out the Thorn (T) and the Burring Chain's other end
           const isProtected = (r, c, num, node) => {
             return (
               node.digit === num &&
@@ -12029,6 +12333,7 @@ const techniques = {
               !isProtected(e.r, e.c, e.num, T) &&
               !isProtected(e.r, e.c, e.num, targetElimNode),
           );
+
           if (filteredElims.length > 0) {
             const uniqueMap = new Map();
             for (const e of filteredElims) {
@@ -12036,26 +12341,54 @@ const techniques = {
             }
 
             const uniqueElims = Array.from(uniqueMap.values()).sort((a, b) => {
-              if (a.num !== b.num) return a.num - b.num; // Sort by digit first
-              if (a.r !== b.r) return a.r - b.r; // Then by row
-              return a.c - b.c; // Finally by column
+              if (a.num !== b.num) return a.num - b.num;
+              if (a.r !== b.r) return a.r - b.r;
+              return a.c - b.c;
             });
-            // Construct Pseudo Node for Notation: A∪B
+
+            // --- 2. CAPTURE ALS CELLS SYNCHRONOUSLY ---
+            const usedAlses = [];
+
+            // Scan ring strong links: (N1=N2), (N3=N4)...
+            for (let i = 1; i < ring.length - 1; i += 2) {
+              const u = ring[i];
+              const v = ring[i + 1];
+              if (u.digit !== v.digit) {
+                const linkKey = `${u.key}_${v.key}`;
+                const als = cache.alsLinkMap?.get(linkKey);
+                if (als) usedAlses.push(als.cells);
+              }
+            }
+
+            // Scan burr strong links: (M1=M2), (M3=M4)...
+            for (let i = 1; i < burr.length - 1; i += 2) {
+              const u = burr[i];
+              const v = burr[i + 1];
+              if (u.digit !== v.digit) {
+                const linkKey = `${u.key}_${v.key}`;
+                const als = cache.alsLinkMap?.get(linkKey);
+                if (als) usedAlses.push(als.cells);
+              }
+            }
+            // --- END ALS CAPTURE ---
+
             const pseudoAB = {
               cells: [...A.cells, ...B.cells],
               digit: A.digit,
               count: A.count + B.count,
             };
-            // To form a continuous cycle: A = B - Nm = ... = N2 - N1 (- A)
+
             const visualRingChain = [A, B, ...ring.slice(1, -1).reverse()];
-            // The burring chain notation includes the pseudo node
             const visualBurrChain = [pseudoAB, ...burr];
+
+            // _buildChainDetail inherently handles ALS linkage notation dynamically
             const ringStr = techniques._buildChainDetail(visualRingChain, {
               useGrouped: true,
             });
             const burrStr = techniques._buildChainDetail(visualBurrChain, {
               useGrouped: true,
             });
+
             const res = {
               change: true,
               type: "remove",
@@ -12068,7 +12401,7 @@ const techniques = {
               applyVisuals: () => {
                 highlightedDigit = null;
                 highlightState = 0;
-                // Color Ring Nodes (Candidate Color 4 and 5)
+
                 visualRingChain.forEach((node, idx) => {
                   node.cells.forEach(([cr, cc]) => {
                     const colorIdx = idx % 2 === 0 ? 5 : 4;
@@ -12078,13 +12411,11 @@ const techniques = {
                     );
                   });
                 });
-                // Color Burring Chain Nodes
-                // Start from index 1 (T) because 0 is pseudoAB
+
                 for (let i = 1; i < visualBurrChain.length; i++) {
                   const node = visualBurrChain[i];
                   node.cells.forEach(([cr, cc]) => {
                     const colorIdx = i % 2 === 0 ? 7 : 6;
-                    // Don't overwrite thorn color or ring colors if they overlap
                     if (!boardState[cr][cc].pencilColors.has(node.digit)) {
                       boardState[cr][cc].pencilColors.set(
                         node.digit,
@@ -12093,13 +12424,24 @@ const techniques = {
                     }
                   });
                 }
-                // Color Eliminations (Color 1 - index 0)
+
                 uniqueElims.forEach((el) =>
                   boardState[el.r][el.c].pencilColors.set(
                     el.num,
                     candidateColorPalette[0],
                   ),
                 );
+
+                // --- 3. RENDER CAPTURED ALS CELLS ---
+                const alsColors = [6, 7, 2, 3, 4, 5];
+                usedAlses.forEach((cells, idx) => {
+                  const colorCode = alsColors[idx % 6];
+                  cells.forEach(([r, c]) => {
+                    window.addCellColor(r, c, cellColorPalette[colorCode]);
+                  });
+                });
+                // --- END RENDER ---
+
                 const getClosestCells = (nodeA, nodeB) => {
                   let minD = Infinity;
                   let bestA = nodeA.cells[0];
@@ -12116,6 +12458,7 @@ const techniques = {
                   }
                   return [bestA, bestB];
                 };
+
                 const drawGroup = (node, colorIdx) => {
                   if (node.cells.length > 1) {
                     for (let i = 0; i < node.cells.length - 1; i++) {
@@ -12126,30 +12469,25 @@ const techniques = {
                         r2: node.cells[i + 1][0],
                         c2: node.cells[i + 1][1],
                         n2: node.digit,
-                        color: lineColorPalette[colorIdx], // Use node color index
+                        color: lineColorPalette[colorIdx],
                         style: "solid",
                       });
                     }
                   }
                 };
 
-                // FIX: Draw all Ring Groups neatly in one pass matching NODE colors
                 visualRingChain.forEach((node, idx) => {
                   const colorIdx = idx % 2 === 0 ? 5 : 4;
                   drawGroup(node, colorIdx);
                 });
 
-                // NEW: Connect the grouped thorn cells using the Thorn's color (7)
                 drawGroup(T, 7);
 
-                // Pre-draw Burring Chain groups matching NODE colors
-                // Start from 2 because 0 is pseudoAB, and 1 is T (already drawn above)
                 for (let i = 2; i < visualBurrChain.length; i++) {
                   const colorIdx = i % 2 === 0 ? 7 : 6;
                   drawGroup(visualBurrChain[i], colorIdx);
                 }
 
-                // Draw Ring Lines (Ring as Color 0, Almost Strong Link as Color 1)
                 const fullRing = [...visualRingChain, visualRingChain[0]];
                 for (let i = 0; i < fullRing.length - 1; i++) {
                   const u = fullRing[i];
@@ -12171,12 +12509,9 @@ const techniques = {
                   });
                 }
 
-                // Draw Burring Lines (Color 2)
                 for (let i = 1; i < visualBurrChain.length - 1; i++) {
                   const u = visualBurrChain[i];
                   const v = visualBurrChain[i + 1];
-
-                  // Removed the drawGroup(v, 3) from here since they are pre-drawn dynamically!
 
                   const [cA, cB] = getClosestCells(u, v);
                   drawnLines.push({
@@ -12187,14 +12522,14 @@ const techniques = {
                     c2: cB[1],
                     n2: v.digit,
                     color: lineColorPalette[2],
-                    style: i % 2 !== 0 ? "dash" : "solid", // T -> M1 is weak
+                    style: i % 2 !== 0 ? "dash" : "solid",
                   });
                 }
               },
             };
             if (!findAll) return res;
             results.push(res);
-            break; // Move to next ring to prevent duplicates from the same ASL/Ring
+            break;
           }
         }
       }
