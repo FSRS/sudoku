@@ -7137,7 +7137,7 @@ function getDefaultTechniques() {
     },
     {
       name: "Almost Locked Set AIC",
-      func: (b, p) => techniques.alsAic(b, p),
+      func: (b, p, findAll) => techniques.alsAic(b, p, findAll),
       level: 10,
       score: 390,
     },
