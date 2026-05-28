@@ -5664,14 +5664,13 @@ const techniques = {
       return `b${boxNum}p${points}`;
     };
 
-    const eliminations = [];
-    const recordRemovalsFromMask = (cellList, positionsSet, mask) => {
+    const recordRemovalsFromMask = (elimArr, cellList, positionsSet, mask) => {
       for (const [r, c] of cellList) {
-        if (positionsSet.has(`${r},${c}`)) continue; // skip ALS cells
+        if (positionsSet.has(`${r},${c}`)) continue;
         for (let d = 1; d <= 9; d++) {
           const bit = bitFor(d);
           if ((mask & bit) !== 0 && pencils[r][c].has(d)) {
-            eliminations.push({ r, c, num: d });
+            elimArr.push({ r, c, num: d });
           }
         }
       }
@@ -5758,18 +5757,40 @@ const techniques = {
                   // dynamically checking against C.length - totalExtra
                   // (evaluates to C.length - 2 for standard, C.length - 3 for AALS)
                   if (bitCount(remaining_V) === C.length - totalExtra) {
-                    recordRemovalsFromMask(line_pool, A.positions, D_mask);
-                    recordRemovalsFromMask(box_pool, B.positions, E_mask);
+                    const eliminations = [];
+                    recordRemovalsFromMask(
+                      eliminations,
+                      line_pool,
+                      A.positions,
+                      D_mask,
+                    );
+                    recordRemovalsFromMask(
+                      eliminations,
+                      box_pool,
+                      B.positions,
+                      E_mask,
+                    );
                     if (remaining_V > 0) {
                       recordRemovalsFromMask(
+                        eliminations,
                         line_pool,
                         A.positions,
                         remaining_V,
                       );
-                      recordRemovalsFromMask(box_pool, new Set(), remaining_V);
+                      recordRemovalsFromMask(
+                        eliminations,
+                        box_pool,
+                        new Set(),
+                        remaining_V,
+                      );
                     }
                     if (overlapMask > 0) {
-                      recordRemovalsFromMask(C_full, B.positions, overlapMask);
+                      recordRemovalsFromMask(
+                        eliminations,
+                        C_full,
+                        B.positions,
+                        overlapMask,
+                      );
                     }
                     if (eliminations.length > 0) {
                       const hintName = "Sue de Coq";

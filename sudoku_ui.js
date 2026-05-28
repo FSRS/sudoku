@@ -4962,6 +4962,7 @@ function buildViewAllTechniquesList(step) {
       for (const d of sortedDigits) {
         const cg = removalsByDigit
           .get(d)
+          .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.c - b.c))
           .map((c) => `r${c.r + 1}c${c.c + 1}`)
           .join(",");
         groups.push(`${cg}<>${d}`);
@@ -5232,6 +5233,7 @@ function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
           for (const d of sortedDigits) {
             const cg = removalsByDigit
               .get(d)
+              .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.c - b.c))
               .map((c) => `r${c.r + 1}c${c.c + 1}`)
               .join(",");
             groups.push(`${cg}<>${d}`);
