@@ -1937,6 +1937,9 @@ const techniques = {
         }
       }
 
+      // AFTER
+      const seenChains = new Set(); // deduplicate bidirectional chains across all startNodes
+
       for (const startNode of cells) {
         const queue = [[startNode, [startNode]]]; // [node, path]
         const visitedPaths = new Set();
@@ -1960,6 +1963,19 @@ const techniques = {
               }
             }
             if (removals.length > 0) {
+              // Canonicalize: always represent the chain with the lexicographically
+              // smaller endpoint first, so A→…→B and B→…→A map to the same key.
+              const nodeKey = ([r, c]) => `${r},${c}`;
+              const firstKey = nodeKey(path[0]);
+              const lastKey = nodeKey(path[path.length - 1]);
+              const chainKey =
+                firstKey < lastKey
+                  ? `${firstKey}|${lastKey}|${path.length}`
+                  : `${lastKey}|${firstKey}|${path.length}`;
+
+              if (findAll && seenChains.has(chainKey)) continue; // skip the reverse duplicate
+              seenChains.add(chainKey);
+
               const pathStr = path
                 .map(([r, c]) => `r${r + 1}c${c + 1}`)
                 .join("-");
