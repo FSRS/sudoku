@@ -5776,11 +5776,12 @@ function buildSolverSummary() {
 
     // 1. Fixed Width Count Multiplier
     const countEl = document.createElement("div");
+    countEl.classList.add("score-string");
     countEl.style.width = "2rem";
     countEl.style.textAlign = "right";
     countEl.style.flexShrink = "0";
     countEl.style.opacity = "0.9";
-    countEl.textContent = `${String(data.count).padStart(2, " ")}x`;
+    countEl.textContent = `${String(data.count).padStart(2, " ")}`;
 
     // 2. Separator Dot
     const dotEl = document.createElement("div");
@@ -5804,12 +5805,13 @@ function buildSolverSummary() {
 
     // 4. Fixed Width Score String
     const scoreEl = document.createElement("div");
+    scoreEl.classList.add("score-string");
     scoreEl.style.textAlign = "right";
     scoreEl.style.flexShrink = "0";
     scoreEl.style.opacity = "0.9";
     const baseStr = String(data.baseScore).padStart(3, " ");
     const totalStr = String(totalScore).padStart(4, " "); // 4 digits for big numbers
-    scoreEl.innerHTML = `<span style="opacity:0.5">${baseStr} = </span>${totalStr} pt`;
+    scoreEl.innerHTML = `<span style="opacity:0.5">${baseStr} = </span>${totalStr}`;
 
     row.appendChild(countEl);
     row.appendChild(dotEl);

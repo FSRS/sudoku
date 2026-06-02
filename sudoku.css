@@ -2107,6 +2107,7 @@ html.dark .sortable-item.dragging {
 
 #sudoku-title-text,
 #sudoku-title-calligraphy-text,
-#puzzle-string {
+#puzzle-string,
+.score-string {
   font-family: "Fira Code", monospace;
 }
