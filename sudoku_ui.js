@@ -4808,6 +4808,10 @@ function enterViewAllTechniquesMode() {
   // Set the next level up
   vatNextLevel = currentLevel + 1;
 
+  if (typeof window.resetComplexFishMemo === "function") {
+    window.resetComplexFishMemo();
+  }
+
   // Execute the initial search (Current Level + Eliminate Candidates)
   searchAndAppendVatLevel(currentLevel, true);
 }

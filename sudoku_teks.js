@@ -16,6 +16,11 @@ let _memoComplexFish = {
   mutant: new Set(),
 };
 
+window.resetComplexFishMemo = function () {
+  _memoComplexFish.franken = new Set();
+  _memoComplexFish.mutant = new Set();
+};
+
 // Add processed Flag
 let _prNpair = false;
 let _prHpair = false;
