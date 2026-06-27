@@ -6725,7 +6725,7 @@ const techniques = {
               }
 
               // Finned fish constraint check
-              if (fins.length === 0 || fins.length > n) continue;
+              if (fins.length === 0 || fins.length > 4) continue;
 
               // Extract fish body cells from grouped parts
               const fishBody = [];
