@@ -1,16 +1,3 @@
-// --- ALS Cache Structure ---
-let _alsCache = [];
-let _ahsCache = [];
-let _alsDigitCommonPeers = {};
-let _alsRccMap = {};
-let _alsLookup = {};
-
-// Add AHS shared maps here
-let _ahsRccMap = new Map();
-let _ahsRcdMap = new Map();
-let _ahsZcdMap = new Map();
-let _ahsZsMap = new Map();
-
 let _memoComplexFish = {
   franken: new Set(),
   mutant: new Set(),
@@ -20,36 +7,6 @@ window.resetComplexFishMemo = function () {
   _memoComplexFish.franken = new Set();
   _memoComplexFish.mutant = new Set();
 };
-
-// Add processed Flag
-let _prNpair = false;
-let _prHpair = false;
-
-let _prXYw = false;
-let _prXYZw = false;
-let _prWw = false;
-
-let _prXw = false;
-let _prSky = false;
-let _prKite = false;
-let _prCrane = false;
-
-let _prgSky = false;
-let _prgKite = false;
-let _prgCrane = false;
-
-let _prXC = false;
-let _prgXC = false;
-let _prAIC = false;
-let _prgAIC = false;
-let _prALSAIC = false;
-
-let _prALSXZ = false;
-let _prALSXY = false;
-let _prALSW = false;
-
-let _prAHSXZ = false;
-let _prAHSXY = false;
 
 window.addCellColor = function (r, c, color) {
   const existing = boardState[r][c].cellColor;
@@ -96,6 +53,79 @@ const _getUniqueRemovals = (arr) => {
   }
   return result;
 };
+
+class AICNode {
+  /**
+   * @param {number[]} cells - Array of cell IDs (0-80). For basic nodes, length is 1.
+   * @param {number[]} digits - Array of digits (1-9). For basic nodes, length is 1.
+   */
+  constructor(cells, digits) {
+    this.cells = cells;
+    this.digits = digits;
+
+    this.isSingleDigit = this.digits.length === 1;
+    this.isSingleCell = this.cells.length === 1;
+
+    // Initialize 9 bitsets, each consisting of three 27-bit parts
+    this.NodeBitset = Array.from({ length: 9 }, () => [0, 0, 0]);
+    this.NandBitset = Array.from({ length: 9 }, () => [0, 0, 0]);
+
+    // --- 1. Populate NodeBitset ---
+    // Only enable the bit for the specific cell(s) and digit(s) this node represents
+    for (const d of this.digits) {
+      for (const id of this.cells) {
+        const part = Math.floor(id / 27);
+        const bit = id % 27;
+        this.NodeBitset[d - 1][part] |= 1 << bit;
+      }
+    }
+
+    // --- 2. Populate NandBitset (Weak Links) ---
+
+    // Process A: Single Digit (e.g., standard nodes or grouped line/box nodes)
+    if (this.isSingleDigit) {
+      const d = this.digits[0];
+
+      // Calculate common peers: Intersection (AND) of peers for all cells in the node
+      let commonPeers = null;
+      for (const id of this.cells) {
+        if (commonPeers === null) {
+          // Copy the 3 parts from the first cell to initialize
+          commonPeers = [...PEER_BITSETS[id]];
+        } else {
+          // Bitwise AND intersection for each of the 3 parts
+          commonPeers[0] &= PEER_BITSETS[id][0];
+          commonPeers[1] &= PEER_BITSETS[id][1];
+          commonPeers[2] &= PEER_BITSETS[id][2];
+        }
+      }
+
+      if (commonPeers !== null) {
+        // Apply the resolved common peers directly into the NandBitset
+        this.NandBitset[d - 1][0] |= commonPeers[0];
+        this.NandBitset[d - 1][1] |= commonPeers[1];
+        this.NandBitset[d - 1][2] |= commonPeers[2];
+      }
+    }
+
+    // Process B: Single Cell (e.g., standard nodes or intra-cell bivalue nodes)
+    if (this.isSingleCell) {
+      const id = this.cells[0];
+      const part = Math.floor(id / 27);
+      const bit = id % 27;
+
+      // Enable the bits of this cell for all OTHER digits (mutually exclusive)
+      for (let d = 1; d <= 9; d++) {
+        if (!this.digits.includes(d)) {
+          this.NandBitset[d - 1][part] |= 1 << bit;
+        }
+      }
+    }
+
+    // Note: Because we used two separate `if` statements above,
+    // a basic node (which is BOTH single cell and single digit) will process both natively!
+  }
+}
 
 const techniques = {
   _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
@@ -216,44 +246,7 @@ const techniques = {
 
   eliminateCandidates: (board, pencils, findAll = false) => {
     // Initialize Cache
-    _alsCache = [];
-    _ahsCache = [];
-    _alsDigitCommonPeers = {};
-    _alsRccMap = {};
-    _alsLookup = {};
-
-    _ahsRccMap = new Map();
-    _ahsRcdMap = new Map();
-    _ahsZcdMap = new Map();
-    _ahsZsMap = new Map();
-
-    // Initialize processed flag
-    _prXYw = false;
-    _prXYZw = false;
-    _prWw = false;
-
-    _prXw = false;
-    _prSky = false;
-    _prKite = false;
-    _prCrane = false;
-
-    _prgSky = false;
-    _prgKite = false;
-    _prgCrane = false;
-
-    _prXC = false;
-
-    _prgXC = false;
-    _prAIC = false;
-    _prgAIC = false;
-    _prALSAIC = false;
-
-    _prALSXZ = false;
-    _prALSXY = false;
-    _prALSW = false;
-
-    _prAHSXZ = false;
-    _prAHSXY = false;
+    techniques._resetAICCache();
 
     const removals = [];
     let newr = 0;
@@ -857,9 +850,6 @@ const techniques = {
   },
 
   nakedSubset: (board, pencils, size, findAll = false) => {
-    if (size === 2) {
-      _prNpair = true;
-    }
     const results = [];
 
     const unitTypes = [
@@ -996,8 +986,6 @@ const techniques = {
     ];
     const results = [];
 
-    if (size === 2) _prHpair = true;
-
     for (const { name, label } of unitTypes) {
       for (let i = 0; i < 9; i++) {
         const unit = techniques._getUnitCells(name, i);
@@ -1113,7 +1101,6 @@ const techniques = {
 
   fish: (board, pencils, size, findAll = false) => {
     const results = [];
-    if (size === 2) _prXw = true;
     for (const isRowBased of [true, false]) {
       for (let num = 1; num <= 9; num++) {
         const candidatesInDim = [];
@@ -1225,7 +1212,6 @@ const techniques = {
   },
 
   finnedXWing: (board, pencils, findAll = false) => {
-    _prgSky = true;
     if (!findAll) {
       let result = techniques._findFinnedFish(board, pencils, 2, true, false);
       if (result.change) return result;
@@ -1445,7 +1431,6 @@ const techniques = {
   },
 
   xyWing: (board, pencils, findAll = false) => {
-    _prXYw = true;
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -1566,7 +1551,6 @@ const techniques = {
   xyzWing: (board, pencils, findAll = false) => {
     let results = [];
 
-    _prXYZw = true;
     const trivalueCells = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -1765,8 +1749,6 @@ const techniques = {
 
           // If not grouped, we strictly require exactly 2 candidates forming the link
           if (!isGrouped && x_cells_in_unit.length !== 2) continue;
-          if (isGrouped && _prWw && x_cells_in_unit.length == 2) continue;
-
           const group1 = [];
           const group2 = [];
           let isValid = true;
@@ -1899,7 +1881,6 @@ const techniques = {
   },
 
   wWing: (board, pencils, findAll = false) => {
-    _prWw = true;
     return techniques._wWingCore(board, pencils, false, findAll);
   },
 
@@ -2048,7 +2029,6 @@ const techniques = {
   },
 
   skyscraper: (board, pencils, findAll = false) => {
-    _prSky = true;
     const skyscraperLogic = (isRowBased) => {
       let results = [];
 
@@ -2195,7 +2175,6 @@ const techniques = {
 
   twoStringKite: (board, pencils, findAll = false) => {
     let results = [];
-    _prKite = true;
     for (let num = 1; num <= 9; num++) {
       const rowLinks = [];
       for (let r = 0; r < 9; r++) {
@@ -2327,7 +2306,6 @@ const techniques = {
   },
 
   crane: (board, pencils, findAll = false) => {
-    _prCrane = true;
     const turbotLogic = (isRowBased) => {
       let results = [];
       for (let num = 1; num <= 9; num++) {
@@ -2464,7 +2442,6 @@ const techniques = {
 
   groupedKite: (board, pencils, findAll = false) => {
     let results = [];
-    _prgKite = true;
     for (let num = 1; num <= 9; num++) {
       for (let b = 0; b < 9; b++) {
         const boxCells = techniques._getUnitCells("box", b);
@@ -2497,7 +2474,6 @@ const techniques = {
 
             // Check group condition
             const group = box_n_cells.filter(([r, c]) => r === r1 || c === c1);
-            if (_prKite && group.length < 3) continue;
 
             if (pencils[r2][c2].has(num)) {
               // --- Build Grouped bXpY logic ---
@@ -2621,7 +2597,6 @@ const techniques = {
   },
 
   emptyRectangle: (board, pencils, findAll = false) => {
-    _prgCrane = true;
     const logic = (isRowVersion) => {
       let results = [];
       for (let num = 1; num <= 9; num++) {
@@ -6189,7 +6164,7 @@ const techniques = {
                                     type: "remove",
                                     cells: eliminations,
                                     hint: {
-                                      name: "Firework",
+                                      name: "Triple Firework",
                                       mainInfo: `using Row ${rIdx + 1} and Col ${cIdx + 1}`,
                                       detail: `AHS (${ahsDigits})${rowAhsStr} and (${ahsDigits})${colAhsStr}`,
                                     },
@@ -6256,1690 +6231,662 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
-  // --- Unified AIC Helpers ---
-  // --- 17-Bit ID Helpers ---
-  // ID Format: [Digit:4] [Box:4] [Mask:9]
-  // Range: 0 to ~82,000. Fits efficiently in flat arrays.
-  _enc17: (d, b, m) => (d << 13) | (b << 9) | m,
-  _dec17: (id) => ({ d: (id >> 13) & 0xf, b: (id >> 9) & 0xf, m: id & 0x1ff }),
+  // --- AIC Logic ---
 
-  _cellsFrom17: (b, m) => {
-    const cells = [],
-      br = Math.floor(b / 3) * 3,
-      bc = (b % 3) * 3;
-    for (let i = 0; i < 9; i++)
-      if (m & (1 << i)) cells.push([br + Math.floor(i / 3), bc + (i % 3)]);
-    return cells;
-  },
+  /**
+   * Constructs the base 9x81 bitset representing all current pencil marks
+   */
+  buildCandidateBitsets: (board, pencils) => {
+    // 9 arrays, each with 3 integers (representing 27 bits each)
+    const candidateBitsets = Array.from({ length: 9 }, () => [0, 0, 0]);
 
-  // Check if two nodes overlap (Same Digit + Same Box + Overlapping Mask)
-  _intersect17: (a, b) => {
-    // must be same digit AND same box AND share cells
-    return (
-      (a & 0x1e000) === (b & 0x1e000) &&
-      (a & 0x1e00) === (b & 0x1e00) &&
-      a & b & 0x1ff
-    );
-  },
-
-  // --- Node Formatter for Hints ---
-  _fmtNode: (node) => {
-    const cells = node.cells;
-    if (cells.length === 0) return "";
-
-    // Check if Single Cell
-    if (cells.length === 1) return `r${cells[0][0] + 1}c${cells[0][1] + 1}`;
-
-    // Grouped Logic
-    const firstR = cells[0][0];
-    const isSameRow = cells.every((c) => c[0] === firstR);
-    if (isSameRow) {
-      const cols = cells.map((c) => c[1] + 1).join("");
-      return `r${firstR + 1}c${cols}`;
-    }
-
-    const firstC = cells[0][1];
-    const isSameCol = cells.every((c) => c[1] === firstC);
-    if (isSameCol) {
-      const rows = cells.map((c) => c[0] + 1).join("");
-      return `r${rows}c${firstC + 1}`;
-    }
-
-    // Mixed Group
-    const rowMap = new Map();
-    for (const [r, c] of cells) {
-      if (!rowMap.has(r)) rowMap.set(r, []);
-      rowMap.get(r).push(c);
-    }
-    let result = "";
-    for (const [r, cols] of rowMap) {
-      const colStr = cols.map((c) => c + 1).join("");
-      result += `r${r + 1}c${colStr}`;
-    }
-    return result;
-  },
-
-  // Add this right below the existing `fmtALS` helper inside _alsChainCore
-  fmtAlsNode: (alsNode) => {
-    // If it's a Box ALS, format as bp
-    if (alsNode.unitName && alsNode.unitName.startsWith("Box")) {
-      const boxIdx = parseInt(alsNode.unitName.match(/\d+/)[0]) - 1;
-      const points = alsNode.cells
-        .map(([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1)
-        .sort((a, b) => a - b)
-        .join("");
-      return `b${boxIdx + 1}p${points}`;
-    }
-    // Otherwise, fallback to the standard global rc formatting
-    return techniques._fmtNode(alsNode);
-  },
-
-  _getHintInfo: (chain, hintType) => {
-    const startNode = chain[0];
-    const nextNode = chain[1];
-
-    if (hintType === "digit") {
-      return `Digit ${startNode.digit}`;
-    }
-
-    if (hintType === "startCell") {
-      // For XY-Chain: just the location of the start node
-      const cell = startNode.cells[0];
-      return `Start at r${cell[0] + 1}c${cell[1] + 1}`;
-    }
-
-    if (hintType === "strongLink") {
-      const n1Str = techniques._fmtNode(startNode);
-
-      if (startNode.digit === nextNode.digit) {
-        // Strong Link on Digit (Grouped or Single)
-        const n2Str = techniques._fmtNode(nextNode);
-        return `Start with (${startNode.digit})${n1Str}=${n2Str}`;
-      } else {
-        // Strong Link on Cell (Bivalue / Intra-cell)
-        return `Start with (${startNode.digit}=${nextNode.digit})${n1Str}`;
-      }
-    }
-    return "";
-  },
-
-  _buildChainDetail: (chain, options) => {
-    const parts = [];
-    let lastDigit = null;
-
-    for (let i = 0; i < chain.length - 1; i += 2) {
-      const A = chain[i];
-      const B = chain[i + 1];
-
-      if (A.digit !== B.digit) {
-        // Check if it's an ALS-derived strong link
-        const linkKey = `${A.key}_${B.key}`;
-        const als = techniques._aicCache.alsLinkMap?.get(linkKey);
-
-        if (als) {
-          const strALS = techniques.fmtAlsNode(als);
-          parts.push(`(${A.digit}=${B.digit})${strALS}`);
-        } else {
-          // Standard In-cell strong link (Bivalue / Intra-cell)
-          const strA = techniques._fmtNode(A);
-          parts.push(`(${A.digit}=${B.digit})${strA}`);
-        }
-        lastDigit = null; // Reset
-      } else {
-        // Inter-cell strong link
-        const allCells = [...A.cells, ...B.cells];
-        const sameRow = allCells.every((c) => c[0] === allCells[0][0]);
-        const sameCol = allCells.every((c) => c[1] === allCells[0][1]);
-        const boxes = new Set(
-          allCells.map(([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3)),
-        );
-
-        // Use bp notation strictly if they share a box but do NOT exclusively share a line
-        const useBox = boxes.size === 1 && !sameRow && !sameCol;
-        const boxIndex = useBox ? [...boxes][0] : -1;
-
-        const getPoints = (cells) =>
-          [
-            ...new Set(
-              cells.map(
-                ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-              ),
-            ),
-          ]
-            .sort((a, b) => a - b)
-            .join("");
-
-        const strA = useBox
-          ? `b${boxIndex + 1}p${getPoints(A.cells)}`
-          : techniques._fmtNode(A);
-        const strB = useBox
-          ? `b${boxIndex + 1}p${getPoints(B.cells)}`
-          : techniques._fmtNode(B);
-
-        // Omit the digit prefix if it continues on the exact same digit
-        if (A.digit === lastDigit) {
-          parts.push(`(${strA}=${strB})`);
-        } else {
-          parts.push(`(${A.digit})(${strA}=${strB})`);
-        }
-
-        lastDigit = A.digit;
-      }
-    }
-    return parts.join("-");
-  },
-
-  _createAICNode: (cells, digit) => {
-    // assume at least one cell exists
-    const [r0, c0] = cells[0];
-
-    // fixed box index for all cells
-    const b = Math.floor(r0 / 3) * 3 + Math.floor(c0 / 3);
-
-    let cellMask = 0;
-
-    for (const [r, c] of cells) {
-      // position inside the 3×3 box (0–8)
-      const bit = (r % 3) * 3 + (c % 3);
-      cellMask |= 1 << bit;
-    }
-
-    const key = techniques._enc17(digit, b, cellMask);
-
-    return {
-      cells,
-      digit,
-      key,
-      count: cells.length,
-    };
-  },
-
-  _generateGroupedNodes: (pencils, d) => {
-    // Extracted logic for finding Groups (ALS-like subsets in boxes)
-    const groups = [];
-    const _create = techniques._createAICNode;
-
-    for (let b = 0; b < 9; b++) {
-      const boxCells = techniques
-        ._getUnitCells("box", b)
-        .filter(([r, c]) => pencils[r][c].has(d));
-
-      if (boxCells.length < 2) continue;
-
-      const rowMap = new Map();
-      const colMap = new Map();
-
-      boxCells.forEach((cell) => {
-        if (!rowMap.has(cell[0])) rowMap.set(cell[0], []);
-        if (!colMap.has(cell[1])) colMap.set(cell[1], []);
-        rowMap.get(cell[0]).push(cell);
-        colMap.get(cell[1]).push(cell);
-      });
-
-      // Add Row/Col Groups (and natively handle subsets for cross-patterns)
-      [...rowMap.values(), ...colMap.values()].forEach((g) => {
-        if (g.length === 3) {
-          // 1. Add the full 3-cell grouped node
-          groups.push(_create(g, d));
-
-          // 2. Add all three possible 2-cell subsets
-          groups.push(_create([g[0], g[1]], d));
-          groups.push(_create([g[0], g[2]], d));
-          groups.push(_create([g[1], g[2]], d));
-        } else if (g.length === 2) {
-          // Add the standard 2-cell grouped node
-          groups.push(_create(g, d));
-        }
-      });
-    }
-
-    return groups;
-  },
-  // --- Global Cache for AIC Graph ---
-  _aicCache: {
-    valid: false,
-    singleNodes: [],
-    groupedNodes: [],
-    nodeMap: new Map(),
-    strongLinksSingle: new Map(),
-    weakLinksSingle: new Map(),
-    strongLinksInCell: new Map(),
-    weakLinksInCell: new Map(),
-    strongLinksGrouped: new Map(),
-    weakLinksGrouped: new Map(),
-    strongLinksAls: new Map(),
-    alsLinkMap: new Map(), // Maps node key pairs to their ALS for visualization
-  },
-
-  _resetAICCache: () => {
-    techniques._aicCache = {
-      valid: true,
-      singleNodes: [],
-      groupedNodes: [],
-      nodeMap: new Map(),
-      strongLinksSingle: new Map(),
-      weakLinksSingle: new Map(),
-      strongLinksInCell: new Map(),
-      weakLinksInCell: new Map(),
-      strongLinksGrouped: new Map(),
-      weakLinksGrouped: new Map(),
-      strongLinksAls: new Map(),
-      alsLinkMap: new Map(),
-    };
-  },
-  // --- Graph Building (Incremental) ---
-
-  _ensureSingleNodesAndLinks: (pencils) => {
-    const cache = techniques._aicCache;
-    if (cache.singleNodes.length > 0) return; // Already built
-
-    // 1. Generate Single Nodes
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
-        for (const d of pencils[r][c]) {
-          const node = techniques._createAICNode([[r, c]], d);
-          cache.singleNodes.push(node);
-          cache.nodeMap.set(node.key, node);
-        }
-      }
-    }
+        if (board[r][c] === 0) {
+          // If it's an unsolved cell
+          const id = r * 9 + c;
+          const part = Math.floor(id / 27);
+          const bit = id % 27;
 
-    // 2. Build Same-Digit Links (Strong & Weak)
-    const _sees = techniques._sees;
-    const _seesAll = (nA, nB) => {
-      for (const cA of nA.cells)
-        for (const cB of nB.cells) if (!_sees(cA, cB)) return false;
-      return true;
-    };
-
-    const nodes = cache.singleNodes;
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const u = nodes[i];
-        const v = nodes[j];
-        if (u.digit !== v.digit) continue;
-
-        if (!techniques._intersect17(u.key, v.key) && _seesAll(u, v)) {
-          // Weak Link: Visibility
-          techniques._addLink(cache.weakLinksSingle, u, v);
-          techniques._addLink(cache.weakLinksSingle, v, u);
-
-          // Strong Link: Conjugate Pair
-          const combined = [...u.cells, ...v.cells];
-          const commonUnits = techniques._getCommonUnits(combined);
-          for (const unit of commonUnits) {
-            let cnt = 0;
-            for (const [r, c] of unit.cells)
-              if (pencils[r][c].has(u.digit)) cnt++;
-            if (cnt === u.count + v.count) {
-              techniques._addLink(cache.strongLinksSingle, u, v);
-              techniques._addLink(cache.strongLinksSingle, v, u);
-              break;
-            }
+          for (const d of pencils[r][c]) {
+            candidateBitsets[d - 1][part] |= 1 << bit;
           }
         }
       }
     }
+
+    return candidateBitsets;
   },
 
-  _ensureInCellLinks: (pencils) => {
-    const cache = techniques._aicCache;
-    if (cache.strongLinksInCell.size > 0 || cache.weakLinksInCell.size > 0)
-      return;
+  /**
+   * Generates the basic "one cell, one digit" nodes straight from the bitset
+   */
+  generateBasicNodesFromBitsets: (candidateBitsets) => {
+    const nodes = [];
 
-    // Build Intra-Cell Links (Diff Digit)
-    // We can iterate the existing singleNodes, grouped by cell
-    const nodesByCell = new Map();
-    for (const node of cache.singleNodes) {
-      const cellKey = node.cells[0][0] * 9 + node.cells[0][1];
-      if (!nodesByCell.has(cellKey)) nodesByCell.set(cellKey, []);
-      nodesByCell.get(cellKey).push(node);
-    }
-
-    for (const nodes of nodesByCell.values()) {
-      if (nodes.length < 2) continue;
-      // All nodes in this list are in the same cell
-      const isBivalue = nodes.length === 2;
-
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const u = nodes[i];
-          const v = nodes[j];
-
-          // Weak Link: Same Cell always weak linked
-          techniques._addLink(cache.weakLinksInCell, u, v);
-          techniques._addLink(cache.weakLinksInCell, v, u);
-
-          // Strong Link: Only if Bivalue
-          if (isBivalue) {
-            techniques._addLink(cache.strongLinksInCell, u, v);
-            techniques._addLink(cache.strongLinksInCell, v, u);
-          }
-        }
-      }
-    }
-  },
-
-  _ensureGroupedNodesAndLinks: (pencils) => {
-    const cache = techniques._aicCache;
-    if (cache.groupedNodes.length > 0) return;
-
-    // 1. Generate Grouped Nodes
     for (let d = 1; d <= 9; d++) {
-      const groups = techniques._generateGroupedNodes(pencils, d);
-      groups.forEach((g) => {
-        cache.groupedNodes.push(g);
-        cache.nodeMap.set(g.key, g);
-      });
+      const bitset = candidateBitsets[d - 1]; // The three 27-bit parts for this digit
+
+      for (let part = 0; part < 3; part++) {
+        let mask = bitset[part];
+        let bitPos = 0;
+
+        // Iterate through the set bits using shifting
+        while (mask > 0) {
+          if ((mask & 1) !== 0) {
+            const id = part * 27 + bitPos;
+
+            // Generate a basic node: single cell, single digit
+            // Because we pass arrays with a length of 1, both processes trigger in the constructor.
+            nodes.push(new AICNode([id], [d]));
+          }
+          mask >>>= 1; // Zero-fill right shift to safely proceed to the next bit
+          bitPos++;
+        }
+      }
     }
 
-    // 2. Build Grouped Links
-    // Interactions: Single <-> Group, Group <-> Group (Same Digit only here)
-    // Note: Diff digit grouped links are generally not standard AIC.
-    const singles = cache.singleNodes;
-    const groups = cache.groupedNodes;
-    const all = [...singles, ...groups];
+    return nodes;
+  },
 
-    // Helpers reused from closure scope if possible, defined here for clarity
-    const _sees = techniques._sees;
-    const _seesAll = (nA, nB) => {
-      for (const cA of nA.cells)
-        for (const cB of nB.cells) if (!_sees(cA, cB)) return false;
-      return true;
+  /**
+   * Checks if bitset1 is completely covered by (is a subset of) bitset2.
+   */
+  isBitsetSubset: (bitset1, bitset2) => {
+    for (let d = 0; d < 9; d++) {
+      for (let p = 0; p < 3; p++) {
+        if ((bitset1[d][p] & bitset2[d][p]) !== bitset1[d][p]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  },
+
+  /**
+   * Returns the intersection (bitwise AND) of two bitsets.
+   * Returns both a boolean (if any overlap exists) and the resulting bitset.
+   */
+  getBitsetIntersection: (bitset1, bitset2) => {
+    const intersection = Array.from({ length: 9 }, () => [0, 0, 0]);
+    let hasOverlap = false;
+
+    for (let d = 0; d < 9; d++) {
+      for (let p = 0; p < 3; p++) {
+        intersection[d][p] = bitset1[d][p] & bitset2[d][p];
+        if (intersection[d][p] !== 0) {
+          hasOverlap = true;
+        }
+      }
+    }
+    return { hasOverlap, intersection };
+  },
+
+  // Updated to use UNIT_BITSETS
+  buildBilocationOrMap: (nodes) => {
+    const orMap = new Map();
+    nodes.forEach((n) => orMap.set(n, new Set()));
+
+    for (let d = 1; d <= 9; d++) {
+      const dNodes = nodes.filter(
+        (n) => n.digits.includes(d) && n.cells.length === 1,
+      );
+
+      for (let u = 0; u < 27; u++) {
+        const parts = UNIT_BITSETS[u];
+        const unitNodes = [];
+
+        for (let i = 0; i < dNodes.length; i++) {
+          const id = dNodes[i].cells[0];
+          const p = Math.floor(id / 27);
+          const b = id % 27;
+          if ((parts[p] & (1 << b)) !== 0) {
+            unitNodes.push(dNodes[i]);
+          }
+        }
+
+        if (unitNodes.length === 2) {
+          orMap.get(unitNodes[0]).add(unitNodes[1]);
+          orMap.get(unitNodes[1]).add(unitNodes[0]);
+        }
+      }
+    }
+    return orMap;
+  },
+
+  buildGroupedOrMap: (pencils, getNode) => {
+    const orMap = new Map();
+
+    const addLink = (cellsA, cellsB, digit) => {
+      const nodeA = getNode(cellsA, digit);
+      const nodeB = getNode(cellsB, digit);
+      if (nodeA !== nodeB) {
+        if (!orMap.has(nodeA)) orMap.set(nodeA, new Set());
+        if (!orMap.has(nodeB)) orMap.set(nodeB, new Set());
+        orMap.get(nodeA).add(nodeB);
+        orMap.get(nodeB).add(nodeA);
+      }
     };
-    // Only iterate pairs involving at least one group
-    for (let i = 0; i < all.length; i++) {
-      const u = all[i];
-      // If u is single, we only check against groups. If u is group, check all j > i
-      const startJ = u.count === 1 ? singles.length : i + 1;
 
-      for (let j = startJ; j < all.length; j++) {
-        const v = all[j];
-        if (u.digit !== v.digit) continue;
+    for (let d = 1; d <= 9; d++) {
+      for (let u = 0; u < 27; u++) {
+        const presence = [];
+        for (let i = 0; i < 81; i++) {
+          const p = Math.floor(i / 27);
+          const b = i % 27;
+          if ((UNIT_BITSETS[u][p] & (1 << b)) !== 0) {
+            const r = Math.floor(i / 9);
+            const c = i % 9;
+            if (pencils[r][c] && pencils[r][c].has(d)) {
+              presence.push(i);
+            }
+          }
+        }
 
-        // Skip Single <-> Single (already done)
-        if (u.count === 1 && v.count === 1) continue;
+        if (presence.length <= 2) continue; // Pure Bilocation handles this
 
-        if (!techniques._intersect17(u.key, v.key) && _seesAll(u, v)) {
-          // Weak Link
-          techniques._addLink(cache.weakLinksGrouped, u, v);
-          techniques._addLink(cache.weakLinksGrouped, v, u);
+        if (u < 18) {
+          // Line (Row or Col) -> Check Box Intersections
+          const boxMap = new Map();
+          presence.forEach((id) => {
+            const bId =
+              Math.floor(Math.floor(id / 9) / 3) * 3 + Math.floor((id % 9) / 3);
+            if (!boxMap.has(bId)) boxMap.set(bId, []);
+            boxMap.get(bId).push(id);
+          });
 
-          // Strong Link
-          const combined = [...u.cells, ...v.cells];
-          const commonUnits = techniques._getCommonUnits(combined);
-          for (const unit of commonUnits) {
-            let cnt = 0;
-            for (const [r, c] of unit.cells)
-              if (pencils[r][c].has(u.digit)) cnt++;
-            if (cnt === u.count + v.count) {
-              techniques._addLink(cache.strongLinksGrouped, u, v);
-              techniques._addLink(cache.strongLinksGrouped, v, u);
-              break;
+          if (boxMap.size === 2) {
+            const groups = Array.from(boxMap.values());
+            addLink(groups[0], groups[1], d);
+          }
+        } else {
+          // Box -> Check Line Intersections
+          const rowMap = new Map();
+          const colMap = new Map();
+          presence.forEach((id) => {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            if (!rowMap.has(r)) rowMap.set(r, []);
+            rowMap.get(r).push(id);
+            if (!colMap.has(c)) colMap.set(c, []);
+            colMap.get(c).push(id);
+          });
+
+          if (rowMap.size === 2) {
+            const groups = Array.from(rowMap.values());
+            addLink(groups[0], groups[1], d);
+          }
+          if (colMap.size === 2) {
+            const groups = Array.from(colMap.values());
+            addLink(groups[0], groups[1], d);
+          }
+          if (rowMap.size >= 2 && colMap.size >= 2) {
+            // 1 Row + 1 Col (5 cell overlap case)
+            let foundCross = false;
+            for (const r of rowMap.keys()) {
+              if (foundCross) break;
+              for (const c of colMap.keys()) {
+                const covered = presence.every(
+                  (id) => Math.floor(id / 9) === r || id % 9 === c,
+                );
+                if (covered) {
+                  const groupA = presence.filter(
+                    (id) => Math.floor(id / 9) === r,
+                  );
+                  const groupB = presence.filter((id) => id % 9 === c);
+                  if (groupA.length > 0 && groupB.length > 0) {
+                    addLink(groupA, groupB, d);
+                    foundCross = true;
+                    break;
+                  }
+                }
+              }
             }
           }
         }
       }
     }
+
+    return orMap;
   },
 
-  _ensureAlsLinks: (board, pencils) => {
-    const cache = techniques._aicCache;
-    if (cache.strongLinksAls.size > 0) return;
+  /**
+   * Constructs Bivalue OR Map (Same cell, exactly 2 digits)
+   */
+  buildBivalueOrMap: (nodes) => {
+    const orMap = new Map();
+    nodes.forEach((n) => orMap.set(n, new Set()));
 
-    if (_alsCache.length === 0) {
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
+    const cellMap = new Map();
+    for (const node of nodes) {
+      const cId = node.cells[0];
+      if (!cellMap.has(cId)) cellMap.set(cId, []);
+      cellMap.get(cId).push(node);
     }
 
-    for (const als of _alsCache) {
-      const cands = techniques._bits.maskToDigits(als.candidates);
-      if (cands.length < 3) continue;
+    for (const [_, cellNodes] of cellMap.entries()) {
+      if (cellNodes.length === 2) {
+        // Bivalue!
+        orMap.get(cellNodes[0]).add(cellNodes[1]);
+        orMap.get(cellNodes[1]).add(cellNodes[0]);
+      }
+    }
+    return orMap;
+  },
 
-      const alsNodes = [];
-      for (const d of cands) {
-        const dCells = als.cells.filter(([r, c]) => pencils[r][c].has(d));
-        if (dCells.length === 0) continue;
+  buildAlsOrMap: (board, pencils, getNode, alsLinkRegistry) => {
+    const alses = techniques._collectAllALS(board, pencils);
+    const candidateLinks = [];
 
-        // Initialize tracking variables with the first cell's properties
-        const r0 = dCells[0][0];
-        const c0 = dCells[0][1];
-        const b0 = Math.floor(r0 / 3) * 3 + Math.floor(c0 / 3);
-
-        let isSameBox = true;
-        let isSameRow = true;
-        let isSameCol = true;
-        let cellMask = 0;
-
-        // Verify if all cells fall within a single box-line intersection
-        for (const [r, c] of dCells) {
-          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-
-          if (b !== b0) isSameBox = false;
-          if (r !== r0) isSameRow = false;
-          if (c !== c0) isSameCol = false;
-
-          cellMask |= 1 << ((r % 3) * 3 + (c % 3));
+    const hasNandCandidates = (node) => {
+      const d = node.digits[0];
+      for (let p = 0; p < 3; p++) {
+        let mask = node.NandBitset[d - 1][p];
+        let bitPos = 0;
+        while (mask > 0) {
+          if (mask & 1) {
+            const id = p * 27 + bitPos;
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            if (pencils[r][c] && pencils[r][c].has(d)) return true;
+          }
+          mask >>>= 1;
+          bitPos++;
         }
+      }
+      return false;
+    };
 
-        // Must be in the same box AND (same row OR same column)
-        if (isSameBox && (isSameRow || isSameCol)) {
-          const key = techniques._enc17(d, b0, cellMask);
-          const node = cache.nodeMap.get(key);
-          if (node) {
-            alsNodes.push(node);
+    for (const als of alses) {
+      const digits = Object.keys(als.candMap).map(Number);
+      for (let i = 0; i < digits.length; i++) {
+        for (let j = i + 1; j < digits.length; j++) {
+          const d1 = digits[i];
+          const d2 = digits[j];
+          const cells1 = als.candMap[d1].map(([r, c]) => r * 9 + c);
+          const cells2 = als.candMap[d2].map(([r, c]) => r * 9 + c);
+
+          const node1 = getNode(cells1, d1);
+          const node2 = getNode(cells2, d2);
+
+          if (!hasNandCandidates(node1) || !hasNandCandidates(node2)) continue;
+
+          // SAVE THE ALS REFERENCE HERE
+          candidateLinks.push({ nodeA: node1, nodeB: node2, als });
+        }
+      }
+    }
+
+    const isSubset = (subNode, superNode) => {
+      if (subNode.digits[0] !== superNode.digits[0]) return false;
+      return subNode.cells.every((id) => superNode.cells.includes(id));
+    };
+
+    // 2. Subset Reduction Filter
+    const finalLinks = [];
+    for (let i = 0; i < candidateLinks.length; i++) {
+      const { nodeA, nodeB } = candidateLinks[i];
+      let isDominated = false;
+      for (let j = 0; j < candidateLinks.length; j++) {
+        if (i === j) continue;
+        const other = candidateLinks[j];
+        if (
+          (isSubset(other.nodeA, nodeA) && isSubset(other.nodeB, nodeB)) ||
+          (isSubset(other.nodeA, nodeB) && isSubset(other.nodeB, nodeA))
+        ) {
+          if (
+            other.nodeA.cells.length !== nodeA.cells.length ||
+            other.nodeB.cells.length !== nodeB.cells.length
+          ) {
+            isDominated = true;
+            break;
           }
         }
       }
+      if (!isDominated) finalLinks.push(candidateLinks[i]);
+    }
+    const alsMap = new Map();
+    for (const { nodeA, nodeB, als } of finalLinks) {
+      if (als.cells.length > 1) {
+        if (!alsMap.has(nodeA)) alsMap.set(nodeA, new Set());
+        if (!alsMap.has(nodeB)) alsMap.set(nodeB, new Set());
+        alsMap.get(nodeA).add(nodeB);
+        alsMap.get(nodeB).add(nodeA);
 
-      // Create a strong link between all valid nodes in this ALS
-      for (let i = 0; i < alsNodes.length; i++) {
-        for (let j = i + 1; j < alsNodes.length; j++) {
-          const u = alsNodes[i];
-          const v = alsNodes[j];
-
-          techniques._addLink(cache.strongLinksAls, u, v);
-          techniques._addLink(cache.strongLinksAls, v, u);
-
-          // Save the reference for visual coloring and hint generation
-          const linkKey1 = `${u.key}_${v.key}`;
-          const linkKey2 = `${v.key}_${u.key}`;
-          cache.alsLinkMap.set(linkKey1, als);
-          cache.alsLinkMap.set(linkKey2, als);
+        // Register the ALS against the node pair
+        if (alsLinkRegistry) {
+          if (!alsLinkRegistry.has(nodeA))
+            alsLinkRegistry.set(nodeA, new Map());
+          if (!alsLinkRegistry.has(nodeB))
+            alsLinkRegistry.set(nodeB, new Map());
+          alsLinkRegistry.get(nodeA).set(nodeB, als);
+          alsLinkRegistry.get(nodeB).set(nodeA, als);
         }
       }
     }
+    return alsMap;
   },
 
-  _addLink: (map, u, v) => {
-    if (!map.has(u.key)) map.set(u.key, []);
-    map.get(u.key).push(v);
-  },
+  buildFishOrMap: (board, pencils, getNode, fishLinkRegistry) => {
+    const orMap = new Map();
 
-  // --- Map Merger Helper ---
-  _mergeMaps: (...maps) => {
-    const result = new Map();
-    for (const m of maps) {
-      for (const [key, neighbors] of m) {
-        if (!result.has(key)) result.set(key, []);
-        const target = result.get(key);
-        // Avoid duplicates if necessary, though simpler to just push
-        for (const n of neighbors) target.push(n);
+    // Optimized combination generator using backtracking (less garbage collection)
+    const getCombinations = (arr, size) => {
+      const result = [];
+      const combo = [];
+      const f = (start) => {
+        if (combo.length === size) {
+          result.push([...combo]);
+          return;
+        }
+        for (let i = start; i < arr.length; i++) {
+          combo.push(arr[i]);
+          f(i + 1);
+          combo.pop(); // Backtrack
+        }
+      };
+      f(0);
+      return result;
+    };
+
+    const hasNandCandidates = (node) => {
+      const d = node.digits[0];
+      for (let p = 0; p < 3; p++) {
+        let mask = node.NandBitset[d - 1][p];
+        let bitPos = 0;
+        while (mask > 0) {
+          if (mask & 1) {
+            const id = p * 27 + bitPos;
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            if (pencils[r][c] && pencils[r][c].has(d)) return true;
+          }
+          mask >>>= 1;
+          bitPos++;
+        }
       }
-    }
-    return result;
-  },
+      return false;
+    };
 
-  // --- Main Finder ---
-  _findAIC: (board, pencils, options, findAll = false) => {
-    const {
-      maxLength = 16,
-      hintType = "digit",
-      singleDigit = false,
-      useGrouped = false,
-      bivalueOnly = false,
-      useAls = false,
-      nameOverride = null, // Use specific name override if available
-    } = options;
+    const addLink = (nodeA, nodeB, fish) => {
+      if (nodeA === nodeB) return;
+      if (!orMap.has(nodeA)) orMap.set(nodeA, new Set());
+      if (!orMap.has(nodeB)) orMap.set(nodeB, new Set());
+      orMap.get(nodeA).add(nodeB);
+      orMap.get(nodeB).add(nodeA);
 
-    let strongLinks, weakLinks, nodeMap;
+      if (fishLinkRegistry) {
+        if (!fishLinkRegistry.has(nodeA))
+          fishLinkRegistry.set(nodeA, new Map());
+        if (!fishLinkRegistry.has(nodeB))
+          fishLinkRegistry.set(nodeB, new Map());
+        fishLinkRegistry.get(nodeA).set(nodeB, fish);
+        fishLinkRegistry.get(nodeB).set(nodeA, fish);
+      }
+    };
 
-    // --- Graph Building ---
-    if (bivalueOnly) {
-      const graph = techniques._buildXYChainGraph(pencils);
-      strongLinks = graph.strongLinks;
-      weakLinks = graph.weakLinks;
-      nodeMap = graph.nodeMap;
-    } else {
-      const prarr = [_prXC, _prgXC, _prAIC, _prgAIC, _prALSAIC];
-      const prcount = prarr.reduce(
-        (prcnt, val) => (val === true ? prcnt + 1 : prcnt),
-        0,
+    const getUnitName = (isRow, indices) => {
+      const label = isRow ? "r" : "c";
+      return (
+        label +
+        indices
+          .map((i) => i + 1)
+          .sort((a, b) => a - b)
+          .join("")
       );
-      if (prcount === 1) techniques._resetAICCache();
+    };
 
-      techniques._ensureSingleNodesAndLinks(pencils);
-
-      if (useGrouped || useAls) {
-        techniques._ensureGroupedNodesAndLinks(pencils);
-      }
-      if (useAls) {
-        techniques._ensureAlsLinks(board, pencils);
-      }
-      if (!singleDigit) {
-        techniques._ensureInCellLinks(pencils);
-      }
-      const cache = techniques._aicCache;
-      nodeMap = cache.nodeMap;
-
-      const strongMaps = [cache.strongLinksSingle];
-      if (useGrouped || useAls) strongMaps.push(cache.strongLinksGrouped);
-      if (!singleDigit) strongMaps.push(cache.strongLinksInCell);
-      if (useAls) strongMaps.push(cache.strongLinksAls);
-
-      strongLinks = techniques._mergeMaps(...strongMaps);
-
-      const weakMaps = [cache.weakLinksSingle];
-      if (useGrouped) weakMaps.push(cache.weakLinksGrouped);
-      if (!singleDigit) weakMaps.push(cache.weakLinksInCell);
-      weakLinks = techniques._mergeMaps(...weakMaps);
-    }
-
-    // --- 1. Pre-Compile Graph to Integer Adjacency Lists ---
-    const keyToId = Object.create(null);
-    const idToNode = [];
-    let idCounter = 0;
-
-    for (const [key, node] of nodeMap.entries()) {
-      keyToId[key] = idCounter;
-      idToNode[idCounter] = node;
-      idCounter++;
-    }
-
-    const MAX_NODES = idCounter;
-    const strongAdj = new Array(MAX_NODES);
-    const weakAdj = new Array(MAX_NODES);
-
-    for (let i = 0; i < MAX_NODES; i++) {
-      strongAdj[i] = [];
-      weakAdj[i] = [];
-    }
-
-    for (const [key, neighbors] of strongLinks.entries()) {
-      const uId = keyToId[key];
-      if (uId !== undefined) {
-        for (const n of neighbors) {
-          const vId = keyToId[n.key];
-          if (vId !== undefined) strongAdj[uId].push(vId);
-        }
+    // Precompute placed counts
+    const placedCounts = Array(10).fill(0);
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] !== 0) placedCounts[board[r][c]]++;
       }
     }
 
-    for (const [key, neighbors] of weakLinks.entries()) {
-      const uId = keyToId[key];
-      if (uId !== undefined) {
-        for (const n of neighbors) {
-          const vId = keyToId[n.key];
-          if (vId !== undefined) weakAdj[uId].push(vId);
-        }
-      }
-    }
+    for (let d = 1; d <= 9; d++) {
+      if (9 - placedCounts[d] < 4) continue; // Early prune: Min fish size 2 needs 4 open slots
 
-    // --- Helper: Find common peers (Optimized for bivalue legacy rings) ---
-    const _getCommonPeers = (nA, nB) => {
-      const targets = [];
+      // Group candidate cell IDs by row and column for digit d
+      const rowCells = Array.from({ length: 9 }, () => []);
+      const colCells = Array.from({ length: 9 }, () => []);
+
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
-          if (board[r][c] !== 0) continue;
-          const target = [r, c];
-
-          let seesA = true;
-          for (let i = 0; i < nA.cells.length; i++) {
-            if (!techniques._sees(target, nA.cells[i])) {
-              seesA = false;
-              break;
-            }
+          if (pencils[r][c] && pencils[r][c].has(d)) {
+            const id = r * 9 + c;
+            rowCells[r].push(id);
+            colCells[c].push(id);
           }
-          if (!seesA) continue;
-
-          let seesB = true;
-          for (let i = 0; i < nB.cells.length; i++) {
-            if (!techniques._sees(target, nB.cells[i])) {
-              seesB = false;
-              break;
-            }
-          }
-          if (!seesB) continue;
-
-          targets.push({ r, c });
-        }
-      }
-      return targets;
-    };
-
-    let result = { change: false };
-    let results = [];
-    let foundPathAtTargetLen = false;
-
-    // --- PRE-ALLOCATED DFS DATA STRUCTURES ---
-    const SHARED_VISITED_AIC = new Uint8Array(MAX_NODES);
-    const SHARED_PATH_AIC = new Array(maxLength + 2);
-
-    // --- DFS Traversal ---
-    const dfs = (depth, hasGrouped) => {
-      if (result.change && !findAll) return;
-
-      const currentLen = depth + 1;
-      if (currentLen > currentTargetLen) return;
-
-      const startNode = SHARED_PATH_AIC[0];
-      const endNode = SHARED_PATH_AIC[depth];
-
-      const startNodeId = keyToId[startNode.key];
-      const endNodeId = keyToId[endNode.key];
-
-      const reachedTarget =
-        currentLen === currentTargetLen && startNode.key > endNode.key;
-
-      if (reachedTarget) {
-        foundPathAtTargetLen = true;
-      }
-
-      let shouldCheck = true;
-
-      if (options.useGrouped) {
-        if (singleDigit) {
-          if (_prXC && !hasGrouped) shouldCheck = false;
-        } else {
-          if (_prAIC && !hasGrouped) shouldCheck = false;
         }
       }
 
-      if (shouldCheck && reachedTarget) {
-        const isContinuous = weakAdj[endNodeId].includes(startNodeId);
+      for (let n = 2; n <= 4; n++) {
+        if (9 - placedCounts[d] < 2 * n) continue;
 
-        if (true) {
-          const elims = [];
+        // Base Types: 0 = Rows, 1 = Cols
+        for (let baseType = 0; baseType <= 1; baseType++) {
+          const isBaseRow = baseType === 0;
+          const baseHouses = isBaseRow ? rowCells : colCells;
 
-          if (isContinuous) {
-            const getNode = (idx) =>
-              idx === currentLen ? startNode : SHARED_PATH_AIC[idx];
+          // Pre-collect ONLY houses that actually contain candidate d
+          const validBaseHouses = [];
+          for (let i = 0; i < 9; i++) {
+            if (baseHouses[i].length > 0) validBaseHouses.push(i);
+          }
 
-            if (bivalueOnly) {
-              for (let i = 1; i < currentLen; i += 2) {
-                const u = getNode(i);
-                const v = getNode(i + 1);
+          if (validBaseHouses.length < n) continue;
+          const baseCombos = getCombinations(validBaseHouses, n);
 
-                if (u.digit === v.digit) {
-                  const peers = _getCommonPeers(u, v);
-                  for (let p = 0; p < peers.length; p++) {
-                    const { r, c } = peers[p];
+          for (const bases of baseCombos) {
+            // Skip if all base units are in the same chute
+            const firstChute = Math.floor(bases[0] / 3);
+            const spansSingleChute = bases.every(
+              (b) => Math.floor(b / 3) === firstChute,
+            );
+            if (spansSingleChute) continue;
 
-                    let inU = false,
-                      inV = false;
-                    for (let cu = 0; cu < u.cells.length; cu++) {
-                      if (u.cells[cu][0] === r && u.cells[cu][1] === c) {
-                        inU = true;
-                        break;
-                      }
-                    }
-                    for (let cv = 0; cv < v.cells.length; cv++) {
-                      if (v.cells[cv][0] === r && v.cells[cv][1] === c) {
-                        inV = true;
-                        break;
-                      }
-                    }
-
-                    if (!inU && !inV && pencils[r][c].has(u.digit)) {
-                      let duplicate = false;
-                      for (let e = 0; e < elims.length; e++) {
-                        if (
-                          elims[e].r === r &&
-                          elims[e].c === c &&
-                          elims[e].num === u.digit
-                        ) {
-                          duplicate = true;
-                          break;
-                        }
-                      }
-                      if (!duplicate) elims.push({ r, c, num: u.digit });
-                    }
-                  }
-                }
-              }
-            } else {
-              for (let i = 1; i < currentLen; i += 2) {
-                const uNode = getNode(i);
-                const vNode = getNode(i + 1);
-
-                const uId = keyToId[uNode.key];
-                const vId = keyToId[vNode.key];
-
-                const uWeak = weakAdj[uId];
-                const vWeak = weakAdj[vId];
-
-                for (let j = 0; j < uWeak.length; j++) {
-                  const zId = uWeak[j];
-                  if (vWeak.includes(zId)) {
-                    if (
-                      zId !== uId &&
-                      zId !== vId &&
-                      idToNode[zId].count === 1 &&
-                      SHARED_VISITED_AIC[zId] === 0
-                    ) {
-                      const zNode = idToNode[zId];
-                      const [zr, zc] = zNode.cells[0];
-
-                      if (pencils[zr][zc].has(zNode.digit)) {
-                        let duplicate = false;
-                        for (let e = 0; e < elims.length; e++) {
-                          if (
-                            elims[e].r === zr &&
-                            elims[e].c === zc &&
-                            elims[e].num === zNode.digit
-                          ) {
-                            duplicate = true;
-                            break;
-                          }
-                        }
-                        if (!duplicate)
-                          elims.push({ r: zr, c: zc, num: zNode.digit });
-                      }
-                    }
-                  }
-                }
-              }
+            const baseCells = [];
+            for (const b of bases) {
+              baseCells.push(...baseHouses[b]);
             }
 
-            if (useAls) {
-              // Iterate over the strong links in the ring (even indices)
-              for (let i = 0; i < currentLen; i += 2) {
-                const u = getNode(i);
-                const v = getNode(i + 1);
-
-                // If the digits differ, it might be an ALS strong link
-                if (u.digit !== v.digit) {
-                  const linkKey = `${u.key}_${v.key}`;
-                  const als = techniques._aicCache.alsLinkMap?.get(linkKey);
-
-                  if (als) {
-                    // Create a mask of the two RCCs used to enter/exit the ALS
-                    const linkedMask =
-                      (1 << (u.digit - 1)) | (1 << (v.digit - 1));
-
-                    // Isolate the unlinked digits
-                    const unlinkedMask = als.candidates & ~linkedMask;
-
-                    if (unlinkedMask !== 0) {
-                      const unlinkedDigits =
-                        techniques._bits.maskToDigits(unlinkedMask);
-
-                      for (const z of unlinkedDigits) {
-                        // Find common peers of all cells in the ALS containing digit 'z'
-                        const zPos = als.candidatePositions[z - 1];
-                        const peerMask = techniques._findCommonPeersBS(zPos);
-
-                        // Process the peer mask to add eliminations
-                        let m = peerMask;
-                        let idx = 0;
-                        while (m !== 0n) {
-                          if (m & 1n) {
-                            const r = Math.floor(idx / 9);
-                            const c = idx % 9;
-                            if (pencils[r][c].has(z)) {
-                              let duplicate = false;
-                              for (let e = 0; e < elims.length; e++) {
-                                if (
-                                  elims[e].r === r &&
-                                  elims[e].c === c &&
-                                  elims[e].num === z
-                                ) {
-                                  duplicate = true;
-                                  break;
-                                }
-                              }
-                              if (!duplicate) elims.push({ r, c, num: z });
-                            }
-                          }
-                          m >>= 1n;
-                          idx++;
-                        }
-                      }
-                    }
-                  }
-                }
-              }
+            // Find unique cover units intersected by these base cells
+            const occupiedCovers = new Set();
+            for (const id of baseCells) {
+              const coverIdx = isBaseRow ? id % 9 : Math.floor(id / 9);
+              occupiedCovers.add(coverIdx);
             }
 
-            if (elims.length > 0) {
-              const visualChain = SHARED_PATH_AIC.slice(0, currentLen);
-              const uniqueElims = [];
-              const seen = new Uint8Array(4096);
+            // If base cells span fewer cover houses than n, it can't form an size-n finned fish
+            if (occupiedCovers.size < n) continue;
 
-              for (let i = 0; i < elims.length; i++) {
-                const el = elims[i];
-                const key = (el.r << 8) | (el.c << 4) | el.num;
-                if (seen[key] === 0) {
-                  seen[key] = 1;
-                  uniqueElims.push(el);
+            // Generate cover combinations ONLY from occupied cover houses
+            const coverCombos = getCombinations(Array.from(occupiedCovers), n);
+
+            for (const covers of coverCombos) {
+              const coverSet = new Set(covers);
+              const fins = [];
+
+              // Map to group body parts on a single pass
+              const bodyPartsByCover = new Map();
+              for (const cv of covers) {
+                bodyPartsByCover.set(cv, []);
+              }
+
+              // Distribute base cells into body parts or fins
+              for (const id of baseCells) {
+                const coverIdx = isBaseRow ? id % 9 : Math.floor(id / 9);
+                if (coverSet.has(coverIdx)) {
+                  bodyPartsByCover.get(coverIdx).push(id);
+                } else {
+                  fins.push(id);
                 }
               }
 
-              // --- CAPTURE ALS CELLS SYNCHRONOUSLY ---
-              const usedAlses = [];
-              if (useAls) {
-                const fullVisualChain = [...visualChain, visualChain[0]];
-                for (let i = 0; i < fullVisualChain.length - 1; i++) {
-                  const u = fullVisualChain[i];
-                  const v = fullVisualChain[i + 1];
-                  if (u.digit !== v.digit) {
-                    const linkKey = `${u.key}_${v.key}`;
-                    const als = techniques._aicCache.alsLinkMap?.get(linkKey);
-                    if (als) {
-                      usedAlses.push(als.cells);
-                    }
-                  }
-                }
+              // Finned fish constraint check
+              if (fins.length === 0 || fins.length > n) continue;
+
+              // Extract fish body cells from grouped parts
+              const fishBody = [];
+              for (const part of bodyPartsByCover.values()) {
+                fishBody.push(...part);
               }
 
-              const res = {
-                change: true,
-                type: "remove",
-                cells: uniqueElims,
-                hint: {
-                  name: (options.nameOverride || "AIC").includes("Chain")
-                    ? (options.nameOverride || "AIC").replace("Chain", "Ring")
-                    : (options.nameOverride || "AIC") + " Ring",
-                  mainInfo:
-                    techniques._getHintInfo(visualChain, hintType) + " (Ring)",
-                  detail:
-                    `[${currentLen}] ` +
-                    techniques._buildChainDetail(visualChain, options) +
-                    "-(Ring)",
-                },
-                applyVisuals: () => {
-                  if (singleDigit) {
-                    highlightedDigit = visualChain[0].digit;
-                    highlightState = 1;
-                  } else if (bivalueOnly) {
-                    highlightedDigit = null;
-                    highlightState = 2;
-                  } else {
-                    highlightedDigit = null;
-                    highlightState = 0;
-                  }
+              const basesStr = getUnitName(isBaseRow, bases);
+              const coversStr = getUnitName(!isBaseRow, covers);
 
-                  visualChain.forEach((node, idx) => {
-                    node.cells.forEach(([cr, cc]) => {
-                      const colorIdx = idx % 2 === 0 ? 5 : 4;
-                      boardState[cr][cc].pencilColors.set(
-                        node.digit,
-                        candidateColorPalette[colorIdx],
-                      );
-                    });
-                  });
-
-                  uniqueElims.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
-                      el.num,
-                      candidateColorPalette[0],
-                    ),
-                  );
-
-                  // Render captured ALS cells
-                  if (useAls) {
-                    const alsColors = [6, 7, 2, 3, 4, 5];
-                    usedAlses.forEach((cells, idx) => {
-                      const colorCode = alsColors[idx % 6];
-                      cells.forEach(([r, c]) => {
-                        window.addCellColor(r, c, cellColorPalette[colorCode]);
-                      });
-                    });
-                  }
-
-                  const drawGroup = (node) => {
-                    if (node.cells.length > 1) {
-                      for (let i = 0; i < node.cells.length - 1; i++) {
-                        drawnLines.push({
-                          r1: node.cells[i][0],
-                          c1: node.cells[i][1],
-                          n1: node.digit,
-                          r2: node.cells[i + 1][0],
-                          c2: node.cells[i + 1][1],
-                          n2: node.digit,
-                          color: lineColorPalette[4],
-                          style: "solid",
-                        });
-                      }
-                    }
-                  };
-
-                  const getClosestCells = (nodeA, nodeB) => {
-                    let minD = Infinity;
-                    let bestA = nodeA.cells[0];
-                    let bestB = nodeB.cells[0];
-                    for (const a of nodeA.cells) {
-                      for (const b of nodeB.cells) {
-                        const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                        if (d < minD) {
-                          minD = d;
-                          bestA = a;
-                          bestB = b;
-                        }
-                      }
-                    }
-                    return [bestA, bestB];
-                  };
-
-                  const fullVisualChain = [...visualChain, visualChain[0]];
-
-                  for (let i = 0; i < fullVisualChain.length - 1; i++) {
-                    const u = fullVisualChain[i];
-                    const v = fullVisualChain[i + 1];
-
-                    if (i === 0) drawGroup(u, 0);
-                    if (i < visualChain.length)
-                      drawGroup(v, (i + 1) % visualChain.length);
-
-                    const [cA, cB] = getClosestCells(u, v);
-                    drawnLines.push({
-                      r1: cA[0],
-                      c1: cA[1],
-                      n1: u.digit,
-                      r2: cB[0],
-                      c2: cB[1],
-                      n2: v.digit,
-                      color: lineColorPalette[0],
-                      style: i % 2 === 0 ? "solid" : "dash",
-                    });
-                  }
-                },
+              const fishObj = {
+                d,
+                basesStr,
+                coversStr,
+                allCells: [...fins, ...fishBody],
               };
 
-              if (!findAll) {
-                result = res;
-                return;
-              } else {
-                results.push(res);
-                return;
-              }
-            }
-          }
+              const finNode = getNode(fins, d);
+              if (!hasNandCandidates(finNode)) continue;
 
-          // --- Standard Check: Discontinuous Chain ---
-          if (!isContinuous) {
-            if (bivalueOnly) {
-              if (startNode.digit === endNode.digit) {
-                const peers = _getCommonPeers(startNode, endNode);
-                for (let p = 0; p < peers.length; p++) {
-                  const { r, c } = peers[p];
-
-                  let inStart = false,
-                    inEnd = false;
-                  for (let cu = 0; cu < startNode.cells.length; cu++) {
-                    if (
-                      startNode.cells[cu][0] === r &&
-                      startNode.cells[cu][1] === c
-                    ) {
-                      inStart = true;
-                      break;
-                    }
-                  }
-                  for (let cv = 0; cv < endNode.cells.length; cv++) {
-                    if (
-                      endNode.cells[cv][0] === r &&
-                      endNode.cells[cv][1] === c
-                    ) {
-                      inEnd = true;
-                      break;
-                    }
-                  }
-
-                  if (
-                    !inStart &&
-                    !inEnd &&
-                    pencils[r][c].has(startNode.digit)
-                  ) {
-                    let duplicate = false;
-                    for (let e = 0; e < elims.length; e++) {
-                      if (
-                        elims[e].r === r &&
-                        elims[e].c === c &&
-                        elims[e].num === startNode.digit
-                      ) {
-                        duplicate = true;
-                        break;
-                      }
-                    }
-                    if (!duplicate) elims.push({ r, c, num: startNode.digit });
+              // Process each cover unit's body parts directly (no nested filtering needed)
+              for (const cv of covers) {
+                const bodyPart = bodyPartsByCover.get(cv);
+                if (bodyPart.length > 0) {
+                  const bodyNode = getNode(bodyPart, d);
+                  if (hasNandCandidates(bodyNode)) {
+                    addLink(finNode, bodyNode, fishObj);
                   }
                 }
-              }
-            } else {
-              const startWeak = weakAdj[startNodeId];
-              const endWeak = weakAdj[endNodeId];
-
-              for (let j = 0; j < startWeak.length; j++) {
-                const zId = startWeak[j];
-                if (endWeak.includes(zId)) {
-                  if (
-                    zId !== startNodeId &&
-                    zId !== endNodeId &&
-                    idToNode[zId].count === 1 &&
-                    SHARED_VISITED_AIC[zId] === 0
-                  ) {
-                    const zNode = idToNode[zId];
-                    const [zr, zc] = zNode.cells[0];
-
-                    if (pencils[zr][zc].has(zNode.digit)) {
-                      let duplicate = false;
-                      for (let e = 0; e < elims.length; e++) {
-                        if (
-                          elims[e].r === zr &&
-                          elims[e].c === zc &&
-                          elims[e].num === zNode.digit
-                        ) {
-                          duplicate = true;
-                          break;
-                        }
-                      }
-                      if (!duplicate)
-                        elims.push({ r: zr, c: zc, num: zNode.digit });
-                    }
-                  }
-                }
-              }
-            }
-
-            if (elims.length > 0) {
-              const visualChain = SHARED_PATH_AIC.slice(0, currentLen);
-              const uniqueElims = [];
-              const seen = new Uint8Array(4096);
-              for (let i = 0; i < elims.length; i++) {
-                const el = elims[i];
-                const key = (el.r << 8) | (el.c << 4) | el.num;
-                if (seen[key] === 0) {
-                  seen[key] = 1;
-                  uniqueElims.push(el);
-                }
-              }
-
-              // --- CAPTURE ALS CELLS SYNCHRONOUSLY ---
-              const usedAlses = [];
-              if (useAls) {
-                for (let i = 0; i < visualChain.length - 1; i++) {
-                  const u = visualChain[i];
-                  const v = visualChain[i + 1];
-                  if (u.digit !== v.digit) {
-                    const linkKey = `${u.key}_${v.key}`;
-                    const als = techniques._aicCache.alsLinkMap?.get(linkKey);
-                    if (als) {
-                      usedAlses.push(als.cells);
-                    }
-                  }
-                }
-              }
-
-              const res = {
-                change: true,
-                type: "remove",
-                cells: uniqueElims,
-                hint: {
-                  name: options.nameOverride || "AIC",
-                  mainInfo: techniques._getHintInfo(visualChain, hintType),
-                  detail:
-                    `[${currentLen}] ` +
-                    techniques._buildChainDetail(visualChain, options),
-                },
-                applyVisuals: () => {
-                  if (singleDigit) {
-                    highlightedDigit = visualChain[0].digit;
-                    highlightState = 1;
-                  } else if (bivalueOnly) {
-                    highlightedDigit = null;
-                    highlightState = 2;
-                  } else {
-                    highlightedDigit = null;
-                    highlightState = 0;
-                  }
-
-                  visualChain.forEach((node, idx) => {
-                    node.cells.forEach(([cr, cc]) => {
-                      const colorIdx = idx % 2 === 0 ? 5 : 4;
-                      boardState[cr][cc].pencilColors.set(
-                        node.digit,
-                        candidateColorPalette[colorIdx],
-                      );
-                    });
-                  });
-
-                  uniqueElims.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
-                      el.num,
-                      candidateColorPalette[0],
-                    ),
-                  );
-
-                  // Render captured ALS cells
-                  if (useAls) {
-                    const alsColors = [6, 7, 2, 3, 4, 5];
-                    usedAlses.forEach((cells, idx) => {
-                      const colorCode = alsColors[idx % 6];
-                      cells.forEach(([r, c]) => {
-                        window.addCellColor(r, c, cellColorPalette[colorCode]);
-                      });
-                    });
-                  }
-
-                  const drawGroup = (node, idx) => {
-                    if (node.cells.length > 1) {
-                      const colorIdx = idx % 2 === 0 ? 5 : 4;
-                      for (let i = 0; i < node.cells.length - 1; i++) {
-                        drawnLines.push({
-                          r1: node.cells[i][0],
-                          c1: node.cells[i][1],
-                          n1: node.digit,
-                          r2: node.cells[i + 1][0],
-                          c2: node.cells[i + 1][1],
-                          n2: node.digit,
-                          color: lineColorPalette[colorIdx],
-                          style: "solid",
-                        });
-                      }
-                    }
-                  };
-
-                  const getClosestCells = (nodeA, nodeB) => {
-                    let minD = Infinity;
-                    let bestA = nodeA.cells[0];
-                    let bestB = nodeB.cells[0];
-                    for (const a of nodeA.cells) {
-                      for (const b of nodeB.cells) {
-                        const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                        if (d < minD) {
-                          minD = d;
-                          bestA = a;
-                          bestB = b;
-                        }
-                      }
-                    }
-                    return [bestA, bestB];
-                  };
-
-                  for (let i = 0; i < visualChain.length - 1; i++) {
-                    const u = visualChain[i];
-                    const v = visualChain[i + 1];
-
-                    if (i === 0) drawGroup(u, 0);
-                    drawGroup(v, i + 1);
-
-                    const [cA, cB] = getClosestCells(u, v);
-                    drawnLines.push({
-                      r1: cA[0],
-                      c1: cA[1],
-                      n1: u.digit,
-                      r2: cB[0],
-                      c2: cB[1],
-                      n2: v.digit,
-                      color: lineColorPalette[0],
-                      style: i % 2 === 0 ? "solid" : "dash",
-                    });
-                  }
-                },
-              };
-
-              if (!findAll) {
-                result = res;
-                return;
-              } else {
-                results.push(res);
-                return;
               }
             }
           }
         }
       }
+    }
+    return orMap;
+  },
 
-      // Chain Parity Validations
-      if (currentLen % 2 === 0) {
-        const sNeighbors = strongAdj[endNodeId];
-        for (let i = 0; i < currentLen; i += 2) {
-          if (i === currentLen - 2) continue;
-          if (currentLen === currentTargetLen && i === 0) continue;
-          if (sNeighbors.includes(keyToId[SHARED_PATH_AIC[i].key])) return;
-        }
-      } else {
-        if (currentLen > 1) {
-          const wNeighbors = weakAdj[endNodeId];
-          for (let i = 1; i < currentLen; i += 2) {
-            if (i === currentLen - 2) continue;
-            if (i === 1) continue;
-            if (wNeighbors.includes(keyToId[SHARED_PATH_AIC[i].key])) return;
-          }
-        }
+  /**
+   * Merges maps for the generic AIC (combining Bilocation and Bivalue)
+   */
+  mergeOrMaps: (map1, map2) => {
+    const merged = new Map();
+
+    // 1. Copy all keys and sets from map1
+    if (map1) {
+      for (const [node, set1] of map1.entries()) {
+        merged.set(node, new Set(set1));
       }
+    }
 
-      // --- DFS Exploration via Pointer Recursion ---
-      const isStrongTurn = currentLen % 2 !== 0;
-      const nextAdjList = isStrongTurn
-        ? strongAdj[endNodeId]
-        : weakAdj[endNodeId];
-
-      for (let i = 0; i < nextAdjList.length; i++) {
-        const nextId = nextAdjList[i];
-
-        if (SHARED_VISITED_AIC[nextId] === 0) {
-          const nextNode = idToNode[nextId];
-
-          SHARED_VISITED_AIC[nextId] = 1;
-          SHARED_PATH_AIC[depth + 1] = nextNode;
-
-          dfs(depth + 1, hasGrouped || nextNode.count > 1);
-
-          SHARED_VISITED_AIC[nextId] = 0;
-
-          if (result.change && !findAll) return;
-        }
-      }
-    };
-
-    let minTargetLen = 6;
-
-    if (useAls) {
-      minTargetLen = 4;
-    } else {
-      if (!bivalueOnly) {
-        if (!useGrouped) {
-          if (
-            !(
-              _prXw &&
-              (_prSky || _prgSky) &&
-              (_prKite || _prgKite) &&
-              (_prCrane || _prgCrane)
-            )
-          ) {
-            minTargetLen = 4;
-          }
+    // 2. Merge in keys and sets from map2
+    if (map2) {
+      for (const [node, set2] of map2.entries()) {
+        if (!merged.has(node)) {
+          merged.set(node, new Set(set2));
         } else {
-          if (_prgSky && _prgKite && _prgCrane) {
-            minTargetLen = 4;
-          }
-        }
-      }
-      if (!singleDigit) {
-        if (!_prNpair || !_prHpair) minTargetLen = 4;
-        else if (bivalueOnly) {
-          if (_prNpair && _prXYw) minTargetLen = 8;
-        }
-      }
-    }
-
-    // --- Iterative Deepening Framework ---
-    for (
-      currentTargetLen = minTargetLen;
-      currentTargetLen <= maxLength;
-      currentTargetLen += 2
-    ) {
-      foundPathAtTargetLen = false;
-
-      for (const [key, id] of Object.entries(keyToId)) {
-        if (result.change && !findAll) break;
-
-        if (strongAdj[id].length > 0) {
-          const startNode = idToNode[id];
-          SHARED_VISITED_AIC[id] = 1;
-          SHARED_PATH_AIC[0] = startNode;
-
-          dfs(0, startNode.count > 1);
-
-          SHARED_VISITED_AIC[id] = 0;
-        }
-      }
-
-      if (result.change && !findAll) {
-        break;
-      }
-
-      if (!foundPathAtTargetLen) {
-        break;
-      }
-    }
-
-    return findAll ? results : result;
-  },
-
-  // --- Optimized XY-Chain Graph Builder ---
-  _buildXYChainGraph: (pencils) => {
-    const strongLinks = new Map();
-    const weakLinks = new Map();
-    const nodeMap = new Map();
-
-    // Helper to get/create node
-    const getNode = (r, c, d) => {
-      // Sort cells to ensure consistent key for the same candidate
-      const cells = [[r, c]];
-      const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-      const cellMask = 1 << ((r % 3) * 3 + (c % 3));
-      const key = techniques._enc17(d, b, cellMask);
-      if (!nodeMap.has(key)) {
-        nodeMap.set(key, { cells, digit: d, key, count: 1 });
-      }
-      return nodeMap.get(key);
-    };
-
-    const addLink = (map, u, v) => {
-      if (!map.has(u.key)) map.set(u.key, []);
-      map.get(u.key).push(v);
-    };
-
-    // 1. Find all Bivalue Cells & Build Strong Links (Intra-cell)
-    const nodesByDigit = Array.from({ length: 10 }, () => []);
-
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        if (pencils[r][c].size === 2) {
-          const [d1, d2] = [...pencils[r][c]];
-          const n1 = getNode(r, c, d1);
-          const n2 = getNode(r, c, d2);
-
-          // Strong Link: Between d1 and d2 in the same bivalue cell
-          addLink(strongLinks, n1, n2);
-          addLink(strongLinks, n2, n1);
-
-          nodesByDigit[d1].push(n1);
-          nodesByDigit[d2].push(n2);
-        }
-      }
-    }
-
-    // 2. Build Weak Links (Visibility, Same Digit)
-    // Compare only nodes of the same digit to avoid O(N^2) over the whole board
-    for (let d = 1; d <= 9; d++) {
-      const nodes = nodesByDigit[d];
-      if (nodes.length < 2) continue;
-
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const u = nodes[i];
-          const v = nodes[j];
-          // Weak Link: If two bivalue cells containing 'd' can see each other
-          if (techniques._sees(u.cells[0], v.cells[0])) {
-            addLink(weakLinks, u, v);
-            addLink(weakLinks, v, u);
+          const existingSet = merged.get(node);
+          for (const val of set2) {
+            existingSet.add(val);
           }
         }
       }
     }
 
-    return { strongLinks, weakLinks, nodeMap };
+    return merged;
   },
 
-  // --- Technique Wrappers ---
+  _findCommonPeersBS: (cellMask) => {
+    let commonPeers = ~0n; // All ones (conceptually, practically handling 81 bits)
+    // We mask it down to 81 bits at the end or implicitly via ANDing with PEER_MAP
 
-  xChain: (board, pencils, findAll = false) => {
-    _prXC = true;
-    return techniques._findAIC(
-      board,
-      pencils,
-      {
-        singleDigit: true,
-        useGrouped: false,
-        bivalueOnly: false,
-        maxLength: 10,
-        hintType: "digit",
-        nameOverride: "X-Chain",
-      },
-      findAll,
-    );
-  },
-
-  groupedXChain: (board, pencils, findAll = false) => {
-    _prgXC = true;
-    return techniques._findAIC(
-      board,
-      pencils,
-      {
-        singleDigit: true,
-        useGrouped: true,
-        bivalueOnly: false,
-        maxLength: 10,
-        hintType: "digit",
-        nameOverride: "Grouped X-Chain",
-      },
-      findAll,
-    );
-  },
-
-  xyChain: (board, pencils, findAll = false) => {
-    return techniques._findAIC(
-      board,
-      pencils,
-      {
-        singleDigit: false,
-        useGrouped: false,
-        bivalueOnly: true,
-        maxLength: 20,
-        hintType: "startCell",
-        nameOverride: "XY-Chain",
-      },
-      findAll,
-    );
-  },
-
-  alternatingInferenceChain: (board, pencils, findAll = false) => {
-    _prAIC = true;
-    return techniques._findAIC(
-      board,
-      pencils,
-      {
-        singleDigit: false,
-        useGrouped: false,
-        bivalueOnly: false,
-        maxLength: 20,
-        hintType: "strongLink",
-      },
-      findAll,
-    );
-  },
-
-  groupedAIC: (board, pencils, findAll = false) => {
-    _prgAIC = true;
-    return techniques._findAIC(
-      board,
-      pencils,
-      {
-        singleDigit: false,
-        useGrouped: true,
-        bivalueOnly: false,
-        maxLength: 20,
-        hintType: "strongLink",
-        nameOverride: "Grouped AIC",
-      },
-      findAll,
-    );
-  },
-
-  // --- BITWISE HELPERS ---
-  _bits: {
-    popcount: (n) => {
-      // Handle BigInt (used for 81-cell position masks)
-      if (typeof n === "bigint") {
-        let count = 0;
-        while (n !== 0n) {
-          n &= n - 1n; // Brian Kernighan's algorithm: clears the least significant bit set
-          count++;
+    // Iterate set bits in cellMask
+    let m = cellMask;
+    let idx = 0;
+    while (m !== 0n) {
+      if (m & 1n) {
+        // Intersect current common peers with the peer map of this cell
+        if (commonPeers === ~0n) {
+          commonPeers = PEER_MAP[idx];
+        } else {
+          commonPeers &= PEER_MAP[idx];
         }
-        return count;
       }
+      m >>= 1n;
+      idx++;
+    }
+    return commonPeers === ~0n ? 0n : commonPeers;
+  },
+  /**
+   * Precomputes common peers for every digit of every ALS in the cache.
+   * Corresponds to C++: build_als_digit_common_peers()
+   */
+  _buildAlsDigitCommonPeers: () => {
+    _alsDigitCommonPeers = {};
 
-      // Handle Number (used for 9-digit candidate masks)
-      // SWAR algorithm for 32-bit integers
-      n = n - ((n >> 1) & 0x55555555);
-      n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
-      return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
-    },
-    maskToDigits: (n) => {
-      const res = [];
-      // Assumes n is a Number (candidate mask)
-      for (let i = 1; i <= 9; i++) if ((n >> (i - 1)) & 1) res.push(i);
-      return res;
-    },
-    maskFromSet: (set) => {
-      let m = 0;
-      for (const d of set) m |= 1 << (d - 1);
-      return m;
-    },
+    for (const als of _alsCache) {
+      const peersArray = Array(9).fill(0n);
+      for (let d = 1; d <= 9; d++) {
+        const dCells = als.candidatePositions[d - 1];
+        if (dCells === 0n) continue;
+        peersArray[d - 1] = techniques._findCommonPeersBS(dCells);
+      }
+      _alsDigitCommonPeers[als.hash] = peersArray;
+    }
   },
 
-  // --- ALS COLLECTION ENGINE ---
-  _calculateALSHash: (cells) => {
-    if (cells.length === 0) return 0;
+  /**
+   * Builds the Restricted Common Candidate (RCC) graph between ALSs.
+   * Corresponds to C++: build_als_rcc_map()
+   */
+  _buildAlsRccMap: () => {
+    _alsRccMap = {};
+    _alsLookup = {};
 
-    // Sort to ensure consistency, though inputs are usually sorted by unit generation
-    // We strictly follow the C++ priority: Row > Col > Box
+    // Build lookup for easy access by hash
 
-    // Check Row
-    const r0 = cells[0][0];
-    const isRow = cells.every((c) => c[0] === r0);
-    if (isRow) {
-      let mask = 0;
-      for (const [r, c] of cells) mask |= 1 << c;
-      // Type 00 (Row) | Unit Index | Cell Mask
-      return (0 << 13) | (r0 << 9) | mask;
+    for (const als of _alsCache) {
+      _alsLookup[als.hash] = als;
+      _alsRccMap[als.hash] = [];
     }
 
-    // Check Col
-    const c0 = cells[0][1];
-    const isCol = cells.every((c) => c[1] === c0);
-    if (isCol) {
-      let mask = 0;
-      for (const [r, c] of cells) mask |= 1 << r;
-      // Type 01 (Col) | Unit Index | Cell Mask
-      return (1 << 13) | (c0 << 9) | mask;
-    }
+    for (let i = 0; i < _alsCache.length; i++) {
+      for (let j = i + 1; j < _alsCache.length; j++) {
+        const als1 = _alsCache[i];
+        const als2 = _alsCache[j];
 
-    // Assume Box (valid ALSs must belong to *some* unit)
-    const b0 = techniques._getBoxIndex(cells[0][0], cells[0][1]);
-    let mask = 0;
-    for (const [r, c] of cells) {
-      const boxCellIdx = (r % 3) * 3 + (c % 3);
-      mask |= 1 << boxCellIdx;
-    }
-    // Type 10 (Box) | Unit Index | Cell Mask
-    return (2 << 13) | (b0 << 9) | mask;
-  },
+        const commonMask = als1.candidates & als2.candidates;
+        if (commonMask === 0) continue;
 
-  _collectAllALS: (board, pencils, minSize = 1, maxSize = 8) => {
-    if (_alsCache && _alsCache.length > 0) {
-      return _alsCache;
-    }
+        // Iterate bits in commonMask
+        for (let d = 1; d <= 9; d++) {
+          if ((commonMask >> (d - 1)) & 1) {
+            const d1Pos = als1.candidatePositions[d - 1];
+            const d2Pos = als2.candidatePositions[d - 1];
 
-    const uniqueALS = new Map();
+            // 1. Check for overlap in candidate positions (Invalid for RCC)
+            if ((d1Pos & d2Pos) !== 0n) continue;
 
-    // 1. Scan order: box, row, col
-    const unitTypes = [
-      { name: "box", label: "Box" },
-      { name: "row", label: "Row" },
-      { name: "col", label: "Col" },
-    ];
+            // 2. Check visibility: All d-cells in ALS1 must see all d-cells in ALS2
+            // We use the precomputed common peers:
+            // If ALS1's common peers for 'd' cover all of ALS2's 'd' cells, it's a valid link.
+            const p1 = _alsDigitCommonPeers[als1.hash][d - 1];
 
-    for (const { name, label } of unitTypes) {
-      for (let i = 0; i < 9; i++) {
-        const unitCells = techniques._getUnitCells(name, i);
-
-        // Pre-exclude concrete numbers by exclusively grabbing empty cells
-        const emptyCells = unitCells.filter(([r, c]) => board[r][c] === 0);
-        const n = emptyCells.length;
-        if (n === 0) continue;
-
-        const effectiveMaxSize = Math.min(maxSize, n - 1);
-
-        // Pre-evaluate naked subsets to exclude them from generating false ALSes
-        const nakedSubsets = [];
-        for (let mask = 1; mask < 1 << n; mask++) {
-          const size = techniques._bits.popcount(mask);
-          if (size > 1 && size < n) {
-            let candMask = 0;
-            for (let bit = 0; bit < n; bit++) {
-              if (mask & (1 << bit)) {
-                const [r, c] = emptyCells[bit];
-                candMask |= techniques._bits.maskFromSet(pencils[r][c]);
-              }
-            }
-            if (techniques._bits.popcount(candMask) === size) {
-              nakedSubsets.push(mask);
-            }
-          }
-        }
-        // Precompute all masks that are supersets of any naked subset (O(1) lookup later)
-        const tainted = new Set();
-        for (const ns of nakedSubsets) {
-          // Enumerate every superset of ns within n bits using the standard bit trick:
-          // Starting from ns itself, repeatedly find the next integer that has ns as a subset.
-          // Formula: next = (prev + 1) | ns  gives the next superset after prev.
-          let sup = ns;
-          const limit = 1 << n;
-          while (sup < limit) {
-            tainted.add(sup);
-            sup = (sup + 1) | ns;
-          }
-        }
-
-        // Search ALS combinations using bitmasks
-        for (let mask = 1; mask < 1 << n; mask++) {
-          const k = techniques._bits.popcount(mask);
-          if (k < minSize || k > effectiveMaxSize) continue;
-
-          if (tainted.has(mask)) continue;
-
-          // Skip confined intersections for row/col (already scanned by box pass)
-          if (name !== "box" && k > 1) {
-            let firstBox = -1;
-            let confined = true;
-            for (let bit = 0; bit < n; bit++) {
-              if (mask & (1 << bit)) {
-                const [r, c] = emptyCells[bit];
-                const b = techniques._getBoxIndex(r, c);
-                if (firstBox === -1) firstBox = b;
-                else if (firstBox !== b) {
-                  confined = false;
-                  break;
-                }
-              }
-            }
-            if (confined) continue;
-          }
-
-          let currentMask = 0;
-          for (let bit = 0; bit < n; bit++) {
-            if (mask & (1 << bit)) {
-              const [r, c] = emptyCells[bit];
-              currentMask |= techniques._bits.maskFromSet(pencils[r][c]);
-            }
-          }
-
-          if (techniques._bits.popcount(currentMask) === k + 1) {
-            const currentCells = [];
-            for (let bit = 0; bit < n; bit++) {
-              if (mask & (1 << bit)) currentCells.push(emptyCells[bit]);
-            }
-
-            let positions = 0n;
-            const candidatePositions = Array(9).fill(0n);
-            const candMap = {};
-
-            for (const [r, c] of currentCells) {
-              const cellIndex = BigInt(r * 9 + c);
-              const bitId = 1n << cellIndex;
-              positions |= bitId;
-              for (const d of pencils[r][c]) {
-                candidatePositions[d - 1] |= bitId;
-                if (!candMap[d]) candMap[d] = [];
-                candMap[d].push([r, c]);
-              }
-            }
-
-            const hash = techniques._calculateALSHash(currentCells);
-            if (!uniqueALS.has(hash)) {
-              uniqueALS.set(hash, {
-                cells: currentCells,
-                candidates: currentMask,
-                mask: currentMask,
-                size: k,
-                candMap: candMap,
-                unitName: `${label} ${i + 1}`,
-                hash: hash,
-                positions: positions,
-                candidatePositions: candidatePositions,
+            // (p1 & d2Pos) === d2Pos checks if d2Pos is a subset of p1
+            if ((p1 & d2Pos) === d2Pos) {
+              _alsRccMap[als1.hash].push({
+                hash: als2.hash,
+                digit: d,
+              });
+              _alsRccMap[als2.hash].push({
+                hash: als1.hash,
+                digit: d,
               });
             }
           }
         }
       }
     }
-
-    _alsCache = Array.from(uniqueALS.values()).sort((a, b) => a.hash - b.hash);
-    return _alsCache;
   },
+
   _processElims: (peerMask, digit, pencils, elims) => {
     let m = peerMask;
     let idx = 0;
@@ -7956,52 +6903,10 @@ const techniques = {
     }
   },
 
-  _applySinglyLinked: (A, B, rccMask, commonMask, pencils) => {
-    const elims = [];
-    const zMask = commonMask & ~rccMask;
-    const zDigits = techniques._bits.maskToDigits(zMask);
-
-    for (const z of zDigits) {
-      // Eliminate z from common peers of ALL z-candidates in BOTH A and B
-      const allZ = A.candidatePositions[z - 1] | B.candidatePositions[z - 1];
-      const pm = techniques._findCommonPeersBS(allZ);
-      techniques._processElims(pm, z, pencils, elims);
-    }
-    return elims;
-  },
-
-  _applyDoublyLinked: (A, B, rccMask, commonMask, pencils) => {
-    const elims = [];
-
-    // 1. Non-RCC eliminations for A
-    const zMaskA = A.mask & ~rccMask;
-    const zDigitsA = techniques._bits.maskToDigits(zMaskA);
-    for (const z of zDigitsA) {
-      const pm = techniques._findCommonPeersBS(A.candidatePositions[z - 1]);
-      techniques._processElims(pm, z, pencils, elims);
-    }
-
-    // 2. Non-RCC eliminations for B
-    const zMaskB = B.mask & ~rccMask;
-    const zDigitsB = techniques._bits.maskToDigits(zMaskB);
-    for (const z of zDigitsB) {
-      const pm = techniques._findCommonPeersBS(B.candidatePositions[z - 1]);
-      techniques._processElims(pm, z, pencils, elims);
-    }
-
-    // 3. RCC eliminations (common peers of RCC digits)
-    const rccDigits = techniques._bits.maskToDigits(rccMask);
-    for (const x of rccDigits) {
-      const allX = A.candidatePositions[x - 1] | B.candidatePositions[x - 1];
-      const pm = techniques._findCommonPeersBS(allX);
-      techniques._processElims(pm, x, pencils, elims);
-    }
-    return elims;
-  },
-
   /**
    * Core DFS logic for Almost Locked Set Chains.
    * Supports both Ring (Continuous Loop) and Linear Chain eliminations.
+   * Corresponds to C++: als_chain_core
    */
   _alsChainCore: (
     board,
@@ -8360,140 +7265,131 @@ const techniques = {
 
         // Check Constraints
         if (len === currentTargetLen && SHARED_PATH_ALS[0].hash < nbrHash) {
-          if (minLen === 2 && _prALSXY && len === 3) {
-            // skip, we do this in alsXYWing explicitly
-          } else {
-            const alsStart = _alsLookup[SHARED_PATH_ALS[0].hash];
-            const alsEnd = _alsLookup[nbrHash];
-            let isRing = false;
+          const alsStart = _alsLookup[SHARED_PATH_ALS[0].hash];
+          const alsEnd = _alsLookup[nbrHash];
+          let isRing = false;
 
-            // --- 1. PRIORITY: Check for Ring (Continuous Loop) ---
-            const endNeighbors = _alsRccMap[alsEnd.hash];
-            if (endNeighbors) {
-              for (let en = 0; en < endNeighbors.length; en++) {
-                const endNeighbor = endNeighbors[en];
-                const closingHash = endNeighbor.hash;
-                const closingRcc = endNeighbor.digit;
+          // --- 1. PRIORITY: Check for Ring (Continuous Loop) ---
+          const endNeighbors = _alsRccMap[alsEnd.hash];
+          if (endNeighbors) {
+            for (let en = 0; en < endNeighbors.length; en++) {
+              const endNeighbor = endNeighbors[en];
+              const closingHash = endNeighbor.hash;
+              const closingRcc = endNeighbor.digit;
 
-                if (closingHash === alsStart.hash) {
-                  const startExitDigit = SHARED_PATH_ALS[1].viaDigit;
-                  const endEntryDigit = d;
+              if (closingHash === alsStart.hash) {
+                const startExitDigit = SHARED_PATH_ALS[1].viaDigit;
+                const endEntryDigit = d;
 
+                if (
+                  closingRcc !== startExitDigit &&
+                  closingRcc !== endEntryDigit
+                ) {
+                  isRing = true;
+
+                  let ringChange = false;
+                  let localElims = [];
+                  // A. Internal links
+                  for (let i = 0; i < currentPathSlice.length - 1; i++) {
+                    const a = _alsLookup[currentPathSlice[i].hash];
+                    const b = _alsLookup[currentPathSlice[i + 1].hash];
+                    const rcc = currentPathSlice[i + 1].viaDigit;
+                    if (eliminateRccPeers(a, b, rcc, localElims))
+                      ringChange = true;
+                  }
+                  // B. Closing link
                   if (
-                    closingRcc !== startExitDigit &&
-                    closingRcc !== endEntryDigit
-                  ) {
-                    isRing = true;
+                    eliminateRccPeers(alsEnd, alsStart, closingRcc, localElims)
+                  )
+                    ringChange = true;
 
-                    let ringChange = false;
-                    let localElims = [];
-                    // A. Internal links
-                    for (let i = 0; i < currentPathSlice.length - 1; i++) {
-                      const a = _alsLookup[currentPathSlice[i].hash];
-                      const b = _alsLookup[currentPathSlice[i + 1].hash];
-                      const rcc = currentPathSlice[i + 1].viaDigit;
-                      if (eliminateRccPeers(a, b, rcc, localElims))
-                        ringChange = true;
-                    }
-                    // B. Closing link
-                    if (
-                      eliminateRccPeers(
-                        alsEnd,
-                        alsStart,
-                        closingRcc,
-                        localElims,
-                      )
-                    )
+                  // C. non-Rcc in ALS
+                  const nonRccStartbm =
+                    (1 << (closingRcc - 1)) | (1 << (startExitDigit - 1));
+                  if (eliminateNonRcc(alsStart, nonRccStartbm, localElims))
+                    ringChange = true;
+
+                  for (let i = 1; i < currentPathSlice.length - 1; i++) {
+                    const alsMid = _alsLookup[currentPathSlice[i].hash];
+                    const nonRccMidbm =
+                      (1 << (currentPathSlice[i].viaDigit - 1)) |
+                      (1 << (currentPathSlice[i + 1].viaDigit - 1));
+                    if (eliminateNonRcc(alsMid, nonRccMidbm, localElims))
                       ringChange = true;
+                  }
 
-                    // C. non-Rcc in ALS
-                    const nonRccStartbm =
-                      (1 << (closingRcc - 1)) | (1 << (startExitDigit - 1));
-                    if (eliminateNonRcc(alsStart, nonRccStartbm, localElims))
-                      ringChange = true;
+                  const nonRccEndbm =
+                    (1 << (endEntryDigit - 1)) | (1 << (closingRcc - 1));
+                  if (eliminateNonRcc(alsEnd, nonRccEndbm, localElims))
+                    ringChange = true;
 
-                    for (let i = 1; i < currentPathSlice.length - 1; i++) {
-                      const alsMid = _alsLookup[currentPathSlice[i].hash];
-                      const nonRccMidbm =
-                        (1 << (currentPathSlice[i].viaDigit - 1)) |
-                        (1 << (currentPathSlice[i + 1].viaDigit - 1));
-                      if (eliminateNonRcc(alsMid, nonRccMidbm, localElims))
-                        ringChange = true;
-                    }
-
-                    const nonRccEndbm =
-                      (1 << (endEntryDigit - 1)) | (1 << (closingRcc - 1));
-                    if (eliminateNonRcc(alsEnd, nonRccEndbm, localElims))
-                      ringChange = true;
-
-                    if (ringChange) {
-                      const res = createResult(
-                        currentPathSlice,
-                        true,
-                        localElims,
-                        [],
-                        closingRcc,
-                      );
-                      if (!findAll) {
-                        found = true;
-                        resultToReturn = res;
-                        return;
-                      } else {
-                        results.push(res);
-                      }
+                  if (ringChange) {
+                    const res = createResult(
+                      currentPathSlice,
+                      true,
+                      localElims,
+                      [],
+                      closingRcc,
+                    );
+                    if (!findAll) {
+                      found = true;
+                      resultToReturn = res;
+                      return;
+                    } else {
+                      results.push(res);
                     }
                   }
                 }
               }
             }
+          }
 
-            // --- 2. If not a Ring, Check Linear Chain Elimination ---
-            if (!isRing) {
-              const commonMask = alsStart.candidates & alsEnd.candidates;
-              if (commonMask !== 0) {
-                const disallow1 = SHARED_PATH_ALS[1].viaDigit; // Exit from start
-                const disallow2 = d; // Entry to end
+          // --- 2. If not a Ring, Check Linear Chain Elimination ---
+          if (!isRing) {
+            const commonMask = alsStart.candidates & alsEnd.candidates;
+            if (commonMask !== 0) {
+              const disallow1 = SHARED_PATH_ALS[1].viaDigit; // Exit from start
+              const disallow2 = d; // Entry to end
 
-                let localChange = false;
-                let foundZs = [];
-                let localElims = [];
+              let localChange = false;
+              let foundZs = [];
+              let localElims = [];
 
-                // Iterate bits in commonMask
-                const zDigits = techniques._bits.maskToDigits(commonMask);
-                for (const z of zDigits) {
-                  if (z === disallow1 || z === disallow2) continue;
+              // Iterate bits in commonMask
+              const zDigits = techniques._bits.maskToDigits(commonMask);
+              for (const z of zDigits) {
+                if (z === disallow1 || z === disallow2) continue;
 
-                  // Check common peers of 'z' in Start and End
-                  const zPosStart = alsStart.candidatePositions[z - 1];
-                  const zPosEnd = alsEnd.candidatePositions[z - 1];
-                  const allZPos = zPosStart | zPosEnd;
+                // Check common peers of 'z' in Start and End
+                const zPosStart = alsStart.candidatePositions[z - 1];
+                const zPosEnd = alsEnd.candidatePositions[z - 1];
+                const allZPos = zPosStart | zPosEnd;
 
-                  const peerMask = techniques._findCommonPeersBS(allZPos);
+                const peerMask = techniques._findCommonPeersBS(allZPos);
 
-                  // Capture length before processing to check if new elims added
-                  const prevLen = localElims.length;
-                  techniques._processElims(peerMask, z, pencils, localElims);
-                  if (localElims.length > prevLen) {
-                    localChange = true;
-                    foundZs.push(z);
-                  }
+                // Capture length before processing to check if new elims added
+                const prevLen = localElims.length;
+                techniques._processElims(peerMask, z, pencils, localElims);
+                if (localElims.length > prevLen) {
+                  localChange = true;
+                  foundZs.push(z);
                 }
+              }
 
-                if (localChange) {
-                  const res = createResult(
-                    currentPathSlice,
-                    false,
-                    localElims,
-                    foundZs,
-                    null,
-                  );
-                  if (!findAll) {
-                    found = true;
-                    resultToReturn = res;
-                    return;
-                  } else {
-                    results.push(res);
-                  }
+              if (localChange) {
+                const res = createResult(
+                  currentPathSlice,
+                  false,
+                  localElims,
+                  foundZs,
+                  null,
+                );
+                if (!findAll) {
+                  found = true;
+                  resultToReturn = res;
+                  return;
+                } else {
+                  results.push(res);
                 }
               }
             }
@@ -8539,2310 +7435,1810 @@ const techniques = {
     }
   },
 
-  alsXZ: (board, pencils, wxyzOnly = false, findAll = false) => {
-    _alsCache = [];
+  _collectAllALSLegacy: (board, pencils, minSize = 1, maxSize = 8) => {
+    const uniqueALS = new Map();
 
-    if (wxyzOnly) {
-      // Collect only size-1 and size-3 ALSes, merge them
-      const alsesXY = techniques._collectAllALS(board, pencils, 1, 1);
-      _alsCache = [];
-      const alsesWXYZ = techniques._collectAllALS(board, pencils, 3, 3);
-      _alsCache = [...alsesXY, ...alsesWXYZ];
-    } else {
-      _prALSXZ = true;
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-    }
-
-    techniques._buildAlsDigitCommonPeers();
-    techniques._buildAlsRccMap();
-
-    // sizePairFilter: if wxyzOnly, only allow pairs of (size 1, size 3)
-    const sizePairFilter = wxyzOnly
-      ? (a, b) =>
-          (a.size === 1 && b.size === 3) || (a.size === 3 && b.size === 1)
-      : null;
-
-    const name = wxyzOnly ? "WXYZ-Wing" : "ALS XZ-Rule";
-    return techniques._alsChainCore(
-      board,
-      pencils,
-      2,
-      2,
-      name,
-      sizePairFilter,
-      findAll,
-    );
-  },
-
-  wxyzWing: (board, pencils, findAll = false) => {
-    return techniques.alsXZ(board, pencils, true, findAll);
-  },
-
-  /**
-   * Almost Locked Set XY-Wing Wrapper
-   * Length 3 chain (ALS A - ALS B - ALS C)
-   * Corresponds to C++: als_xy_wing()
-   */
-  alsXYWing: (board, pencils, findAll = false) => {
-    _prALSXY = true;
-    if (_alsCache.length === 0)
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-    if (Object.keys(_alsDigitCommonPeers).length === 0) {
-      techniques._buildAlsDigitCommonPeers();
-      techniques._buildAlsRccMap();
-    }
-
-    return techniques._alsChainCore(
-      board,
-      pencils,
-      3,
-      3,
-      "ALS XY-Wing",
-      null,
-      findAll,
-    );
-  },
-
-  alsChain: (board, pencils, findAll = false) => {
-    if (_alsCache.length === 0)
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-    if (Object.keys(_alsDigitCommonPeers).length === 0) {
-      techniques._buildAlsDigitCommonPeers();
-      techniques._buildAlsRccMap();
-    }
-    let minlen = !_prALSXZ ? 2 : !_prALSXY ? 3 : 4;
-    return techniques._alsChainCore(
-      board,
-      pencils,
-      minlen,
-      5,
-      "ALS Chain",
-      null,
-      findAll,
-    );
-  },
-
-  alsAic: (board, pencils, findAll = false) => {
-    _prALSAIC = true;
-    // Note: Depends on both _prAIC and _prgAIC state if you have caching flags mapped
-    return techniques._findAIC(
-      board,
-      pencils,
-      {
-        singleDigit: false,
-        useGrouped: true,
-        useAls: true,
-        bivalueOnly: false,
-        maxLength: 20,
-        hintType: "strongLink",
-        nameOverride: "ALS-AIC",
-      },
-      findAll,
-    );
-  },
-
-  // --- AHS COLLECTION ENGINE ---
-  _collectAllAHS: (board, pencils) => {
-    if (_ahsCache && _ahsCache.length > 0) return _ahsCache;
-
-    const ahses = [];
+    // 1. Scan order: box, row, col
     const unitTypes = [
       { name: "box", label: "Box" },
       { name: "row", label: "Row" },
       { name: "col", label: "Col" },
     ];
 
-    for (const { name: type, label } of unitTypes) {
-      for (let idx = 0; idx < 9; idx++) {
-        const unitCells = techniques._getUnitCells(type, idx);
+    for (const { name, label } of unitTypes) {
+      for (let i = 0; i < 9; i++) {
+        const unitCells = techniques._getUnitCells(name, i);
 
-        // Pre-exclude concrete numbers
+        // Pre-exclude concrete numbers by exclusively grabbing empty cells
         const emptyCells = unitCells.filter(([r, c]) => board[r][c] === 0);
         const n = emptyCells.length;
         if (n === 0) continue;
 
-        const availableDigits = new Set();
-        for (const [r, c] of emptyCells) {
-          for (const d of pencils[r][c]) availableDigits.add(d);
-        }
-        const availArr = [...availableDigits];
-        const nDigits = availArr.length;
+        const effectiveMaxSize = Math.min(maxSize, n - 1);
 
-        // Pre-evaluate naked subsets to exclude their digit combinations
-        const nakedSubsetDigitMasks = [];
-        for (let cMask = 1; cMask < 1 << n; cMask++) {
-          const size = techniques._bits.popcount(cMask);
+        // Pre-evaluate naked subsets to exclude them from generating false ALSes
+        const nakedSubsets = [];
+        for (let mask = 1; mask < 1 << n; mask++) {
+          const size = techniques._bits.popcount(mask);
           if (size > 1 && size < n) {
-            let dMask = 0;
+            let candMask = 0;
             for (let bit = 0; bit < n; bit++) {
-              if (cMask & (1 << bit)) {
+              if (mask & (1 << bit)) {
                 const [r, c] = emptyCells[bit];
-                for (const d of pencils[r][c]) {
-                  const dIdx = availArr.indexOf(d);
-                  if (dIdx !== -1) dMask |= 1 << dIdx;
+                candMask |= techniques._bits.maskFromSet(pencils[r][c]);
+              }
+            }
+            if (techniques._bits.popcount(candMask) === size) {
+              nakedSubsets.push(mask);
+            }
+          }
+        }
+        // Precompute all masks that are supersets of any naked subset (O(1) lookup later)
+        const tainted = new Set();
+        for (const ns of nakedSubsets) {
+          // Enumerate every superset of ns within n bits using the standard bit trick:
+          // Starting from ns itself, repeatedly find the next integer that has ns as a subset.
+          // Formula: next = (prev + 1) | ns  gives the next superset after prev.
+          let sup = ns;
+          const limit = 1 << n;
+          while (sup < limit) {
+            tainted.add(sup);
+            sup = (sup + 1) | ns;
+          }
+        }
+
+        // Search ALS combinations using bitmasks
+        for (let mask = 1; mask < 1 << n; mask++) {
+          const k = techniques._bits.popcount(mask);
+          if (k < minSize || k > effectiveMaxSize) continue;
+
+          if (tainted.has(mask)) continue;
+
+          // Skip confined intersections for row/col (already scanned by box pass)
+          if (name !== "box" && k > 1) {
+            let firstBox = -1;
+            let confined = true;
+            for (let bit = 0; bit < n; bit++) {
+              if (mask & (1 << bit)) {
+                const [r, c] = emptyCells[bit];
+                const b = techniques._getBoxIndex(r, c);
+                if (firstBox === -1) firstBox = b;
+                else if (firstBox !== b) {
+                  confined = false;
+                  break;
                 }
               }
             }
-            if (techniques._bits.popcount(dMask) === size) {
-              nakedSubsetDigitMasks.push(dMask);
+            if (confined) continue;
+          }
+
+          let currentMask = 0;
+          for (let bit = 0; bit < n; bit++) {
+            if (mask & (1 << bit)) {
+              const [r, c] = emptyCells[bit];
+              currentMask |= techniques._bits.maskFromSet(pencils[r][c]);
+            }
+          }
+
+          if (techniques._bits.popcount(currentMask) === k + 1) {
+            const currentCells = [];
+            for (let bit = 0; bit < n; bit++) {
+              if (mask & (1 << bit)) currentCells.push(emptyCells[bit]);
+            }
+
+            let positions = 0n;
+            const candidatePositions = Array(9).fill(0n);
+            const candMap = {};
+
+            for (const [r, c] of currentCells) {
+              const cellIndex = BigInt(r * 9 + c);
+              const bitId = 1n << cellIndex;
+              positions |= bitId;
+              for (const d of pencils[r][c]) {
+                candidatePositions[d - 1] |= bitId;
+                if (!candMap[d]) candMap[d] = [];
+                candMap[d].push([r, c]);
+              }
+            }
+
+            const hash = techniques._calculateALSHash(currentCells);
+            if (!uniqueALS.has(hash)) {
+              uniqueALS.set(hash, {
+                cells: currentCells,
+                candidates: currentMask,
+                mask: currentMask,
+                size: k,
+                candMap: candMap,
+                unitName: `${label} ${i + 1}`,
+                hash: hash,
+                positions: positions,
+                candidatePositions: candidatePositions,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    alses = Array.from(uniqueALS.values()).sort((a, b) => a.hash - b.hash);
+    return alses;
+  },
+
+  wxyzWing: (board, pencils) => {
+    // Collect only size-1 and size-3 ALSes, merge them
+    const alsesXY = techniques._collectAllALSLegacy(board, pencils, 1, 1);
+    _alsCache = [];
+    const alsesWXYZ = techniques._collectAllALSLegacy(board, pencils, 3, 3);
+    _alsCache = [...alsesXY, ...alsesWXYZ];
+
+    techniques._buildAlsDigitCommonPeers();
+    techniques._buildAlsRccMap();
+
+    const sizePairFilter = (a, b) =>
+      (a.size === 1 && b.size === 3) || (a.size === 3 && b.size === 1);
+
+    const name = "WXYZ-Wing";
+    return techniques._alsChainCore(board, pencils, 2, 2, name, sizePairFilter);
+  },
+
+  // --- Global Cache for AIC Graph ---
+  _aicCache: {
+    AllNodes: [],
+    NodeCache: new Map(),
+    BivalueOrMap: new Map(),
+    BilocationOrMap: new Map(),
+    GroupedOrMap: new Map(),
+    AlsMap: new Map(),
+    FishMap: new Map(),
+    AlsLinkRegistry: new Map(),
+    FishLinkRegistry: new Map(),
+  },
+
+  _resetAICCache: () => {
+    techniques._aicCache = {
+      AllNodes: [],
+      NodeCache: new Map(),
+      BivalueOrMap: new Map(),
+      BilocationOrMap: new Map(),
+      GroupedOrMap: new Map(),
+      AlsMap: new Map(),
+      FishMap: new Map(),
+      AlsLinkRegistry: new Map(),
+      FishLinkRegistry: new Map(),
+    };
+  },
+
+  _addLink: (map, u, v) => {
+    if (!map.has(u.key)) map.set(u.key, []);
+    map.get(u.key).push(v);
+  },
+
+  // --- Map Merger Helper ---
+  _mergeMaps: (...maps) => {
+    const result = new Map();
+    for (const m of maps) {
+      for (const [key, neighbors] of m) {
+        if (!result.has(key)) result.set(key, []);
+        const target = result.get(key);
+        // Avoid duplicates if necessary, though simpler to just push
+        for (const n of neighbors) target.push(n);
+      }
+    }
+    return result;
+  },
+
+  _findAic: (board, pencils, config, findAll = false) => {
+    const results = [];
+    const {
+      singleDigit,
+      bivalueOnly,
+      useGrouped,
+      useAlsXZ,
+      useAls,
+      useFish,
+      maxCycle,
+      nameOverride,
+    } = config;
+    const techniqueName = nameOverride || "Alternating Inference Chain";
+
+    let cache = techniques._aicCache;
+
+    // 1. Initialize & Cache Base Nodes
+    if (cache.AllNodes.length === 0) {
+      const candidateBitsets = techniques.buildCandidateBitsets(board, pencils);
+      const baseNodes =
+        techniques.generateBasicNodesFromBitsets(candidateBitsets);
+      baseNodes.forEach((n) => {
+        const key = `${n.digits.join(",")}_${n.cells
+          .slice()
+          .sort((a, b) => a - b)
+          .join(",")}`;
+        cache.NodeCache.set(key, n);
+        cache.AllNodes.push(n);
+      });
+    }
+
+    const allNodes = cache.AllNodes;
+    const nodeCache = cache.NodeCache;
+
+    let aicOrMap = new Map();
+    allNodes.forEach((n) => aicOrMap.set(n, new Set()));
+
+    const getNode = (cells, digits) => {
+      const dArr = Array.isArray(digits) ? digits : [digits];
+      const key = `${dArr.join(",")}_${cells
+        .slice()
+        .sort((a, b) => a - b)
+        .join(",")}`;
+      if (nodeCache.has(key)) return nodeCache.get(key);
+
+      const newNode = new AICNode(cells, dArr);
+      nodeCache.set(key, newNode);
+      allNodes.push(newNode);
+      aicOrMap.set(newNode, new Set()); // Important: Register immediately
+      return newNode;
+    };
+
+    // 2. Map Generation & Cache Hydration
+    if (singleDigit || (!singleDigit && !bivalueOnly && !useAlsXZ)) {
+      if (cache.BilocationOrMap.size === 0) {
+        cache.BilocationOrMap = techniques.buildBilocationOrMap(allNodes);
+      }
+      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.BilocationOrMap);
+    }
+
+    if (bivalueOnly || (!singleDigit && !bivalueOnly)) {
+      if (cache.BivalueOrMap.size === 0) {
+        cache.BivalueOrMap = techniques.buildBivalueOrMap(allNodes);
+      }
+      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.BivalueOrMap);
+    }
+
+    if (useGrouped) {
+      if (cache.GroupedOrMap.size === 0) {
+        cache.GroupedOrMap = techniques.buildGroupedOrMap(pencils, (cells, d) =>
+          getNode(cells, [d]),
+        );
+      }
+      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.GroupedOrMap);
+    }
+
+    let activeAlsLinkRegistry = cache.AlsLinkRegistry;
+    if (useAls) {
+      if (cache.AlsMap.size === 0) {
+        cache.AlsMap = techniques.buildAlsOrMap(
+          board,
+          pencils,
+          (cells, d) => getNode(cells, [d]),
+          cache.AlsLinkRegistry,
+          false,
+        );
+      }
+      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.AlsMap);
+    }
+
+    let activeFishLinkRegistry = cache.FishLinkRegistry;
+    if (useFish) {
+      if (cache.FishMap.size === 0) {
+        cache.FishMap = techniques.buildFishOrMap(
+          board,
+          pencils,
+          (cells, d) => getNode(cells, [d]),
+          cache.FishLinkRegistry,
+        );
+      }
+      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.FishMap);
+    }
+
+    const baseOrMap = new Map();
+    allNodes.forEach((n) => baseOrMap.set(n, new Set(aicOrMap.get(n))));
+
+    const interestedNodes = allNodes.filter(
+      (n) => aicOrMap.has(n) && aicOrMap.get(n).size > 0,
+    );
+
+    interestedNodes.forEach((node, idx) => {
+      node.index = idx;
+
+      // Keep Sets for fast overlap/intersection checks
+      node.OrNodes = new Set(aicOrMap.get(node));
+      node.OrNandNodes = new Set();
+      node.NandNodes = new Set();
+
+      // New: Maps for path origin memoization
+      node.OrNodesMap = new Map();
+      for (const target of node.OrNodes) {
+        node.OrNodesMap.set(target, { source: node }); // Reached directly
+      }
+      node.OrNandNodesMap = new Map();
+    });
+
+    for (const A of interestedNodes) {
+      for (const B of interestedNodes) {
+        if (A !== B) {
+          if (singleDigit && A.digits[0] !== B.digits[0]) continue;
+          if (bivalueOnly && A.digits[0] !== B.digits[0]) continue;
+
+          if (techniques.isBitsetSubset(B.NodeBitset, A.NandBitset)) {
+            A.NandNodes.add(B);
+          }
+        }
+      }
+    }
+
+    let maxCycles = maxCycle;
+
+    const stringifiedFoundRemovals = new Set();
+    const deadRings = new Set();
+
+    const extractRemovals = (maskArray) => {
+      const removals = [];
+      for (let d = 0; d < 9; d++) {
+        for (let p = 0; p < 3; p++) {
+          let mask = maskArray[d][p];
+          let bitPos = 0;
+          while (mask > 0) {
+            if ((mask & 1) !== 0) {
+              const id = p * 27 + bitPos;
+              const r = Math.floor(id / 9);
+              const c = id % 9;
+              const num = d + 1;
+              if (pencils[r][c] && pencils[r][c].has(num)) {
+                if (
+                  !removals.some(
+                    (rem) => rem.r === r && rem.c === c && rem.num === num,
+                  )
+                ) {
+                  removals.push({ r, c, num });
+                }
+              }
+            }
+            mask >>>= 1;
+            bitPos++;
+          }
+        }
+      }
+      return removals;
+    };
+
+    const buildBacktrackPath = (start, end, isOrNodeMap) => {
+      // The greedy start === end check is removed so cycles can resolve
+
+      if (isOrNodeMap) {
+        const memo = start.OrNodesMap.get(end);
+        if (!memo) return null;
+        if (memo.source) return [start, end];
+
+        if (memo.viaNand) {
+          const C = memo.viaNand;
+          const leftPath = buildBacktrackPath(start, C, false);
+          const rightPath = buildBacktrackPath(C, end, true);
+          if (!leftPath || !rightPath) return null;
+          return [...leftPath, ...rightPath.slice(1)];
+        }
+      } else {
+        const memo = start.OrNandNodesMap.get(end);
+        if (!memo) return null;
+
+        if (memo.viaOr) {
+          const B = memo.viaOr;
+          const leftPath = buildBacktrackPath(start, B, true);
+          if (!leftPath) return null;
+          return [...leftPath, end];
+        }
+      }
+      return null;
+    };
+
+    const findAICPath = (startNode, endNode, maxNodes) => {
+      // 1. Fast Path: Backtrack using memoized origins
+      const fastPath = buildBacktrackPath(startNode, endNode, true);
+
+      if (fastPath && fastPath.length <= maxNodes && fastPath.length > 1) {
+        let isSimplePath = true;
+        const seen = new Set();
+
+        for (let i = 0; i < fastPath.length; i++) {
+          const n = fastPath[i];
+          if (seen.has(n)) {
+            // A duplicate is ONLY allowed if it is exactly closing the loop at the end
+            if (
+              i === fastPath.length - 1 &&
+              n === startNode &&
+              startNode === endNode
+            ) {
+              // Valid loop closure
+            } else {
+              isSimplePath = false;
+              break;
+            }
+          }
+          seen.add(n);
+        }
+
+        if (isSimplePath) return fastPath;
+      }
+
+      // 2. Fallback: Standard BFS
+      const queue = [{ node: startNode, isNextOr: true, path: [startNode] }];
+      while (queue.length > 0) {
+        const { node, isNextOr, path } = queue.shift();
+
+        if (node === endNode && path.length > 1) {
+          if (!isNextOr) return path;
+          continue;
+        }
+
+        if (path.length > maxNodes) continue;
+
+        if (isNextOr) {
+          const nextNodes = baseOrMap.get(node) || new Set();
+          for (const nxt of nextNodes) {
+            const prev = path.length >= 2 ? path[path.length - 2] : null;
+            if (nxt !== prev && (!path.includes(nxt) || nxt === endNode)) {
+              queue.push({ node: nxt, isNextOr: false, path: [...path, nxt] });
+            }
+          }
+        } else {
+          const nextNodes = node.NandNodes;
+          for (const nxt of nextNodes) {
+            const prev = path.length >= 2 ? path[path.length - 2] : null;
+            if (nxt !== prev && (!path.includes(nxt) || nxt === endNode)) {
+              queue.push({ node: nxt, isNextOr: true, path: [...path, nxt] });
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    const getLoc = (cells, preferBox = false) => {
+      if (cells.length === 0) return "";
+
+      if (cells.length === 1) {
+        const r = Math.floor(cells[0] / 9);
+        const c = cells[0] % 9;
+        if (preferBox) {
+          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
+          const p = (r % 3) * 3 + (c % 3) + 1;
+          return `b${b}p${p}`;
+        }
+        return `r${r + 1}c${c + 1}`;
+      }
+
+      const rows = [...new Set(cells.map((id) => Math.floor(id / 9) + 1))].sort(
+        (a, b) => a - b,
+      );
+      const cols = [...new Set(cells.map((id) => (id % 9) + 1))].sort(
+        (a, b) => a - b,
+      );
+      const boxes = [
+        ...new Set(
+          cells.map(
+            (id) =>
+              Math.floor(Math.floor(id / 9) / 3) * 3 +
+              Math.floor((id % 9) / 3) +
+              1,
+          ),
+        ),
+      ];
+
+      if (preferBox || boxes.length === 1) {
+        const points = cells
+          .map((id) => {
+            const r = Math.floor(id / 9) % 3;
+            const c = (id % 9) % 3;
+            return r * 3 + c + 1;
+          })
+          .sort((a, b) => a - b);
+        return `b${boxes[0]}p${points.join("")}`;
+      }
+
+      if (rows.length === 1) return `r${rows[0]}c${cols.join("")}`;
+      if (cols.length === 1) return `r${rows.join("")}c${cols[0]}`;
+
+      return [...cells]
+        .sort((a, b) => a - b)
+        .map((id) => {
+          const r = Math.floor(id / 9) + 1;
+          const c = (id % 9) + 1;
+          return `r${r}c${c}`;
+        })
+        .join("");
+    };
+
+    const buildCompactEureka = (path, isRing) => {
+      let str = "";
+      let lastDigit = null;
+
+      for (let i = 0; i < path.length; i += 2) {
+        const u = path[i];
+        const v = path[(i + 1) % path.length];
+
+        let orGateStr = "";
+        const als = useAls ? activeAlsLinkRegistry.get(u)?.get(v) : null;
+        const fish = useFish ? activeFishLinkRegistry.get(u)?.get(v) : null;
+
+        if (als) {
+          const alsIds = als.cells.map((c) => c[0] * 9 + c[1]);
+          const preferBox = als.unitName && als.unitName.startsWith("Box");
+          orGateStr = `(${u.digits[0]}=${v.digits[0]})${getLoc(alsIds, preferBox)}`;
+          lastDigit = v.digits[0];
+        } else if (fish) {
+          orGateStr = `(${fish.d})(${getLoc(u.cells)}=${getLoc(v.cells)})(${fish.basesStr}\\${fish.coversStr})`;
+          lastDigit = fish.d;
+        } else if (
+          u.digits[0] !== v.digits[0] &&
+          u.cells.length === 1 &&
+          v.cells.length === 1 &&
+          u.cells[0] === v.cells[0]
+        ) {
+          orGateStr = `(${u.digits[0]}=${v.digits[0]})${getLoc(u.cells)}`;
+          lastDigit = v.digits[0];
+        } else {
+          const d = u.digits[0];
+          const prefix = lastDigit === d ? "" : `(${d})`;
+          orGateStr = `${prefix}${getLoc(u.cells)}=${getLoc(v.cells)}`;
+          lastDigit = d;
+        }
+
+        if (i === 0) str += orGateStr;
+        else str += "-" + orGateStr;
+      }
+
+      if (isRing) str += "-";
+      return str;
+    };
+
+    const buildResult = (removals, name, path, isRing = false) => {
+      const eurekaStr = buildCompactEureka(path, isRing);
+
+      const usedAlses = [];
+      const usedFishes = [];
+
+      const fishNodes = new Set();
+
+      const fullVisualChain = isRing ? [...path, path[0]] : path;
+
+      for (let i = 0; i < fullVisualChain.length - 1; i += 2) {
+        const u = fullVisualChain[i];
+        const v = fullVisualChain[i + 1];
+
+        const als = useAls ? activeAlsLinkRegistry.get(u)?.get(v) : null;
+
+        const fish = useFish ? activeFishLinkRegistry.get(u)?.get(v) : null;
+
+        if (als) {
+          usedAlses.push(als.cells);
+        } else if (fish) {
+          usedFishes.push(fish);
+          fishNodes.add(u);
+          fishNodes.add(v);
+        }
+      }
+
+      return {
+        change: true,
+        type: "remove",
+        cells: removals,
+        hint: {
+          name: name,
+          mainInfo: `Start with ${eurekaStr.split("-")[0]}`,
+          detail: `[${path.length}] ${eurekaStr}`,
+        },
+        applyVisuals: () => {
+          if (singleDigit) {
+            highlightedDigit = path[0].digits[0];
+            highlightState = 1;
+          } else if (bivalueOnly) {
+            highlightedDigit = null;
+            highlightState = 2;
+          } else {
+            highlightedDigit = null;
+            highlightState = 0;
+          }
+
+          path.forEach((node, idx) => {
+            if (fishNodes.has(node)) return;
+
+            node.cells.forEach((id) => {
+              const cr = Math.floor(id / 9);
+              const cc = id % 9;
+              const colorIdx = idx % 2 === 0 ? 5 : 4;
+              node.digits.forEach((d) => {
+                if (boardState[cr][cc].pencils.has(d)) {
+                  boardState[cr][cc].pencilColors.set(
+                    d,
+                    candidateColorPalette[colorIdx],
+                  );
+                }
+              });
+            });
+          });
+
+          removals.forEach((el) => {
+            boardState[el.r][el.c].pencilColors.set(
+              el.num,
+              candidateColorPalette[0],
+            );
+          });
+
+          let colorCodes = [6, 7, 2, 3, 4, 1, 8];
+          let colorCount = -1;
+
+          if (useAls && usedAlses.length > 0) {
+            usedAlses.forEach((cells, idx) => {
+              colorCount++;
+              const colorCode = colorCodes[colorCount % 8];
+              cells.forEach(([r, c]) => {
+                if (window.addCellColor)
+                  window.addCellColor(r, c, cellColorPalette[colorCode]);
+                else boardState[r][c].cellColor = cellColorPalette[colorCode];
+              });
+            });
+          }
+
+          if (useFish && usedFishes.length > 0) {
+            const getFlatIds = (cells) => {
+              if (!cells) return [];
+              return cells.map((cell) =>
+                Array.isArray(cell) ? cell[0] * 9 + cell[1] : cell,
+              );
+            };
+
+            const drawFishGroup = (cells, digit, colorIdx) => {
+              const flatIds = getFlatIds(cells);
+              if (flatIds.length > 1) {
+                for (let i = 0; i < flatIds.length - 1; i++) {
+                  const r1 = Math.floor(flatIds[i] / 9),
+                    c1 = flatIds[i] % 9;
+                  const r2 = Math.floor(flatIds[i + 1] / 9),
+                    c2 = flatIds[i + 1] % 9;
+                  drawnLines.push({
+                    r1,
+                    c1,
+                    n1: digit,
+                    r2,
+                    c2,
+                    n2: digit,
+                    color: lineColorPalette[colorIdx],
+                    style: "solid",
+                  });
+                }
+              }
+            };
+
+            usedFishes.forEach((fish) => {
+              colorCount++;
+              const fishColor = colorCodes[colorCount % 8];
+
+              const flatAllCells = getFlatIds(fish.allCells);
+              flatAllCells.forEach((id) => {
+                const r = Math.floor(id / 9);
+                const c = id % 9;
+                if (boardState[r][c].pencils.has(fish.d)) {
+                  if (window.addCellColor)
+                    window.addCellColor(r, c, cellColorPalette[fishColor]);
+                  else
+                    boardState[r][c].cellColor =
+                      candidateColorPalette[fishColor];
+
+                  if (window.addCandidateColor)
+                    window.addCandidateColor(
+                      r,
+                      c,
+                      fish.d,
+                      candidateColorPalette[fishColor],
+                    );
+                  else
+                    boardState[r][c].pencilColors.set(
+                      fish.d,
+                      candidateColorPalette[fishColor],
+                    );
+                }
+              });
+
+              const finCells = fish.fins || fish.finCells;
+              if (finCells) {
+                drawFishGroup(finCells, fish.d, fishColor);
+              }
+            });
+          }
+
+          const getClosestCells = (nodeA, nodeB) => {
+            let minD = Infinity;
+            let bestA = nodeA.cells[0],
+              bestB = nodeB.cells[0];
+            for (const a of nodeA.cells) {
+              const ar = Math.floor(a / 9),
+                ac = a % 9;
+              for (const b of nodeB.cells) {
+                const br = Math.floor(b / 9),
+                  bc = b % 9;
+                const d = Math.abs(ar - br) + Math.abs(ac - bc);
+                if (d < minD) {
+                  minD = d;
+                  bestA = a;
+                  bestB = b;
+                }
+              }
+            }
+            return [
+              [Math.floor(bestA / 9), bestA % 9],
+              [Math.floor(bestB / 9), bestB % 9],
+            ];
+          };
+
+          const drawGroup = (node, idx) => {
+            if (node.cells.length > 1) {
+              const colorIdx = idx % 2 === 0 ? 5 : 4;
+              for (let i = 0; i < node.cells.length - 1; i++) {
+                const r1 = Math.floor(node.cells[i] / 9),
+                  c1 = node.cells[i] % 9;
+                const r2 = Math.floor(node.cells[i + 1] / 9),
+                  c2 = node.cells[i + 1] % 9;
+                drawnLines.push({
+                  r1,
+                  c1,
+                  n1: node.digits[0],
+                  r2,
+                  c2,
+                  n2: node.digits[0],
+                  color: lineColorPalette[colorIdx],
+                  style: "solid",
+                });
+              }
+            }
+          };
+
+          for (let i = 0; i < fullVisualChain.length - 1; i++) {
+            const u = fullVisualChain[i];
+            const v = fullVisualChain[i + 1];
+
+            if (i === 0) drawGroup(u, 0);
+            if (i < path.length) drawGroup(v, (i + 1) % path.length);
+
+            let skipLine = false;
+
+            if (!skipLine) {
+              const [cA, cB] = getClosestCells(u, v);
+              drawnLines.push({
+                r1: cA[0],
+                c1: cA[1],
+                n1: u.digits[0],
+                r2: cB[0],
+                c2: cB[1],
+                n2: v.digits[0],
+                color: lineColorPalette[0],
+                style: i % 2 === 0 ? "solid" : "dash",
+              });
+            }
+          }
+        },
+      };
+    };
+
+    for (let cycle = 0; cycle < maxCycles; cycle++) {
+      const nextOrNandNodesMap = new Map();
+      const nextOrNandOrigins = new Map();
+
+      // Expand NAND links
+      for (const A of interestedNodes) {
+        const pendingOrNand = new Set(A.OrNandNodes);
+        const pendingOrNandOrigin = new Map(A.OrNandNodesMap);
+
+        for (const B of A.OrNodes) {
+          for (const C of B.NandNodes) {
+            if (!pendingOrNand.has(C)) {
+              pendingOrNand.add(C);
+              pendingOrNandOrigin.set(C, { viaOr: B }); // Memoize origin
+            }
+          }
+        }
+        nextOrNandNodesMap.set(A, pendingOrNand);
+        nextOrNandOrigins.set(A, pendingOrNandOrigin);
+      }
+
+      for (const A of interestedNodes) {
+        A.OrNandNodes = nextOrNandNodesMap.get(A);
+        A.OrNandNodesMap = nextOrNandOrigins.get(A);
+      }
+
+      const nextOrNodesMap = new Map();
+      const nextOrOrigins = new Map();
+
+      // Expand OR links
+      for (const A of interestedNodes) {
+        const pendingOr = new Set(A.OrNodes);
+        const pendingOrOrigin = new Map(A.OrNodesMap);
+
+        for (const C of A.OrNandNodes) {
+          for (const D of C.OrNodes) {
+            if (!pendingOr.has(D)) {
+              pendingOr.add(D);
+              pendingOrOrigin.set(D, { viaNand: C }); // Memoize origin
+            }
+          }
+        }
+        nextOrNodesMap.set(A, pendingOr);
+        nextOrOrigins.set(A, pendingOrOrigin);
+      }
+
+      for (const A of interestedNodes) {
+        A.OrNodes = nextOrNodesMap.get(A);
+        A.OrNodesMap = nextOrOrigins.get(A);
+      }
+
+      // Priority 1: AIC Ring
+      for (const A of interestedNodes) {
+        for (const D of A.OrNodes) {
+          if (D.index <= A.index || !A.NandNodes.has(D)) continue;
+          if (deadRings.has(`${A.index}_${D.index}`)) continue;
+
+          const maxPathLen = Math.pow(2, cycle + 1) * 2;
+          const path = findAICPath(A, D, maxPathLen);
+
+          if (path) {
+            let ringRemovals = [];
+            for (let i = 1; i < path.length - 1; i += 2) {
+              const { hasOverlap, intersection } =
+                techniques.getBitsetIntersection(
+                  path[i].NandBitset,
+                  path[i + 1].NandBitset,
+                );
+              if (hasOverlap)
+                ringRemovals.push(...extractRemovals(intersection));
+            }
+            const { hasOverlap, intersection } =
+              techniques.getBitsetIntersection(
+                path[path.length - 1].NandBitset,
+                path[0].NandBitset,
+              );
+            if (hasOverlap) ringRemovals.push(...extractRemovals(intersection));
+
+            if (useAls) {
+              for (let i = 0; i < path.length; i += 2) {
+                const u = path[i];
+                const v = path[(i + 1) % path.length];
+
+                if (u.digits[0] !== v.digits[0]) {
+                  const als = activeAlsLinkRegistry.get(u)?.get(v);
+                  if (als) {
+                    const d1 = u.digits[0];
+                    const d2 = v.digits[0];
+                    const otherDigits = Object.keys(als.candMap)
+                      .map(Number)
+                      .filter((d) => d !== d1 && d !== d2);
+                    const alsCellIds = new Set(
+                      als.cells.map((c) => c[0] * 9 + c[1]),
+                    );
+
+                    for (const z of otherDigits) {
+                      const cellsZ = als.candMap[z].map(([r, c]) => r * 9 + c);
+                      const nodeZ = getNode(cellsZ, z);
+
+                      for (let p = 0; p < 3; p++) {
+                        let mask = nodeZ.NandBitset[z - 1][p];
+                        let bitPos = 0;
+                        while (mask > 0) {
+                          if ((mask & 1) !== 0) {
+                            const id = p * 27 + bitPos;
+                            const r = Math.floor(id / 9);
+                            const c = id % 9;
+                            if (
+                              pencils[r][c] &&
+                              pencils[r][c].has(z) &&
+                              !alsCellIds.has(id)
+                            ) {
+                              ringRemovals.push({ r, c, num: z });
+                            }
+                          }
+                          mask >>>= 1;
+                          bitPos++;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            if (ringRemovals.length > 0) {
+              ringRemovals = ringRemovals.filter(
+                (v, i, a) =>
+                  a.findIndex(
+                    (t) => t.r === v.r && t.c === v.c && t.num === v.num,
+                  ) === i,
+              );
+              const removalsKey = JSON.stringify(
+                ringRemovals.sort(
+                  (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
+                ),
+              );
+
+              if (!stringifiedFoundRemovals.has(removalsKey)) {
+                stringifiedFoundRemovals.add(removalsKey);
+                const ringName = (techniqueName || "AIC").includes("Chain")
+                  ? (techniqueName || "AIC").replace("Chain", "Ring")
+                  : useAlsXZ
+                    ? "Doubly linked " + (techniqueName || "AIC")
+                    : (techniqueName || "AIC") + " Ring";
+                const res = buildResult(ringRemovals, ringName, path, true);
+                if (!findAll) return res;
+                results.push(res);
+              }
+            } else {
+              deadRings.add(`${A.index}_${D.index}`);
+            }
+          }
+        }
+      }
+      if (results.length > 0 && !findAll) return results[0];
+
+      // Priority 2: DN Loop
+
+      for (const A of interestedNodes) {
+        for (const D of A.OrNodes) {
+          if (D.index === A.index) {
+            let dnRemovals = extractRemovals(A.NandBitset);
+            if (dnRemovals.length > 0) {
+              const removalsKey = JSON.stringify(
+                dnRemovals.sort(
+                  (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
+                ),
+              );
+              if (!stringifiedFoundRemovals.has(removalsKey)) {
+                stringifiedFoundRemovals.add(removalsKey);
+
+                const maxPathLen = Math.pow(2, cycle + 1) * 2;
+                const path = findAICPath(A, D, maxPathLen);
+
+                const DNLName = (techniqueName || "Chain").includes("Chain")
+                  ? (techniqueName || "Chain").replace("Chain", "DN Loop")
+                  : (techniqueName || "AIC").includes("AIC")
+                    ? (techniqueName || "AIC").replace("AIC", "DN Loop")
+                    : "DN Loop";
+
+                if (path) {
+                  const res = buildResult(dnRemovals, DNLName, path, false);
+                  if (!findAll) return res;
+                  results.push(res);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (results.length > 0 && !findAll) return results[0];
+
+      // Priority 3: Standard AIC
+      for (const A of interestedNodes) {
+        for (const D of A.OrNodes) {
+          if (D.index <= A.index) continue;
+          if (deadRings.has(`${A.index}_${D.index}`)) continue;
+
+          const { hasOverlap, intersection } = techniques.getBitsetIntersection(
+            A.NandBitset,
+            D.NandBitset,
+          );
+          if (hasOverlap) {
+            const aicRemovals = extractRemovals(intersection);
+            if (aicRemovals.length > 0) {
+              const removalsKey = JSON.stringify(
+                aicRemovals.sort(
+                  (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
+                ),
+              );
+              if (!stringifiedFoundRemovals.has(removalsKey)) {
+                stringifiedFoundRemovals.add(removalsKey);
+
+                const maxPathLen = Math.pow(2, cycle + 1) * 2;
+                const path = findAICPath(A, D, maxPathLen);
+
+                if (path) {
+                  const res = buildResult(
+                    aicRemovals,
+                    techniqueName,
+                    path,
+                    false,
+                  );
+                  if (!findAll) return res;
+                  results.push(res);
+                }
+              }
+            }
+          }
+        }
+      }
+      if (results.length > 0 && !findAll) return results[0];
+    }
+
+    return findAll ? results : { change: false };
+  },
+
+  // --- Technique Wrappers ---
+
+  xChain: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: true,
+        bivalueOnly: false,
+        useGrouped: false,
+        useAls: false,
+        maxCycle: 2,
+        nameOverride: "X-Chain",
+      },
+      findAll,
+    );
+  },
+
+  groupedXChain: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: true,
+        bivalueOnly: false,
+        useGrouped: true,
+        useAls: false,
+        maxCycle: 2,
+        nameOverride: "Grouped X-Chain",
+      },
+      findAll,
+    );
+  },
+
+  xyChain: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        bivalueOnly: true,
+        useGrouped: false,
+        useAls: false,
+        maxCycle: 3,
+        nameOverride: "XY-Chain",
+      },
+      findAll,
+    );
+  },
+
+  alternatingInferenceChain: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        bivalueOnly: false,
+        useGrouped: false,
+        useAls: false,
+        maxCycle: 3,
+      },
+      findAll,
+    );
+  },
+
+  groupedAIC: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        bivalueOnly: false,
+        useGrouped: true,
+        useAls: false,
+        maxCycle: 3,
+        nameOverride: "Grouped AIC",
+      },
+      findAll,
+    );
+  },
+
+  alsXZ: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        bivalueOnly: false,
+        useGrouped: false,
+        useAlsXZ: true,
+        useAls: true,
+        maxCycle: 1,
+        nameOverride: "Almost Locked Set XZ-Rule",
+      },
+      findAll,
+    );
+  },
+
+  alsAic: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        bivalueOnly: false,
+        useGrouped: true,
+        useAls: true,
+        maxCycle: 3,
+        nameOverride: "Almost Locked Set AIC",
+      },
+      findAll,
+    );
+  },
+
+  complexAic: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        bivalueOnly: false,
+        useGrouped: true,
+        useAls: true,
+        useFish: true,
+        maxCycle: 3,
+        nameOverride: "Complex AIC",
+      },
+      findAll,
+    );
+  },
+
+  // --- BITWISE HELPERS ---
+  _bits: {
+    popcount: (n) => {
+      // Handle BigInt (used for 81-cell position masks)
+      if (typeof n === "bigint") {
+        let count = 0;
+        while (n !== 0n) {
+          n &= n - 1n; // Brian Kernighan's algorithm: clears the least significant bit set
+          count++;
+        }
+        return count;
+      }
+
+      // Handle Number (used for 9-digit candidate masks)
+      // SWAR algorithm for 32-bit integers
+      n = n - ((n >> 1) & 0x55555555);
+      n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
+      return (((n + (n >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
+    },
+    maskToDigits: (n) => {
+      const res = [];
+      // Assumes n is a Number (candidate mask)
+      for (let i = 1; i <= 9; i++) if ((n >> (i - 1)) & 1) res.push(i);
+      return res;
+    },
+    maskFromSet: (set) => {
+      let m = 0;
+      for (const d of set) m |= 1 << (d - 1);
+      return m;
+    },
+  },
+
+  // --- ALS COLLECTION ENGINE ---
+  _calculateALSHash: (cells) => {
+    if (cells.length === 0) return 0;
+
+    // Sort to ensure consistency, though inputs are usually sorted by unit generation
+    // We strictly follow the C++ priority: Row > Col > Box
+
+    // Check Row
+    const r0 = cells[0][0];
+    const isRow = cells.every((c) => c[0] === r0);
+    if (isRow) {
+      let mask = 0;
+      for (const [r, c] of cells) mask |= 1 << c;
+      // Type 00 (Row) | Unit Index | Cell Mask
+      return (0 << 13) | (r0 << 9) | mask;
+    }
+
+    // Check Col
+    const c0 = cells[0][1];
+    const isCol = cells.every((c) => c[1] === c0);
+    if (isCol) {
+      let mask = 0;
+      for (const [r, c] of cells) mask |= 1 << r;
+      // Type 01 (Col) | Unit Index | Cell Mask
+      return (1 << 13) | (c0 << 9) | mask;
+    }
+
+    // Assume Box (valid ALSs must belong to *some* unit)
+    const b0 = techniques._getBoxIndex(cells[0][0], cells[0][1]);
+    let mask = 0;
+    for (const [r, c] of cells) {
+      const boxCellIdx = (r % 3) * 3 + (c % 3);
+      mask |= 1 << boxCellIdx;
+    }
+    // Type 10 (Box) | Unit Index | Cell Mask
+    return (2 << 13) | (b0 << 9) | mask;
+  },
+
+  _collectAllALS: (board, pencils, minSize = 1, maxSize = 8) => {
+    const uniqueALS = new Map();
+    const unitTypes = [
+      { name: "box", label: "Box" },
+      { name: "row", label: "Row" },
+      { name: "col", label: "Col" },
+    ];
+
+    for (const { name, label } of unitTypes) {
+      for (let i = 0; i < 9; i++) {
+        const unitCells = techniques._getUnitCells(name, i);
+        const emptyCells = unitCells.filter(([r, c]) => board[r][c] === 0);
+        const n = emptyCells.length;
+        if (n === 0) continue;
+
+        const effectiveMaxSize = Math.min(maxSize, n - 1);
+        const nakedSubsets = [];
+
+        for (let mask = 1; mask < 1 << n; mask++) {
+          const size = techniques._bits.popcount(mask);
+          if (size > 1 && size < n) {
+            let candMask = 0;
+            for (let bit = 0; bit < n; bit++) {
+              if (mask & (1 << bit)) {
+                const [r, c] = emptyCells[bit];
+                candMask |= techniques._bits.maskFromSet(pencils[r][c]);
+              }
+            }
+            if (techniques._bits.popcount(candMask) === size) {
+              nakedSubsets.push(mask);
             }
           }
         }
 
         const tainted = new Set();
-        const digitLimit = 1 << nDigits;
-        for (const ns of nakedSubsetDigitMasks) {
-          let sup = (ns + 1) | ns; // Start from first STRICT superset (skip ns itself)
-          while (sup < digitLimit) {
+        for (const ns of nakedSubsets) {
+          let sup = ns;
+          const limit = 1 << n;
+          while (sup < limit) {
             tainted.add(sup);
             sup = (sup + 1) | ns;
           }
         }
-        // --- END PRECOMPUTATION ---
 
-        // Bitmask over available digits
-        for (let mask = 1; mask < 1 << nDigits; mask++) {
-          const size = techniques._bits.popcount(mask);
-          if (size === 0 || size >= n - 1) continue;
-
+        for (let mask = 1; mask < 1 << n; mask++) {
+          const k = techniques._bits.popcount(mask);
+          if (k < minSize || k > effectiveMaxSize) continue;
           if (tainted.has(mask)) continue;
 
-          const subsetSet = new Set();
-          for (let bit = 0; bit < nDigits; bit++) {
-            if (mask & (1 << bit)) subsetSet.add(availArr[bit]);
+          if (name !== "box" && k > 1) {
+            let firstBox = -1;
+            let confined = true;
+            for (let bit = 0; bit < n; bit++) {
+              if (mask & (1 << bit)) {
+                const [r, c] = emptyCells[bit];
+                const b = techniques._getBoxIndex(r, c);
+                if (firstBox === -1) firstBox = b;
+                else if (firstBox !== b) {
+                  confined = false;
+                  break;
+                }
+              }
+            }
+            if (confined) continue;
           }
 
-          const cellsWithSubset = emptyCells.filter(([r, c]) => {
-            for (const d of subsetSet) {
-              if (pencils[r][c].has(d)) return true;
+          let currentMask = 0;
+          for (let bit = 0; bit < n; bit++) {
+            if (mask & (1 << bit)) {
+              const [r, c] = emptyCells[bit];
+              currentMask |= techniques._bits.maskFromSet(pencils[r][c]);
             }
-            return false;
-          });
+          }
 
-          if (cellsWithSubset.length === size + 1) {
-            // Skip confined intersections for row/col (handled in box scan)
-            if (type !== "box") {
-              const firstBox = techniques._getBoxIndex(
-                cellsWithSubset[0][0],
-                cellsWithSubset[0][1],
-              );
-              const confined = cellsWithSubset.every(
-                (c) => techniques._getBoxIndex(c[0], c[1]) === firstBox,
-              );
-              if (confined) continue;
+          if (techniques._bits.popcount(currentMask) === k + 1) {
+            const currentCells = [];
+            for (let bit = 0; bit < n; bit++) {
+              if (mask & (1 << bit)) currentCells.push(emptyCells[bit]);
             }
 
-            const exclusiveCellsMap = new Map();
-            for (const d of subsetSet) exclusiveCellsMap.set(d, []);
-            for (const c of cellsWithSubset) {
-              const ahsCands = [...pencils[c[0]][c[1]]].filter((x) =>
-                subsetSet.has(x),
-              );
-              if (ahsCands.length === 1) {
-                exclusiveCellsMap.get(ahsCands[0]).push(c);
+            // Updated to 3x27 bitsets format
+            const positions = [0, 0, 0];
+            const candidatePositions = Array.from({ length: 9 }, () => [
+              0, 0, 0,
+            ]);
+            const candMap = {};
+
+            for (const [r, c] of currentCells) {
+              const id = r * 9 + c;
+              const part = Math.floor(id / 27);
+              const bitPos = id % 27;
+
+              positions[part] |= 1 << bitPos;
+
+              for (const d of pencils[r][c]) {
+                candidatePositions[d - 1][part] |= 1 << bitPos;
+                if (!candMap[d]) candMap[d] = [];
+                candMap[d].push([r, c]);
               }
             }
 
-            ahses.push({
-              type,
-              idx,
-              digits: subsetSet,
-              cells: cellsWithSubset,
-              exclusiveCellsMap,
-            });
+            const hash = techniques._calculateALSHash(currentCells);
+            if (!uniqueALS.has(hash)) {
+              uniqueALS.set(hash, {
+                cells: currentCells,
+                candidates: currentMask,
+                mask: currentMask,
+                size: k,
+                candMap: candMap,
+                unitName: `${label} ${i + 1}`,
+                hash: hash,
+                positions: positions,
+                candidatePositions: candidatePositions,
+              });
+            }
           }
         }
       }
     }
 
-    _ahsCache = ahses;
-    return ahses;
+    alses = Array.from(uniqueALS.values()).sort((a, b) => a.hash - b.hash);
+    return alses;
   },
 
-  // --- AHS MAP BUILDER ---
-  _buildAhsMaps: (ahses, pencils) => {
-    // Skip if already built for this board state
-    if (_ahsRccMap.size > 0) return;
+  _deathBlossomCore: (board, pencils, isRegion, findAll = false) => {
+    const results = [];
+    const cache = techniques._aicCache;
 
-    const cellEq = (c1, c2) => c1[0] === c2[0] && c1[1] === c2[1];
-
-    for (let i = 0; i < ahses.length; i++) {
-      for (let j = i + 1; j < ahses.length; j++) {
-        const ahs1 = ahses[i];
-        const ahs2 = ahses[j];
-
-        if (ahs1.type === ahs2.type && ahs1.idx === ahs2.idx) continue;
-
-        const sharedDigits = [...ahs1.digits].filter((d) => ahs2.digits.has(d));
-        if (
-          ahs1.digits.size <= sharedDigits.length ||
-          ahs2.digits.size <= sharedDigits.length
-        )
-          continue;
-
-        const commonCells = ahs1.cells.filter((c1) =>
-          ahs2.cells.some((c2) => cellEq(c1, c2)),
-        );
-        const isCommon = (c) => commonCells.some((cc) => cellEq(c, cc));
-
-        const rccs = [];
-        const zs = [];
-        for (const cell of commonCells) {
-          const cands = pencils[cell[0]][cell[1]];
-          const hasShared = sharedDigits.some((d) => cands.has(d));
-          if (!hasShared) rccs.push(cell);
-          else zs.push(cell);
-        }
-
-        const rcds = [];
-        const zcds = [];
-
-        for (const d of sharedDigits) {
-          const exc1 = (ahs1.exclusiveCellsMap.get(d) || []).filter(
-            (c) => !isCommon(c),
-          );
-          const exc2 = (ahs2.exclusiveCellsMap.get(d) || []).filter(
-            (c) => !isCommon(c),
-          );
-
-          if (exc1.length === 0 || exc2.length === 0) continue;
-
-          if (
-            exc1.length === 1 &&
-            exc2.length === 1 &&
-            techniques._sees(exc1[0], exc2[0])
-          ) {
-            rcds.push({ d, exc1, exc2 });
-          } else {
-            zcds.push({ d, exc1, exc2 });
-          }
-        }
-
-        const key = `${i}-${j}`;
-        if (rccs.length > 0) _ahsRccMap.set(key, rccs);
-        if (rcds.length > 0) _ahsRcdMap.set(key, rcds);
-        if (zcds.length > 0) _ahsZcdMap.set(key, zcds);
-        if (zs.length > 0) _ahsZsMap.set(key, zs);
-      }
+    // Ensure base nodes are generated
+    if (cache.AllNodes.length === 0) {
+      const candidateBitsets = techniques.buildCandidateBitsets(board, pencils);
+      const baseNodes =
+        techniques.generateBasicNodesFromBitsets(candidateBitsets);
+      baseNodes.forEach((n) => {
+        const key = `${n.digits.join(",")}_${n.cells
+          .slice()
+          .sort((a, b) => a - b)
+          .join(",")}`;
+        cache.NodeCache.set(key, n);
+        cache.AllNodes.push(n);
+      });
     }
-  },
 
-  _ahsChainCore: (
-    board,
-    pencils,
-    minLength,
-    maxLength,
-    nameOverride = "AHS Chain",
-    findAll = false,
-  ) => {
-    // Custom unique filter that prioritizes "cell" source eliminations
-    const getUnique = (arr) => {
-      const seenIndex = new Array(4096); // Pre-allocated sparse array
-      const result = [];
+    const allNodes = cache.AllNodes;
+    const nodeCache = cache.NodeCache;
 
-      for (let i = 0; i < arr.length; i++) {
-        const el = arr[i];
-        const key = (el.r << 8) | (el.c << 4) | el.num;
-
-        const existingIndex = seenIndex[key];
-
-        if (existingIndex === undefined) {
-          seenIndex[key] = result.length;
-          result.push(el);
-        } else if (el.source === "cell") {
-          result[existingIndex] = el;
-        }
-      }
-
-      return result;
+    const getNode = (cells, digits) => {
+      const dArr = Array.isArray(digits) ? digits : [digits];
+      const key = `${dArr.join(",")}_${cells
+        .slice()
+        .sort((a, b) => a - b)
+        .join(",")}`;
+      if (nodeCache.has(key)) return nodeCache.get(key);
+      const newNode = new AICNode(cells, dArr);
+      nodeCache.set(key, newNode);
+      allNodes.push(newNode);
+      return newNode;
     };
 
-    const cellEq = (c1, c2) => c1 && c2 && c1[0] === c2[0] && c1[1] === c2[1];
+    // 1. Prepare OR Gate Maps (Only Bivalue and ALS)
+    let orMap = new Map();
 
-    const formatAHS = (ahs) => {
-      if (ahs.type === "box") {
-        const pts = [
-          ...new Set(
-            ahs.cells.map(
-              ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-            ),
-          ),
-        ]
-          .sort((a, b) => a - b)
-          .join("");
-        return `b${ahs.idx + 1}p${pts}`;
-      } else {
-        const rs = [...new Set(ahs.cells.map(([r, c]) => r + 1))]
-          .sort((a, b) => a - b)
-          .join("");
-        const cs = [...new Set(ahs.cells.map(([r, c]) => c + 1))]
-          .sort((a, b) => a - b)
-          .join("");
-        return `r${rs}c${cs}`;
-      }
-    };
+    if (cache.BivalueOrMap.size === 0) {
+      cache.BivalueOrMap = techniques.buildBivalueOrMap(allNodes);
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.BivalueOrMap);
 
-    const fmtCell = (r, c, ahs) => {
-      if (ahs.type === "box")
-        return `b${ahs.idx + 1}p${Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1}`;
-      return `r${r + 1}c${c + 1}`;
-    };
-
-    const getCands = (r, c, ahs) =>
-      [...pencils[r][c]].filter((d) => ahs.digits.has(d)).join("");
-
-    // Utilize globally cached AHS mappings
-    const ahses = techniques._collectAllAHS(board, pencils);
-    techniques._buildAhsMaps(ahses, pencils);
-
-    // --- VISUAL HELPERS ---
-    const buildAhsChainVisuals = (
-      chain,
-      rccs,
-      rcds,
-      isRing,
-      ringRccs,
-      ringRcds,
-      uniqueElims,
-    ) => {
-      return () => {
-        highlightedDigit = null;
-        highlightState = 0;
-
-        const ahsColors = [5, 6, 7, 2, 3, 4];
-
-        chain.forEach((ahs, i) => {
-          const cColor = ahsColors[i % 6];
-          ahs.cells.forEach(([r, c]) => {
-            window.addCellColor(r, c, cellColorPalette[cColor]);
-            ahs.digits.forEach((d) => {
-              if (boardState[r][c].pencils.has(d)) {
-                window.addCandidateColor(
-                  r,
-                  c,
-                  d,
-                  candidateColorPalette[cColor],
-                );
-              }
-            });
-          });
-        });
-
-        const rccSet = new Set();
-        if (rccs) {
-          rccs.forEach(([r, c]) => {
-            rccSet.add(`${r},${c}`);
-          });
-        }
-
-        if (rcds && rcds.length > 0) {
-          rcds.forEach((edge) => {
-            drawnLines.push({
-              r1: edge.excFrom[0],
-              c1: edge.excFrom[1],
-              n1: edge.d,
-              r2: edge.excTo[0],
-              c2: edge.excTo[1],
-              n2: edge.d,
-              color: lineColorPalette[1],
-              style: "dash",
-            });
-          });
-        }
-
-        if (isRing || (ringRcds && ringRcds.length > 0)) {
-          if (ringRccs && ringRccs.length > 0) {
-            ringRccs.forEach(([r, c]) => {
-              rccSet.add(`${r},${c}`);
-            });
-          }
-
-          if (ringRcds && ringRcds.length > 0) {
-            ringRcds.forEach((rcd) => {
-              const num1 = rcd.d1 !== undefined ? rcd.d1 : rcd.d;
-              const num2 = rcd.d2 !== undefined ? rcd.d2 : rcd.d;
-              rcd.exc1.forEach((c1) => {
-                rcd.exc2.forEach((c2) => {
-                  drawnLines.push({
-                    r1: c1[0],
-                    c1: c1[1],
-                    n1: num1,
-                    r2: c2[0],
-                    c2: c2[1],
-                    n2: num2,
-                    color: lineColorPalette[0],
-                    style: "dash",
-                  });
-                });
-              });
-            });
-          }
-        }
-
-        uniqueElims.forEach((el) => {
-          if (!rccSet.has(`${el.r},${el.c}`) && el.source === "cell") {
-            const containingAHSCount = chain.filter((ahs) =>
-              ahs.cells.some(([ar, ac]) => ar === el.r && ac === el.c),
-            ).length;
-          }
-        });
-
-        uniqueElims.forEach((el) => {
-          window.addCandidateColor(
-            el.r,
-            el.c,
-            el.num,
-            candidateColorPalette[0],
-          );
-        });
-      };
-    };
-    // --- END VISUAL HELPERS ---
-
-    const getEdges = (fromIdx, toIdx) => {
-      const min = Math.min(fromIdx, toIdx);
-      const max = Math.max(fromIdx, toIdx);
-      const key = `${min}-${max}`;
-      const edges = [];
-
-      // 1. Check for RCCs
-      const rccs = _ahsRccMap.get(key) || [];
-      for (let i = 0; i < rccs.length; i++)
-        edges.push({ type: "rcc", cell: rccs[i] });
-
-      // 2. Check for RCDs
-      const aFrom = ahses[fromIdx];
-      const aTo = ahses[toIdx];
-
-      const sharedDigits = [];
-      for (const d of aFrom.digits) {
-        if (aTo.digits.has(d)) sharedDigits.push(d);
-      }
-
-      for (let i = 0; i < sharedDigits.length; i++) {
-        const d = sharedDigits[i];
-        const excFroms = aFrom.exclusiveCellsMap.get(d) || [];
-        const excTos = aTo.exclusiveCellsMap.get(d) || [];
-
-        for (let e1 = 0; e1 < excFroms.length; e1++) {
-          for (let e2 = 0; e2 < excTos.length; e2++) {
-            const exc1 = excFroms[e1];
-            const exc2 = excTos[e2];
-            if (!cellEq(exc1, exc2) && techniques._sees(exc1, exc2)) {
-              edges.push({ type: "rcd", d, excFrom: exc1, excTo: exc2 });
-            }
-          }
-        }
-      }
-
-      return edges;
-    };
-
-    let foundResult = null;
-    let allResults = [];
-
-    const buildDetailStr = (
-      path,
-      cCell,
-      startD,
-      endD,
-      startExc,
-      endExc,
-      isRing,
-      startIsRcd = true, // Kept for signature compatibility, though unused internally now
-      endIsRcd = true,
-    ) => {
-      const formatGrouped = (cells, ahs) => {
-        if (ahs.type === "box") {
-          const pts = [
-            ...new Set(
-              cells.map(
-                ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-              ),
-            ),
-          ]
-            .sort((a, b) => a - b)
-            .join("");
-          return `b${ahs.idx + 1}p${pts}`;
-        } else {
-          const rs = [...new Set(cells.map(([r, c]) => r + 1))]
-            .sort((a, b) => a - b)
-            .join("");
-          const cs = [...new Set(cells.map(([r, c]) => c + 1))]
-            .sort((a, b) => a - b)
-            .join("");
-          return `r${rs}c${cs}`;
-        }
-      };
-
-      const getCellStr = (cellData, ahs) => {
-        if (Array.isArray(cellData) && Array.isArray(cellData[0])) {
-          if (cellData.length === 1) {
-            return fmtCell(cellData[0][0], cellData[0][1], ahs);
-          }
-          return formatGrouped(cellData, ahs);
-        }
-        return fmtCell(cellData[0], cellData[1], ahs);
-      };
-
-      const parts = [];
-      for (let i = 0; i < path.length; i++) {
-        const ahs = ahses[path[i].ahsIdx];
-        let inCell, outCell;
-
-        if (i === 0) {
-          inCell = cCell ? cCell : startExc;
-        } else {
-          const prevEdge = path[i].edge;
-          inCell = prevEdge.type === "rcc" ? prevEdge.cell : prevEdge.excTo;
-        }
-
-        if (i === path.length - 1) {
-          outCell = cCell ? cCell : endExc;
-        } else {
-          const nextEdge = path[i + 1].edge;
-          outCell = nextEdge.type === "rcc" ? nextEdge.cell : nextEdge.excFrom;
-        }
-
-        const ahsDigitsStr = [...ahs.digits].sort((a, b) => a - b).join("");
-
-        parts.push(
-          `(${ahsDigitsStr})(${getCellStr(inCell, ahs)}=${getCellStr(outCell, ahs)})`,
-        );
-      }
-
-      return parts.join("-") + (isRing ? "-(Ring)" : "");
-    };
-
-    const processRingEdges = (pathArray, closingLink, removals) => {
-      const getLinkCells = (edge, isTo) => {
-        if (!edge) return null;
-        if (edge.type === "rcc") return edge.cell;
-        return isTo ? edge.excTo : edge.excFrom;
-      };
-
-      for (let i = 1; i < pathArray.length; i++) {
-        const edge = pathArray[i].edge;
-        if (edge.type === "rcc") {
-          const aFrom = ahses[pathArray[i - 1].ahsIdx];
-          const aTo = ahses[pathArray[i].ahsIdx];
-          const union = new Set([...aFrom.digits, ...aTo.digits]);
-          for (const cand of pencils[edge.cell[0]][edge.cell[1]]) {
-            if (!union.has(cand)) {
-              removals.push({
-                r: edge.cell[0],
-                c: edge.cell[1],
-                num: cand,
-                source: "cell",
-              });
-            }
-          }
-        } else if (edge.type === "rcd") {
-          const exc1 = edge.excFrom;
-          const exc2 = edge.excTo;
-          const d = edge.d;
-
-          if (exc1 && exc2 && !cellEq(exc1, exc2)) {
-            const peers = techniques._commonVisibleCells(exc1, exc2);
-            for (const p of peers) {
-              if (pencils[p[0]][p[1]].has(d)) {
-                removals.push({
-                  r: p[0],
-                  c: p[1],
-                  num: d,
-                  source: "digit",
-                });
-              }
-            }
-          }
-        }
-      }
-
-      for (let i = 0; i < pathArray.length; i++) {
-        const ahs = ahses[pathArray[i].ahsIdx];
-        let cellIn, cellOut;
-
-        if (i === 0) {
-          cellIn =
-            closingLink.type === "rcc" ? closingLink.cell : closingLink.excTo;
-        } else {
-          cellIn = getLinkCells(pathArray[i].edge, true);
-        }
-
-        if (i === pathArray.length - 1) {
-          cellOut =
-            closingLink.type === "rcc" ? closingLink.cell : closingLink.excFrom;
-        } else {
-          cellOut = getLinkCells(pathArray[i + 1].edge, false);
-        }
-
-        ahs.cells.forEach((c) => {
-          if (!cellEq(c, cellIn) && !cellEq(c, cellOut)) {
-            for (const cand of pencils[c[0]][c[1]]) {
-              if (!ahs.digits.has(cand)) {
-                removals.push({ r: c[0], c: c[1], num: cand, source: "cell" });
-              }
-            }
-          }
-        });
-      }
-    };
-
-    const evaluatePath = (path) => {
-      const firstAhsIdx = path[0].ahsIdx;
-      const lastAhsIdx = path[path.length - 1].ahsIdx;
-      const firstAhs = ahses[firstAhsIdx];
-      const lastAhs = ahses[lastAhsIdx];
-
-      const firstUsedCell =
-        path[1].edge.type === "rcc" ? path[1].edge.cell : path[1].edge.excFrom;
-      const lastUsedCell =
-        path[path.length - 1].edge.type === "rcc"
-          ? path[path.length - 1].edge.cell
-          : path[path.length - 1].edge.excTo;
-
-      let removals = [];
-      let finalDetailStr = "";
-      let finalIsRing = false;
-      let finalRingRccs = [];
-      let finalRingRcds = [];
-
-      const commonCells = firstAhs.cells.filter((c) =>
-        lastAhs.cells.some((c2) => cellEq(c, c2)),
-      );
-
-      const validCommonCells = commonCells.filter(
-        (c) => !cellEq(c, firstUsedCell) && !cellEq(c, lastUsedCell),
-      );
-
-      for (const c of validCommonCells) {
-        const min = Math.min(firstAhsIdx, lastAhsIdx);
-        const max = Math.max(firstAhsIdx, lastAhsIdx);
-        const isRcc = (_ahsRccMap.get(`${min}-${max}`) || []).some((r) =>
-          cellEq(r, c),
-        );
-        const union = new Set([...firstAhs.digits, ...lastAhs.digits]);
-
-        let localRemovals = [];
-        let cellRemoved = false;
-
-        for (const cand of pencils[c[0]][c[1]]) {
-          if (!union.has(cand)) {
-            localRemovals.push({ r: c[0], c: c[1], num: cand, source: "cell" });
-            cellRemoved = true;
-          }
-        }
-
-        if (isRcc) {
-          processRingEdges(path, { type: "rcc", cell: c }, localRemovals);
-          if (localRemovals.length > 0) {
-            removals.push(...localRemovals);
-            if (!finalIsRing) {
-              finalIsRing = true;
-              finalDetailStr = buildDetailStr(
-                path,
-                validCommonCells,
-                null,
-                null,
-                null,
-                null,
-                true,
-              );
-              finalRingRccs = [c];
-            } else {
-              finalRingRccs.push(c);
-            }
-          }
-        } else if (cellRemoved) {
-          removals.push(...localRemovals);
-          if (!finalDetailStr) {
-            finalDetailStr = buildDetailStr(
-              path,
-              validCommonCells,
-              null,
-              null,
-              null,
-              null,
-              false,
-            );
-          }
-        }
-      }
-
-      const sharedDigits = [...firstAhs.digits].filter((d) =>
-        lastAhs.digits.has(d),
-      );
-
-      for (const d of sharedDigits) {
-        const excFirsts = firstAhs.exclusiveCellsMap.get(d) || [];
-        const excLasts = lastAhs.exclusiveCellsMap.get(d) || [];
-
-        for (const exc1 of excFirsts) {
-          if (cellEq(exc1, firstUsedCell)) continue;
-          for (const exc2 of excLasts) {
-            if (cellEq(exc2, lastUsedCell)) continue;
-
-            const sees = techniques._sees(exc1, exc2);
-            let localRemovals = [];
-
-            if (sees && !cellEq(exc1, exc2)) {
-              const peers = techniques._commonVisibleCells(exc1, exc2);
-              for (const p of peers) {
-                if (pencils[p[0]][p[1]].has(d))
-                  localRemovals.push({
-                    r: p[0],
-                    c: p[1],
-                    num: d,
-                    source: "digit",
-                  });
-              }
-
-              processRingEdges(
-                path,
-                { type: "rcd", d, excFrom: exc2, excTo: exc1 },
-                localRemovals,
-              );
-
-              if (localRemovals.length > 0) {
-                removals.push(...localRemovals);
-                if (!finalIsRing) {
-                  finalIsRing = true;
-                  finalDetailStr = buildDetailStr(
-                    path,
-                    null,
-                    d,
-                    d,
-                    exc1,
-                    exc2,
-                    true,
-                  );
-                  finalRingRcds = [{ d, exc1: [exc1], exc2: [exc2] }];
-                } else {
-                  finalRingRcds.push({ d, exc1: [exc1], exc2: [exc2] });
-                }
-              }
-            } else if (!cellEq(exc1, exc2)) {
-              const peers = techniques._commonVisibleCells(exc1, exc2);
-              let removed = false;
-              for (const p of peers) {
-                if (pencils[p[0]][p[1]].has(d)) {
-                  localRemovals.push({
-                    r: p[0],
-                    c: p[1],
-                    num: d,
-                    source: "digit",
-                  });
-                  removed = true;
-                }
-              }
-              if (removed) {
-                removals.push(...localRemovals);
-                if (!finalDetailStr) {
-                  finalDetailStr = buildDetailStr(
-                    path,
-                    null,
-                    d,
-                    d,
-                    exc1,
-                    exc2,
-                    false,
-                  );
-                }
-              }
-            }
-          }
-        }
-      }
-
-      const checkAsymmetricLink = (
-        sourceAhs,
-        targetAhs,
-        sourceUsedCell,
-        targetUsedCell,
-        isForward,
-      ) => {
-        for (const d of sourceAhs.digits) {
-          if (targetAhs.digits.has(d)) continue;
-          const excCells = sourceAhs.exclusiveCellsMap.get(d) || [];
-          for (const excCell of excCells) {
-            if (cellEq(excCell, sourceUsedCell)) continue;
-
-            const targetCellsWithElims = [];
-
-            for (const targetCell of targetAhs.cells) {
-              if (cellEq(targetCell, targetUsedCell)) continue;
-              if (cellEq(excCell, targetCell)) continue;
-
-              if (
-                techniques._sees(excCell, targetCell) &&
-                pencils[targetCell[0]][targetCell[1]].has(d)
-              ) {
-                targetCellsWithElims.push(targetCell);
-              }
-            }
-
-            if (targetCellsWithElims.length > 0) {
-              targetCellsWithElims.forEach((tc) => {
-                removals.push({
-                  r: tc[0],
-                  c: tc[1],
-                  num: d,
-                  source: "digit",
-                });
-              });
-
-              if (!finalDetailStr) {
-                const startExc = isForward ? excCell : targetCellsWithElims;
-                const endExc = isForward ? targetCellsWithElims : excCell;
-                const startIsRcd = isForward ? true : false;
-                const endIsRcd = isForward ? false : true;
-                const sD = isForward ? d : null;
-                const eD = isForward ? null : d;
-
-                finalDetailStr = buildDetailStr(
-                  path,
-                  null,
-                  sD,
-                  eD,
-                  startExc,
-                  endExc,
-                  false,
-                  startIsRcd,
-                  endIsRcd,
-                );
-              }
-            }
-          }
-        }
-      };
-
-      checkAsymmetricLink(firstAhs, lastAhs, firstUsedCell, lastUsedCell, true);
-      checkAsymmetricLink(
-        lastAhs,
-        firstAhs,
-        lastUsedCell,
-        firstUsedCell,
+    let alsLinkRegistry = cache.AlsLinkRegistry;
+    if (cache.AlsMap.size === 0) {
+      cache.AlsMap = techniques.buildAlsOrMap(
+        board,
+        pencils,
+        getNode,
+        alsLinkRegistry,
         false,
       );
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.AlsMap);
 
-      if (removals.length > 0) {
-        return makeResult(
-          removals,
-          finalDetailStr,
-          finalIsRing,
-          path,
-          finalRingRccs,
-          finalRingRcds,
-          nameOverride,
-        );
-      }
-
-      return null;
-    };
-
-    const makeResult = (
-      removals,
-      detailStr,
-      isRing,
-      path,
-      ringRccs,
-      ringRcds,
-      nameOverride,
-    ) => {
-      let title = nameOverride;
-      if (nameOverride === "AHS-XZ") {
-        title += isRing ? " (Doubly Linked)" : "";
-      } else if (nameOverride === "AHS XY-Wing") {
-        title += isRing ? " (Ring)" : "";
-      } else {
-        title += isRing ? " Ring" : "";
-      }
-
-      const detailParts = detailStr.replace(/-\(Ring\)$/, "").split("-");
-      let infoStr = "";
-
-      if (path.length === 3) {
-        infoStr = `Pivot AHS: -${detailParts[1]}-`;
-      } else {
-        infoStr = `Start with ${detailParts[0]}-`;
-      }
-
-      const chain = path.map((p) => ahses[p.ahsIdx]);
-
-      const intraRccs = [];
-      const intraRcds = [];
-      for (let i = 1; i < path.length; i++) {
-        if (path[i].edge) {
-          if (path[i].edge.type === "rcc") {
-            intraRccs.push(path[i].edge.cell);
-          } else if (path[i].edge.type === "rcd") {
-            intraRcds.push(path[i].edge);
-          }
+    // Helper for location string
+    const getLoc = (cells, preferBox = false) => {
+      if (cells.length === 0) return "";
+      if (cells.length === 1) {
+        const r = Math.floor(cells[0] / 9);
+        const c = cells[0] % 9;
+        if (preferBox) {
+          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
+          const p = (r % 3) * 3 + (c % 3) + 1;
+          return `b${b}p${p}`;
         }
+        return `r${r + 1}c${c + 1}`;
       }
-
-      const uniqueElims = getUnique(removals);
-      const pathLength =
-        nameOverride === "AHS Chain" ? `[${2 * path.length}] ` : "";
-
-      return {
-        change: true,
-        type: "remove",
-        cells: uniqueElims,
-        hint: {
-          name: title,
-          mainInfo: infoStr,
-          detail: pathLength + detailStr,
-        },
-        applyVisuals: buildAhsChainVisuals(
-          chain,
-          intraRccs,
-          intraRcds,
-          isRing,
-          ringRccs,
-          ringRcds,
-          uniqueElims,
+      const boxes = [
+        ...new Set(
+          cells.map(
+            (id) =>
+              Math.floor(Math.floor(id / 9) / 3) * 3 +
+              Math.floor((id % 9) / 3) +
+              1,
+          ),
         ),
-      };
+      ];
+      if (preferBox || boxes.length === 1) {
+        const points = cells
+          .map((id) => (Math.floor(id / 9) % 3) * 3 + ((id % 9) % 3) + 1)
+          .sort((a, b) => a - b);
+        return `b${boxes[0]}p${points.join("")}`;
+      }
+      const rows = [...new Set(cells.map((id) => Math.floor(id / 9) + 1))].sort(
+        (a, b) => a - b,
+      );
+      const cols = [...new Set(cells.map((id) => (id % 9) + 1))].sort(
+        (a, b) => a - b,
+      );
+      if (rows.length === 1) return `r${rows[0]}c${cols.join("")}`;
+      if (cols.length === 1) return `r${rows.join("")}c${cols[0]}`;
+      return [...cells]
+        .sort((a, b) => a - b)
+        .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+        .join("");
     };
 
-    let currentTargetLen = minLength;
+    // 2. Collect and sort potential stems (3 to 6 candidates)
+    const potentialStems = [];
 
-    // --- PRE-ALLOCATED DFS DATA STRUCTURES ---
-    const SHARED_VISITED_AHS = new Uint8Array(4096);
-    const SHARED_PATH_AHS = new Array(20);
-
-    // --- ULTRA-FAST POINTER-BASED DFS EXECUTION ---
-    const dfs = (depth) => {
-      if (foundResult && !findAll) return;
-
-      const currentLen = depth + 1;
-      const currentPathStep = SHARED_PATH_AHS[depth];
-      const currentIdx = currentPathStep.ahsIdx;
-
-      // When reaching target length
-      if (currentLen === currentTargetLen) {
-        if (minLength === 2 && _prAHSXY && currentLen === 3) return;
-
-        const rootIdx = SHARED_PATH_AHS[0].ahsIdx;
-        if (rootIdx < currentIdx) {
-          // Slice only when evaluating a completed chain
-          const currentPathSlice = SHARED_PATH_AHS.slice(0, currentLen);
-          const res = evaluatePath(currentPathSlice);
-          if (res !== null) {
-            if (!findAll) {
-              foundResult = res;
-              return;
-            } else {
-              allResults.push(res);
-            }
-          }
-        }
-        return; // Don't drill deeper than max target length
-      }
-
-      // Fast standard loop to explore neighbors
-      for (let nextIdx = 0; nextIdx < ahses.length; nextIdx++) {
-        // Instant check to avoid visiting already visited sets
-        if (SHARED_VISITED_AHS[nextIdx] === 1) continue;
-
-        const edges = getEdges(currentIdx, nextIdx);
-
-        for (let e = 0; e < edges.length; e++) {
-          const edge = edges[e];
-          const lastEdge = currentPathStep.edge;
-
-          // Prevent U-turns utilizing the same cell in/out
-          if (lastEdge) {
-            const cellIn =
-              lastEdge.type === "rcc" ? lastEdge.cell : lastEdge.excTo;
-            const cellOut = edge.type === "rcc" ? edge.cell : edge.excFrom;
-            if (cellEq(cellIn, cellOut)) continue;
-          }
-
-          // Progress depth pointer
-          const nextDepth = depth + 1;
-          SHARED_VISITED_AHS[nextIdx] = 1;
-          SHARED_PATH_AHS[nextDepth] = { ahsIdx: nextIdx, edge: edge };
-
-          dfs(nextDepth);
-
-          // BACKTRACK instantly
-          SHARED_VISITED_AHS[nextIdx] = 0;
-
-          if (foundResult && !findAll) return;
-        }
-      }
-    };
-
-    // Start DFS from every AHS using Iterative Deepening
-    for (
-      currentTargetLen = minLength;
-      currentTargetLen <= maxLength;
-      currentTargetLen++
-    ) {
-      for (let i = 0; i < ahses.length; i++) {
-        if (foundResult && !findAll) break;
-
-        // Write the root node to depth 0
-        SHARED_VISITED_AHS[i] = 1;
-        SHARED_PATH_AHS[0] = { ahsIdx: i, edge: null };
-
-        dfs(0);
-
-        // Backtrack root
-        SHARED_VISITED_AHS[i] = 0;
-      }
-      if (foundResult && !findAll) return foundResult;
-    }
-
-    if (findAll) {
-      return allResults.length > 0 ? allResults : { change: false };
-    }
-    return { change: false };
-  },
-
-  // --- Almost Hidden Set ---
-  ahsXZ: (board, pencils, findAll = false) => {
-    _prAHSXZ = true;
-    return techniques._ahsChainCore(board, pencils, 2, 2, "AHS-XZ", findAll);
-  },
-
-  ahsXYWing: (board, pencils, findAll = false) => {
-    _prAHSXY = true;
-    // XY-Wing is strictly an Almost Hidden Set Chain of length 3
-    return techniques._ahsChainCore(
-      board,
-      pencils,
-      3,
-      3,
-      "AHS XY-Wing",
-      findAll,
-    );
-  },
-
-  ahsChain: (board, pencils, findAll = false) => {
-    let minlen = !_prAHSXZ ? 2 : !_prAHSXY ? 3 : 4;
-    // FIX: Properly pass "AHS Chain" as the nameOverride so findAll lands in the correct parameter slot
-    return techniques._ahsChainCore(
-      board,
-      pencils,
-      minlen,
-      5,
-      "AHS Chain",
-      findAll,
-    );
-  },
-
-  // --- Almost Locked Set Chain SUPPORT STRUCTURES ---
-
-  /**
-   * Helper: Calculates the bitwise intersection of peers for a set of cells (given as a BigInt mask).
-   * Returns a BigInt mask of common peers.
-   */
-  _findCommonPeersBS: (cellMask) => {
-    let commonPeers = ~0n; // All ones (conceptually, practically handling 81 bits)
-    // We mask it down to 81 bits at the end or implicitly via ANDing with PEER_MAP
-
-    // Iterate set bits in cellMask
-    let m = cellMask;
-    let idx = 0;
-    while (m !== 0n) {
-      if (m & 1n) {
-        // Intersect current common peers with the peer map of this cell
-        if (commonPeers === ~0n) {
-          commonPeers = PEER_MAP[idx];
-        } else {
-          commonPeers &= PEER_MAP[idx];
-        }
-      }
-      m >>= 1n;
-      idx++;
-    }
-    return commonPeers === ~0n ? 0n : commonPeers;
-  },
-
-  /**
-   * Precomputes common peers for every digit of every ALS in the cache.
-   * Corresponds to C++: build_als_digit_common_peers()
-   */
-  _buildAlsDigitCommonPeers: () => {
-    _alsDigitCommonPeers = {};
-
-    for (const als of _alsCache) {
-      const peersArray = Array(9).fill(0n);
-      for (let d = 1; d <= 9; d++) {
-        const dCells = als.candidatePositions[d - 1];
-        if (dCells === 0n) continue;
-        peersArray[d - 1] = techniques._findCommonPeersBS(dCells);
-      }
-      _alsDigitCommonPeers[als.hash] = peersArray;
-    }
-  },
-
-  /**
-   * Builds the Restricted Common Candidate (RCC) graph between ALSs.
-   * Corresponds to C++: build_als_rcc_map()
-   */
-  _buildAlsRccMap: () => {
-    _alsRccMap = {};
-    _alsLookup = {};
-
-    // Build lookup for easy access by hash
-
-    for (const als of _alsCache) {
-      _alsLookup[als.hash] = als;
-      _alsRccMap[als.hash] = [];
-    }
-
-    for (let i = 0; i < _alsCache.length; i++) {
-      for (let j = i + 1; j < _alsCache.length; j++) {
-        const als1 = _alsCache[i];
-        const als2 = _alsCache[j];
-
-        const commonMask = als1.candidates & als2.candidates;
-        if (commonMask === 0) continue;
-
-        // Iterate bits in commonMask
-        for (let d = 1; d <= 9; d++) {
-          if ((commonMask >> (d - 1)) & 1) {
-            const d1Pos = als1.candidatePositions[d - 1];
-            const d2Pos = als2.candidatePositions[d - 1];
-
-            // 1. Check for overlap in candidate positions (Invalid for RCC)
-            if ((d1Pos & d2Pos) !== 0n) continue;
-
-            // 2. Check visibility: All d-cells in ALS1 must see all d-cells in ALS2
-            // We use the precomputed common peers:
-            // If ALS1's common peers for 'd' cover all of ALS2's 'd' cells, it's a valid link.
-            const p1 = _alsDigitCommonPeers[als1.hash][d - 1];
-
-            // (p1 & d2Pos) === d2Pos checks if d2Pos is a subset of p1
-            if ((p1 & d2Pos) === d2Pos) {
-              _alsRccMap[als1.hash].push({
-                hash: als2.hash,
-                digit: d,
-              });
-              _alsRccMap[als2.hash].push({
-                hash: als1.hash,
-                digit: d,
-              });
-            }
-          }
-        }
-      }
-    }
-  },
-
-  // --- Almost Locked Set W-Wing & HELPERS ---
-
-  _digitRowMasks: [],
-  _digitColMasks: [],
-  _digitBoxMasks: [],
-
-  /**
-   * Precomputes bitmasks for candidate locations for every digit in every unit.
-   * Corresponds to C++: precompute_digit_locations()
-   */
-  _precomputeDigitLocations: (board, pencils) => {
-    // Initialize 9x9 arrays with 0 (for digits 1-9)
-    techniques._digitRowMasks = Array.from({ length: 9 }, () =>
-      new Int32Array(9).fill(0),
-    );
-    techniques._digitColMasks = Array.from({ length: 9 }, () =>
-      new Int32Array(9).fill(0),
-    );
-    techniques._digitBoxMasks = Array.from({ length: 9 }, () =>
-      new Int32Array(9).fill(0),
-    );
-
-    for (let d = 1; d <= 9; d++) {
+    if (!isRegion) {
+      // Cell Death Blossom
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
-          if (board[r][c] === 0 && pencils[r][c].has(d)) {
-            // Row mask: set bit 'c' for row 'r'
-            techniques._digitRowMasks[d - 1][r] |= 1 << c;
-            // Col mask: set bit 'r' for col 'c'
-            techniques._digitColMasks[d - 1][c] |= 1 << r;
-            // Box mask: set bit 'indexInBox' for 'boxIndex'
-            const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-            const idxInBox = (r % 3) * 3 + (c % 3);
-            techniques._digitBoxMasks[d - 1][b] |= 1 << idxInBox;
+          const size = pencils[r][c].size;
+          if (size >= 3 && size <= 6) {
+            potentialStems.push({
+              size,
+              r,
+              c,
+              cellId: r * 9 + c,
+              startDigits: Array.from(pencils[r][c]).sort((a, b) => a - b),
+            });
           }
         }
       }
-    }
-  },
-
-  // Helpers to convert BigInt 81-bit position masks to 9-bit unit masks
-  _bigIntToRowMask: (bigInt, r) => Number((bigInt >> BigInt(r * 9)) & 511n),
-
-  _bigIntToColMask: (bigInt, c) => {
-    let mask = 0;
-    for (let r = 0; r < 9; r++) {
-      if ((bigInt >> BigInt(r * 9 + c)) & 1n) mask |= 1 << r;
-    }
-    return mask;
-  },
-
-  _bigIntToBoxMask: (bigInt, b) => {
-    let mask = 0;
-    const br = Math.floor(b / 3) * 3;
-    const bc = (b % 3) * 3;
-    for (let i = 0; i < 9; i++) {
-      const r = br + Math.floor(i / 3);
-      const c = bc + (i % 3);
-      if ((bigInt >> BigInt(r * 9 + c)) & 1n) mask |= 1 << i;
-    }
-    return mask;
-  },
-
-  /**
-   * Checks if a specific unit acts as a bridge for digit 'd' between two ALSs.
-   * C++ Logic: unit_covered_by_pair
-   */
-  _unitCoveredByPair: (als1, als2, d, unitType, idx) => {
-    let unitMask = 0;
-    // Retrieve precomputed mask of ALL candidates for d in this unit
-    if (unitType === 0) unitMask = techniques._digitRowMasks[d - 1][idx];
-    else if (unitType === 1) unitMask = techniques._digitColMasks[d - 1][idx];
-    else unitMask = techniques._digitBoxMasks[d - 1][idx];
-
-    // Need at least 2 cells to be a valid bridge/RCC relevance
-    let cnt = 0;
-    let m = unitMask;
-    while (m) {
-      m &= m - 1;
-      cnt++;
-    }
-    if (cnt < 2) return false;
-
-    // Calculate masks of d-cells belonging to ALS1 and ALS2 within this unit
-    let aMask = 0,
-      bMask = 0;
-    const p1 = als1.candidatePositions[d - 1];
-    const p2 = als2.candidatePositions[d - 1];
-
-    if (unitType === 0) {
-      aMask = techniques._bigIntToRowMask(p1, idx);
-      bMask = techniques._bigIntToRowMask(p2, idx);
-    } else if (unitType === 1) {
-      aMask = techniques._bigIntToColMask(p1, idx);
-      bMask = techniques._bigIntToColMask(p2, idx);
     } else {
-      aMask = techniques._bigIntToBoxMask(p1, idx);
-      bMask = techniques._bigIntToBoxMask(p2, idx);
-    }
-
-    // Reject if any ALS's d-cells overlap with the unit's d-cells.
-    // (The bridge unit must be external to the ALS cells themselves)
-    if (((aMask | bMask) & unitMask) !== 0) return false;
-
-    // Check peer coverage:
-    // The union of common peers of ALS1 and ALS2 must cover all d-candidates in the unit.
-    const aPeers = _alsDigitCommonPeers[als1.hash][d - 1];
-    const bPeers = _alsDigitCommonPeers[als2.hash][d - 1];
-
-    if (aPeers === 0n || bPeers === 0n) return false;
-
-    let aPeerMask = 0,
-      bPeerMask = 0;
-    if (unitType === 0) {
-      aPeerMask = techniques._bigIntToRowMask(aPeers, idx);
-      bPeerMask = techniques._bigIntToRowMask(bPeers, idx);
-    } else if (unitType === 1) {
-      aPeerMask = techniques._bigIntToColMask(aPeers, idx);
-      bPeerMask = techniques._bigIntToColMask(bPeers, idx);
-    } else {
-      aPeerMask = techniques._bigIntToBoxMask(aPeers, idx);
-      bPeerMask = techniques._bigIntToBoxMask(bPeers, idx);
-    }
-
-    const combined = aPeerMask | bPeerMask;
-    // Check if 'combined' peers cover all bits in 'unitMask'
-    return (unitMask & ~combined) === 0;
-  },
-
-  alsWWing: (board, pencils, findAll = false) => {
-    _prALSW = true;
-    if (_alsCache.length === 0)
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-
-    if (Object.keys(_alsDigitCommonPeers).length === 0) {
-      techniques._buildAlsDigitCommonPeers();
-      techniques._buildAlsRccMap();
-    }
-
-    techniques._precomputeDigitLocations(board, pencils);
-
-    const alses = _alsCache;
-    let results = [];
-
-    // Helper: Eliminate d from common peers of the ALS's d-cells AND the house cells they cover
-    const eliminateAlsCoverPeers = (als, d, uType, uIdx) => {
-      const localElims = [];
-      const unitCells = [];
-
-      // 1. Get the 9 cells of the target unit
-      for (let i = 0; i < 9; i++) {
-        if (uType === 0) unitCells.push(uIdx * 9 + i);
-        else if (uType === 1) unitCells.push(i * 9 + uIdx);
-        else
-          unitCells.push(
-            (Math.floor(uIdx / 3) * 3 + Math.floor(i / 3)) * 9 +
-              ((uIdx % 3) * 3 + (i % 3)),
-          );
-      }
-
-      const alsPeers = _alsDigitCommonPeers[als.hash][d - 1]; // BigInt
-      const coveredHouseCellIds = [];
-
-      // 2. Collect which of these unit cells actually contain 'd' and are covered by the ALS peers
-      for (const cid of unitCells) {
-        const r = Math.floor(cid / 9);
-        const c = cid % 9;
-        if (pencils[r][c] && pencils[r][c].has(d)) {
-          if ((alsPeers & (1n << BigInt(cid))) !== 0n) {
-            coveredHouseCellIds.push(cid);
-          }
-        }
-      }
-
-      if (coveredHouseCellIds.length === 0) return localElims;
-
-      // 3. Find common peers of the ALS's d-cells AND the covered house cells
-      let commonPeersMask = (1n << 81n) - 1n; // All 81 bits set to 1
-
-      // Intersect with peers of all ALS d-cells
-      const alsCellsMask = als.candidatePositions[d - 1];
-      for (let i = 0n; i < 81n; i++) {
-        if ((alsCellsMask & (1n << i)) !== 0n) {
-          commonPeersMask &= PEER_MAP[Number(i)];
-        }
-      }
-
-      // Intersect with peers of covered house cells
-      for (const cid of coveredHouseCellIds) {
-        commonPeersMask &= PEER_MAP[cid];
-      }
-
-      // 4. Eliminate the digit from those common peers
-      for (let i = 0n; i < 81n; i++) {
-        if ((commonPeersMask & (1n << i)) !== 0n) {
-          const r = Math.floor(Number(i) / 9);
-          const c = Number(i) % 9;
-          if (pencils[r][c] && pencils[r][c].has(d)) {
-            localElims.push({ r, c, num: d });
-          }
-        }
-      }
-
-      return localElims;
-    };
-
-    for (let i = 0; i < alses.length; i++) {
-      for (let j = i + 1; j < alses.length; j++) {
-        const A = alses[i];
-        const B = alses[j];
-
-        // Basic filters matching C++ logic
-        const popA = techniques._bits.popcount(A.mask);
-        const popB = techniques._bits.popcount(B.mask);
-
-        // Skip standard W-Wings (2x2 bivalue cells) or specific size combos excluded in C++
-        if (_prWw && popA + popB === 4) continue;
-
-        const commonMask = A.mask & B.mask;
-        if (techniques._bits.popcount(commonMask) < 2) continue;
-
-        let rccMask = 0;
-        const commonDigits = techniques._bits.maskToDigits(commonMask);
-        const virtualRccs = []; // <-- Track Virtual RCCs
-
-        for (const d of commonDigits) {
-          // Disallow direct overlap of d-cells between A and B
-          if (
-            (A.candidatePositions[d - 1] & B.candidatePositions[d - 1]) !==
-            0n
-          )
-            continue;
-
-          // 1. Detect "Virtual RCCs" (Bridge via Row/Col/Box)
-          let foundVirtual = false;
-          // Unit types: 0=Row, 1=Col, 2=Box
-          for (let ut = 0; ut < 3 && !foundVirtual; ut++) {
-            for (let idx = 0; idx < 9 && !foundVirtual; idx++) {
-              if (techniques._unitCoveredByPair(A, B, d, ut, idx)) {
-                rccMask |= 1 << (d - 1);
-                foundVirtual = true;
-                virtualRccs.push({ d, uType: ut, uIdx: idx }); // Record for cover-peer eliminations
-              }
-            }
-          }
-          if (foundVirtual) continue;
-
-          // 2. Include Cached RCCs (Standard RCCs)
-          const neighbors = _alsRccMap[A.hash];
-          if (neighbors) {
-            for (const n of neighbors) {
-              if (n.hash === B.hash && n.digit === d) {
-                rccMask |= 1 << (d - 1);
-              }
-            }
-          }
-        }
-
-        if (rccMask === 0) continue;
-        if (virtualRccs.length === 0) continue;
-
-        // --- ELIMINATIONS ---
-        const rccCount = techniques._bits.popcount(rccMask);
-        let elims = [];
-
-        if (rccCount === 1) {
-          elims = techniques._applySinglyLinked(
-            A,
-            B,
-            rccMask,
-            commonMask,
-            pencils,
-          );
-        } else {
-          elims = techniques._applyDoublyLinked(
-            A,
-            B,
-            rccMask,
-            commonMask,
-            pencils,
-          );
-
-          // NEW: Eliminate cover peers for Virtual RCCs
-          for (const vrcc of virtualRccs) {
-            elims.push(
-              ...eliminateAlsCoverPeers(A, vrcc.d, vrcc.uType, vrcc.uIdx),
-            );
-            elims.push(
-              ...eliminateAlsCoverPeers(B, vrcc.d, vrcc.uType, vrcc.uIdx),
-            );
-          }
-        }
-
-        if (elims.length > 0) {
-          const uniqueElims = [];
-          const seen = new Set();
-          for (let i = 0; i < elims.length; i++) {
-            const el = elims[i];
-            // Create a unique 12-bit integer key for r, c, num
-            const key = (el.r << 8) | (el.c << 4) | el.num;
-            if (!seen.has(key)) {
-              seen.add(key);
-              uniqueElims.push(el);
-            }
-          }
-
-          // --- Formatting Helpers ---
-          const fmtALS = (als) => {
-            if (als.unitName.startsWith("Box")) {
-              const b = [
-                ...new Set(
-                  als.cells.map(
-                    ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
-                  ),
-                ),
-              ];
-              const pts = [
-                ...new Set(
-                  als.cells.map(
-                    ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                  ),
-                ),
-              ]
-                .sort((a, b) => a - b)
-                .join("");
-              return `b${b}p${pts}`;
-            } else {
-              const rs = [...new Set(als.cells.map(([r, c]) => r + 1))]
-                .sort((a, b) => a - b)
-                .join("");
-              const cs = [...new Set(als.cells.map(([r, c]) => c + 1))]
-                .sort((a, b) => a - b)
-                .join("");
-              return `r${rs}c${cs}`;
-            }
-          };
-
-          const fmtGroup = (cells, uType, uIdx) => {
-            if (uType === 2) {
-              // Box
-              const pts = [
-                ...new Set(
-                  cells.map(
-                    ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                  ),
-                ),
-              ]
-                .sort((a, b) => a - b)
-                .join("");
-              return `b${uIdx + 1}p${pts}`;
-            } else {
-              const rs = [...new Set(cells.map(([r, c]) => r + 1))]
-                .sort((a, b) => a - b)
-                .join("");
-              const cs = [...new Set(cells.map(([r, c]) => c + 1))]
-                .sort((a, b) => a - b)
-                .join("");
-              return `r${rs}c${cs}`;
-            }
-          };
-
-          const getVLinkStr = (vrcc) => {
-            const { d, uType, uIdx } = vrcc;
-            const unitCells = [];
-            for (let i = 0; i < 9; i++) {
-              if (uType === 0) unitCells.push([uIdx, i]);
-              else if (uType === 1) unitCells.push([i, uIdx]);
-              else
-                unitCells.push([
-                  Math.floor(uIdx / 3) * 3 + Math.floor(i / 3),
-                  (uIdx % 3) * 3 + (i % 3),
-                ]);
-            }
-            const d_cells = unitCells.filter(
-              ([r, c]) => pencils[r][c] && pencils[r][c].has(d),
-            );
-
-            const group1 = d_cells.filter(([r, c]) =>
-              A.candMap[d].every((ac) => techniques._sees([r, c], ac)),
-            );
-            const group2 = d_cells.filter(([r, c]) =>
-              B.candMap[d].every((bc) => techniques._sees([r, c], bc)),
-            );
-
-            return `${fmtGroup(group1, uType, uIdx)}=${fmtGroup(group2, uType, uIdx)}`;
-          };
-
-          // --- Build the Detail String ---
-          const targetDigits = [...new Set(uniqueElims.map((e) => e.num))]
-            .sort((a, b) => a - b)
-            .join("");
-          const alsAStr = fmtALS(A);
-          const alsBStr = fmtALS(B);
-          let detail = "";
-
-          const allRccs = techniques._bits.maskToDigits(rccMask);
-          const realRccs = allRccs.filter(
-            (d) => !virtualRccs.some((v) => v.d === d),
-          );
-
-          if (rccCount === 1) {
-            // Singly linked
-            if (virtualRccs.length === 1) {
-              const v = virtualRccs[0];
-              const link = getVLinkStr(v);
-              detail = `(${targetDigits}=${v.d})${alsAStr}-(${v.d})(${link})-(${v.d}=${targetDigits})${alsBStr}`;
-            }
-          } else if (rccCount === 2) {
-            // Doubly linked
-            if (virtualRccs.length === 1 && realRccs.length === 1) {
-              // Doubly linked by real rcc
-              const v = virtualRccs[0];
-              const r = realRccs[0];
-              const link = getVLinkStr(v);
-              detail = `(${r}=${v.d})${alsAStr}-(${v.d})(${link})-(${v.d}=${r})${alsBStr}-(Ring)`;
-            } else if (virtualRccs.length === 2) {
-              // Doubly linked by another virtual rcc
-              const v1 = virtualRccs[0];
-              const v2 = virtualRccs[1];
-              const link1 = getVLinkStr(v1);
-              const link2 = getVLinkStr(v2);
-              detail = `(${v2.d}=${v1.d})${alsAStr}-(${v1.d})(${link1})-(${v1.d}=${v2.d})${alsBStr}-(${v2.d})(${link2})-(Ring)`;
-            }
-          }
-          // --- PREPARE SNAP NODES FOR VISUALS ---
-          const targetDigitsArray = [
-            ...new Set(uniqueElims.map((e) => e.num)),
-          ].sort((a, b) => a - b);
-          const zDigit =
-            targetDigitsArray.length > 0 ? targetDigitsArray[0] : 0;
-
-          const getVGroups = (vrcc) => {
-            const { d, uType, uIdx } = vrcc;
-            const unitCells = [];
-            for (let i = 0; i < 9; i++) {
-              if (uType === 0) unitCells.push([uIdx, i]);
-              else if (uType === 1) unitCells.push([i, uIdx]);
-              else
-                unitCells.push([
-                  Math.floor(uIdx / 3) * 3 + Math.floor(i / 3),
-                  (uIdx % 3) * 3 + (i % 3),
-                ]);
-            }
-            const d_cells = unitCells.filter(
-              ([r, c]) => pencils[r][c] && pencils[r][c].has(d),
-            );
-
-            // Nodes in covered unit are classified based on visibility from ALS1 and ALS2
-            const group1 = d_cells.filter(
-              ([r, c]) =>
-                A.candMap[d] &&
-                A.candMap[d].every((ac) => techniques._sees([r, c], ac)),
-            );
-            const group2 = d_cells.filter(
-              ([r, c]) =>
-                B.candMap[d] &&
-                B.candMap[d].every((bc) => techniques._sees([r, c], bc)),
-            );
-            return { group1, group2 };
-          };
-
-          let isRing = false;
-          let snap_nodes = [];
-
-          if (rccCount === 1) {
-            // 1 VRCC (Singly Linked)
-            if (virtualRccs.length === 1) {
-              const v = virtualRccs[0];
-              const { group1, group2 } = getVGroups(v);
-              snap_nodes.push({
-                cells: A.candMap[zDigit] || [],
-                digit: zDigit,
-              });
-              snap_nodes.push({ cells: A.candMap[v.d] || [], digit: v.d });
-              snap_nodes.push({ cells: group1, digit: v.d });
-              snap_nodes.push({ cells: group2, digit: v.d });
-              snap_nodes.push({ cells: B.candMap[v.d] || [], digit: v.d });
-              snap_nodes.push({
-                cells: B.candMap[zDigit] || [],
-                digit: zDigit,
-              });
-            }
-          } else if (rccCount === 2) {
-            // 1 VRCC and 1 Real RCC (Ring)
-            if (virtualRccs.length === 1 && realRccs.length === 1) {
-              isRing = true;
-              const v = virtualRccs[0];
-              const r = realRccs[0];
-              const { group1, group2 } = getVGroups(v);
-              snap_nodes.push({ cells: A.candMap[r] || [], digit: r });
-              snap_nodes.push({ cells: A.candMap[v.d] || [], digit: v.d });
-              snap_nodes.push({ cells: group1, digit: v.d });
-              snap_nodes.push({ cells: group2, digit: v.d });
-              snap_nodes.push({ cells: B.candMap[v.d] || [], digit: v.d });
-              snap_nodes.push({ cells: B.candMap[r] || [], digit: r });
-            }
-            // 2 VRCCs (Ring)
-            else if (virtualRccs.length === 2) {
-              isRing = true;
-              const v1 = virtualRccs[0];
-              const v2 = virtualRccs[1];
-              const g1 = getVGroups(v1);
-              const g2 = getVGroups(v2);
-
-              snap_nodes.push({ cells: A.candMap[v2.d] || [], digit: v2.d });
-              snap_nodes.push({ cells: A.candMap[v1.d] || [], digit: v1.d });
-              snap_nodes.push({ cells: g1.group1, digit: v1.d });
-              snap_nodes.push({ cells: g1.group2, digit: v1.d });
-              snap_nodes.push({ cells: B.candMap[v1.d] || [], digit: v1.d });
-              snap_nodes.push({ cells: B.candMap[v2.d] || [], digit: v2.d });
-              snap_nodes.push({ cells: g2.group2, digit: v2.d });
-              snap_nodes.push({ cells: g2.group1, digit: v2.d });
-            }
-          }
-
-          const snap_A_cells = A.cells.map(([r, c]) => [r, c]);
-          const snap_B_cells = B.cells.map(([r, c]) => [r, c]);
-
-          const resultObj = {
-            change: true,
-            type: "remove",
-            cells: uniqueElims,
-            hint: {
-              name: "ALS W-Wing",
-              mainInfo: `${A.unitName} and ${B.unitName}`,
-              detail: detail,
-            },
-            applyVisuals: () => {
-              highlightedDigit = null;
-              highlightState = 0;
-
-              // Color the 2 ALSes (Supports Multiple Colors for overlapping)
-              snap_A_cells.forEach(([r, c]) => {
-                window.addCellColor(r, c, cellColorPalette[6]);
-              });
-              snap_B_cells.forEach(([r, c]) => {
-                window.addCellColor(r, c, cellColorPalette[7]);
-              });
-
-              // Color eliminations
-              uniqueElims.forEach((el) =>
-                boardState[el.r][el.c].pencilColors.set(
-                  el.num,
-                  candidateColorPalette[0],
-                ),
-              );
-
-              const getClosestCells = (cellsA, cellsB) => {
-                if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
-                  return null;
-                let minD = Infinity;
-                let bestA = cellsA[0];
-                let bestB = cellsB[0];
-                for (const a of cellsA) {
-                  for (const b of cellsB) {
-                    const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                    if (d < minD) {
-                      minD = d;
-                      bestA = a;
-                      bestB = b;
-                    }
-                  }
-                }
-                return [bestA, bestB];
-              };
-
-              const drawGroup = (cells, digit, colorIdx) => {
-                if (cells.length > 1) {
-                  for (let k = 0; k < cells.length - 1; k++) {
-                    drawnLines.push({
-                      r1: cells[k][0],
-                      c1: cells[k][1],
-                      n1: digit,
-                      r2: cells[k + 1][0],
-                      c2: cells[k + 1][1],
-                      n2: digit,
-                      color: lineColorPalette[colorIdx],
-                      style: "solid",
-                    });
-                  }
-                }
-              };
-
-              for (let k = 0; k < snap_nodes.length; k++) {
-                const node = snap_nodes[k];
-                // Alternate between candidate colors 5 and 6
-                const colorIdx = k % 2 === 0 ? 4 : 5;
-
-                node.cells.forEach(([r, c]) => {
-                  // Highlight candidates (Supports Multiple Colors)
-                  window.addCandidateColor(
-                    r,
-                    c,
-                    node.digit,
-                    candidateColorPalette[colorIdx],
-                  );
-                });
-
-                drawGroup(node.cells, node.digit, colorIdx);
-
-                if (k < snap_nodes.length - 1) {
-                  const nextNode = snap_nodes[k + 1];
-                  const closest = getClosestCells(node.cells, nextNode.cells);
-                  if (closest) {
-                    // Logic seamlessly handles solid for intra, dash for inter links inherently.
-                    const isInner = k % 2 === 0;
-                    drawnLines.push({
-                      r1: closest[0][0],
-                      c1: closest[0][1],
-                      n1: node.digit,
-                      r2: closest[1][0],
-                      c2: closest[1][1],
-                      n2: nextNode.digit,
-                      color: lineColorPalette[0],
-                      style: isInner ? "solid" : "dash",
-                    });
-                  }
-                }
-              }
-
-              // Ring dash connection for ends
-              if (isRing && snap_nodes.length > 1) {
-                const firstNode = snap_nodes[0];
-                const lastNode = snap_nodes[snap_nodes.length - 1];
-                const closest = getClosestCells(
-                  lastNode.cells,
-                  firstNode.cells,
-                );
-                if (closest) {
-                  drawnLines.push({
-                    r1: closest[0][0],
-                    c1: closest[0][1],
-                    n1: lastNode.digit,
-                    r2: closest[1][0],
-                    c2: closest[1][1],
-                    n2: firstNode.digit,
-                    color: lineColorPalette[0],
-                    style: "dash",
-                  });
-                }
-              }
-            },
-          };
-
-          if (!findAll) return resultObj;
-          results.push(resultObj);
-        }
-      }
-    }
-    return findAll ? results : { change: false };
-  },
-
-  // --- CELL DEATH BLOSSOM ---
-  cellDeathBlossom: (board, pencils, findAll = false) => {
-    const results = [];
-    if (_alsCache.length === 0)
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-
-    // --- Formatting Helper ---
-    const fmtALS = (als) => {
-      if (als.unitName && als.unitName.startsWith("Box")) {
-        const b = [
-          ...new Set(
-            als.cells.map(
-              ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
-            ),
-          ),
-        ];
-        const pts = [
-          ...new Set(
-            als.cells.map(
-              ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-            ),
-          ),
-        ]
-          .sort((a, b) => a - b)
-          .join("");
-        return `b${b}p${pts}`;
-      } else {
-        const rs = [...new Set(als.cells.map(([r, c]) => r + 1))]
-          .sort((a, b) => a - b)
-          .join("");
-        const cs = [...new Set(als.cells.map(([r, c]) => c + 1))]
-          .sort((a, b) => a - b)
-          .join("");
-        return `r${rs}c${cs}`;
-      }
-    };
-
-    // 1. Call Cache
-    const alses = _alsCache;
-
-    // 2. Precompute per-ALS per-digit peer masks
-    // Corresponds to C++: als_digit_peer_mask[ai][d]
-    // Stores the intersection of peers for all cells in ALS[i] that contain digit d
-    const alsDigitPeerMask = new Array(alses.length);
-    for (let i = 0; i < alses.length; i++) {
-      alsDigitPeerMask[i] = new Array(9).fill(0n); // 0n for empty/none
+      // Region Death Blossom
       for (let d = 1; d <= 9; d++) {
-        const dCells = alses[i].candidatePositions[d - 1];
-        if (dCells !== 0n) {
-          alsDigitPeerMask[i][d - 1] = techniques._findCommonPeersBS(dCells);
+        // Rows
+        for (let r = 0; r < 9; r++) {
+          const cells = [];
+          for (let c = 0; c < 9; c++)
+            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
+          if (cells.length >= 3 && cells.length <= 6)
+            potentialStems.push({
+              size: cells.length,
+              digit: d,
+              cells,
+              houseName: `r${r + 1}`,
+            });
         }
-      }
-    }
-
-    // 3. Collect Stem Cells (Cells with 3 to 5 candidates)
-    let minCount = _prALSXY ? 3 : 2;
-    const stems = [];
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        const mask = techniques._bits.maskFromSet(pencils[r][c]);
-        const count = techniques._bits.popcount(mask);
-        if (count >= minCount && count <= 5) {
-          stems.push({ r, c, mask, count, id: r * 9 + c });
+        // Cols
+        for (let c = 0; c < 9; c++) {
+          const cells = [];
+          for (let r = 0; r < 9; r++)
+            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
+          if (cells.length >= 3 && cells.length <= 6)
+            potentialStems.push({
+              size: cells.length,
+              digit: d,
+              cells,
+              houseName: `c${c + 1}`,
+            });
         }
-      }
-    }
-    // Sort stems by candidate count (ascending) to process simpler cases first
-    stems.sort((a, b) => a.count - b.count);
-
-    // 4. Process each Stem
-    for (const stem of stems) {
-      const { r, c, mask: stemMask, count: stemCount, id: stemId } = stem;
-      const stemIdBn = BigInt(stemId);
-
-      // Build Pool of valid Petals (ALSs) for this stem
-      // A valid petal must:
-      // 1. Not contain the stem cell itself.
-      // 2. "Cover" at least one digit of the stem (see the stem cell via common peers).
-      // 3. Have "Z" candidates (candidates NOT in the stem).
-      const pool = []; // Array of { alsIdx, covers, z }
-
-      for (let i = 0; i < alses.length; i++) {
-        const als = alses[i];
-
-        // 1. Check overlap with stem cell
-        if ((als.positions & (1n << stemIdBn)) !== 0n) continue;
-
-        let covers = 0;
-        // 2. Check coverage: An ALS covers digit d if its d-peers include the stem cell
-        const digits = techniques._bits.maskToDigits(stemMask);
-        for (const d of digits) {
-          const peerMask = alsDigitPeerMask[i][d - 1];
-          // Check if stemId bit is set in peerMask
-          if ((peerMask & (1n << stemIdBn)) !== 0n) {
-            covers |= 1 << (d - 1);
+        // Boxes
+        for (let b = 0; b < 9; b++) {
+          const cells = [];
+          const br = Math.floor(b / 3) * 3;
+          const bc = (b % 3) * 3;
+          for (let i = 0; i < 9; i++) {
+            const r = br + Math.floor(i / 3);
+            const c = bc + (i % 3);
+            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
           }
+          if (cells.length >= 3 && cells.length <= 6)
+            potentialStems.push({
+              size: cells.length,
+              digit: d,
+              cells,
+              houseName: `b${b + 1}`,
+            });
         }
-
-        if (covers === 0) continue;
-
-        // FIX: Only exclude the candidates this specific petal covers, NOT the entire stemMask.
-        // This preserves the uncovered candidate (Z) inside the petal's possible eliminations.
-        const z = als.candidates & ~covers;
-        if (z === 0) continue;
-
-        pool.push({ alsIdx: i, covers, z });
       }
+    }
 
-      if (pool.length < 2) continue;
+    // Sort stems so cells/regions with fewer candidates are processed first
+    potentialStems.sort((a, b) => a.size - b.size);
 
-      // DFS State
-      const chosen = []; // Stack of currently selected petals
-      const seenCombos = new Set(); // For deduplication (String key)
-      let foundAny = false;
-      let successChosen = [];
-      const eliminations = [];
-      let detailStr = "";
+    // 3. Iterate through sorted stem cells/regions
+    for (const stem of potentialStems) {
+      const startNodes = !isRegion
+        ? stem.startDigits.map((d) => getNode([stem.cellId], [d]))
+        : stem.cells.map((cId) => getNode([cId], [stem.digit]));
 
-      // Recursive Search
-      const dfs = (startIndex, coveredMask, possibleElimMask, depth) => {
-        if (foundAny) return; // 1. Short-circuit at the top of the call
-        // --- CHECK FOR ELIMINATION ---
-        const uncoveredMask = stemMask & ~coveredMask;
-        const uncoveredCount = techniques._bits.popcount(uncoveredMask);
+      const reachMap = new Map();
 
-        // Allow either full coverage (0) or exactly 1 uncovered candidate
-        if (uncoveredCount <= 1 && depth >= 2 && depth <= stemCount) {
-          if (possibleElimMask !== 0) {
-            // If 1 uncovered, it MUST be the elimination target. Otherwise, check all possible.
-            const elimDigits =
-              uncoveredCount === 0
-                ? techniques._bits.maskToDigits(possibleElimMask)
-                : possibleElimMask & uncoveredMask
-                  ? techniques._bits.maskToDigits(uncoveredMask)
-                  : [];
+      // 4. Collect NandNodes and NandOrNodes
+      for (const s of startNodes) {
+        const reachable = [{ node: s, path: [s] }];
 
-            for (const d of elimDigits) {
-              // Find intersection of peer masks for digit d across ALL chosen petals
-              let intersectPeers = ~0n;
-              let first = true;
-              let empty = false;
+        // Evaluate NandNodes via NandBitset
+        const nandNodes = allNodes.filter((n) => {
+          if (n === s) return false;
 
-              for (const petal of chosen) {
-                const pm = alsDigitPeerMask[petal.alsIdx][d - 1];
-                if (pm === 0n) {
-                  empty = true;
-                  break;
-                }
+          // Exclude different digit of its cell (Applies to both Cell and Region)
+          if (n.cells.length === 1 && n.cells[0] === s.cells[0]) return false;
 
-                if (first) {
-                  intersectPeers = pm;
-                  first = false;
-                } else {
-                  intersectPeers &= pm;
-                }
+          // Exclude the digit from the different cell of the stem house (Applies to Region only)
+          if (
+            isRegion &&
+            n.digits.length === 1 &&
+            n.digits[0] === stem.digit &&
+            n.cells.length === 1 &&
+            stem.cells.includes(n.cells[0])
+          )
+            return false;
 
-                if (intersectPeers === 0n) {
-                  empty = true;
-                  break;
-                }
-              }
+          return techniques.isBitsetSubset(n.NodeBitset, s.NandBitset);
+        });
 
-              if (empty) continue;
-
-              // NEW: If 1 candidate is uncovered, eliminations must ALSO see the stem cell
-              if (uncoveredCount === 1) {
-                const stemPeerMask = techniques._findCommonPeersBS(
-                  1n << BigInt(stemId),
-                );
-                intersectPeers &= stemPeerMask;
-                if (intersectPeers === 0n) continue;
-              }
-
-              // Eliminate d from any cell in intersectPeers that currently has it
-              let m = intersectPeers;
-              let idx = 0;
-              while (m !== 0n) {
-                if (m & 1n) {
-                  const rr = Math.floor(idx / 9);
-                  const cc = idx % 9;
-                  if (pencils[rr][cc].has(d)) {
-                    eliminations.push({ r: rr, c: cc, num: d });
-
-                    // Capture the detail string exactly once
-                    if (!foundAny) {
-                      foundAny = true;
-                      successChosen = [...chosen];
-                      const parts = [];
-
-                      // Append the bare uncovered candidate if applicable
-                      if (uncoveredCount === 1) {
-                        parts.push(`${d}r${stem.r + 1}c${stem.c + 1}`);
-                      }
-
-                      for (const petal of chosen) {
-                        const als = alses[petal.alsIdx];
-                        const coveredDigits = techniques._bits.maskToDigits(
-                          petal.covers & stemMask,
-                        );
-                        const covStr = coveredDigits.join("");
-                        parts.push(
-                          `${covStr}r${stem.r + 1}c${stem.c + 1}-(${covStr}=${d})${fmtALS(als)}`,
-                        );
-                      }
-                      detailStr = parts.join(", ");
-                    }
-                  }
-                }
-                m >>= 1n;
-                idx++;
-              }
+        for (const n of nandNodes) {
+          if (orMap.has(n)) {
+            // Evaluate OR nodes of NandNodes -> NandOrNodes
+            for (const o of orMap.get(n)) {
+              reachable.push({ node: o, path: [s, n, o] });
             }
           }
-          if (foundAny) return; // 2. Stop immediately if this combination yielded eliminations
         }
+        reachMap.set(s, reachable);
+      }
 
-        // Pruning
-        if (depth >= stemCount) return;
-
-        // --- RECURSIVE STEP ---
-        for (let i = startIndex; i < pool.length; i++) {
-          if (foundAny) return; // 3. Stop processing siblings if a deeper call succeeded
-          const p = pool[i];
-
-          // Deduplicate: Create a unique key for this set of ALS indices
-          // (Simpler than FNV hash, uses sorted string key)
-          const indices = chosen.map((c) => c.alsIdx);
-          indices.push(p.alsIdx);
-          indices.sort((a, b) => a - b);
-          const key = indices.join(",");
-
-          if (seenCombos.has(key)) continue;
-
-          const newCovered = coveredMask | p.covers;
-
-          // Update possible elim mask: Must be in Z of PREVIOUS petals AND NEW petal
-          // (Intersection of all Zs)
-          const newPossibleElim = possibleElimMask & p.z;
-
-          if (newPossibleElim === 0) {
-            seenCombos.add(key);
-            continue;
+      const branchMasks = startNodes.map((s) => {
+        const mask = Array.from({ length: 9 }, () => [0, 0, 0]);
+        for (const { node } of reachMap.get(s)) {
+          for (let d = 0; d < 9; d++) {
+            for (let p = 0; p < 3; p++) {
+              mask[d][p] |= node.NandBitset[d][p]; // Union of branch eliminations
+            }
           }
+        }
+        return mask;
+      });
 
-          // --- VALIDATION (Forward Checking) ---
-          let validatedMask = 0;
-          const checkDigits = techniques._bits.maskToDigits(newPossibleElim);
+      const commonMask = Array.from({ length: 9 }, () => [0, 0, 0]);
+      for (let d = 0; d < 9; d++) {
+        for (let p = 0; p < 3; p++) {
+          let res = branchMasks[0][d][p];
+          for (let i = 1; i < branchMasks.length; i++) {
+            res &= branchMasks[i][d][p]; // Intersection of all branches
+          }
+          commonMask[d][p] = res;
+        }
+      }
 
-          // FIX: Removed the buggy currentUncovered bypass. The normal peer intersection
-          // perfectly validates the uncovered candidate now that p.z is fixed.
-          for (const d of checkDigits) {
-            let inter = ~0n;
-            let first = true;
-            let invalid = false;
+      // 6. Extract eliminations
+      const elims = [];
+      for (let d = 0; d < 9; d++) {
+        for (let p = 0; p < 3; p++) {
+          let m = commonMask[d][p];
+          let bitPos = 0;
+          while (m > 0) {
+            if (m & 1) {
+              const id = p * 27 + bitPos;
+              const er = Math.floor(id / 9);
+              const ec = id % 9;
+              const num = d + 1;
 
-            for (const c of chosen) {
-              const pm = alsDigitPeerMask[c.alsIdx][d - 1];
-              if (pm === 0n) {
-                invalid = true;
-                break;
-              }
-              if (first) {
-                inter = pm;
-                first = false;
+              // Ensure it's not the stem itself
+              let isStemCandidate = false;
+              if (!isRegion) {
+                if (er === stem.r && ec === stem.c) isStemCandidate = true;
               } else {
-                inter &= pm;
+                if (num === stem.digit && stem.cells.includes(id))
+                  isStemCandidate = true;
               }
-              if (inter === 0n) {
-                invalid = true;
-                break;
+
+              if (
+                pencils[er][ec] &&
+                pencils[er][ec].has(num) &&
+                !isStemCandidate
+              ) {
+                elims.push({ r: er, c: ec, num });
               }
             }
-            if (invalid) continue;
+            m >>>= 1;
+            bitPos++;
+          }
+        }
+      }
 
-            const pm = alsDigitPeerMask[p.alsIdx][d - 1];
-            if (pm === 0n) continue;
-            if (first) inter = pm;
-            else inter &= pm;
-            if (inter === 0n) continue;
+      if (elims.length > 0) {
+        const target = elims[0];
+        const targetDigit = target.num;
+        const targetId = target.r * 9 + target.c;
+        const targetPart = Math.floor(targetId / 27);
+        const targetBit = targetId % 27;
 
-            let exists = false;
-            let m = inter;
-            let idx = 0;
-            while (m !== 0n) {
-              if (m & 1n) {
-                const rr = Math.floor(idx / 9);
-                const cc = idx % 9;
-                if (pencils[rr][cc].has(d)) {
-                  exists = true;
-                  break;
-                }
-              }
-              m >>= 1n;
-              idx++;
+        const chosenPaths = [];
+        for (const s of startNodes) {
+          const reachList = reachMap.get(s);
+          const validReach = reachList.find((rObj) => {
+            return (
+              (rObj.node.NandBitset[targetDigit - 1][targetPart] &
+                (1 << targetBit)) !==
+              0
+            );
+          });
+          if (validReach) chosenPaths.push(validReach.path);
+        }
+
+        const chainStrs = chosenPaths.map((path) => {
+          const startNode = path[0];
+          let str = `(${startNode.digits[0]})r${Math.floor(startNode.cells[0] / 9) + 1}c${(startNode.cells[0] % 9) + 1}`;
+          if (path.length === 3) {
+            const n = path[1];
+            const o = path[2];
+            const als = alsLinkRegistry.get(n)?.get(o);
+
+            if (als) {
+              const preferBox = als.unitName && als.unitName.startsWith("Box");
+              const alsLoc = getLoc(
+                als.cells.map((ac) => ac[0] * 9 + ac[1]),
+                preferBox,
+              );
+              str += `-(${n.digits[0]}=${o.digits[0]})${alsLoc}`;
+            } else {
+              str += `-(${n.digits[0]}=${o.digits[0]})${getLoc(n.cells)}`;
             }
-
-            if (exists) validatedMask |= 1 << (d - 1);
           }
+          return str;
+        });
 
-          if (validatedMask === 0) {
-            seenCombos.add(key);
-            continue;
-          }
+        const blossomName = isRegion
+          ? "Region Death Blossom"
+          : "Cell Death Blossom";
+        const mainInfoStr = isRegion
+          ? `Stem (${stem.digit}) in ${stem.houseName}`
+          : `Stem at r${stem.r + 1}c${stem.c + 1}`;
 
-          // Recurse
-          chosen.push(p);
-          dfs(i + 1, newCovered, validatedMask, depth + 1);
-          chosen.pop();
-
-          // Mark as seen after exploring
-          seenCombos.add(key);
-        }
-      };
-
-      // Start DFS for this stem
-      // possibleElimMask starts as 0x1FF (all 9 digits candidates)
-      dfs(0, 0, 0x1ff, 0);
-
-      // If eliminations found for this stem, return immediately
-      if (foundAny && eliminations.length > 0) {
-        const uniqueElims = [];
-        const seen = new Set();
-        for (let i = 0; i < eliminations.length; i++) {
-          const el = eliminations[i];
-          // Create a unique 12-bit integer key for r, c, num
-          const key = (el.r << 8) | (el.c << 4) | el.num;
-          if (!seen.has(key)) {
-            seen.add(key);
-            uniqueElims.push(el);
-          }
-        }
         const resultObj = {
           change: true,
           type: "remove",
-          cells: uniqueElims,
+          cells: elims,
           hint: {
-            name: "Cell Death Blossom",
-            mainInfo: `Stem cell r${r + 1}c${c + 1}`,
-            detail: detailStr,
+            name: blossomName,
+            mainInfo: mainInfoStr,
+            detail: chainStrs.join(", "),
           },
           applyVisuals: () => {
             highlightedDigit = null;
             highlightState = 0;
 
-            const alsColors = [6, 7, 2, 3, 4, 5];
-            const targets = [...new Set(uniqueElims.map((e) => e.num))];
+            chosenPaths.forEach((path, branchIdx) => {
+              const branchColor = [6, 7, 2, 3, 4, 8][branchIdx % 6]; // Unique color per stem candidate chain
 
-            const drawGroup = (cells, digit, colorIdx) => {
-              if (cells.length > 1) {
-                for (let k = 0; k < cells.length - 1; k++) {
-                  drawnLines.push({
-                    r1: cells[k][0],
-                    c1: cells[k][1],
-                    n1: digit,
-                    r2: cells[k + 1][0],
-                    c2: cells[k + 1][1],
-                    n2: digit,
-                    color: lineColorPalette[colorIdx],
-                    style: "solid",
+              if (path.length === 3) {
+                const u = path[0]; // Stem candidate
+                const v = path[1]; // NAND node
+                const w = path[2]; // OR node
+
+                // 1. Color stem cell candidate matching the branch color
+                if (!isRegion) {
+                  boardState[stem.r][stem.c].pencilColors.set(
+                    u.digits[0],
+                    candidateColorPalette[branchColor],
+                  );
+                } else {
+                  const ur = Math.floor(u.cells[0] / 9),
+                    uc = u.cells[0] % 9;
+                  boardState[ur][uc].pencilColors.set(
+                    stem.digit,
+                    candidateColorPalette[branchColor],
+                  );
+                }
+
+                // 2. Color bivalue cell or ALS cell matching the branch color
+                const als = alsLinkRegistry.get(v)?.get(w);
+                if (als) {
+                  als.cells.forEach(([ar, ac]) => {
+                    if (window.addCellColor)
+                      window.addCellColor(
+                        ar,
+                        ac,
+                        cellColorPalette[branchColor],
+                      );
+                    else
+                      boardState[ar][ac].cellColor =
+                        cellColorPalette[branchColor];
                   });
-                }
-              }
-            };
-
-            const getClosestCells = (cellsA, cellsB) => {
-              if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
-                return null;
-              let minD = Infinity;
-              let bestA = cellsA[0];
-              let bestB = cellsB[0];
-              for (const a of cellsA) {
-                for (const b of cellsB) {
-                  const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                  if (d < minD) {
-                    minD = d;
-                    bestA = a;
-                    bestB = b;
-                  }
-                }
-              }
-              return [bestA, bestB];
-            };
-
-            successChosen.forEach((petal, i) => {
-              const als = alses[petal.alsIdx];
-              const cColor = alsColors[i % 6];
-
-              // Color petal ALS (Supports Multiple Colors for overlapping)
-              als.cells.forEach(([ar, ac]) => {
-                window.addCellColor(ar, ac, cellColorPalette[cColor]);
-              });
-
-              // Process stem candidates covered by this petal
-              const coveredDigits = techniques._bits.maskToDigits(
-                petal.covers & stemMask,
-              );
-              coveredDigits.forEach((p) => {
-                // Highlight stem candidate (Supports Multiple Colors)
-                window.addCandidateColor(
-                  stem.r,
-                  stem.c,
-                  p,
-                  candidateColorPalette[cColor],
-                );
-
-                const pNodes = als.cells.filter(([ar, ac]) =>
-                  boardState[ar][ac].pencils.has(p),
-                );
-                // Draw p-nodes intra link in color 5
-                drawGroup(pNodes, p, 4);
-
-                // Inter link: stem to closest p-node
-                const closestStemToP = getClosestCells(
-                  [[stem.r, stem.c]],
-                  pNodes,
-                );
-                if (closestStemToP) {
-                  drawnLines.push({
-                    r1: stem.r,
-                    c1: stem.c,
-                    n1: p,
-                    r2: closestStemToP[1][0],
-                    c2: closestStemToP[1][1],
-                    n2: p,
-                    color: lineColorPalette[0],
-                    style: "dash",
+                } else {
+                  v.cells.forEach((id) => {
+                    const vr = Math.floor(id / 9),
+                      vc = id % 9;
+                    if (window.addCellColor)
+                      window.addCellColor(
+                        vr,
+                        vc,
+                        cellColorPalette[branchColor],
+                      );
+                    else
+                      boardState[vr][vc].cellColor =
+                        cellColorPalette[branchColor];
                   });
                 }
 
-                // Intra link: p-node to z-node inside Petal ALS
-                targets.forEach((z) => {
-                  if ((petal.z & (1 << (z - 1))) !== 0) {
-                    const zNodes = als.cells.filter(([ar, ac]) =>
-                      boardState[ar][ac].pencils.has(z),
-                    );
-                    drawGroup(zNodes, z, 4); // Draw z-nodes intra link in color 5
+                // 3. Highlight candidates for the branch nodes
+                [v, w].forEach((node) => {
+                  node.cells.forEach((id) => {
+                    const nr = Math.floor(id / 9),
+                      nc = id % 9;
+                    if (boardState[nr][nc].pencils.has(node.digits[0])) {
+                      if (window.addCandidateColor)
+                        window.addCandidateColor(
+                          nr,
+                          nc,
+                          node.digits[0],
+                          candidateColorPalette[branchColor],
+                        );
+                      else
+                        boardState[nr][nc].pencilColors.set(
+                          node.digits[0],
+                          candidateColorPalette[branchColor],
+                        );
+                    }
+                  });
+                });
 
-                    const closest = getClosestCells(pNodes, zNodes);
-                    if (closest) {
+                // 4. NAND gate (Dash line)
+                drawnLines.push({
+                  r1: Math.floor(u.cells[0] / 9),
+                  c1: u.cells[0] % 9,
+                  n1: u.digits[0],
+                  r2: Math.floor(v.cells[0] / 9),
+                  c2: v.cells[0] % 9,
+                  n2: v.digits[0],
+                  color: lineColorPalette[1],
+                  style: "dash",
+                });
+
+                // 5. OR gate (Solid Red line)
+                drawnLines.push({
+                  r1: Math.floor(v.cells[0] / 9),
+                  c1: v.cells[0] % 9,
+                  n1: v.digits[0],
+                  r2: Math.floor(w.cells[0] / 9),
+                  c2: w.cells[0] % 9,
+                  n2: w.digits[0],
+                  color: lineColorPalette[0],
+                  style: "solid",
+                });
+
+                // 6. Note grouped node in ALS as solid line following the node color
+                const drawGroupedNode = (node) => {
+                  if (node.cells.length > 1) {
+                    for (let i = 0; i < node.cells.length - 1; i++) {
                       drawnLines.push({
-                        r1: closest[0][0],
-                        c1: closest[0][1],
-                        n1: p,
-                        r2: closest[1][0],
-                        c2: closest[1][1],
-                        n2: z,
-                        color: lineColorPalette[0],
+                        r1: Math.floor(node.cells[i] / 9),
+                        c1: node.cells[i] % 9,
+                        n1: node.digits[0],
+                        r2: Math.floor(node.cells[i + 1] / 9),
+                        c2: node.cells[i + 1] % 9,
+                        n2: node.digits[0],
+                        color: lineColorPalette[branchColor],
                         style: "solid",
                       });
                     }
                   }
-                });
-              });
+                };
+                drawGroupedNode(v);
+                drawGroupedNode(w);
+              }
             });
 
-            // Color eliminations
-            uniqueElims.forEach((el) => {
+            // Eliminations
+            elims.forEach((el) => {
               boardState[el.r][el.c].pencilColors.set(
                 el.num,
                 candidateColorPalette[0],
@@ -10850,6 +9246,7 @@ const techniques = {
             });
           },
         };
+
         if (!findAll) return resultObj;
         results.push(resultObj);
       }
@@ -10858,505 +9255,12 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
-  // --- REGION DEATH BLOSSOM ---
+  cellDeathBlossom: (board, pencils, findAll = false) => {
+    return techniques._deathBlossomCore(board, pencils, false, findAll);
+  },
+
   regionDeathBlossom: (board, pencils, findAll = false) => {
-    const results = [];
-    if (_alsCache.length === 0)
-      _alsCache = techniques._collectAllALS(board, pencils, 1, 8);
-
-    // --- Formatting Helper ---
-    const fmtALS = (als) => {
-      if (als.unitName && als.unitName.startsWith("Box")) {
-        const b = [
-          ...new Set(
-            als.cells.map(
-              ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1,
-            ),
-          ),
-        ];
-        const pts = [
-          ...new Set(
-            als.cells.map(
-              ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-            ),
-          ),
-        ]
-          .sort((a, b) => a - b)
-          .join("");
-        return `b${b}p${pts}`;
-      } else {
-        const rs = [...new Set(als.cells.map(([r, c]) => r + 1))]
-          .sort((a, b) => a - b)
-          .join("");
-        const cs = [...new Set(als.cells.map(([r, c]) => c + 1))]
-          .sort((a, b) => a - b)
-          .join("");
-        return `r${rs}c${cs}`;
-      }
-    };
-
-    // 1. Call Cache
-    const alses = _alsCache;
-
-    // 2. Precompute per-ALS per-digit peer masks
-    const alsDigitPeerMask = new Array(alses.length);
-    for (let i = 0; i < alses.length; i++) {
-      alsDigitPeerMask[i] = new Array(9).fill(0n);
-      for (let d = 1; d <= 9; d++) {
-        const dCells = alses[i].candidatePositions[d - 1];
-        if (dCells !== 0n) {
-          alsDigitPeerMask[i][d - 1] = techniques._findCommonPeersBS(dCells);
-        }
-      }
-    }
-
-    // 3. Collect Stem Regions (A digit appearing 3 to 5 times in a house)
-    let minCount = _prALSW ? 3 : 2;
-    const stems = [];
-    for (let d = 1; d <= 9; d++) {
-      for (let u = 0; u < 27; u++) {
-        let uType = u < 9 ? "row" : u < 18 ? "col" : "box";
-        let uIdx = u < 9 ? u : u < 18 ? u - 9 : u - 18;
-
-        const cells = techniques._getUnitCells(uType, uIdx);
-        const stemCells = [];
-        let stemMask = 0n;
-
-        for (const [r, c] of cells) {
-          if (pencils[r][c] && pencils[r][c].has(d)) {
-            stemCells.push({ r, c, id: r * 9 + c });
-            stemMask |= 1n << BigInt(r * 9 + c);
-          }
-        }
-
-        if (stemCells.length >= minCount && stemCells.length <= 5) {
-          stems.push({
-            digit: d,
-            uType,
-            uIdx,
-            cells: stemCells,
-            mask: stemMask,
-            count: stemCells.length,
-          });
-        }
-      }
-    }
-    // Sort stems by candidate count (ascending) to process simpler cases first
-    stems.sort((a, b) => a.count - b.count);
-
-    // 4. Process each Stem
-    for (const stem of stems) {
-      const {
-        digit: stemDigit,
-        cells: stemCells,
-        mask: stemMask,
-        count: stemCount,
-        uType,
-        uIdx,
-      } = stem;
-
-      // Build Pool of valid Petals (ALSs) for this stem
-      const pool = [];
-
-      for (let i = 0; i < alses.length; i++) {
-        const als = alses[i];
-
-        // 1. Check overlap: The petal must NOT contain the stem candidate itself
-        if ((als.candidatePositions[stemDigit - 1] & stemMask) !== 0n) continue;
-
-        let covers = 0;
-        // 2. Check coverage: The petal must see the specific stem cells using its stemDigit candidates
-        const peerMask = alsDigitPeerMask[i][stemDigit - 1];
-        if (peerMask !== 0n) {
-          for (let k = 0; k < stemCount; k++) {
-            if ((peerMask & (1n << BigInt(stemCells[k].id))) !== 0n) {
-              covers |= 1 << k;
-            }
-          }
-        }
-
-        if (covers === 0) continue;
-
-        // 3. Check Z candidates (ALS candidates excluding the stem digit)
-        const z = als.candidates & ~(1 << (stemDigit - 1));
-        if (z === 0) continue;
-
-        pool.push({ alsIdx: i, covers, z });
-      }
-
-      if (pool.length < 2) continue;
-
-      // DFS State
-      const chosen = [];
-      const seenCombos = new Set();
-      let foundAny = false;
-      let successChosen = [];
-      const eliminations = [];
-      let detailStr = "";
-
-      // Target mask for complete coverage of all stem cells
-      const targetCoverMask = (1 << stemCount) - 1;
-
-      // Recursive Search
-      const dfs = (startIndex, coveredMask, possibleElimMask, depth) => {
-        if (foundAny) return;
-        // --- CHECK FOR ELIMINATION ---
-        if (
-          coveredMask === targetCoverMask &&
-          depth >= 2 &&
-          depth <= stemCount
-        ) {
-          if (possibleElimMask !== 0) {
-            const elimDigits = techniques._bits.maskToDigits(possibleElimMask);
-
-            for (const elimD of elimDigits) {
-              let intersectPeers = ~0n;
-              let first = true;
-              let empty = false;
-
-              for (const petal of chosen) {
-                const pm = alsDigitPeerMask[petal.alsIdx][elimD - 1];
-                if (pm === 0n) {
-                  empty = true;
-                  break;
-                }
-
-                if (first) {
-                  intersectPeers = pm;
-                  first = false;
-                } else {
-                  intersectPeers &= pm;
-                }
-
-                if (intersectPeers === 0n) {
-                  empty = true;
-                  break;
-                }
-              }
-
-              if (empty) continue;
-
-              // Eliminate elimD from any cell in intersectPeers that currently has it
-              let m = intersectPeers;
-              let idx = 0;
-              while (m !== 0n) {
-                if (m & 1n) {
-                  const rr = Math.floor(idx / 9);
-                  const cc = idx % 9;
-                  if (pencils[rr][cc] && pencils[rr][cc].has(elimD)) {
-                    eliminations.push({ r: rr, c: cc, num: elimD });
-
-                    // Capture the detail string exactly once when a valid combination is proven
-                    if (!foundAny) {
-                      foundAny = true;
-                      successChosen = [...chosen];
-                      const parts = [];
-                      for (const petal of chosen) {
-                        const als = alses[petal.alsIdx];
-                        const coveredStemCells = [];
-
-                        for (let k = 0; k < stemCount; k++) {
-                          if ((petal.covers & (1 << k)) !== 0) {
-                            coveredStemCells.push(stemCells[k]);
-                          }
-                        }
-
-                        let covStr = "";
-                        if (uType === "row") {
-                          const r = uIdx + 1;
-                          const cs = coveredStemCells
-                            .map((c) => c.c + 1)
-                            .sort()
-                            .join("");
-                          covStr = `${stemDigit}r${r}c${cs}`;
-                        } else if (uType === "col") {
-                          const c = uIdx + 1;
-                          const rs = coveredStemCells
-                            .map((c) => c.r + 1)
-                            .sort()
-                            .join("");
-                          covStr = `${stemDigit}r${rs}c${c}`;
-                        } else {
-                          // uType === "box"
-                          const b = uIdx + 1;
-                          const ps = coveredStemCells
-                            .map((c) => (c.r % 3) * 3 + (c.c % 3) + 1)
-                            .sort()
-                            .join("");
-                          covStr = `${stemDigit}b${b}p${ps}`;
-                        }
-
-                        parts.push(
-                          `${covStr}-(${stemDigit}=${elimD})${fmtALS(als)}`,
-                        );
-                      }
-                      detailStr = parts.join(", ");
-                    }
-                  }
-                }
-                m >>= 1n;
-                idx++;
-              }
-            }
-          }
-          if (foundAny) return; // 2. Stop immediately if this combination yielded eliminations
-        }
-
-        // Pruning
-        if (depth >= stemCount) return;
-
-        // --- RECURSIVE STEP ---
-        for (let i = startIndex; i < pool.length; i++) {
-          if (foundAny) return; // 3. Stop processing siblings if a deeper call succeeded
-          const p = pool[i];
-
-          const indices = chosen.map((c) => c.alsIdx);
-          indices.push(p.alsIdx);
-          indices.sort((a, b) => a - b);
-          const key = indices.join(",");
-
-          if (seenCombos.has(key)) continue;
-
-          const newCovered = coveredMask | p.covers;
-          const newPossibleElim = possibleElimMask & p.z;
-
-          if (newPossibleElim === 0) {
-            seenCombos.add(key);
-            continue;
-          }
-
-          let validatedMask = 0;
-          const checkDigits = techniques._bits.maskToDigits(newPossibleElim);
-
-          for (const checkD of checkDigits) {
-            let inter = ~0n;
-            let first = true;
-            let invalid = false;
-
-            for (const c of chosen) {
-              const pm = alsDigitPeerMask[c.alsIdx][checkD - 1];
-              if (pm === 0n) {
-                invalid = true;
-                break;
-              }
-              if (first) {
-                inter = pm;
-                first = false;
-              } else {
-                inter &= pm;
-              }
-              if (inter === 0n) {
-                invalid = true;
-                break;
-              }
-            }
-            if (invalid) continue;
-
-            const pm = alsDigitPeerMask[p.alsIdx][checkD - 1];
-            if (pm === 0n) continue;
-            if (first) inter = pm;
-            else inter &= pm;
-            if (inter === 0n) continue;
-
-            let exists = false;
-            let m = inter;
-            let idx = 0;
-            while (m !== 0n) {
-              if (m & 1n) {
-                const rr = Math.floor(idx / 9);
-                const cc = idx % 9;
-                if (pencils[rr][cc] && pencils[rr][cc].has(checkD)) {
-                  exists = true;
-                  break;
-                }
-              }
-              m >>= 1n;
-              idx++;
-            }
-
-            if (exists) validatedMask |= 1 << (checkD - 1);
-          }
-
-          if (validatedMask === 0) {
-            seenCombos.add(key);
-            continue;
-          }
-
-          chosen.push(p);
-          dfs(i + 1, newCovered, validatedMask, depth + 1);
-          chosen.pop();
-
-          seenCombos.add(key);
-        }
-      };
-
-      // Start DFS for this stem
-      // possibleElimMask starts as all 9 digits EXCEPT the stemDigit
-      const initialPossibleElim = 0x1ff & ~(1 << (stemDigit - 1));
-      dfs(0, 0, initialPossibleElim, 0);
-
-      // If eliminations found for this stem, return immediately
-      if (foundAny && eliminations.length > 0) {
-        const uniqueElims = [];
-        const seen = new Set();
-        for (let i = 0; i < eliminations.length; i++) {
-          const el = eliminations[i];
-          // Create a unique 12-bit integer key for r, c, num
-          const key = (el.r << 8) | (el.c << 4) | el.num;
-          if (!seen.has(key)) {
-            seen.add(key);
-            uniqueElims.push(el);
-          }
-        }
-
-        const unitName =
-          uType === "row"
-            ? `Row ${uIdx + 1}`
-            : uType === "col"
-              ? `Col ${uIdx + 1}`
-              : `Box ${uIdx + 1}`;
-
-        const resultObj = {
-          change: true,
-          type: "remove",
-          cells: uniqueElims,
-          hint: {
-            name: "Region Death Blossom",
-            mainInfo: `Stem digit (${stemDigit}) in ${unitName}`,
-            detail: detailStr,
-          },
-          applyVisuals: () => {
-            highlightedDigit = stemDigit;
-            highlightState = 1;
-
-            const alsColors = [6, 7, 2, 3, 4, 5];
-            const targets = [...new Set(uniqueElims.map((e) => e.num))];
-
-            const drawGroup = (cells, digit, colorIdx) => {
-              if (cells.length > 1) {
-                for (let k = 0; k < cells.length - 1; k++) {
-                  drawnLines.push({
-                    r1: cells[k][0],
-                    c1: cells[k][1],
-                    n1: digit,
-                    r2: cells[k + 1][0],
-                    c2: cells[k + 1][1],
-                    n2: digit,
-                    color: lineColorPalette[colorIdx],
-                    style: "solid",
-                  });
-                }
-              }
-            };
-
-            const getClosestCells = (cellsA, cellsB) => {
-              if (!cellsA || !cellsB || !cellsA.length || !cellsB.length)
-                return null;
-              let minD = Infinity;
-              let bestA = cellsA[0];
-              let bestB = cellsB[0];
-              for (const a of cellsA) {
-                for (const b of cellsB) {
-                  const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                  if (d < minD) {
-                    minD = d;
-                    bestA = a;
-                    bestB = b;
-                  }
-                }
-              }
-              return [bestA, bestB];
-            };
-
-            successChosen.forEach((petal, i) => {
-              const als = alses[petal.alsIdx];
-              const cColor = alsColors[i % 6];
-
-              // Color petal ALS (Supports Multiple Colors for overlapping)
-              als.cells.forEach(([ar, ac]) => {
-                window.addCellColor(ar, ac, cellColorPalette[cColor]);
-              });
-
-              // Find stem cells covered by this petal
-              for (let k = 0; k < stemCount; k++) {
-                if ((petal.covers & (1 << k)) !== 0) {
-                  const sCell = stemCells[k];
-                  const p = stemDigit;
-
-                  // Highlight stem candidate (Supports Multiple Colors)
-                  window.addCandidateColor(
-                    sCell.r,
-                    sCell.c,
-                    p,
-                    candidateColorPalette[cColor],
-                  );
-
-                  const pNodes = als.cells.filter(([ar, ac]) =>
-                    boardState[ar][ac].pencils.has(p),
-                  );
-                  // Draw p-nodes intra link in color 5
-                  drawGroup(pNodes, p, 4);
-
-                  // Inter link: stem to closest p-node
-                  const closestStemToP = getClosestCells(
-                    [[sCell.r, sCell.c]],
-                    pNodes,
-                  );
-                  if (closestStemToP) {
-                    drawnLines.push({
-                      r1: sCell.r,
-                      c1: sCell.c,
-                      n1: p,
-                      r2: closestStemToP[1][0],
-                      c2: closestStemToP[1][1],
-                      n2: p,
-                      color: lineColorPalette[0],
-                      style: "dash",
-                    });
-                  }
-
-                  // Intra link: p-node to z-node inside Petal ALS
-                  targets.forEach((z) => {
-                    if ((petal.z & (1 << (z - 1))) !== 0) {
-                      const zNodes = als.cells.filter(([ar, ac]) =>
-                        boardState[ar][ac].pencils.has(z),
-                      );
-                      drawGroup(zNodes, z, 4);
-
-                      const closest = getClosestCells(pNodes, zNodes);
-                      if (closest) {
-                        drawnLines.push({
-                          r1: closest[0][0],
-                          c1: closest[0][1],
-                          n1: p,
-                          r2: closest[1][0],
-                          c2: closest[1][1],
-                          n2: z,
-                          color: lineColorPalette[0],
-                          style: "solid",
-                        });
-                      }
-                    }
-                  });
-                }
-              }
-            });
-
-            // Color eliminations
-            uniqueElims.forEach((el) => {
-              boardState[el.r][el.c].pencilColors.set(
-                el.num,
-                candidateColorPalette[0],
-              );
-            });
-          },
-        };
-        if (!findAll) return resultObj;
-        results.push(resultObj);
-      }
-    }
-
-    return findAll ? results : { change: false };
+    return techniques._deathBlossomCore(board, pencils, true, findAll);
   },
 
   _complexFishCore: (board, pencils, fishSize, isMutant, findAll = false) => {
@@ -11909,673 +9813,5 @@ const techniques = {
 
   finnedMutantSwordfish: (board, pencils, findAll = false) => {
     return techniques._complexFishCore(board, pencils, 3, true, findAll);
-  },
-
-  blossomLoop: (board, pencils, findAll = false) => {
-    const results = [];
-    const MAX_RING_LEN = 14;
-    const MAX_BURR_LEN = 15;
-
-    // 1. Ensure AIC graph is built
-    const prarr = [_prXC, _prgXC, _prAIC, _prgAIC];
-    const prcount = prarr.reduce(
-      (prcnt, val) => (val === true ? prcnt + 1 : prcnt),
-      0,
-    );
-    if (prcount === 0) techniques._resetAICCache();
-    techniques._ensureSingleNodesAndLinks(pencils);
-    techniques._ensureGroupedNodesAndLinks(pencils);
-    techniques._ensureAlsLinks(board, pencils);
-    techniques._ensureInCellLinks(pencils);
-    const cache = techniques._aicCache;
-
-    const strongLinks = techniques._mergeMaps(
-      cache.strongLinksSingle,
-      cache.strongLinksGrouped,
-      cache.strongLinksInCell,
-      cache.strongLinksAls,
-    );
-    const weakLinks = techniques._mergeMaps(
-      cache.weakLinksSingle,
-      cache.weakLinksGrouped,
-      cache.weakLinksInCell,
-    );
-
-    // Helper: Get eliminations for a weak link
-    const getWeakLinkElims = (u, v) => {
-      let elims = [];
-      if (u.digit === v.digit) {
-        for (let r = 0; r < 9; r++) {
-          for (let c = 0; c < 9; c++) {
-            if (board[r][c] !== 0 || !pencils[r][c].has(u.digit)) continue;
-            let seesAll = true;
-            for (const cu of u.cells)
-              if (!techniques._sees([r, c], cu)) seesAll = false;
-            for (const cv of v.cells)
-              if (!techniques._sees([r, c], cv)) seesAll = false;
-            if (seesAll) {
-              let inU = u.cells.some((cell) => cell[0] === r && cell[1] === c);
-              let inV = v.cells.some((cell) => cell[0] === r && cell[1] === c);
-              if (!inU && !inV) {
-                elims.push({ r, c, num: u.digit });
-              }
-            }
-          }
-        }
-      } else {
-        if (u.count === 1 && v.count === 1) {
-          let [ur, uc] = u.cells[0];
-          if (v.cells[0][0] === ur && v.cells[0][1] === uc) {
-            for (const cand of pencils[ur][uc]) {
-              if (cand !== u.digit && cand !== v.digit) {
-                elims.push({ r: ur, c: uc, num: cand });
-              }
-            }
-          }
-        }
-      }
-      return elims;
-    };
-
-    // 2. Find all ASLs (Almost Strong Links hindered by one thorn)
-    const asls = [];
-
-    // 2a. In-unit ASLs
-    for (let d = 1; d <= 9; d++) {
-      for (let u = 0; u < 27; u++) {
-        let uType = u < 9 ? "row" : u < 18 ? "col" : "box";
-        let uIdx = u < 9 ? u : u < 18 ? u - 9 : u - 18;
-        let cells = techniques
-          ._getUnitCells(uType, uIdx)
-          .filter(([r, c]) => pencils[r][c].has(d));
-        let N = cells.length;
-        if (N >= 3) {
-          let unitNodes = [];
-          for (const node of [...cache.singleNodes, ...cache.groupedNodes]) {
-            if (
-              node.digit === d &&
-              node.cells.every(([r, c]) => {
-                if (uType === "row") return r === uIdx;
-                if (uType === "col") return c === uIdx;
-                return techniques._getBoxIndex(r, c) === uIdx;
-              })
-            ) {
-              unitNodes.push(node);
-            }
-          }
-          for (let i = 0; i < unitNodes.length; i++) {
-            let T = unitNodes[i];
-            for (let j = 0; j < unitNodes.length; j++) {
-              let A = unitNodes[j];
-              if (A === T) continue;
-              for (let k = j + 1; k < unitNodes.length; k++) {
-                let B = unitNodes[k];
-                if (B === T) continue;
-                if (A.count + B.count + T.count === N) {
-                  let allCells = [...T.cells, ...A.cells, ...B.cells];
-                  let uniqueSet = new Set(
-                    allCells.map((c) => c[0] + "," + c[1]),
-                  );
-                  if (uniqueSet.size === N) {
-                    asls.push({ A, B, T });
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 2b. In-cell ASLs
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        if (pencils[r][c].size === 3) {
-          let cands = [...pencils[r][c]];
-          let n1 = cache.nodeMap.get(
-            techniques._enc17(
-              cands[0],
-              techniques._getBoxIndex(r, c),
-              1 << ((r % 3) * 3 + (c % 3)),
-            ),
-          );
-          let n2 = cache.nodeMap.get(
-            techniques._enc17(
-              cands[1],
-              techniques._getBoxIndex(r, c),
-              1 << ((r % 3) * 3 + (c % 3)),
-            ),
-          );
-          let n3 = cache.nodeMap.get(
-            techniques._enc17(
-              cands[2],
-              techniques._getBoxIndex(r, c),
-              1 << ((r % 3) * 3 + (c % 3)),
-            ),
-          );
-          if (n1 && n2 && n3) {
-            asls.push({ A: n1, B: n2, T: n3 });
-            asls.push({ A: n1, B: n3, T: n2 });
-            asls.push({ A: n2, B: n3, T: n1 });
-          }
-        }
-      }
-    }
-
-    // 3. Process each ASL to find Rings and Burring Chains
-    for (const { A, B, T } of asls) {
-      if (results.length > 0 && !findAll) return results[0];
-
-      // DFS for Almost Ring: A -W- N1 =S= N2 ... -W- B
-      const ringPaths = [];
-      const ringDfs = (curr, path, visited) => {
-        if (path.length > MAX_RING_LEN) return;
-
-        // --- OPTIMIZATION BLOCK START ---
-        const L = path.length;
-        if (L > 1) {
-          const endNode = path[L - 1];
-          if (L % 2 === 0) {
-            const wNeighbors = weakLinks.get(endNode.key) || [];
-            for (let i = 0; i < L; i += 2) {
-              if (i === L - 2) continue;
-              if (wNeighbors.some((n) => n.key === path[i].key)) return;
-            }
-          } else {
-            const sNeighbors = strongLinks.get(endNode.key) || [];
-            for (let i = 1; i < L; i += 2) {
-              if (i === L - 2) continue;
-              if (sNeighbors.some((n) => n.key === path[i].key)) return;
-            }
-          }
-        }
-        // --- OPTIMIZATION BLOCK END ---
-
-        if (path.length % 2 !== 0) {
-          // Next is WEAK
-          const wNeighbors = weakLinks.get(curr.key) || [];
-          if (path.length >= 3 && wNeighbors.some((n) => n.key === B.key)) {
-            ringPaths.push([...path, B]);
-          }
-          for (const n of wNeighbors) {
-            if (!visited.has(n.key) && n.key !== B.key && n.key !== T.key) {
-              visited.add(n.key);
-              path.push(n);
-              ringDfs(n, path, visited);
-              path.pop();
-              visited.delete(n.key);
-            }
-          }
-        } else {
-          // Next is STRONG
-          const sNeighbors = strongLinks.get(curr.key) || [];
-          for (const n of sNeighbors) {
-            if (!visited.has(n.key) && n.key !== B.key && n.key !== T.key) {
-              visited.add(n.key);
-              path.push(n);
-              ringDfs(n, path, visited);
-              path.pop();
-              visited.delete(n.key);
-            }
-          }
-        }
-      };
-
-      ringDfs(A, [A], new Set([A.key]));
-
-      for (const ring of ringPaths) {
-        if (results.length > 0 && !findAll) return results[0];
-
-        // Gather Ring Eliminations GROUPED by weak link
-        const ringWeakLinkElims = [];
-        let totalRingElims = 0;
-
-        for (let i = 0; i < ring.length - 1; i += 2) {
-          const elims = getWeakLinkElims(ring[i], ring[i + 1]);
-          ringWeakLinkElims.push(elims);
-          totalRingElims += elims.length;
-        }
-
-        if (totalRingElims === 0) continue;
-
-        // DFS for Burring Chain: T -W- M1 =S= M2 ... =S= E
-        const burrPaths = [];
-        const burrVisited = new Set();
-        for (const rNode of ring) burrVisited.add(rNode.key);
-        burrVisited.add(T.key);
-
-        const burrDfs = (curr, path, visited) => {
-          if (path.length > MAX_BURR_LEN) return;
-
-          // --- OPTIMIZATION BLOCK START ---
-          const L = path.length;
-          if (L > 1) {
-            const endNode = path[L - 1];
-            if (L % 2 === 0) {
-              const wNeighbors = weakLinks.get(endNode.key) || [];
-              for (let i = 0; i < L; i += 2) {
-                if (i === L - 2) continue;
-                if (wNeighbors.some((n) => n.key === path[i].key)) return;
-              }
-            } else {
-              const sNeighbors = strongLinks.get(endNode.key) || [];
-              for (let i = 1; i < L; i += 2) {
-                if (i === L - 2) continue;
-                if (sNeighbors.some((n) => n.key === path[i].key)) return;
-              }
-            }
-          }
-          // --- OPTIMIZATION BLOCK END ---
-
-          if (path.length % 2 !== 0) {
-            // Next is WEAK
-            const wNeighbors = weakLinks.get(curr.key) || [];
-            for (const n of wNeighbors) {
-              if (!visited.has(n.key)) {
-                if (path.length === 1 && n.digit === A.digit) {
-                  const overlapsAB = n.cells.some(
-                    (c1) =>
-                      A.cells.some(
-                        (cA) => cA[0] === c1[0] && cA[1] === c1[1],
-                      ) ||
-                      B.cells.some((cB) => cB[0] === c1[0] && cB[1] === c1[1]),
-                  );
-                  if (overlapsAB) continue;
-                }
-                visited.add(n.key);
-                path.push(n);
-                burrDfs(n, path, visited);
-                path.pop();
-                visited.delete(n.key);
-              }
-            }
-          } else {
-            // Next is STRONG
-            const sNeighbors = strongLinks.get(curr.key) || [];
-            for (const n of sNeighbors) {
-              const isElim = ringWeakLinkElims.some((wElims) =>
-                n.cells.every(([nr, nc]) =>
-                  wElims.some(
-                    (e) => e.r === nr && e.c === nc && e.num === n.digit,
-                  ),
-                ),
-              );
-
-              if (isElim && !visited.has(n.key)) {
-                burrPaths.push([...path, n]);
-                return;
-              }
-            }
-
-            for (const n of sNeighbors) {
-              if (!visited.has(n.key)) {
-                visited.add(n.key);
-                path.push(n);
-                burrDfs(n, path, visited);
-                path.pop();
-                visited.delete(n.key);
-              }
-            }
-          }
-        };
-
-        burrDfs(T, [T], burrVisited);
-
-        for (const burr of burrPaths) {
-          const targetElimNode = burr[burr.length - 1];
-          const finalElims = [];
-
-          const seesNode = (r, c, node) => {
-            for (const nc of node.cells) {
-              if (r === nc[0] && c === nc[1]) continue;
-              if (!techniques._sees([r, c], nc)) return false;
-            }
-            return true;
-          };
-
-          // 1. Gather ring eliminations
-          for (let i = 0; i < ring.length - 1; i += 2) {
-            const u = ring[i];
-            const v = ring[i + 1];
-            const wElims = getWeakLinkElims(u, v);
-            const isConnected = targetElimNode.cells.every((tc) =>
-              wElims.some(
-                (e) =>
-                  e.r === tc[0] &&
-                  e.c === tc[1] &&
-                  e.num === targetElimNode.digit,
-              ),
-            );
-            for (const e of wElims) {
-              if (isConnected) {
-                if (!seesNode(e.r, e.c, targetElimNode)) {
-                  continue;
-                }
-              }
-              finalElims.push(e);
-            }
-          }
-
-          // 1b. Gather ALS unlinked digit eliminations for ring strong links
-          // In the ring, strong links are at odd indices: 1-2, 3-4, etc.
-          for (let i = 1; i < ring.length - 1; i += 2) {
-            const u = ring[i];
-            const v = ring[i + 1];
-            if (u.digit !== v.digit) {
-              const linkKey = `${u.key}_${v.key}`;
-              const als = cache.alsLinkMap?.get(linkKey);
-
-              if (als) {
-                // Mask out the two RCC digits linking the chain
-                const linkedMask = (1 << (u.digit - 1)) | (1 << (v.digit - 1));
-                const unlinkedMask = als.candidates & ~linkedMask;
-
-                if (unlinkedMask !== 0) {
-                  const unlinkedDigits =
-                    techniques._bits.maskToDigits(unlinkedMask);
-                  for (const z of unlinkedDigits) {
-                    const zPos = als.candidatePositions[z - 1];
-                    const peerMask = techniques._findCommonPeersBS(zPos);
-
-                    const aElims = [];
-                    let m = peerMask;
-                    let idx = 0;
-
-                    // Iterate BigInt mask to find visible cells containing digit 'z'
-                    while (m !== 0n) {
-                      if (m & 1n) {
-                        const r = Math.floor(idx / 9);
-                        const c = idx % 9;
-                        if (pencils[r][c].has(z)) {
-                          aElims.push({ r, c, num: z });
-                        }
-                      }
-                      m >>= 1n;
-                      idx++;
-                    }
-
-                    // Apply the same Blossom Loop connectivity validation
-                    if (aElims.length > 0) {
-                      const isConnected = targetElimNode.cells.every((tc) =>
-                        aElims.some(
-                          (e) =>
-                            e.r === tc[0] &&
-                            e.c === tc[1] &&
-                            e.num === targetElimNode.digit,
-                        ),
-                      );
-                      for (const e of aElims) {
-                        if (isConnected) {
-                          if (!seesNode(e.r, e.c, targetElimNode)) continue;
-                        }
-                        finalElims.push(e);
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // 2. Gather off-link candidates of weak links in the burring chain
-          for (let i = 0; i < burr.length - 1; i += 2) {
-            finalElims.push(...getWeakLinkElims(burr[i], burr[i + 1]));
-          }
-
-          // 2b. Gather ALS unlinked digit eliminations for burring chain strong links
-          for (let i = 1; i < burr.length - 1; i += 2) {
-            const u = burr[i];
-            const v = burr[i + 1];
-            if (u.digit !== v.digit) {
-              const linkKey = `${u.key}_${v.key}`;
-              const als = cache.alsLinkMap?.get(linkKey);
-
-              if (als) {
-                // Mask out the two RCC digits linking the chain
-                const linkedMask = (1 << (u.digit - 1)) | (1 << (v.digit - 1));
-                const unlinkedMask = als.candidates & ~linkedMask;
-
-                if (unlinkedMask !== 0) {
-                  const unlinkedDigits =
-                    techniques._bits.maskToDigits(unlinkedMask);
-                  for (const z of unlinkedDigits) {
-                    const zPos = als.candidatePositions[z - 1];
-                    const peerMask = techniques._findCommonPeersBS(zPos);
-
-                    let m = peerMask;
-                    let idx = 0;
-
-                    // Iterate BigInt mask to find visible cells containing digit 'z'
-                    while (m !== 0n) {
-                      if (m & 1n) {
-                        const r = Math.floor(idx / 9);
-                        const c = idx % 9;
-                        if (pencils[r][c].has(z)) {
-                          finalElims.push({ r, c, num: z });
-                        }
-                      }
-                      m >>= 1n;
-                      idx++;
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // 3. Robustly filter out the Thorn (T) and the Burring Chain's other end
-          const isProtected = (r, c, num, node) => {
-            return (
-              node.digit === num &&
-              node.cells.some(([nr, nc]) => nr === r && nc === c)
-            );
-          };
-          const filteredElims = finalElims.filter(
-            (e) =>
-              !isProtected(e.r, e.c, e.num, T) &&
-              !isProtected(e.r, e.c, e.num, targetElimNode),
-          );
-
-          if (filteredElims.length > 0) {
-            const uniqueMap = new Map();
-            for (const e of filteredElims) {
-              uniqueMap.set(`${e.r},${e.c},${e.num}`, e);
-            }
-
-            const uniqueElims = Array.from(uniqueMap.values()).sort((a, b) => {
-              if (a.num !== b.num) return a.num - b.num;
-              if (a.r !== b.r) return a.r - b.r;
-              return a.c - b.c;
-            });
-
-            // --- 2. CAPTURE ALS CELLS SYNCHRONOUSLY ---
-            const usedAlses = [];
-
-            // Scan ring strong links: (N1=N2), (N3=N4)...
-            for (let i = 1; i < ring.length - 1; i += 2) {
-              const u = ring[i];
-              const v = ring[i + 1];
-              if (u.digit !== v.digit) {
-                const linkKey = `${u.key}_${v.key}`;
-                const als = cache.alsLinkMap?.get(linkKey);
-                if (als) usedAlses.push(als.cells);
-              }
-            }
-
-            // Scan burr strong links: (M1=M2), (M3=M4)...
-            for (let i = 1; i < burr.length - 1; i += 2) {
-              const u = burr[i];
-              const v = burr[i + 1];
-              if (u.digit !== v.digit) {
-                const linkKey = `${u.key}_${v.key}`;
-                const als = cache.alsLinkMap?.get(linkKey);
-                if (als) usedAlses.push(als.cells);
-              }
-            }
-            // --- END ALS CAPTURE ---
-
-            const pseudoAB = {
-              cells: [...A.cells, ...B.cells],
-              digit: A.digit,
-              count: A.count + B.count,
-            };
-
-            const visualRingChain = [A, B, ...ring.slice(1, -1).reverse()];
-            const visualBurrChain = [pseudoAB, ...burr];
-
-            // _buildChainDetail inherently handles ALS linkage notation dynamically
-            const ringStr = techniques._buildChainDetail(visualRingChain, {
-              useGrouped: true,
-            });
-            const burrStr = techniques._buildChainDetail(visualBurrChain, {
-              useGrouped: true,
-            });
-
-            const res = {
-              change: true,
-              type: "remove",
-              cells: uniqueElims,
-              hint: {
-                name: "Blossom Loop",
-                mainInfo: `Thorn (${T.digit}) at ${techniques._fmtNode(T)}`,
-                detail: `[${ringStr}-] + ${burrStr}-`,
-              },
-              applyVisuals: () => {
-                highlightedDigit = null;
-                highlightState = 0;
-
-                visualRingChain.forEach((node, idx) => {
-                  node.cells.forEach(([cr, cc]) => {
-                    const colorIdx = idx % 2 === 0 ? 5 : 4;
-                    boardState[cr][cc].pencilColors.set(
-                      node.digit,
-                      candidateColorPalette[colorIdx],
-                    );
-                  });
-                });
-
-                for (let i = 1; i < visualBurrChain.length; i++) {
-                  const node = visualBurrChain[i];
-                  node.cells.forEach(([cr, cc]) => {
-                    const colorIdx = i % 2 === 0 ? 7 : 6;
-                    if (!boardState[cr][cc].pencilColors.has(node.digit)) {
-                      boardState[cr][cc].pencilColors.set(
-                        node.digit,
-                        candidateColorPalette[colorIdx],
-                      );
-                    }
-                  });
-                }
-
-                uniqueElims.forEach((el) =>
-                  boardState[el.r][el.c].pencilColors.set(
-                    el.num,
-                    candidateColorPalette[0],
-                  ),
-                );
-
-                // --- 3. RENDER CAPTURED ALS CELLS ---
-                const alsColors = [6, 7, 2, 3, 4, 5];
-                usedAlses.forEach((cells, idx) => {
-                  const colorCode = alsColors[idx % 6];
-                  cells.forEach(([r, c]) => {
-                    window.addCellColor(r, c, cellColorPalette[colorCode]);
-                  });
-                });
-                // --- END RENDER ---
-
-                const getClosestCells = (nodeA, nodeB) => {
-                  let minD = Infinity;
-                  let bestA = nodeA.cells[0];
-                  let bestB = nodeB.cells[0];
-                  for (const a of nodeA.cells) {
-                    for (const b of nodeB.cells) {
-                      const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                      if (d < minD) {
-                        minD = d;
-                        bestA = a;
-                        bestB = b;
-                      }
-                    }
-                  }
-                  return [bestA, bestB];
-                };
-
-                const drawGroup = (node, colorIdx) => {
-                  if (node.cells.length > 1) {
-                    for (let i = 0; i < node.cells.length - 1; i++) {
-                      drawnLines.push({
-                        r1: node.cells[i][0],
-                        c1: node.cells[i][1],
-                        n1: node.digit,
-                        r2: node.cells[i + 1][0],
-                        c2: node.cells[i + 1][1],
-                        n2: node.digit,
-                        color: lineColorPalette[colorIdx],
-                        style: "solid",
-                      });
-                    }
-                  }
-                };
-
-                visualRingChain.forEach((node, idx) => {
-                  const colorIdx = idx % 2 === 0 ? 5 : 4;
-                  drawGroup(node, colorIdx);
-                });
-
-                drawGroup(T, 7);
-
-                for (let i = 2; i < visualBurrChain.length; i++) {
-                  const colorIdx = i % 2 === 0 ? 7 : 6;
-                  drawGroup(visualBurrChain[i], colorIdx);
-                }
-
-                const fullRing = [...visualRingChain, visualRingChain[0]];
-                for (let i = 0; i < fullRing.length - 1; i++) {
-                  const u = fullRing[i];
-                  const v = fullRing[i + 1];
-
-                  const isAlmostStrongLink = i === 0;
-                  const lineColorIdx = isAlmostStrongLink ? 1 : 0;
-
-                  const [cA, cB] = getClosestCells(u, v);
-                  drawnLines.push({
-                    r1: cA[0],
-                    c1: cA[1],
-                    n1: u.digit,
-                    r2: cB[0],
-                    c2: cB[1],
-                    n2: v.digit,
-                    color: lineColorPalette[lineColorIdx],
-                    style: i % 2 === 0 ? "solid" : "dash",
-                  });
-                }
-
-                for (let i = 1; i < visualBurrChain.length - 1; i++) {
-                  const u = visualBurrChain[i];
-                  const v = visualBurrChain[i + 1];
-
-                  const [cA, cB] = getClosestCells(u, v);
-                  drawnLines.push({
-                    r1: cA[0],
-                    c1: cA[1],
-                    n1: u.digit,
-                    r2: cB[0],
-                    c2: cB[1],
-                    n2: v.digit,
-                    color: lineColorPalette[2],
-                    style: i % 2 !== 0 ? "dash" : "solid",
-                  });
-                }
-              },
-            };
-            if (!findAll) return res;
-            results.push(res);
-            break;
-          }
-        }
-      }
-    }
-    return findAll ? results : { change: false };
   },
 };

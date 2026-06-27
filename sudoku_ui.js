@@ -38,7 +38,7 @@ const shareModal = document.getElementById("share-modal");
 const sharePlayingBtn = document.getElementById("share-playing-btn");
 const shareSolverBtn = document.getElementById("share-solver-btn");
 const shareCancelBtn = document.getElementById("share-cancel-btn");
-const prefBtn = document.getElementById("pref-btn"); // Add this line
+const prefBtn = document.getElementById("pref-btn");
 const techniqueResultCache = new Map();
 const minDateNum = 20260301;
 
@@ -1885,6 +1885,24 @@ function setupEventListeners() {
   const resetConfirmBtn = document.getElementById("reset-confirm-btn");
   const resetCancelBtn = document.getElementById("reset-cancel-btn");
 
+  // --- Auto-Pencil Modal Bindings ---
+  const autoPencilModal = document.getElementById("autopencil-confirm-modal");
+  const autoPencilConfirmBtn = document.getElementById(
+    "autopencil-confirm-btn",
+  );
+  const autoPencilCancelBtn = document.getElementById("autopencil-cancel-btn");
+
+  autoPencilConfirmBtn.addEventListener("click", () => {
+    autoPencilModal.classList.add("hidden");
+    autoPencilModal.classList.remove("flex");
+    autoPencil(true); // Pass true to force the execution
+  });
+
+  autoPencilCancelBtn.addEventListener("click", () => {
+    autoPencilModal.classList.add("hidden");
+    autoPencilModal.classList.remove("flex");
+  });
+
   clearBtn.addEventListener("click", () => {
     hideTooltip(clearBtn);
     if (activeTooltipElement === clearBtn) activeTooltipElement = null;
@@ -2637,6 +2655,7 @@ function handleKeyDown(e) {
   const compShareMod = document.getElementById("completion-share-modal");
   const resetMod = document.getElementById("reset-confirm-modal");
   const prefMod = document.getElementById("preferences-modal");
+  const autoPencilMod = document.getElementById("autopencil-confirm-modal");
 
   const isHintOpen = hintModal && !hintModal.classList.contains("hidden");
   const isSolverFirstOpen =
@@ -2650,6 +2669,8 @@ function handleKeyDown(e) {
     compShareMod && !compShareMod.classList.contains("hidden");
   const isResetOpen = resetMod && !resetMod.classList.contains("hidden");
   const isPrefOpen = prefMod && !prefMod.classList.contains("hidden");
+  const isAutoPencilOpen =
+    autoPencilMod && !autoPencilMod.classList.contains("hidden");
 
   if (
     document.activeElement.tagName === "INPUT" ||
@@ -2767,7 +2788,8 @@ function handleKeyDown(e) {
       isShareOpen ||
       isCompShareOpen ||
       isResetOpen ||
-      isPrefOpen
+      isPrefOpen ||
+      isAutoPencilOpen
     )
   ) {
     e.preventDefault();
@@ -2863,9 +2885,10 @@ function handleKeyDown(e) {
     isFormatOpen ||
     isShareOpen ||
     isResetOpen ||
-    isPrefOpen
+    isPrefOpen ||
+    isAutoPencilOpen
   ) {
-    // 1. "Esc" to Escape/Cancel
+    // 0. "Esc" to Escape/Cancel
     if (key === "Escape") {
       e.preventDefault();
       if (isHintOpen) document.getElementById("hint-cancel-btn").click();
@@ -2877,9 +2900,18 @@ function handleKeyDown(e) {
       if (isFormatOpen) document.getElementById("format-cancel-btn").click();
       if (isShareOpen) document.getElementById("share-cancel-btn").click();
       if (isCompShareOpen)
-        document.getElementById("completion-cancel-btn").click(); // <-- Add this
-      if (isResetOpen) document.getElementById("reset-cancel-btn").click(); // <-- Add this
+        document.getElementById("completion-cancel-btn").click();
+      if (isResetOpen) document.getElementById("reset-cancel-btn").click();
       if (isPrefOpen) document.getElementById("pref-cancel-btn").click();
+      if (isAutoPencilOpen)
+        document.getElementById("autopencil-cancel-btn").click();
+      return;
+    }
+
+    // 1. "a" to confirm Auto-Pencil
+    if (key_lower === "a" && e.shiftKey && isAutoPencilOpen) {
+      e.preventDefault();
+      document.getElementById("autopencil-confirm-btn").click();
       return;
     }
 
@@ -3856,15 +3888,16 @@ function clearAllColors() {
   showMessage("All colors cleared.", "gray");
 }
 
-function autoPencil() {
-  if (hasUsedAutoPencil && !isAutoPencilPending) {
-    showMessage(
-      "This will overwrite pencil marks. Click again to apply.",
-      "orange",
-    );
-    isAutoPencilPending = true;
+function autoPencil(skipConfirm = false) {
+  // 1. Show the modal if it's already been used and we haven't explicitly skipped confirmation
+  if (hasUsedAutoPencil && skipConfirm !== true) {
+    const modal = document.getElementById("autopencil-confirm-modal");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
     return;
   }
+
+  // 2. Core Logic (Unchanged)
   if (!timerInterval) startTimer(currentElapsedTime);
   let emptyWithNoPencils = 0;
   if (!hasUsedAutoPencil) {
@@ -3900,9 +3933,11 @@ function autoPencil() {
   } else {
     onBoardUpdated();
   }
+
   showMessage("Auto-Pencil complete!", "green");
   hasUsedAutoPencil = true;
   isAutoPencilPending = false;
+
   const isMobile = window.innerWidth <= 550;
   const tip = isMobile
     ? "Tip: To highlight all bivalue cells, touch one when highlighting is off."
@@ -4118,7 +4153,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   selectedCell = { row: null, col: null };
   history = [];
   historyIndex = -1;
-  hasUsedAutoPencil = false;
+  if (!wasSaveLoaded) hasUsedAutoPencil = false;
   isAutoPencilPending = false;
   isSolvePending = false;
   isClearStoragePending = false;
@@ -4336,7 +4371,7 @@ function savePuzzleProgress() {
       time: Math.max(0, Math.floor(currentElapsedTime)),
       lampTimes: lampTimestamps,
       usedHint: hadUsedHint,
-      // [FIX] Save the initial difficulty score if available
+      usedAutoPencil: hasUsedAutoPencil,
       difficultyScore: customScoreEvaluated > 0 ? customScoreEvaluated : 0,
     };
 
@@ -4427,6 +4462,7 @@ function applySavedProgress(puzzleData) {
   }
 
   hadUsedHint = savedGame.usedHint !== undefined ? savedGame.usedHint : true;
+  hasUsedAutoPencil = savedGame.usedAutoPencil === true;
 
   if (savedGame.puzzle !== decompressPuzzleString(puzzleData.puzzle)) {
     allSaves.splice(savedGameIndex, 1);
@@ -5797,7 +5833,6 @@ function buildSolverSummary() {
 
     const shortTech = tech
       .replace(/Almost Locked Set/g, "ALS")
-      .replace(/Almost Hidden Set/g, "AHS")
       .replace(/Alternating Inference Chain/g, "AIC");
 
     // 3. Technique Name (Fluid Width)
@@ -6601,9 +6636,6 @@ async function evaluateBoardDifficulty(opts = {}) {
 
     progressMade = false;
 
-    alsCacheBuilt = false;
-    ahsCacheBuilt = false;
-
     for (const tech of techniqueOrder) {
       // [OPTIMIZATION] Compute hash for the current board state
       const currentHash =
@@ -6620,30 +6652,6 @@ async function evaluateBoardDifficulty(opts = {}) {
         result = techniqueResultCache.get(cacheKey);
         // console.log(`Used cache ${tech.name}`);
       } else {
-        if (tech.name.includes("Almost Locked Set")) {
-          if (!alsCacheBuilt) {
-            _alsCache = [];
-            _alsDigitCommonPeers = {};
-            _alsRccMap = {};
-            _alsLookup = {};
-          }
-          alsRccMapBuilt = true;
-        } else if (
-          tech.name === "Cell Death Blossom" ||
-          tech.name === "Region Death Blossom"
-        ) {
-          if (!alsCacheBuilt) _alsCache = [];
-          alsCacheBuilt = true;
-        } else if (tech.name.includes("Almost Hidden Set")) {
-          if (!ahsCacheBuilt) {
-            _ahsCache = [];
-            _ahsRccMap = new Map();
-            _ahsRcdMap = new Map();
-            _ahsZcdMap = new Map();
-            _ahsZsMap = new Map();
-          }
-          ahsCacheBuilt = true;
-        }
         // Run Technique
         result = tech.func(virtualBoard, startingPencils);
         // Store in Cache (if safe)
@@ -6670,6 +6678,7 @@ async function evaluateBoardDifficulty(opts = {}) {
             `color: ${logColor}; font-weight: bold;`,
           );
 
+          if (result.hint.mainInfo) console.log(result.hint.mainInfo);
           if (result.hint.detail) console.log(result.hint.detail);
 
           if (result.type === "place") {
@@ -6769,7 +6778,7 @@ async function evaluateBoardDifficulty(opts = {}) {
     solverSteps[0].level = maxDifficulty;
     solverSteps.push({
       type: "bruteforce",
-      techName: "bruteforce", // <-- ADD THIS so the summary list can highlight it
+      techName: "bruteforce",
       board: solutionBoard.map((r) => [...r]),
       pencils: Array(9)
         .fill(null)
@@ -6860,27 +6869,16 @@ const TECHNIQUE_HIERARCHIES = [
   ["Locked Triple", "Intersection"],
   ["Hidden Pair", "Alternating Inference Chain"],
   ["X-Chain", "Grouped X-Chain", "Grouped AIC"],
-  [
-    "XY-Wing",
-    "XY-Chain",
-    "Alternating Inference Chain",
-    "Grouped AIC",
-    "Almost Locked Set AIC",
-  ],
+  ["XY-Wing", "XY-Chain", "Alternating Inference Chain", "Grouped AIC"],
   ["W-Wing", "Alternating Inference Chain"],
   ["Grouped W-Wing", "Grouped AIC"],
-  ["Almost Locked Pair", "Grouped AIC"],
+  ["Almost Locked Pair", "Grouped AIC", "Almost Locked Set AIC", "Complex AIC"],
   ["Almost Locked Pair", "Sue de Coq"],
   ["Almost Locked Triple", "Sue de Coq"],
   ["XY-Wing", "Almost Locked Set XZ-Rule"],
-  ["XY-Wing", "Almost Locked Set XY-Wing"],
-  ["W-Wing", "Almost Locked Set W-Wing"],
   ["XYZ-Wing", "Almost Locked Set XZ-Rule"],
   ["WXYZ-Wing", "Almost Locked Set XZ-Rule"],
-  ["Almost Locked Set XZ-Rule", "Almost Locked Set Chain"],
-  ["Almost Locked Set XY-Wing", "Almost Locked Set Chain"],
-  ["Almost Hidden Set XZ-Rule", "Almost Hidden Set Chain"],
-  ["Almost Hidden Set XY-Wing", "Almost Hidden Set Chain"],
+  ["Almost Locked Set XZ-Rule", "Almost Locked Set AIC"],
 ];
 
 function getDefaultTechniques() {
@@ -7085,7 +7083,12 @@ function getDefaultTechniques() {
     },
     { name: "X-Chain", func: techniques.xChain, level: 6, score: 200 },
     { name: "XY-Chain", func: techniques.xyChain, level: 6, score: 240 },
-    { name: "Firework", func: techniques.firework, level: 6, score: 240 },
+    {
+      name: "Triple Firework",
+      func: techniques.firework,
+      level: 6,
+      score: 240,
+    },
     { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6, score: 200 },
     { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6, score: 240 },
     {
@@ -7103,51 +7106,15 @@ function getDefaultTechniques() {
     { name: "Grouped AIC", func: techniques.groupedAIC, level: 8, score: 300 },
     {
       name: "Almost Locked Set XZ-Rule",
-      func: (b, p, findAll) => techniques.alsXZ(b, p, false, findAll),
+      func: techniques.alsXZ,
       level: 8,
       score: 300,
     },
     {
-      name: "Almost Locked Set XY-Wing",
-      func: techniques.alsXYWing,
-      level: 9,
-      score: 320,
-    },
-    {
-      name: "Almost Locked Set W-Wing",
-      func: techniques.alsWWing,
+      name: "Almost Locked Set AIC",
+      func: techniques.alsAic,
       level: 9,
       score: 340,
-    },
-    {
-      name: "Almost Hidden Set XZ-Rule",
-      func: techniques.ahsXZ,
-      level: 9,
-      score: 310,
-    },
-    {
-      name: "Almost Hidden Set XY-Wing",
-      func: techniques.ahsXYWing,
-      level: 9,
-      score: 330,
-    },
-    {
-      name: "Almost Locked Set Chain",
-      func: techniques.alsChain,
-      level: 10,
-      score: 360,
-    },
-    {
-      name: "Almost Hidden Set Chain",
-      func: techniques.ahsChain,
-      level: 10,
-      score: 370,
-    },
-    {
-      name: "Almost Locked Set AIC",
-      func: (b, p, findAll) => techniques.alsAic(b, p, findAll),
-      level: 10,
-      score: 390,
     },
     {
       name: "Cell Death Blossom",
@@ -7171,13 +7138,13 @@ function getDefaultTechniques() {
       name: "Finned Mutant Swordfish",
       func: techniques.finnedMutantSwordfish,
       level: 10,
-      score: 470,
+      score: 430,
     },
     {
-      name: "Blossom Loop",
-      func: techniques.blossomLoop,
+      name: "Complex AIC",
+      func: techniques.complexAic,
       level: 10,
-      score: 480,
+      score: 450,
     },
   ].map((t) => ({ ...t, defaultEnabled: t.defaultEnabled !== false }));
 }
@@ -7505,7 +7472,7 @@ function openPreferencesModal() {
       updateListLabels();
     });
 
-    // Add this listener to trigger the hierarchy validation upon checking/unchecking
+    // Trigger the hierarchy validation upon checking/unchecking
     cb.addEventListener("change", () => {
       updateListLabels();
     });

@@ -100,8 +100,8 @@ const levelTips = [
   "Lv. 6: Finned Fishes, X-Chain, XY-Chain, Firework, WXYZ-Wing, Sue de Coq",
   "Lv. 7: Grouped X-Chain, Alternating Inference Chain",
   "Lv. 8: Grouped Alternating Inference Chain, ALS-XZ",
-  "Lv. 9: ALS XY-/W-Wing, AHS-XZ/XY-Wing",
-  "Lv. 10: ALS/AHS-Chain, Death Blossom, Finned Franken/Mutant Swordfish",
+  "Lv. 9: ALS-AIC",
+  "Lv. 10: Death Blossom, Finned Franken/Mutant Swordfish, Complex AIC",
 ];
 
 const PALETTES = {
@@ -154,6 +154,10 @@ let cellColorPalette;
 let candidateColorPalette;
 
 let boardState = [];
+// Array of 9 items (for digits 1-9).
+// Each item is an array of 3 ints [part0, part1, part2] representing the 81 cells.
+let currentCandidateBitsets = Array.from({ length: 9 }, () => [0, 0, 0]);
+let virtualCandidateBitsets = Array.from({ length: 9 }, () => [0, 0, 0]);
 let selectedCell = { row: null, col: null };
 let currentMode = "concrete";
 let coloringSubMode = "cell";
@@ -179,34 +183,87 @@ let isExperimentalMode = false;
 
 // --- Pre-calculated Sudoku Constants ---
 
-// An array of all 27 units (9 rows, 9 cols, 9 boxes)
-const ALL_UNITS = (() => {
+// Array of 27 units: 0-8 (Rows), 9-17 (Cols), 18-26 (Boxes).
+// Each is represented by an array of 3 numbers holding 27 bits each.
+const UNIT_BITSETS = (() => {
   const units = [];
-  // Rows
-  for (let i = 0; i < 9; i++) {
-    const unit = [];
-    for (let j = 0; j < 9; j++) unit.push([i, j]);
-    units.push(unit);
+
+  // Helper to set a bit for a specific cell ID (0-80)
+  const addCellToParts = (parts, r, c) => {
+    const id = r * 9 + c;
+    const partIndex = Math.floor(id / 27);
+    const bitPos = id % 27;
+    parts[partIndex] |= 1 << bitPos;
+  };
+
+  // 0-8: Rows
+  for (let r = 0; r < 9; r++) {
+    const parts = [0, 0, 0];
+    for (let c = 0; c < 9; c++) addCellToParts(parts, r, c);
+    units.push(parts);
   }
-  // Columns
-  for (let i = 0; i < 9; i++) {
-    const unit = [];
-    for (let j = 0; j < 9; j++) unit.push([j, i]);
-    units.push(unit);
+
+  // 9-17: Columns
+  for (let c = 0; c < 9; c++) {
+    const parts = [0, 0, 0];
+    for (let r = 0; r < 9; r++) addCellToParts(parts, r, c);
+    units.push(parts);
   }
-  // Boxes
+
+  // 18-26: Boxes
   for (let br = 0; br < 3; br++) {
     for (let bc = 0; bc < 3; bc++) {
-      const unit = [];
+      const parts = [0, 0, 0];
       for (let r_offset = 0; r_offset < 3; r_offset++) {
         for (let c_offset = 0; c_offset < 3; c_offset++) {
-          unit.push([br * 3 + r_offset, bc * 3 + c_offset]);
+          addCellToParts(parts, br * 3 + r_offset, bc * 3 + c_offset);
         }
       }
-      units.push(unit);
+      units.push(parts);
     }
   }
   return units;
+})();
+
+// Array of 81 bitsets, one for each cell (0-80).
+// Each represents the 20 mutual peers of that cell using the [part0, part1, part2] format.
+const PEER_BITSETS = (() => {
+  const peers = [];
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const parts = [0, 0, 0];
+
+      // Helper to set peer bit
+      const addPeer = (peerR, peerC) => {
+        const id = peerR * 9 + peerC;
+        parts[Math.floor(id / 27)] |= 1 << (id % 27);
+      };
+
+      // Add row and column peers
+      for (let i = 0; i < 9; i++) {
+        if (i !== c) addPeer(r, i);
+        if (i !== r) addPeer(i, c);
+      }
+
+      // Add box peers
+      const boxStartR = Math.floor(r / 3) * 3;
+      const boxStartC = Math.floor(c / 3) * 3;
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          const peerR = boxStartR + i;
+          const peerC = boxStartC + j;
+          // Avoid adding self or re-adding row/col peers unnecessarily
+          // (though bitwise OR is idempotent so overlap is fine, we just exclude self)
+          if (peerR !== r || peerC !== c) {
+            addPeer(peerR, peerC);
+          }
+        }
+      }
+      peers.push(parts);
+    }
+  }
+  return peers;
 })();
 
 // Pre-calculate single bitmasks for every cell index (0-80) for fast access

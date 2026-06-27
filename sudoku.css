@@ -1029,10 +1029,10 @@ button:disabled:hover {
   cursor: help;
   user-select: none;
 
-  background-color: #e0e7ff;
-  color: #312e81;
-  border: 1px dashed #4f46e5;
-  box-shadow: 2px 3px 0px rgba(49, 46, 129, 0.2);
+  background-color: #fdf2f8;
+  color: #9d174d;
+  border: 1px dashed #f472b6;
+  box-shadow: 2px 3px 0px rgba(157, 23, 77, 0.15);
 }
 
 /* --- Tape Effect --- */
@@ -1478,7 +1478,8 @@ button:disabled:hover {
 #format-confirm-modal,
 #share-modal,
 #reset-confirm-modal,
-#preferences-modal {
+#preferences-modal,
+#autopencil-confirm-modal {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 100; /* Beats pencil marks (z-index: 30) */
 }
@@ -1635,10 +1636,10 @@ html.dark {
   /* Dark Mode Overrides */
 
   #year-sticker {
-    background-color: #312e81; /* Deep Indigo (indigo-900) */
-    color: #e0e7ff; /* Light Indigo Text (indigo-100) */
-    border-color: #818cf8; /* Bright Indigo Border (indigo-400) */
-    box-shadow: 2px 3px 0px rgba(0, 0, 0, 0.5);
+    background-color: #831843;
+    color: #fce7f3;
+    border: 1px dashed #be185d;
+    box-shadow: 2px 3px 0px rgba(0, 0, 0, 0.4);
   }
   #year-sticker::before {
     background-color: rgba(255, 255, 255, 0.15);
@@ -1787,7 +1788,8 @@ html.dark {
   #format-confirm-modal > div,
   #share-modal > div,
   #reset-confirm-modal > div,
-  #preferences-modal > div {
+  #preferences-modal > div,
+  #autopencil-confirm-modal > div {
     background-color: #1f2937 !important; /* gray-800 */
     color: #f3f4f6 !important; /* gray-100 */
     border: 1px solid #4b5563; /* gray-600 */
@@ -1846,6 +1848,21 @@ html.dark {
   #share-btn,
   #pref-btn {
     filter: brightness(1.2) saturate(0.8);
+  }
+
+  #autopencil-confirm-btn {
+    background-color: #4f46e5 !important; /* Indigo-600 */
+  }
+  #autopencil-confirm-btn:hover {
+    background-color: #4338ca !important; /* Indigo-700 */
+  }
+
+  #autopencil-cancel-btn {
+    background-color: #374151 !important; /* Gray-700 */
+    color: #f3f4f6 !important; /* Gray-100 */
+  }
+  #autopencil-cancel-btn:hover {
+    background-color: #4b5563 !important; /* Gray-600 */
   }
 
   /*
