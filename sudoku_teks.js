@@ -6736,24 +6736,50 @@ const techniques = {
               const basesStr = getUnitName(isBaseRow, bases);
               const coversStr = getUnitName(!isBaseRow, covers);
 
+              // --- Rank-1 check: do all fins share a common house? ---
+              let isRank1 = false;
+              if (fins.length > 0) {
+                // Check row
+                const finRows = new Set(fins.map((id) => Math.floor(id / 9)));
+                const finCols = new Set(fins.map((id) => id % 9));
+                const finBoxes = new Set(
+                  fins.map(
+                    (id) =>
+                      Math.floor(Math.floor(id / 9) / 3) * 3 +
+                      Math.floor((id % 9) / 3),
+                  ),
+                );
+                isRank1 =
+                  finRows.size === 1 ||
+                  finCols.size === 1 ||
+                  finBoxes.size === 1;
+              }
+
+              // Build all valid cover-body nodes for this fish configuration
+              const coverBodyNodes = [];
+              for (const cv of covers) {
+                const bodyPart = bodyPartsByCover.get(cv);
+                if (bodyPart.length > 0) {
+                  coverBodyNodes.push(getNode(bodyPart, d));
+                }
+              }
+
               const fishObj = {
                 d,
                 basesStr,
                 coversStr,
                 allCells: [...fins, ...fishBody],
+                isRank1,
+                coverBodyNodes, // All body-part nodes indexed by cover (for XOR ring elim)
               };
 
               const finNode = getNode(fins, d);
               if (!hasNandCandidates(finNode)) continue;
 
-              // Process each cover unit's body parts directly (no nested filtering needed)
-              for (const cv of covers) {
-                const bodyPart = bodyPartsByCover.get(cv);
-                if (bodyPart.length > 0) {
-                  const bodyNode = getNode(bodyPart, d);
-                  if (hasNandCandidates(bodyNode)) {
-                    addLink(finNode, bodyNode, fishObj);
-                  }
+              // Process each cover unit's body parts (only link covers with valid NAND candidates)
+              for (const bodyNode of coverBodyNodes) {
+                if (hasNandCandidates(bodyNode)) {
+                  addLink(finNode, bodyNode, fishObj);
                 }
               }
             }
@@ -8337,6 +8363,50 @@ const techniques = {
                           bitPos++;
                         }
                       }
+                    }
+                  }
+                }
+              }
+            }
+
+            if (useFish) {
+              // Collect all fish OR-gate node pairs in this ring
+              const ringFishCoverNodesInRing = new Set(); // body/fin nodes that ARE in ring OR gates
+              const ringFishObjs = []; // { fish, linkedNodes: Set<node> } per fish used in ring
+
+              // fullVisualChain is path + path[0] for ring, but here we build from `path`
+              for (let i = 0; i < path.length; i += 2) {
+                const u = path[i];
+                const v = path[(i + 1) % path.length];
+                const fish = activeFishLinkRegistry.get(u)?.get(v);
+                if (fish && fish.isRank1) {
+                  ringFishCoverNodesInRing.add(u);
+                  ringFishCoverNodesInRing.add(v);
+                  ringFishObjs.push({ fish, linkedNodes: new Set([u, v]) });
+                }
+              }
+
+              for (const { fish, linkedNodes } of ringFishObjs) {
+                // For each cover-body node of this fish NOT in the ring's OR gate:
+                for (const coverNode of fish.coverBodyNodes) {
+                  if (linkedNodes.has(coverNode)) continue; // This cover participates in the ring link — skip
+                  // XOR forces exactly one cell in coverNode to be true for digit d,
+                  // so eliminate d from all cells that see ALL cells of coverNode (i.e., apply NandBitset).
+                  const d = fish.d;
+                  for (let p = 0; p < 3; p++) {
+                    let mask = coverNode.NandBitset[d - 1][p];
+                    let bitPos = 0;
+                    while (mask > 0) {
+                      if ((mask & 1) !== 0) {
+                        const id = p * 27 + bitPos;
+                        const r = Math.floor(id / 9);
+                        const c = id % 9;
+                        if (pencils[r][c] && pencils[r][c].has(d)) {
+                          ringRemovals.push({ r, c, num: d });
+                        }
+                      }
+                      mask >>>= 1;
+                      bitPos++;
                     }
                   }
                 }
