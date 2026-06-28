@@ -8449,6 +8449,7 @@ const techniques = {
 
       for (const A of interestedNodes) {
         for (const D of A.OrNodes) {
+          if (D.index < A.index) continue;
           // Strict equality (original): A and D are the same node
           const isEqual = D.index === A.index;
 
