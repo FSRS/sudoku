@@ -8449,31 +8449,46 @@ const techniques = {
 
       for (const A of interestedNodes) {
         for (const D of A.OrNodes) {
-          if (D.index === A.index) {
-            let dnRemovals = extractRemovals(A.NandBitset);
-            if (dnRemovals.length > 0) {
-              const removalsKey = JSON.stringify(
-                dnRemovals.sort(
-                  (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
-                ),
-              );
-              if (!stringifiedFoundRemovals.has(removalsKey)) {
-                stringifiedFoundRemovals.add(removalsKey);
+          // Strict equality (original): A and D are the same node
+          const isEqual = D.index === A.index;
 
-                const maxPathLen = Math.pow(2, cycle + 1) * 2;
-                const path = findAICPath(A, D, maxPathLen);
+          const aSubsetOfD =
+            !isEqual && techniques.isBitsetSubset(A.NodeBitset, D.NodeBitset);
 
-                const DNLName = (techniqueName || "Chain").includes("Chain")
-                  ? (techniqueName || "Chain").replace("Chain", "DN Loop")
-                  : (techniqueName || "AIC").includes("AIC")
-                    ? (techniqueName || "AIC").replace("AIC", "DN Loop")
-                    : "DN Loop";
+          const dSubsetOfA =
+            !isEqual &&
+            !aSubsetOfD &&
+            techniques.isBitsetSubset(D.NodeBitset, A.NodeBitset);
 
-                if (path) {
-                  const res = buildResult(dnRemovals, DNLName, path, false);
-                  if (!findAll) return res;
-                  results.push(res);
-                }
+          if (!isEqual && !aSubsetOfD && !dSubsetOfA) continue;
+
+          // Choose which end's NandBitset to eliminate from:
+          const removalBitset = aSubsetOfD ? D.NandBitset : A.NandBitset;
+
+          let dnRemovals = extractRemovals(removalBitset);
+          if (dnRemovals.length > 0) {
+            const removalsKey = JSON.stringify(
+              dnRemovals.sort(
+                (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
+              ),
+            );
+            if (!stringifiedFoundRemovals.has(removalsKey)) {
+              stringifiedFoundRemovals.add(removalsKey);
+
+              const maxPathLen = Math.pow(2, cycle + 1) * 2;
+              // For the relaxed cases, the two ends of the path are A and D (distinct nodes)
+              const path = findAICPath(A, D, maxPathLen);
+
+              const DNLName = (techniqueName || "Chain").includes("Chain")
+                ? (techniqueName || "Chain").replace("Chain", "DN Loop")
+                : (techniqueName || "AIC").includes("AIC")
+                  ? (techniqueName || "AIC").replace("AIC", "DN Loop")
+                  : "DN Loop";
+
+              if (path) {
+                const res = buildResult(dnRemovals, DNLName, path, false);
+                if (!findAll) return res;
+                results.push(res);
               }
             }
           }
