@@ -7079,7 +7079,7 @@ const techniques = {
       }
       detail = pieces.join("-");
       if (isRingResult) {
-        detail += "-(Ring)";
+        detail += "-";
       }
       if (nameOverride === "ALS Chain")
         detail = `[${2 * path.length}] ` + detail;
@@ -8428,11 +8428,14 @@ const techniques = {
 
               if (!stringifiedFoundRemovals.has(removalsKey)) {
                 stringifiedFoundRemovals.add(removalsKey);
-                const ringName = (techniqueName || "AIC").includes("Chain")
-                  ? (techniqueName || "AIC").replace("Chain", "Ring")
-                  : useAlsXZ
-                    ? "Doubly linked " + (techniqueName || "AIC")
-                    : (techniqueName || "AIC") + " Ring";
+                const ringName =
+                  techniqueName === "Alternating Inference Chain"
+                    ? "AIC RIng"
+                    : techniqueName.includes("Chain")
+                      ? techniqueName.replace("Chain", "Ring")
+                      : useAlsXZ
+                        ? "Doubly linked " + techniqueName
+                        : techniqueName + " Ring";
                 const res = buildResult(ringRemovals, ringName, path, true);
                 if (!findAll) return res;
                 results.push(res);
@@ -8480,13 +8483,14 @@ const techniques = {
               // For the relaxed cases, the two ends of the path are A and D (distinct nodes)
               const path = findAICPath(A, D, maxPathLen);
 
-              const DNLName = (techniqueName || "Chain").includes("Chain")
-                ? (techniqueName || "Chain").replace("Chain", "DN Loop")
-                : (techniqueName || "AIC").includes("AIC")
-                  ? (techniqueName || "AIC").replace("AIC", "DN Loop")
-                  : useAlsXZ
-                    ? techniqueName || "AIC"
-                    : "DN Loop";
+              const DNLName =
+                techniqueName === "Alternating Inference Chain"
+                  ? "Discontinuous Nice Loop"
+                  : techniqueName.includes("Chain")
+                    ? techniqueName.replace("Chain", "DN Loop")
+                    : techniqueName.includes("AIC")
+                      ? techniqueName.replace("AIC", "DN Loop")
+                      : techniqueName;
 
               if (path) {
                 const res = buildResult(dnRemovals, DNLName, path, false);
