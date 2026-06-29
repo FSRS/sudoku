@@ -8484,7 +8484,9 @@ const techniques = {
                 ? (techniqueName || "Chain").replace("Chain", "DN Loop")
                 : (techniqueName || "AIC").includes("AIC")
                   ? (techniqueName || "AIC").replace("AIC", "DN Loop")
-                  : "DN Loop";
+                  : useAlsXZ
+                    ? techniqueName || "AIC"
+                    : "DN Loop";
 
               if (path) {
                 const res = buildResult(dnRemovals, DNLName, path, false);
