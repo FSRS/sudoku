@@ -6354,10 +6354,9 @@ const techniques = {
     return orMap;
   },
 
-  buildGroupedOrMap: (pencils, getNode) => {
+  buildGroupedOrMap: (pencils, getNode, groupedLinkRegistry) => {
     const orMap = new Map();
-
-    const addLink = (cellsA, cellsB, digit) => {
+    const addLink = (cellsA, cellsB, digit, gateType) => {
       const nodeA = getNode(cellsA, digit);
       const nodeB = getNode(cellsB, digit);
       if (nodeA !== nodeB) {
@@ -6365,6 +6364,14 @@ const techniques = {
         if (!orMap.has(nodeB)) orMap.set(nodeB, new Set());
         orMap.get(nodeA).add(nodeB);
         orMap.get(nodeB).add(nodeA);
+        if (groupedLinkRegistry) {
+          if (!groupedLinkRegistry.has(nodeA))
+            groupedLinkRegistry.set(nodeA, new Map());
+          if (!groupedLinkRegistry.has(nodeB))
+            groupedLinkRegistry.set(nodeB, new Map());
+          groupedLinkRegistry.get(nodeA).set(nodeB, gateType);
+          groupedLinkRegistry.get(nodeB).set(nodeA, gateType);
+        }
       }
     };
 
@@ -7616,6 +7623,7 @@ const techniques = {
     GroupedOrMap: new Map(),
     AlsMap: new Map(),
     FishMap: new Map(),
+    GroupedLinkRegistry: new Map(),
     AlsLinkRegistry: new Map(),
     FishLinkRegistry: new Map(),
   },
@@ -7629,6 +7637,7 @@ const techniques = {
       GroupedOrMap: new Map(),
       AlsMap: new Map(),
       FishMap: new Map(),
+      GroupedLinkRegistry: new Map(),
       AlsLinkRegistry: new Map(),
       FishLinkRegistry: new Map(),
     };
@@ -7722,14 +7731,17 @@ const techniques = {
 
     if (useGrouped) {
       if (cache.GroupedOrMap.size === 0) {
-        cache.GroupedOrMap = techniques.buildGroupedOrMap(pencils, (cells, d) =>
-          getNode(cells, [d]),
+        cache.GroupedOrMap = techniques.buildGroupedOrMap(
+          pencils,
+          (cells, d) => getNode(cells, [d]),
+          cache.GroupedLinkRegistry,
         );
       }
       aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.GroupedOrMap);
     }
 
     let activeAlsLinkRegistry = cache.AlsLinkRegistry;
+    const activeGroupedLinkRegistry = cache.GroupedLinkRegistry;
     if (useAls) {
       if (cache.AlsMap.size === 0) {
         cache.AlsMap = techniques.buildAlsOrMap(
@@ -7949,7 +7961,7 @@ const techniques = {
         ),
       ];
 
-      if (preferBox || boxes.length === 1) {
+      if (preferBox && boxes.length === 1) {
         const points = cells
           .map((id) => {
             const r = Math.floor(id / 9) % 3;
@@ -8004,7 +8016,9 @@ const techniques = {
         } else {
           const d = u.digits[0];
           const prefix = lastDigit === d ? "" : `(${d})`;
-          orGateStr = `${prefix}${getLoc(u.cells)}=${getLoc(v.cells)}`;
+          const gateType = activeGroupedLinkRegistry?.get(u)?.get(v);
+          const preferBoxGate = gateType === "box";
+          orGateStr = `${prefix}${getLoc(u.cells, preferBoxGate)}=${getLoc(v.cells, preferBoxGate)}`;
           lastDigit = d;
         }
 
@@ -8952,7 +8966,7 @@ const techniques = {
           ),
         ),
       ];
-      if (preferBox || boxes.length === 1) {
+      if (preferBox && boxes.length === 1) {
         const points = cells
           .map((id) => (Math.floor(id / 9) % 3) * 3 + ((id % 9) % 3) + 1)
           .sort((a, b) => a - b);
