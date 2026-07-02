@@ -7723,9 +7723,6 @@ const techniques = {
                       : techniqueName;
 
               if (path) {
-                if (config.pathFilter && !config.pathFilter(path, cache))
-                  continue;
-
                 const res = buildResult(dnRemovals, DNLName, path, false);
                 if (!findAll) return res;
                 results.push(res);
