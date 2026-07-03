@@ -5180,53 +5180,69 @@ function buildViewAllTechniquesList(step) {
 }
 
 function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
+  // 1. MOVE CALCULATION TO THE TOP
+  const step = solverSteps[currentSolverStep];
+  const currentTechIndex = vatActiveTechniques.findIndex(
+    (t) => t.name === step.techName,
+  );
+  const currentLevel =
+    currentTechIndex !== -1
+      ? vatActiveTechniques[currentTechIndex].level || 0
+      : 0;
+
+  // Gather techniques matching the target level
+  let techsToSearch = vatActiveTechniques.filter((t, index) => {
+    if (t.level !== levelToSearch) return false;
+    if (levelToSearch === currentLevel && index < currentTechIndex)
+      return false;
+    return true;
+  });
+
+  // Always prepend "Eliminate Candidates" if requested
+  if (includeEliminate) {
+    const elimTech = vatActiveTechniques.find(
+      (t) => t.name === "Eliminate Candidates",
+    );
+    if (elimTech && !techsToSearch.includes(elimTech)) {
+      techsToSearch.unshift(elimTech);
+    }
+  }
+
+  // 3. UPDATE UI BEFORE LOCKING THREAD
   const searchBtn = document.getElementById("vat-search-next-btn");
   if (searchBtn) {
-    searchBtn.textContent = "Searching...";
+    // Safely get the first technique's name, or default to an empty string if none exist
+    const initialTechName =
+      techsToSearch.length > 0 ? techsToSearch[0].name : "";
+
+    searchBtn.textContent = `Searching ${initialTechName}...`;
     searchBtn.disabled = true;
     searchBtn.classList.add("opacity-50", "cursor-wait");
   }
 
   const vatTextEl = document.getElementById("vat-mode-text");
   if (vatTextEl) {
-    vatTextEl.textContent = `Searched Lv. ${levelToSearch}! `;
+    vatTextEl.textContent = "";
   }
-  // Timeout allows the DOM to render the "Searching..." text before JS locks the thread
-  setTimeout(() => {
+
+  // Add 'async' right here before the empty parentheses
+  setTimeout(async () => {
     const list = document.getElementById("solver-summary-list");
     const isDark = document.documentElement.classList.contains("dark");
-
-    const step = solverSteps[currentSolverStep];
-    const currentTechIndex = vatActiveTechniques.findIndex(
-      (t) => t.name === step.techName,
-    );
-    const currentLevel =
-      currentTechIndex !== -1
-        ? vatActiveTechniques[currentTechIndex].level || 0
-        : 0;
-
-    // Gather techniques matching the target level, skipping previous techniques in the order for the current level
-    let techsToSearch = vatActiveTechniques.filter((t, index) => {
-      if (t.level !== levelToSearch) return false;
-      if (levelToSearch === currentLevel && index < currentTechIndex)
-        return false;
-      return true;
-    });
-
-    // Always prepend "Eliminate Candidates" if requested
-    if (includeEliminate) {
-      const elimTech = vatActiveTechniques.find(
-        (t) => t.name === "Eliminate Candidates",
-      );
-      if (elimTech && !techsToSearch.includes(elimTech)) {
-        techsToSearch.unshift(elimTech);
-      }
-    }
 
     let newHints = [];
 
     // Run the techniques
     for (const tech of techsToSearch) {
+      // 1. UPDATE THE BUTTON WITH THE CURRENT TECHNIQUE NAME
+      if (searchBtn) {
+        searchBtn.textContent = `Searching ${tech.name}...`;
+      }
+
+      // 2. YIELD TO THE BROWSER SO IT CAN PAINT THE NEW TEXT
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // 3. RUN THE ACTUAL MATH
       if (typeof tech.func === "function") {
         const results = tech.func(vatCurrentBoard, vatCurrentPencils, true);
 
