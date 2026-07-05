@@ -247,8 +247,6 @@ function countSolutions(board, limit = 10000) {
   let count = 0;
 
   function search() {
-    // The hidden single loop has been removed from here.
-
     const find = findEmpty(board);
     if (!find) {
       count++;
