@@ -7679,69 +7679,71 @@ const techniques = {
       if (results.length > 0 && !findAll) return results[0];
 
       // Priority 2: DN Loop
+      if (!bivalueOnly) {
+        for (const A of interestedNodes) {
+          for (const D of A.OrNodes) {
+            if (D.index < A.index) continue;
+            // Strict equality (original): A and D are the same node
+            const isEqual = D.index === A.index;
 
-      for (const A of interestedNodes) {
-        for (const D of A.OrNodes) {
-          if (D.index < A.index) continue;
-          // Strict equality (original): A and D are the same node
-          const isEqual = D.index === A.index;
+            const aSubsetOfD =
+              !isEqual && techniques.isBitsetSubset(A.NodeBitset, D.NodeBitset);
 
-          const aSubsetOfD =
-            !isEqual && techniques.isBitsetSubset(A.NodeBitset, D.NodeBitset);
+            const dSubsetOfA =
+              !isEqual &&
+              !aSubsetOfD &&
+              techniques.isBitsetSubset(D.NodeBitset, A.NodeBitset);
 
-          const dSubsetOfA =
-            !isEqual &&
-            !aSubsetOfD &&
-            techniques.isBitsetSubset(D.NodeBitset, A.NodeBitset);
+            if (!isEqual && !aSubsetOfD && !dSubsetOfA) continue;
 
-          if (!isEqual && !aSubsetOfD && !dSubsetOfA) continue;
+            // Choose which end's NandBitset to eliminate from:
+            const removalBitset = aSubsetOfD ? D.NandBitset : A.NandBitset;
 
-          // Choose which end's NandBitset to eliminate from:
-          const removalBitset = aSubsetOfD ? D.NandBitset : A.NandBitset;
+            let dnRemovals = extractRemovals(removalBitset);
+            if (dnRemovals.length > 0) {
+              const removalsKey = JSON.stringify(
+                dnRemovals.sort(
+                  (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
+                ),
+              );
+              if (!stringifiedFoundRemovals.has(removalsKey)) {
+                stringifiedFoundRemovals.add(removalsKey);
 
-          let dnRemovals = extractRemovals(removalBitset);
-          if (dnRemovals.length > 0) {
-            const removalsKey = JSON.stringify(
-              dnRemovals.sort(
-                (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
-              ),
-            );
-            if (!stringifiedFoundRemovals.has(removalsKey)) {
-              stringifiedFoundRemovals.add(removalsKey);
+                const maxPathLen = Math.pow(2, cycle + 1) * 2;
+                // For the relaxed cases, the two ends of the path are A and D (distinct nodes)
+                const path = findAICPath(A, D, maxPathLen);
 
-              const maxPathLen = Math.pow(2, cycle + 1) * 2;
-              // For the relaxed cases, the two ends of the path are A and D (distinct nodes)
-              const path = findAICPath(A, D, maxPathLen);
+                const DNLName =
+                  techniqueName === "Alternating Inference Chain"
+                    ? "Discontinuous Nice Loop"
+                    : techniqueName.includes("Chain")
+                      ? techniqueName.replace("Chain", "DN Loop")
+                      : techniqueName.includes("AIC")
+                        ? techniqueName.replace("AIC", "DN Loop")
+                        : techniqueName;
 
-              const DNLName =
-                techniqueName === "Alternating Inference Chain"
-                  ? "Discontinuous Nice Loop"
-                  : techniqueName.includes("Chain")
-                    ? techniqueName.replace("Chain", "DN Loop")
-                    : techniqueName.includes("AIC")
-                      ? techniqueName.replace("AIC", "DN Loop")
-                      : techniqueName;
+                if (path) {
+                  if (config.pathFilter && !config.pathFilter(path, cache))
+                    continue;
 
-              if (path) {
-                if (config.pathFilter && !config.pathFilter(path, cache))
-                  continue;
-
-                const res = buildResult(dnRemovals, DNLName, path, false);
-                if (!findAll) return res;
-                results.push(res);
+                  const res = buildResult(dnRemovals, DNLName, path, false);
+                  if (!findAll) return res;
+                  results.push(res);
+                }
               }
             }
           }
         }
-      }
 
-      if (results.length > 0 && !findAll) return results[0];
+        if (results.length > 0 && !findAll) return results[0];
+      }
 
       // Priority 3: Standard AIC
       for (const A of interestedNodes) {
         for (const D of A.OrNodes) {
           if (D.index <= A.index) continue;
           if (deadRings.has(`${A.index}_${D.index}`)) continue;
+          if (bivalueOnly && A.digits[0] !== D.digits[0]) continue;
 
           const { hasOverlap, intersection } = techniques.getBitsetIntersection(
             A.NandBitset,
