@@ -7785,7 +7785,7 @@ const techniques = {
       if (results.length > 0 && !findAll) return results[0];
 
       // Priority 2: DN Loop
-      if (!bivalueOnly) {
+      if (!bivalueOnly && !pathFilter) {
         for (const A of interestedNodes) {
           for (const D of A.OrNodes) {
             if (D.index < A.index) continue;
@@ -7818,8 +7818,8 @@ const techniques = {
                 const path = findAICPath(A, D, maxPathLen);
 
                 if (!path) continue;
-                if (config.pathFilter && !config.pathFilter(path, cache))
-                  continue;
+                // if (config.pathFilter && !config.pathFilter(path, cache))
+                //   continue;
 
                 // Important: add only after a valid path is found and accepted.
                 stringifiedFoundRemovals.add(removalsKey);
