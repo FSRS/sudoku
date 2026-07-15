@@ -6843,6 +6843,8 @@ const techniques = {
 
   _resetAICCache: () => {
     techniques._aicCache = {
+      signature: null,
+
       AllNodes: [],
       NodeCache: new Map(),
       BivalueOrMap: new Map(),
@@ -6855,7 +6857,26 @@ const techniques = {
       FishLinkRegistry: new Map(),
     };
   },
+  _makeAICSignature: (board, pencils) => {
+    let s = "";
 
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] !== 0) {
+          s += board[r][c] + "|";
+        } else {
+          s +=
+            "." +
+            Array.from(pencils[r][c])
+              .sort((a, b) => a - b)
+              .join("") +
+            "|";
+        }
+      }
+    }
+
+    return s;
+  },
   _addLink: (map, u, v) => {
     if (!map.has(u.key)) map.set(u.key, []);
     map.get(u.key).push(v);
@@ -6876,6 +6897,13 @@ const techniques = {
   },
 
   _findAic: (board, pencils, config, findAll = false) => {
+    const sig = techniques._makeAICSignature(board, pencils);
+
+    if (techniques._aicCache.signature !== sig) {
+      techniques._resetAICCache();
+      techniques._aicCache.signature = sig;
+    }
+
     const results = [];
     const {
       singleDigit,
@@ -6992,26 +7020,58 @@ const techniques = {
     interestedNodes.forEach((node, idx) => {
       node.index = idx;
 
-      // Keep Sets for fast overlap/intersection checks
       node.OrNodes = new Set(aicOrMap.get(node));
       node.OrNandNodes = new Set();
       node.NandNodes = new Set();
 
-      // New: Maps for path origin memoization
       node.OrNodesMap = new Map();
       for (const target of node.OrNodes) {
-        node.OrNodesMap.set(target, { source: node }); // Reached directly
+        node.OrNodesMap.set(target, { source: node });
       }
+
       node.OrNandNodesMap = new Map();
+
+      // New: only expand newly discovered nodes each cycle.
+      node.OrFrontier = new Set(node.OrNodes);
+      node.OrNandFrontier = new Set();
     });
 
-    for (const A of interestedNodes) {
-      for (const B of interestedNodes) {
-        if (A !== B) {
-          if (singleDigit && A.digits[0] !== B.digits[0]) continue;
-          if (bivalueOnly && A.digits[0] !== B.digits[0]) continue;
+    // Index nodes so NAND construction does not scan every node pair.
+    const nodesByDigit = Array.from({ length: 10 }, () => []);
+    const singleCellNodesByCell = Array.from({ length: 81 }, () => []);
 
-          if (techniques.isBitsetSubset(B.NodeBitset, A.NandBitset)) {
+    for (const n of interestedNodes) {
+      if (n.digits.length !== 1) continue;
+
+      const d = n.digits[0];
+      nodesByDigit[d].push(n);
+
+      if (n.cells.length === 1) {
+        singleCellNodesByCell[n.cells[0]].push(n);
+      }
+    }
+
+    for (const A of interestedNodes) {
+      if (A.digits.length !== 1) continue;
+
+      const aDigit = A.digits[0];
+
+      // Same-digit weak links: peers/common-peers/grouped-node visibility.
+      for (const B of nodesByDigit[aDigit]) {
+        if (A === B) continue;
+
+        if (techniques.isBitsetSubset(B.NodeBitset, A.NandBitset)) {
+          A.NandNodes.add(B);
+        }
+      }
+
+      // Different-digit weak links only happen inside the same single cell.
+      // The old code allowed this for general AIC, but not for X-chain / XY-chain mode.
+      if (!singleDigit && !bivalueOnly && A.cells.length === 1) {
+        const sameCellNodes = singleCellNodesByCell[A.cells[0]];
+
+        for (const B of sameCellNodes) {
+          if (A !== B && B.digits[0] !== aDigit) {
             A.NandNodes.add(B);
           }
         }
@@ -7020,8 +7080,39 @@ const techniques = {
 
     let maxCycles = maxCycle;
 
+    // cycle 0 => 4 nodes
+    // cycle 1 => 8 nodes
+    // cycle 2 => 16 nodes
+    // cycle 3 => 32 nodes
+    const getMaxPathLenForCycle = (cycle) => {
+      return 1 << (cycle + 2);
+    };
+
     const stringifiedFoundRemovals = new Set();
     const deadRings = new Set();
+
+    const canonicalRemovalPack = (removals) => {
+      const seen = new Uint8Array(4096);
+      const unique = [];
+
+      for (const el of removals) {
+        const key = (el.r << 8) | (el.c << 4) | el.num;
+
+        if (seen[key] === 0) {
+          seen[key] = 1;
+          unique.push(el);
+        }
+      }
+
+      unique.sort((a, b) => a.r - b.r || a.c - b.c || a.num - b.num);
+
+      let key = "";
+      for (const el of unique) {
+        key += `${el.r}${el.c}${el.num};`;
+      }
+
+      return { removals: unique, key };
+    };
 
     const extractRemovals = (maskArray) => {
       const removals = [];
@@ -7082,6 +7173,8 @@ const techniques = {
       return null;
     };
 
+    const pathMemo = new Map();
+
     const findAICPath = (startNode, endNode, maxNodes) => {
       // 1. Fast Path: Backtrack using memoized origins
       const fastPath = buildBacktrackPath(startNode, endNode, true);
@@ -7092,19 +7185,19 @@ const techniques = {
 
         for (let i = 0; i < fastPath.length; i++) {
           const n = fastPath[i];
+
           if (seen.has(n)) {
-            // A duplicate is ONLY allowed if it is exactly closing the loop at the end
-            if (
+            const validLoopClosure =
               i === fastPath.length - 1 &&
               n === startNode &&
-              startNode === endNode
-            ) {
-              // Valid loop closure
-            } else {
+              startNode === endNode;
+
+            if (!validLoopClosure) {
               isSimplePath = false;
               break;
             }
           }
+
           seen.add(n);
         }
 
@@ -7113,34 +7206,57 @@ const techniques = {
 
       // 2. Fallback: Standard BFS
       const queue = [{ node: startNode, isNextOr: true, path: [startNode] }];
-      while (queue.length > 0) {
-        const { node, isNextOr, path } = queue.shift();
+      let head = 0;
+
+      while (head < queue.length) {
+        const { node, isNextOr, path } = queue[head++];
 
         if (node === endNode && path.length > 1) {
+          // Valid AIC path must end immediately after an OR step.
+          // Since isNextOr toggles after every step, !isNextOr means the last step was OR.
           if (!isNextOr) return path;
           continue;
         }
 
-        if (path.length > maxNodes) continue;
+        if (path.length >= maxNodes) continue;
 
         if (isNextOr) {
           const nextNodes = baseOrMap.get(node) || new Set();
+
           for (const nxt of nextNodes) {
+            const nextLength = path.length + 1;
+            if (nextLength > maxNodes) continue;
+
             const prev = path.length >= 2 ? path[path.length - 2] : null;
+
             if (nxt !== prev && (!path.includes(nxt) || nxt === endNode)) {
-              queue.push({ node: nxt, isNextOr: false, path: [...path, nxt] });
+              queue.push({
+                node: nxt,
+                isNextOr: false,
+                path: [...path, nxt],
+              });
             }
           }
         } else {
           const nextNodes = node.NandNodes;
+
           for (const nxt of nextNodes) {
+            const nextLength = path.length + 1;
+            if (nextLength > maxNodes) continue;
+
             const prev = path.length >= 2 ? path[path.length - 2] : null;
+
             if (nxt !== prev && (!path.includes(nxt) || nxt === endNode)) {
-              queue.push({ node: nxt, isNextOr: true, path: [...path, nxt] });
+              queue.push({
+                node: nxt,
+                isNextOr: true,
+                path: [...path, nxt],
+              });
             }
           }
         }
       }
+
       return null;
     };
 
@@ -7476,51 +7592,42 @@ const techniques = {
       const nextOrNandNodesMap = new Map();
       const nextOrNandOrigins = new Map();
 
-      // Expand NAND links
-      for (const A of interestedNodes) {
-        const pendingOrNand = new Set(A.OrNandNodes);
-        const pendingOrNandOrigin = new Map(A.OrNandNodesMap);
+      let anyExpansion = false;
 
-        for (const B of A.OrNodes) {
+      // Expand NAND links only from newly discovered OR nodes.
+      for (const A of interestedNodes) {
+        const nextFrontier = new Set();
+
+        for (const B of A.OrFrontier) {
           for (const C of B.NandNodes) {
-            if (!pendingOrNand.has(C)) {
-              pendingOrNand.add(C);
-              pendingOrNandOrigin.set(C, { viaOr: B }); // Memoize origin
+            if (!A.OrNandNodes.has(C)) {
+              A.OrNandNodes.add(C);
+              A.OrNandNodesMap.set(C, { viaOr: B });
+              nextFrontier.add(C);
+              anyExpansion = true;
             }
           }
         }
-        nextOrNandNodesMap.set(A, pendingOrNand);
-        nextOrNandOrigins.set(A, pendingOrNandOrigin);
+
+        A.OrNandFrontier = nextFrontier;
       }
 
+      // Expand OR links only from newly discovered OR-NAND nodes.
       for (const A of interestedNodes) {
-        A.OrNandNodes = nextOrNandNodesMap.get(A);
-        A.OrNandNodesMap = nextOrNandOrigins.get(A);
-      }
+        const nextFrontier = new Set();
 
-      const nextOrNodesMap = new Map();
-      const nextOrOrigins = new Map();
-
-      // Expand OR links
-      for (const A of interestedNodes) {
-        const pendingOr = new Set(A.OrNodes);
-        const pendingOrOrigin = new Map(A.OrNodesMap);
-
-        for (const C of A.OrNandNodes) {
+        for (const C of A.OrNandFrontier) {
           for (const D of C.OrNodes) {
-            if (!pendingOr.has(D)) {
-              pendingOr.add(D);
-              pendingOrOrigin.set(D, { viaNand: C }); // Memoize origin
+            if (!A.OrNodes.has(D)) {
+              A.OrNodes.add(D);
+              A.OrNodesMap.set(D, { viaNand: C });
+              nextFrontier.add(D);
+              anyExpansion = true;
             }
           }
         }
-        nextOrNodesMap.set(A, pendingOr);
-        nextOrOrigins.set(A, pendingOrOrigin);
-      }
 
-      for (const A of interestedNodes) {
-        A.OrNodes = nextOrNodesMap.get(A);
-        A.OrNodesMap = nextOrOrigins.get(A);
+        A.OrFrontier = nextFrontier;
       }
 
       // Priority 1: AIC Ring
@@ -7529,7 +7636,7 @@ const techniques = {
           if (D.index <= A.index || !A.NandNodes.has(D)) continue;
           if (deadRings.has(`${A.index}_${D.index}`)) continue;
 
-          const maxPathLen = Math.pow(2, cycle + 1) * 2;
+          const maxPathLen = getMaxPathLenForCycle(cycle);
           const path = findAICPath(A, D, maxPathLen);
 
           if (path) {
@@ -7644,29 +7751,28 @@ const techniques = {
             }
 
             if (ringRemovals.length > 0) {
-              ringRemovals = ringRemovals.filter(
-                (v, i, a) =>
-                  a.findIndex(
-                    (t) => t.r === v.r && t.c === v.c && t.num === v.num,
-                  ) === i,
-              );
-              const removalsKey = JSON.stringify(
-                ringRemovals.sort(
-                  (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
-                ),
-              );
+              const { removals: uniqueRingRemovals, key: removalsKey } =
+                canonicalRemovalPack(ringRemovals);
 
               if (!stringifiedFoundRemovals.has(removalsKey)) {
                 stringifiedFoundRemovals.add(removalsKey);
+
                 const ringName =
                   techniqueName === "Alternating Inference Chain"
-                    ? "AIC RIng"
+                    ? "AIC Ring"
                     : techniqueName.includes("Chain")
                       ? techniqueName.replace("Chain", "Ring")
                       : useAlsXZ
                         ? "Doubly linked " + techniqueName
                         : techniqueName + " Ring";
-                const res = buildResult(ringRemovals, ringName, path, true);
+
+                const res = buildResult(
+                  uniqueRingRemovals,
+                  ringName,
+                  path,
+                  true,
+                );
+
                 if (!findAll) return res;
                 results.push(res);
               }
@@ -7698,20 +7804,25 @@ const techniques = {
 
             // Choose which end's NandBitset to eliminate from:
             const removalBitset = aSubsetOfD ? D.NandBitset : A.NandBitset;
-
             let dnRemovals = extractRemovals(removalBitset);
+
             if (dnRemovals.length > 0) {
               const removalsKey = JSON.stringify(
                 dnRemovals.sort(
                   (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
                 ),
               );
-              if (!stringifiedFoundRemovals.has(removalsKey)) {
-                stringifiedFoundRemovals.add(removalsKey);
 
+              if (!stringifiedFoundRemovals.has(removalsKey)) {
                 const maxPathLen = Math.pow(2, cycle + 1) * 2;
-                // For the relaxed cases, the two ends of the path are A and D (distinct nodes)
                 const path = findAICPath(A, D, maxPathLen);
+
+                if (!path) continue;
+                if (config.pathFilter && !config.pathFilter(path, cache))
+                  continue;
+
+                // Important: add only after a valid path is found and accepted.
+                stringifiedFoundRemovals.add(removalsKey);
 
                 const DNLName =
                   techniqueName === "Alternating Inference Chain"
@@ -7722,14 +7833,10 @@ const techniques = {
                         ? techniqueName.replace("AIC", "DN Loop")
                         : techniqueName;
 
-                if (path) {
-                  if (config.pathFilter && !config.pathFilter(path, cache))
-                    continue;
+                const res = buildResult(dnRemovals, DNLName, path, false);
 
-                  const res = buildResult(dnRemovals, DNLName, path, false);
-                  if (!findAll) return res;
-                  results.push(res);
-                }
+                if (!findAll) return res;
+                results.push(res);
               }
             }
           }
@@ -7751,36 +7858,41 @@ const techniques = {
           );
           if (hasOverlap) {
             const aicRemovals = extractRemovals(intersection);
+
             if (aicRemovals.length > 0) {
               const removalsKey = JSON.stringify(
                 aicRemovals.sort(
                   (a, b) => a.r - b.r || a.c - b.c || a.num - b.num,
                 ),
               );
-              if (!stringifiedFoundRemovals.has(removalsKey)) {
-                stringifiedFoundRemovals.add(removalsKey);
 
+              if (!stringifiedFoundRemovals.has(removalsKey)) {
                 const maxPathLen = Math.pow(2, cycle + 1) * 2;
                 const path = findAICPath(A, D, maxPathLen);
 
-                if (path) {
-                  if (config.pathFilter && !config.pathFilter(path, cache))
-                    continue;
-                  const res = buildResult(
-                    aicRemovals,
-                    techniqueName,
-                    path,
-                    false,
-                  );
-                  if (!findAll) return res;
-                  results.push(res);
-                }
+                if (!path) continue;
+                if (config.pathFilter && !config.pathFilter(path, cache))
+                  continue;
+
+                // Important: add only after a valid path is found and accepted.
+                stringifiedFoundRemovals.add(removalsKey);
+
+                const res = buildResult(
+                  aicRemovals,
+                  techniqueName,
+                  path,
+                  false,
+                );
+
+                if (!findAll) return res;
+                results.push(res);
               }
             }
           }
         }
       }
       if (results.length > 0 && !findAll) return results[0];
+      // if (!anyExpansion && cycle > 0) break;
     }
 
     return findAll ? results : { change: false };
