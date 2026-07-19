@@ -3013,7 +3013,7 @@ function handleKeyDown(e) {
           highlightState = 0;
         }
       }
-      onBoardUpdated();
+      onBoardUpdated(true);
     }
     return;
   }
