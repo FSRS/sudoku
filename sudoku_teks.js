@@ -7785,7 +7785,7 @@ const techniques = {
       if (results.length > 0 && !findAll) return results[0];
 
       // Priority 2: DN Loop
-      if (!bivalueOnly && !pathFilter) {
+      if (!bivalueOnly && !useAlsXZ) {
         for (const A of interestedNodes) {
           for (const D of A.OrNodes) {
             if (D.index < A.index) continue;
@@ -7850,7 +7850,7 @@ const techniques = {
         for (const D of A.OrNodes) {
           if (D.index <= A.index) continue;
           if (deadRings.has(`${A.index}_${D.index}`)) continue;
-          if (bivalueOnly && A.digits[0] !== D.digits[0]) continue;
+          if ((bivalueOnly || useAlsXZ) && A.digits[0] !== D.digits[0]) continue;
 
           const { hasOverlap, intersection } = techniques.getBitsetIntersection(
             A.NandBitset,
