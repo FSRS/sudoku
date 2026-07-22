@@ -6190,41 +6190,70 @@ function cloneBoardState(state) {
   );
 }
 
-function saveState() {
-  history = history.slice(0, historyIndex + 1);
-  history.push({
-    boardState: cloneBoardState(boardState),
-    drawnLines: JSON.parse(JSON.stringify(drawnLines)), // Deep copy lines
+function captureHistoryEvaluationState() {
+  return {
     lampColor: currentLampColor,
     lampLevel: currentLampLevel,
     vagueHint: vagueHintMessage,
     previousLampColor: previousLampColor,
+    lastValidLampColor: lastValidLampColor,
     lampTimestamps: JSON.parse(JSON.stringify(lampTimestamps)),
+
+    // Store both the numeric value and exact displayed text.
+    lastValidScore: lastValidScore,
+    scoreText: puzzleScoreEl.textContent,
+  };
+}
+
+function saveState() {
+  history = history.slice(0, historyIndex + 1);
+
+  history.push({
+    boardState: cloneBoardState(boardState),
+    drawnLines: JSON.parse(JSON.stringify(drawnLines)),
+    ...captureHistoryEvaluationState(),
   });
+
   historyIndex++;
   updateUndoRedoButtons();
   savePuzzleProgress();
 }
+
 function onBoardUpdated(skipEvaluation = false) {
   pruneInvalidLines();
 
-  currentEvaluationId++; // Increment this to cancel any running evaluations
-  renderBoard();
+  // Cancel evaluations already in progress.
+  currentEvaluationId++;
 
+  renderBoard();
   renderLines();
 
   const isBoardValid = validateBoard();
 
   if (!isBoardValid) {
     updateLamp("black", { record: false });
-  } else if (currentLampColor === "black") {
+
+    // Invalid boards do not call evaluateBoardDifficulty(),
+    // so update the current history entry here.
+    syncCurrentHistoryEvaluationState(currentEvaluationId);
   }
 
-  if (skipEvaluation) return;
+  // Important: clear this before the skipEvaluation return.
+  if (lampEvaluationTimeout) {
+    clearTimeout(lampEvaluationTimeout);
+    lampEvaluationTimeout = null;
+  }
 
-  if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
+  if (skipEvaluation || !isBoardValid) return;
+
+  const scheduledEvaluationId = currentEvaluationId;
+
   lampEvaluationTimeout = setTimeout(() => {
-    if (isBoardValid) evaluateBoardDifficulty();
+    lampEvaluationTimeout = null;
+
+    if (scheduledEvaluationId === currentEvaluationId) {
+      evaluateBoardDifficulty();
+    }
   }, 200);
 }
 
@@ -6305,6 +6334,53 @@ function loadPuzzleTimer(savedTimeFromStorage) {
   puzzleTimerEl.textContent = formatTime(currentElapsedTime);
 }
 
+function syncCurrentHistoryEvaluationState(
+  expectedEvaluationId = currentEvaluationId,
+) {
+  if (expectedEvaluationId !== currentEvaluationId) return;
+
+  if (
+    typeof history === "undefined" ||
+    typeof historyIndex !== "number" ||
+    historyIndex < 0
+  ) {
+    return;
+  }
+
+  const entry = history[historyIndex];
+  if (!entry) return;
+
+  // Prevent temporary solver boards from modifying playing-mode history.
+  if (hasLogicChanged(entry.boardState, boardState)) return;
+
+  Object.assign(entry, captureHistoryEvaluationState());
+}
+
+function restoreHistoryEvaluationState(entry) {
+  vagueHintMessage = entry.vagueHint ?? "";
+
+  lampTimestamps = JSON.parse(JSON.stringify(entry.lampTimestamps || {}));
+
+  previousLampColor = entry.previousLampColor ?? null;
+
+  lastValidLampColor =
+    entry.lastValidLampColor ?? entry.lampColor ?? lastValidLampColor;
+
+  if (Number.isFinite(entry.lastValidScore)) {
+    lastValidScore = entry.lastValidScore;
+  }
+
+  // Restore the exact text that was displayed after evaluation.
+  if (typeof entry.scoreText === "string") {
+    puzzleScoreEl.textContent = entry.scoreText;
+  }
+
+  updateLamp(entry.lampColor || "white", {
+    record: false,
+    level: entry.lampLevel ?? null,
+  });
+}
+
 function hasLogicChanged(stateA, stateB) {
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -6323,117 +6399,99 @@ function hasLogicChanged(stateA, stateB) {
 }
 
 function undo() {
-  if (historyIndex > 0) {
-    const currentEntry = history[historyIndex];
-    const prevEntry = history[historyIndex - 1];
+  if (historyIndex <= 0) return;
 
-    // 1. Calculate Diff (Board)
-    const actionDesc = getDiffDescription(
-      prevEntry.boardState,
-      currentEntry.boardState,
-    );
+  const currentEntry = history[historyIndex];
+  const prevEntry = history[historyIndex - 1];
 
-    // 2. Calculate Diff (Lines)
-    const lineDesc = getLineDiffDescription(
-      prevEntry.drawnLines,
-      currentEntry.drawnLines,
-    );
+  // Describe the action being undone.
+  const actionDesc = getDiffDescription(
+    prevEntry.boardState,
+    currentEntry.boardState,
+  );
 
-    // 3. Combine Diffs
-    let finalDesc = actionDesc;
-    if (finalDesc === "No visible changes" && lineDesc) {
-      finalDesc = lineDesc;
-    } else if (lineDesc) {
-      finalDesc += `, ${lineDesc}`;
-    }
+  const lineDesc = getLineDiffDescription(
+    prevEntry.drawnLines,
+    currentEntry.drawnLines,
+  );
 
-    historyIndex--;
-    const historyEntry = history[historyIndex];
-    boardState = cloneBoardState(historyEntry.boardState);
-    drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || [])); // Restore lines
-    vagueHintMessage = historyEntry.vagueHint;
+  let finalDesc = actionDesc;
 
-    lampTimestamps = JSON.parse(
-      JSON.stringify(historyEntry.lampTimestamps || {}),
-    );
-    previousLampColor = historyEntry.previousLampColor;
-
-    updateLamp(historyEntry.lampColor, {
-      record: false,
-      level: historyEntry.lampLevel ?? null,
-    });
-
-    renderBoard();
-    renderLines();
-
-    // Check strictly for changes to concrete numbers or pencil marks
-    const logicChanged = hasLogicChanged(
-      currentEntry.boardState,
-      prevEntry.boardState,
-    );
-    onBoardUpdated(!logicChanged);
-
-    updateUndoRedoButtons();
-    savePuzzleProgress();
-
-    showMessage(`Undid: ${finalDesc}`, "gray");
+  if (finalDesc === "No visible changes" && lineDesc) {
+    finalDesc = lineDesc;
+  } else if (lineDesc) {
+    finalDesc += `, ${lineDesc}`;
   }
+
+  // Move backward in history.
+  historyIndex--;
+
+  const historyEntry = history[historyIndex];
+
+  // Restore board and drawing state.
+  boardState = cloneBoardState(historyEntry.boardState);
+  drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || []));
+
+  // Restore the score, lamp, hint, and evaluation metadata
+  // stored in this history entry.
+  restoreHistoryEvaluationState(historyEntry);
+
+  // Render and validate only.
+  // The stored evaluation result must be displayed without reevaluation.
+  onBoardUpdated(true);
+
+  updateUndoRedoButtons();
+  savePuzzleProgress();
+
+  showMessage(`Undid: ${finalDesc}`, "gray");
 }
 
 function redo() {
-  if (historyIndex < history.length - 1) {
-    const currentEntry = history[historyIndex];
-    const nextEntry = history[historyIndex + 1];
+  if (historyIndex >= history.length - 1) return;
 
-    // 1. Calculate Diff
-    const actionDesc = getDiffDescription(
-      currentEntry.boardState,
-      nextEntry.boardState,
-    );
-    const lineDesc = getLineDiffDescription(
-      currentEntry.drawnLines,
-      nextEntry.drawnLines,
-    );
+  const currentEntry = history[historyIndex];
+  const nextEntry = history[historyIndex + 1];
 
-    // 2. Combine
-    let finalDesc = actionDesc;
-    if (finalDesc === "No visible changes" && lineDesc) {
-      finalDesc = lineDesc;
-    } else if (lineDesc) {
-      finalDesc += `, ${lineDesc}`;
-    }
+  // Describe the action being redone.
+  const actionDesc = getDiffDescription(
+    currentEntry.boardState,
+    nextEntry.boardState,
+  );
 
-    historyIndex++;
-    const historyEntry = history[historyIndex];
-    boardState = cloneBoardState(historyEntry.boardState);
-    drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || []));
-    vagueHintMessage = historyEntry.vagueHint;
+  const lineDesc = getLineDiffDescription(
+    currentEntry.drawnLines,
+    nextEntry.drawnLines,
+  );
 
-    lampTimestamps = JSON.parse(
-      JSON.stringify(historyEntry.lampTimestamps || {}),
-    );
-    previousLampColor = historyEntry.previousLampColor;
+  let finalDesc = actionDesc;
 
-    updateLamp(historyEntry.lampColor, {
-      record: false,
-      level: historyEntry.lampLevel ?? null,
-    });
-
-    renderBoard();
-    renderLines();
-
-    // Check strictly for changes to concrete numbers or pencil marks
-    const logicChanged = hasLogicChanged(
-      currentEntry.boardState,
-      nextEntry.boardState,
-    );
-    onBoardUpdated(!logicChanged);
-
-    updateUndoRedoButtons();
-    savePuzzleProgress();
-
-    showMessage(`Redid: ${finalDesc}`, "gray");
+  if (finalDesc === "No visible changes" && lineDesc) {
+    finalDesc = lineDesc;
+  } else if (lineDesc) {
+    finalDesc += `, ${lineDesc}`;
   }
+
+  // Move forward in history.
+  historyIndex++;
+
+  const historyEntry = history[historyIndex];
+
+  // Restore board and drawing state.
+  boardState = cloneBoardState(historyEntry.boardState);
+  drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || []));
+
+  // Restore the score, lamp, hint, and evaluation metadata
+  // stored in this history entry.
+  restoreHistoryEvaluationState(historyEntry);
+
+  // Render and validate only.
+  // The stored evaluation result must be displayed without reevaluation.
+  onBoardUpdated(true);
+
+  updateUndoRedoButtons();
+  savePuzzleProgress();
+
+  showMessage(`Redid: ${finalDesc}`, "gray");
 }
 
 function updateUndoRedoButtons() {
@@ -6523,6 +6581,7 @@ async function evaluateBoardDifficulty(opts = {}) {
   vagueHintMessage = "";
   if (!initialPuzzleString || !solutionBoard) {
     updateLamp("gray");
+    syncCurrentHistoryEvaluationState(myEvaluationId);
     return;
   }
 
@@ -6537,6 +6596,7 @@ async function evaluateBoardDifficulty(opts = {}) {
   }
   if (!checkPuzzleUniqueness(initialBoardForValidation).isValid) {
     updateLamp("gray");
+    syncCurrentHistoryEvaluationState(myEvaluationId);
     return;
   }
   const currentBoardForEval = cloneBoardState(boardState);
@@ -6569,6 +6629,7 @@ async function evaluateBoardDifficulty(opts = {}) {
       ) {
         updateLamp("black");
         vagueHintMessage = "";
+        syncCurrentHistoryEvaluationState(myEvaluationId);
         return;
       }
       if (
@@ -6578,6 +6639,7 @@ async function evaluateBoardDifficulty(opts = {}) {
       ) {
         updateLamp("black");
         vagueHintMessage = "";
+        syncCurrentHistoryEvaluationState(myEvaluationId);
         return;
       }
     }
@@ -6596,6 +6658,7 @@ async function evaluateBoardDifficulty(opts = {}) {
     } else {
       puzzleScoreEl.textContent = `(${lastValidScore}${star})`;
     }
+    syncCurrentHistoryEvaluationState(myEvaluationId);
     return;
   }
 
@@ -6861,6 +6924,7 @@ async function evaluateBoardDifficulty(opts = {}) {
     );
     console.log("-----------------------------------------------");
   }
+  syncCurrentHistoryEvaluationState(myEvaluationId);
 }
 
 const UNIQUENESS_TECHNIQUES = [
