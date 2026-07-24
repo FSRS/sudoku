@@ -93,7 +93,7 @@ const colorPalette800 = [
 const levelTips = [
   "Lv. 0: Singles",
   "Lv. 1: Locked Pair, Locked Triple",
-  "Lv. 2: Intersections, Pairs, Triples",
+  "Lv. 2: Locked Candidates, Pairs, Triples",
   "Lv. 3: Quads, X-Wing, Swordfish, XY-Wing, Remote Pair",
   "Lv. 4: BUG+1, Jellyfish, XYZ-Wing, W-Wing, Turbot-Fishes, Unique Rectangles",
   "Lv. 5: BUG Lite, Grouped Turbot-Fishes, Almost Locked Pair/Triple, Hidden Rectangles",
