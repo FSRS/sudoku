@@ -91,6 +91,30 @@ let vatCurrentPencils = null;
 let vatActiveTechniques = [];
 let vatSelectedHint = null;
 
+let vatSearchRunId = 0;
+
+function waitForBrowserPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      // The timeout runs as a new task after the animation frame is painted.
+      setTimeout(resolve, 0);
+    });
+  });
+}
+
+async function updateVatSearchingButton(button, techniqueName, runId) {
+  if (!button || runId !== vatSearchRunId || !isViewAllTechniquesMode) {
+    return false;
+  }
+
+  button.textContent = `Searching ${techniqueName}...`;
+
+  // Ensure the text is visible before tech.func() blocks the main thread.
+  await waitForBrowserPaint();
+
+  return runId === vatSearchRunId && isViewAllTechniquesMode;
+}
+
 const lastUsedColors = {
   draw: { solid: null, dash: null },
   color: { cell: null, candidate: null },
@@ -4849,10 +4873,12 @@ function enterViewAllTechniquesMode() {
   }
 
   // Execute the initial search (Current Level + Eliminate Candidates)
-  searchAndAppendVatLevel(currentLevel, true);
+  void searchAndAppendVatLevel(currentLevel, true);
 }
 
 function exitViewAllTechniquesMode(skipRender = false) {
+  vatSearchRunId++;
+
   isViewAllTechniquesMode = false;
   vatSelectedHint = null;
   updateSolverToggleButton();
@@ -5179,7 +5205,11 @@ function buildViewAllTechniquesList(step) {
   });
 }
 
-function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
+async function searchAndAppendVatLevel(
+  levelToSearch,
+  includeEliminate = false,
+) {
+  const runId = ++vatSearchRunId;
   // 1. MOVE CALCULATION TO THE TOP
   const step = solverSteps[currentSolverStep];
   const currentTechIndex = vatActiveTechniques.findIndex(
@@ -5210,13 +5240,11 @@ function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
 
   // 3. UPDATE UI BEFORE LOCKING THREAD
   const searchBtn = document.getElementById("vat-search-next-btn");
-  if (searchBtn) {
-    // Safely get the first technique's name, or default to an empty string if none exist
-    const initialTechName =
-      techsToSearch.length > 0 ? techsToSearch[0].name : "";
 
-    searchBtn.textContent = `Searching ${initialTechName}...`;
+  if (searchBtn) {
+    searchBtn.textContent = "Preparing search...";
     searchBtn.disabled = true;
+    searchBtn.classList.remove("hidden");
     searchBtn.classList.add("opacity-50", "cursor-wait");
   }
 
@@ -5225,264 +5253,280 @@ function searchAndAppendVatLevel(levelToSearch, includeEliminate = false) {
     vatTextEl.textContent = "";
   }
 
-  // Add 'async' right here before the empty parentheses
-  setTimeout(async () => {
-    const list = document.getElementById("solver-summary-list");
-    const isDark = document.documentElement.classList.contains("dark");
+  const list = document.getElementById("solver-summary-list");
+  const isDark = document.documentElement.classList.contains("dark");
 
-    let newHints = [];
+  let newHints = [];
 
-    // Run the techniques
-    for (const tech of techsToSearch) {
-      // 1. UPDATE THE BUTTON WITH THE CURRENT TECHNIQUE NAME
-      if (searchBtn) {
-        searchBtn.textContent = `Searching ${tech.name}...`;
-      }
+  // Run techniques one at a time.
+  for (const tech of techsToSearch) {
+    const shouldContinue = await updateVatSearchingButton(
+      searchBtn,
+      tech.name,
+      runId,
+    );
 
-      // 2. YIELD TO THE BROWSER SO IT CAN PAINT THE NEW TEXT
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      // 3. RUN THE ACTUAL MATH
-      if (typeof tech.func === "function") {
-        const results = tech.func(vatCurrentBoard, vatCurrentPencils, true);
-
-        if (Array.isArray(results) && results.length > 0) {
-          results.forEach((res) => {
-            newHints.push({ tech: tech, result: res });
-          });
-        } else if (results && results.change && !Array.isArray(results)) {
-          newHints.push({ tech: tech, result: results });
-        }
-      }
+    // The user left VAT mode or another search replaced this one.
+    if (!shouldContinue) {
+      return;
     }
 
-    // Render results
-    if (newHints.length === 0 && list.children.length === 0) {
-      const msg = document.createElement("div");
-      msg.id = "vat-no-tech-msg";
-      msg.className = "p-2 text-sm text-gray-500 italic text-center";
-      msg.textContent = "No standard techniques found.";
-      list.appendChild(msg);
-    } else if (newHints.length > 0) {
-      const noMsg = document.getElementById("vat-no-tech-msg");
-      if (noMsg) noMsg.remove();
+    if (typeof tech.func !== "function") {
+      continue;
+    }
 
-      // --- 1. First Level Grouping: Group by Technique Name + Action String ---
-      const groupedHints = new Map();
+    try {
+      // The button now visibly contains this exact technique name.
+      const results = tech.func(vatCurrentBoard, vatCurrentPencils, true);
 
-      newHints.forEach((item) => {
-        let actionStr = "";
-
-        if (item.result.type === "place") {
-          actionStr = `r${item.result.r + 1}c${item.result.c + 1} = ${item.result.num}`;
-        } else if (item.result.cells) {
-          const cells = item.result.cells || [];
-          const removalsByDigit = new Map();
-          cells.forEach((c) => {
-            if (!removalsByDigit.has(c.num)) removalsByDigit.set(c.num, []);
-            removalsByDigit.get(c.num).push({ r: c.r, c: c.c });
+      if (Array.isArray(results) && results.length > 0) {
+        results.forEach((result) => {
+          newHints.push({
+            tech,
+            result,
           });
-          const groups = [];
-          const sortedDigits = Array.from(removalsByDigit.keys()).sort(
-            (a, b) => a - b,
+        });
+      } else if (results && results.change && !Array.isArray(results)) {
+        newHints.push({
+          tech,
+          result: results,
+        });
+      }
+    } catch (error) {
+      console.error(`Find All failed in "${tech.name}":`, error);
+    }
+  }
+
+  // Do not render stale results from an older search.
+  if (runId !== vatSearchRunId || !isViewAllTechniquesMode) {
+    return;
+  }
+
+  // Render results
+  if (newHints.length === 0 && list.children.length === 0) {
+    const msg = document.createElement("div");
+    msg.id = "vat-no-tech-msg";
+    msg.className = "p-2 text-sm text-gray-500 italic text-center";
+    msg.textContent = "No standard techniques found.";
+    list.appendChild(msg);
+  } else if (newHints.length > 0) {
+    const noMsg = document.getElementById("vat-no-tech-msg");
+    if (noMsg) noMsg.remove();
+
+    // --- 1. First Level Grouping: Group by Technique Name + Action String ---
+    const groupedHints = new Map();
+
+    newHints.forEach((item) => {
+      let actionStr = "";
+
+      if (item.result.type === "place") {
+        actionStr = `r${item.result.r + 1}c${item.result.c + 1} = ${item.result.num}`;
+      } else if (item.result.cells) {
+        const cells = item.result.cells || [];
+        const removalsByDigit = new Map();
+        cells.forEach((c) => {
+          if (!removalsByDigit.has(c.num)) removalsByDigit.set(c.num, []);
+          removalsByDigit.get(c.num).push({ r: c.r, c: c.c });
+        });
+        const groups = [];
+        const sortedDigits = Array.from(removalsByDigit.keys()).sort(
+          (a, b) => a - b,
+        );
+        for (const d of sortedDigits) {
+          const cg = removalsByDigit
+            .get(d)
+            .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.c - b.c))
+            .map((c) => `r${c.r + 1}c${c.c + 1}`)
+            .join(",");
+          groups.push(`${cg}<>${d}`);
+        }
+        actionStr = groups.join(" | ");
+      }
+
+      const groupKey = `${item.tech.name}::${actionStr}`;
+
+      if (!groupedHints.has(groupKey)) {
+        groupedHints.set(groupKey, {
+          tech: item.tech,
+          actionStr: actionStr,
+          items: [],
+        });
+      }
+      groupedHints.get(groupKey).items.push(item);
+    });
+
+    // --- 2. Render the grouped Level 1 and Level 2 lists ---
+    groupedHints.forEach((group) => {
+      // LEVEL 1: Parent Group (Technique + Action)
+      const parentRow = document.createElement("div");
+      parentRow.className =
+        "font-mono hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
+      parentRow.style.display = "flex";
+      parentRow.style.flexDirection = "column";
+      parentRow.style.gap = "2px";
+      parentRow.style.padding = "6px";
+      parentRow.style.borderBottom = isDark
+        ? "1px solid #374151"
+        : "1px solid #e5e7eb";
+      parentRow.style.cursor = "pointer";
+
+      const headerDiv = document.createElement("div");
+      headerDiv.style.display = "flex";
+      headerDiv.style.justifyContent = "space-between";
+      headerDiv.style.alignItems = "center";
+
+      const techInfoDiv = document.createElement("div");
+      const techNameEl = document.createElement("div");
+      techNameEl.style.color = getThemeColor(group.tech.level);
+      techNameEl.style.fontWeight = "bold";
+      techNameEl.style.fontSize = "12px";
+      techNameEl.textContent = group.tech.name;
+
+      const actionEl = document.createElement("div");
+      actionEl.style.fontSize = "11px";
+      actionEl.style.opacity = "0.9";
+      actionEl.textContent = group.actionStr;
+
+      techInfoDiv.appendChild(techNameEl);
+      techInfoDiv.appendChild(actionEl);
+
+      const toggleIcon = document.createElement("div");
+      toggleIcon.style.fontSize = "10px";
+      toggleIcon.style.opacity = "0.6";
+      toggleIcon.textContent = `▼ (${group.items.length})`;
+
+      headerDiv.appendChild(techInfoDiv);
+      headerDiv.appendChild(toggleIcon);
+      parentRow.appendChild(headerDiv);
+
+      // LEVEL 2: Sub-list Container (Specific Chains/Paths)
+      const subListContainer = document.createElement("div");
+      subListContainer.style.display = "none";
+      subListContainer.style.flexDirection = "column";
+      subListContainer.style.gap = "4px";
+      subListContainer.style.marginTop = "4px";
+      subListContainer.style.paddingLeft = "8px";
+      subListContainer.style.borderLeft = `2px solid ${getThemeColor(group.tech.level)}`;
+
+      group.items.forEach((subItem, index) => {
+        const childRow = document.createElement("div");
+        childRow.className =
+          "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors";
+        childRow.style.fontSize = "10px";
+        childRow.style.opacity = "0.85";
+        childRow.style.padding = "4px";
+        childRow.style.borderRadius = "3px";
+        childRow.style.cursor = "pointer";
+
+        // Hide items beyond the first 3
+        if (index >= 3) {
+          childRow.style.display = "none";
+          childRow.classList.add("vat-extra-item");
+        }
+
+        childRow.textContent =
+          (subItem.result.hint && subItem.result.hint.detail) ||
+          `Path variation ${index + 1}`;
+
+        childRow.addEventListener("click", (e) => {
+          e.stopPropagation();
+
+          vatSelectedHint = subItem.result;
+          updateSolverToggleButton();
+          // Note: Use VAT specific board states here
+          boardState = cloneToBoardState(vatCurrentBoard, vatCurrentPencils);
+          drawnLines = [];
+          clearAllColors();
+
+          if (subItem.result.applyVisuals) {
+            subItem.result.applyVisuals();
+          }
+
+          Array.from(list.querySelectorAll(".active-sub-row")).forEach((c) => {
+            c.classList.remove("active-sub-row");
+            c.style.backgroundColor = "transparent";
+          });
+
+          childRow.classList.add("active-sub-row");
+          childRow.style.backgroundColor = isDark
+            ? "rgba(255,255,255,0.15)"
+            : "rgba(0,0,0,0.08)";
+
+          const detail = subItem.result.hint
+            ? subItem.result.hint.detail || ""
+            : "";
+          showMessage(
+            `${group.tech.name}: ${detail} => ${group.actionStr}`,
+            "blue",
           );
-          for (const d of sortedDigits) {
-            const cg = removalsByDigit
-              .get(d)
-              .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.c - b.c))
-              .map((c) => `r${c.r + 1}c${c.c + 1}`)
-              .join(",");
-            groups.push(`${cg}<>${d}`);
-          }
-          actionStr = groups.join(" | ");
-        }
-
-        const groupKey = `${item.tech.name}::${actionStr}`;
-
-        if (!groupedHints.has(groupKey)) {
-          groupedHints.set(groupKey, {
-            tech: item.tech,
-            actionStr: actionStr,
-            items: [],
-          });
-        }
-        groupedHints.get(groupKey).items.push(item);
-      });
-
-      // --- 2. Render the grouped Level 1 and Level 2 lists ---
-      groupedHints.forEach((group) => {
-        // LEVEL 1: Parent Group (Technique + Action)
-        const parentRow = document.createElement("div");
-        parentRow.className =
-          "font-mono hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
-        parentRow.style.display = "flex";
-        parentRow.style.flexDirection = "column";
-        parentRow.style.gap = "2px";
-        parentRow.style.padding = "6px";
-        parentRow.style.borderBottom = isDark
-          ? "1px solid #374151"
-          : "1px solid #e5e7eb";
-        parentRow.style.cursor = "pointer";
-
-        const headerDiv = document.createElement("div");
-        headerDiv.style.display = "flex";
-        headerDiv.style.justifyContent = "space-between";
-        headerDiv.style.alignItems = "center";
-
-        const techInfoDiv = document.createElement("div");
-        const techNameEl = document.createElement("div");
-        techNameEl.style.color = getThemeColor(group.tech.level);
-        techNameEl.style.fontWeight = "bold";
-        techNameEl.style.fontSize = "12px";
-        techNameEl.textContent = group.tech.name;
-
-        const actionEl = document.createElement("div");
-        actionEl.style.fontSize = "11px";
-        actionEl.style.opacity = "0.9";
-        actionEl.textContent = group.actionStr;
-
-        techInfoDiv.appendChild(techNameEl);
-        techInfoDiv.appendChild(actionEl);
-
-        const toggleIcon = document.createElement("div");
-        toggleIcon.style.fontSize = "10px";
-        toggleIcon.style.opacity = "0.6";
-        toggleIcon.textContent = `▼ (${group.items.length})`;
-
-        headerDiv.appendChild(techInfoDiv);
-        headerDiv.appendChild(toggleIcon);
-        parentRow.appendChild(headerDiv);
-
-        // LEVEL 2: Sub-list Container (Specific Chains/Paths)
-        const subListContainer = document.createElement("div");
-        subListContainer.style.display = "none";
-        subListContainer.style.flexDirection = "column";
-        subListContainer.style.gap = "4px";
-        subListContainer.style.marginTop = "4px";
-        subListContainer.style.paddingLeft = "8px";
-        subListContainer.style.borderLeft = `2px solid ${getThemeColor(group.tech.level)}`;
-
-        group.items.forEach((subItem, index) => {
-          const childRow = document.createElement("div");
-          childRow.className =
-            "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors";
-          childRow.style.fontSize = "10px";
-          childRow.style.opacity = "0.85";
-          childRow.style.padding = "4px";
-          childRow.style.borderRadius = "3px";
-          childRow.style.cursor = "pointer";
-
-          // Hide items beyond the first 3
-          if (index >= 3) {
-            childRow.style.display = "none";
-            childRow.classList.add("vat-extra-item");
-          }
-
-          childRow.textContent =
-            (subItem.result.hint && subItem.result.hint.detail) ||
-            `Path variation ${index + 1}`;
-
-          childRow.addEventListener("click", (e) => {
-            e.stopPropagation();
-
-            vatSelectedHint = subItem.result;
-            updateSolverToggleButton();
-            // Note: Use VAT specific board states here
-            boardState = cloneToBoardState(vatCurrentBoard, vatCurrentPencils);
-            drawnLines = [];
-            clearAllColors();
-
-            if (subItem.result.applyVisuals) {
-              subItem.result.applyVisuals();
-            }
-
-            Array.from(list.querySelectorAll(".active-sub-row")).forEach(
-              (c) => {
-                c.classList.remove("active-sub-row");
-                c.style.backgroundColor = "transparent";
-              },
-            );
-
-            childRow.classList.add("active-sub-row");
-            childRow.style.backgroundColor = isDark
-              ? "rgba(255,255,255,0.15)"
-              : "rgba(0,0,0,0.08)";
-
-            const detail = subItem.result.hint
-              ? subItem.result.hint.detail || ""
-              : "";
-            showMessage(
-              `${group.tech.name}: ${detail} => ${group.actionStr}`,
-              "blue",
-            );
-            renderBoard();
-            renderLines();
-          });
-
-          subListContainer.appendChild(childRow);
+          renderBoard();
+          renderLines();
         });
 
-        // Add Show More button if there are more than 3 items
-        if (group.items.length > 3) {
-          const showMoreBtn = document.createElement("div");
-          showMoreBtn.className =
-            "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-blue-600 dark:text-blue-400 font-semibold text-center";
-          showMoreBtn.style.fontSize = "10px";
-          showMoreBtn.style.padding = "4px";
-          showMoreBtn.style.borderRadius = "3px";
-          showMoreBtn.style.cursor = "pointer";
-          showMoreBtn.textContent = `Show ${group.items.length - 3} more...`;
+        subListContainer.appendChild(childRow);
+      });
 
-          showMoreBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            const extraItems =
-              subListContainer.querySelectorAll(".vat-extra-item");
-            extraItems.forEach((item) => {
-              item.style.display = "block";
-            });
-            showMoreBtn.remove(); // Remove the button after expanding
+      // Add Show More button if there are more than 3 items
+      if (group.items.length > 3) {
+        const showMoreBtn = document.createElement("div");
+        showMoreBtn.className =
+          "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-blue-600 dark:text-blue-400 font-semibold text-center";
+        showMoreBtn.style.fontSize = "10px";
+        showMoreBtn.style.padding = "4px";
+        showMoreBtn.style.borderRadius = "3px";
+        showMoreBtn.style.cursor = "pointer";
+        showMoreBtn.textContent = `Show ${group.items.length - 3} more...`;
+
+        showMoreBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const extraItems =
+            subListContainer.querySelectorAll(".vat-extra-item");
+          extraItems.forEach((item) => {
+            item.style.display = "block";
           });
-
-          subListContainer.appendChild(showMoreBtn);
-        }
-
-        parentRow.appendChild(subListContainer);
-
-        parentRow.addEventListener("click", () => {
-          const isHidden = subListContainer.style.display === "none";
-          subListContainer.style.display = isHidden ? "flex" : "none";
-          toggleIcon.textContent = isHidden
-            ? `▲ (${group.items.length})`
-            : `▼ (${group.items.length})`;
-
-          if (isHidden && group.items.length === 1) {
-            subListContainer.firstChild.click();
-          }
+          showMoreBtn.remove(); // Remove the button after expanding
         });
 
-        list.appendChild(parentRow);
-      });
-    }
-
-    // Update the UI Button for the next level search
-    if (searchBtn) {
-      searchBtn.disabled = false;
-      searchBtn.classList.remove("opacity-50", "cursor-wait");
-
-      if (vatNextLevel <= vatMaxLevel) {
-        searchBtn.textContent = `Search Lv. ${vatNextLevel}`;
-        searchBtn.onclick = () => {
-          const nextLvlToRun = vatNextLevel;
-          vatNextLevel++;
-          searchAndAppendVatLevel(nextLvlToRun, true);
-        };
-        searchBtn.classList.remove("hidden");
-      } else {
-        // No more levels left to search
-        searchBtn.classList.add("hidden");
+        subListContainer.appendChild(showMoreBtn);
       }
+
+      parentRow.appendChild(subListContainer);
+
+      parentRow.addEventListener("click", () => {
+        const isHidden = subListContainer.style.display === "none";
+        subListContainer.style.display = isHidden ? "flex" : "none";
+        toggleIcon.textContent = isHidden
+          ? `▲ (${group.items.length})`
+          : `▼ (${group.items.length})`;
+
+        if (isHidden && group.items.length === 1) {
+          subListContainer.firstChild.click();
+        }
+      });
+
+      list.appendChild(parentRow);
+    });
+  }
+
+  // Update the UI Button for the next level search
+  if (searchBtn) {
+    searchBtn.disabled = false;
+    searchBtn.classList.remove("opacity-50", "cursor-wait");
+
+    if (vatNextLevel <= vatMaxLevel) {
+      searchBtn.textContent = `Search Lv. ${vatNextLevel}`;
+      searchBtn.onclick = () => {
+        const nextLvlToRun = vatNextLevel;
+        vatNextLevel++;
+
+        void searchAndAppendVatLevel(nextLvlToRun, true);
+      };
+      searchBtn.classList.remove("hidden");
+    } else {
+      // No more levels left to search
+      searchBtn.classList.add("hidden");
     }
-  }, 50);
+  }
 }
 
 // Helper function using your existing preference logic
