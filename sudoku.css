@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /*
 ================================================================================
 |   SUDOKU APPLICATION STYLESHEET                                              |
@@ -563,6 +565,21 @@
   }
   .bg-purple-700 {
     background-color: #7e22ce;
+  }
+  .top-3 {
+    top: calc(var(--spacing) * 3);
+  }
+  .right-3 {
+    right: calc(var(--spacing) * 3);
+  }
+  .right-14 {
+    right: calc(var(--spacing) * 14);
+  }
+  .left-3 {
+    left: calc(var(--spacing) * 3);
+  }
+  .left-10 {
+    left: calc(var(--spacing) * 10);
   }
   .p-2 {
     padding: calc(var(--spacing) * 2);
@@ -2127,4 +2144,13 @@ html.dark .sortable-item.dragging {
 #puzzle-string,
 .score-string {
   font-family: "Fira Code", monospace;
+}
+
+/* === Language-specific Styles === */
+html[lang="ko"] * {
+  word-break: keep-all !important;
+  font-variant-ligatures: none !important;
+  font-feature-settings:
+    "liga" 0,
+    "clig" 0 !important;
 }

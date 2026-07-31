@@ -17,6 +17,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function initialize() {
+    // Initialize language
+    currentLang = detectLanguage();
+    applyTranslations();
+    setupLanguageSwitcher();
+
     createGrid();
     updateControls();
     initBoardState();
@@ -51,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error loading puzzles:", error);
       // Display a user-friendly error message on the page
       showMessage(
-        "Could not load puzzles. Please check the connection or refresh.",
+        t("error_load_puzzle"),
         "red",
       );
     }

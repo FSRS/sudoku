@@ -134,7 +134,7 @@ function checkPuzzleUniqueness(board) {
   if (clueCount < 17) {
     return {
       isValid: false,
-      message: "Error: Puzzle has fewer than 17 clues; solution is not unique.",
+      message: t("error_few_clues"),
     };
   }
 
@@ -143,8 +143,7 @@ function checkPuzzleUniqueness(board) {
   if (presentNumbers.size < 8) {
     return {
       isValid: false,
-      message:
-        "Error: More than one number is missing; solution is not unique.",
+      message: t("error_missing_numbers"),
     };
   }
   // Pre-Check 3
@@ -160,7 +159,7 @@ function checkPuzzleUniqueness(board) {
     if (emptyRowCount >= 2) {
       return {
         isValid: false,
-        message: "Error: Two empty rows in a band; solution is not unique.",
+        message: t("error_empty_rows"),
       };
     }
   }
@@ -184,7 +183,7 @@ function checkPuzzleUniqueness(board) {
     if (emptyColCount >= 2) {
       return {
         isValid: false,
-        message: "Error: Two empty columns in a band; solution is not unique.",
+        message: t("error_empty_cols"),
       };
     }
   }
@@ -207,7 +206,7 @@ function checkPuzzleUniqueness(board) {
   if (!isBoardValid(board.map((row) => [...row]))) {
     return {
       isValid: false,
-      message: "Error: The initial puzzle state has conflicts.",
+      message: t("error_initial_conflict"),
     };
   }
 
@@ -222,7 +221,7 @@ function checkPuzzleUniqueness(board) {
   if (solutionCount === 0) {
     return {
       isValid: false,
-      message: "Error: This puzzle has no solution.",
+      message: t("error_no_solution"),
     };
   }
   if (solutionCount > 1) {
@@ -230,11 +229,11 @@ function checkPuzzleUniqueness(board) {
       solutionCount >= 10000 ? "10,000+" : solutionCount.toLocaleString();
     return {
       isValid: false,
-      message: `Error: This puzzle has ${countLabel} solutions.`,
+      message: t("error_multiple_solutions", countLabel),
     };
   }
 
-  return { isValid: true, message: "Puzzle has a unique solution." };
+  return { isValid: true, message: t("puzzle_unique_solution") };
 }
 
 /**

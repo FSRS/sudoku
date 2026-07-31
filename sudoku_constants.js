@@ -90,18 +90,18 @@ const colorPalette800 = [
   "#9d174d", // pink-800
 ];
 
-const levelTips = [
-  "Lv. 0: Singles",
-  "Lv. 1: Locked Pair, Locked Triple",
-  "Lv. 2: Locked Candidates, Pairs, Triples",
-  "Lv. 3: Quads, X-Wing, Swordfish, XY-Wing, Remote Pair",
-  "Lv. 4: BUG+1, Jellyfish, XYZ-Wing, W-Wing, Turbot-Fishes, Unique Rectangles",
-  "Lv. 5: BUG Lite, Grouped Turbot-Fishes, Almost Locked Pair/Triple, Hidden Rectangles",
-  "Lv. 6: Finned Fishes, X-Chain, XY-Chain, Firework, WXYZ-Wing, Sue de Coq",
-  "Lv. 7: Grouped X-Chain, Alternating Inference Chain",
-  "Lv. 8: Grouped Alternating Inference Chain, ALS-XZ",
-  "Lv. 9: ALS-AIC",
-  "Lv. 10: Death Blossom, Finned Franken/Mutant Swordfish, Complex AIC",
+const getLevelTips = () => [
+  t("level_tip_0"),
+  t("level_tip_1"),
+  t("level_tip_2"),
+  t("level_tip_3"),
+  t("level_tip_4"),
+  t("level_tip_5"),
+  t("level_tip_6"),
+  t("level_tip_7"),
+  t("level_tip_8"),
+  t("level_tip_9"),
+  t("level_tip_10"),
 ];
 
 const PALETTES = {

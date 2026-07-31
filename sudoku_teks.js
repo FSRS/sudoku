@@ -286,9 +286,9 @@ const techniques = {
         type: "remove",
         cells: uniqueRemovals,
         hint: {
-          name: "Eliminate Candidates",
-          mainInfo: `at r${newpr + 1}c${newpc + 1}`,
-          detail: `Concrete number (${newd})r${newr}c${newc}`,
+          name: t("tech_Eliminate Candidates"),
+          mainInfo: t("teks_msg_2", newpr + 1, newpc + 1),
+          detail: t("teks_msg_3", newd, newr, newc),
         },
         applyVisuals: () => {
           highlightedDigit = null;
@@ -330,7 +330,7 @@ const techniques = {
           r,
           emptyCol,
           solvedMask,
-          `Row ${r + 1}`,
+          t("teks_msg_4", r + 1),
         );
         if (!findAll) return res;
         results.push(res);
@@ -357,7 +357,7 @@ const techniques = {
           emptyRow,
           c,
           solvedMask,
-          `Col ${c + 1}`,
+          t("teks_msg_5", c + 1),
         );
         if (!findAll) return res;
         results.push(res);
@@ -390,7 +390,7 @@ const techniques = {
           emptyCell.r,
           emptyCell.c,
           solvedMask,
-          `Box ${b + 1}`,
+          t("teks_msg_6", b + 1),
         );
         if (!findAll) return res;
         results.push(res);
@@ -409,11 +409,11 @@ const techniques = {
         break;
       }
     }
-    const isBox = unitName.includes("Box");
+    const isBox = unitName.includes(t("teks_msg_7"));
     const position = isBox
       ? `b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
       : `r${r + 1}c${c + 1}`;
-    const detail = `Last digit (${missingNum}) in ${unitName} at ${position}`;
+    const detail = t("teks_msg_8", missingNum, unitName, position);
 
     return {
       change: true,
@@ -422,7 +422,7 @@ const techniques = {
       c,
       num: missingNum,
       hint: {
-        name: "Full House",
+        name: t("tech_Full House"),
         mainInfo: unitName,
         detail,
       },
@@ -452,9 +452,9 @@ const techniques = {
             c,
             num,
             hint: {
-              name: "Naked Single",
-              mainInfo: `at r${r + 1}c${c + 1}`,
-              detail: `Only digit (${num}) remains at r${r + 1}c${c + 1}`,
+              name: t("tech_Naked Single"),
+              mainInfo: t("teks_msg_11", r + 1, c + 1),
+              detail: t("teks_msg_12", num, r + 1, c + 1),
             },
             applyVisuals: () => {
               highlightedDigit = null;
@@ -475,9 +475,9 @@ const techniques = {
     const results = [];
     // 1. Define types with the display name you want
     const unitTypes = [
-      { name: "box", label: "Box" },
-      { name: "row", label: "Row" },
-      { name: "col", label: "Col" },
+      { name: "box", label: t("teks_msg_7") },
+      { name: "row", label: t("teks_msg_14") },
+      { name: "col", label: t("teks_msg_15") },
     ];
 
     // 2. Iterate through types, then indices (0-8)
@@ -496,12 +496,12 @@ const techniques = {
 
           if (possibleCells.length === 1) {
             const [r, c] = possibleCells[0];
-            const isBox = label === "Box";
+            const isBox = label === t("teks_msg_7");
             const position = isBox
               ? `b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
               : `r${r + 1}c${c + 1}`;
-            const unitLabel = `${label} ${i + 1}`;
-            const detail = `Only cell ${position} with digit (${num}) in ${unitLabel}`;
+            const unitLabel = t("teks_msg_17", label, i + 1);
+            const detail = t("teks_msg_18", position, num, unitLabel);
 
             const res = {
               change: true,
@@ -510,7 +510,7 @@ const techniques = {
               c,
               num,
               hint: {
-                name: "Hidden Single",
+                name: t("tech_Hidden Single"),
                 mainInfo: unitLabel,
                 detail,
               },
@@ -545,7 +545,7 @@ const techniques = {
   lockedSubset: (board, pencils, size, findAll = false) => {
     // This technique finds subsets of candidates that are locked within the
     // intersection of a box and a line (row or column).
-    // It's a combination of "Pointing" (eliminating from the line outside the box)
+    // It's a combination of t("teks_msg_28") (eliminating from the line outside the box)
     // and "Naked Subset" (eliminating from the box outside the line).
 
     const results = [];
@@ -586,7 +586,7 @@ const techniques = {
             if (union.size === size) {
               const removals = [];
 
-              // A) Eliminate from other cells in the LINE (outside this box). This is a "Pointing" move.
+              // A) Eliminate from other cells in the LINE (outside this box). This is a t("teks_msg_28") move.
               const box_limit = isRow ? box_c_start : box_r_start;
               for (let k = 0; k < 9; k++) {
                 if (k >= box_limit && k < box_limit + 3) continue; // Skip cells inside the box
@@ -633,16 +633,26 @@ const techniques = {
                   .join("");
                 const cellStr = `r${rows}c${cols}`;
 
-                const lineType = isRow ? "Row" : "Col";
+                const lineType = isRow ? t("teks_msg_14") : t("teks_msg_15");
 
                 const res = {
                   change: true,
                   type: "remove",
                   cells: removals,
                   hint: {
-                    name: size === 2 ? "Locked Pair" : "Locked Triple",
-                    mainInfo: `Intersection of ${lineType} ${line_idx + 1} and Box ${b + 1}`,
-                    detail: `${cellStr} together have digits (${[...union].join("")}) on intersection of ${lineType} ${line_idx + 1} and Box ${b + 1}`,
+                    name:
+                      size === 2
+                        ? t("tech_Locked Pair")
+                        : t("tech_Locked Triple"),
+                    mainInfo: t("teks_msg_24", lineType, line_idx + 1, b + 1),
+                    detail: t(
+                      "teks_msg_25",
+                      cellStr,
+                      [...union].join(""),
+                      lineType,
+                      line_idx + 1,
+                      b + 1,
+                    ),
                   },
                   applyVisuals: () => {
                     highlightedDigit = null;
@@ -748,12 +758,12 @@ const techniques = {
             if (removals.length === 0) continue;
 
             // ── Build hint strings ────────────────────────────────────────────
-            const lineName = isRow ? "Row" : "Col";
+            const lineName = isRow ? t("teks_msg_14") : t("teks_msg_15");
 
-            const hintName = is_pointing ? "Pointing" : "Claiming";
+            const hintName = is_pointing ? t("teks_msg_28") : t("teks_msg_29");
             const mainInfo = is_pointing
-              ? `Intersection of Box ${primaryIdx + 1} and ${lineName} ${secondaryIdx + 1}`
-              : `Intersection of ${lineName} ${primaryIdx + 1} and Box ${secondaryIdx + 1}`;
+              ? t("teks_msg_30", primaryIdx + 1, lineName, secondaryIdx + 1)
+              : t("teks_msg_31", lineName, primaryIdx + 1, secondaryIdx + 1);
 
             let cellStr;
             if (is_pointing) {
@@ -780,8 +790,22 @@ const techniques = {
             }
 
             const detail = is_pointing
-              ? `All cells with digit (${num}) in Box ${primaryIdx + 1} ${cellStr} are also in ${lineName} ${secondaryIdx + 1}`
-              : `All cells with digit (${num}) in ${lineName} ${primaryIdx + 1} ${cellStr} are also in Box ${secondaryIdx + 1}`;
+              ? t(
+                  "teks_msg_32",
+                  num,
+                  primaryIdx + 1,
+                  cellStr,
+                  lineName,
+                  secondaryIdx + 1,
+                )
+              : t(
+                  "teks_msg_33",
+                  num,
+                  lineName,
+                  primaryIdx + 1,
+                  cellStr,
+                  secondaryIdx + 1,
+                );
 
             // ── Capture loop variables for the closure ────────────────────────
             const _sourceCellsWithNum = sourceCellsWithNum;
@@ -853,15 +877,15 @@ const techniques = {
     const results = [];
 
     const unitTypes = [
-      { name: "box", label: "Box" },
-      { name: "row", label: "Row" },
-      { name: "col", label: "Col" },
+      { name: "box", label: t("teks_msg_7") },
+      { name: "row", label: t("teks_msg_14") },
+      { name: "col", label: t("teks_msg_15") },
     ];
 
     for (const { name, label } of unitTypes) {
       for (let i = 0; i < 9; i++) {
         const unit = techniques._getUnitCells(name, i);
-        const unitName = `${label} ${i + 1}`; // Now we have the proper name
+        const unitName = t("teks_msg_17", label, i + 1); // Now we have the proper name
 
         // const emptyCells = unit.filter(([r, c]) => board[r][c] === 0);
         // if (emptyCells.length < 2 * size) continue;
@@ -940,11 +964,20 @@ const techniques = {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: `Naked ${
-                    size === 2 ? "Pair" : size === 3 ? "Triple" : "Quad"
+                  name: `${t("tech_naked")} ${
+                    size === 2
+                      ? t("teks_msg_38")
+                      : size === 3
+                        ? t("teks_msg_39")
+                        : t("teks_msg_40")
                   }`,
                   mainInfo: `${unitName}`,
-                  detail: `${cellStr} together have digits (${[...union].sort().join("")}) in ${unitName}`,
+                  detail: t(
+                    "teks_msg_41",
+                    cellStr,
+                    [...union].sort().join(""),
+                    unitName,
+                  ),
                 },
                 applyVisuals: () => {
                   highlightedDigit = null;
@@ -980,16 +1013,16 @@ const techniques = {
 
   hiddenSubset: (board, pencils, size, findAll = false) => {
     const unitTypes = [
-      { name: "box", label: "Box" },
-      { name: "row", label: "Row" },
-      { name: "col", label: "Col" },
+      { name: "box", label: t("teks_msg_7") },
+      { name: "row", label: t("teks_msg_14") },
+      { name: "col", label: t("teks_msg_15") },
     ];
     const results = [];
 
     for (const { name, label } of unitTypes) {
       for (let i = 0; i < 9; i++) {
         const unit = techniques._getUnitCells(name, i);
-        const unitName = `${label} ${i + 1}`; // Now we have the proper name
+        const unitName = t("teks_msg_17", label, i + 1); // Now we have the proper name
 
         const emptyCells = unit.filter(([r, c]) => board[r][c] === 0);
         // Fixed logic: Hidden subsets need at least size + 1 empty cells usually,
@@ -1061,11 +1094,15 @@ const techniques = {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: `Hidden ${
-                    size === 2 ? "Pair" : size === 3 ? "Triple" : "Quad"
+                  name: `${t("tech_hidden")} ${
+                    size === 2
+                      ? t("teks_msg_38")
+                      : size === 3
+                        ? t("teks_msg_39")
+                        : t("teks_msg_40")
                   }`,
                   mainInfo: `${unitName}`,
-                  detail: `All cells with digits (${digitsStr}) in ${unitName} are ${cellStr}`,
+                  detail: t("teks_msg_46", digitsStr, unitName, cellStr),
                 },
                 applyVisuals: () => {
                   highlightedDigit = null;
@@ -1158,12 +1195,12 @@ const techniques = {
                 hint: {
                   name:
                     size === 2
-                      ? "X-Wing"
+                      ? t("tech_X-Wing")
                       : size === 3
-                        ? "Swordfish"
-                        : "Jellyfish",
-                  mainInfo: `Digit (${num})`,
-                  detail: `Digit (${num}), Base ${baseStr}, Cover ${coverStr}`,
+                        ? t("tech_Swordfish")
+                        : t("tech_Jellyfish"),
+                  mainInfo: t("teks_msg_48", num),
+                  detail: t("teks_msg_162", num, baseStr, coverStr),
                 },
                 applyVisuals: () => {
                   highlightedDigit = num;
@@ -1377,15 +1414,15 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: `Finned ${
+                name: `${t("tech_Finned")} ${
                   fishSize === 2
-                    ? "X-Wing"
+                    ? t("tech_X-Wing")
                     : fishSize === 3
-                      ? "Swordfish"
-                      : "Jellyfish"
+                      ? t("tech_Swordfish")
+                      : t("tech_Jellyfish")
                 }`,
-                mainInfo: `Digit (${num})`,
-                detail: `Digit (${num}), Base ${baseStr}, Cover ${coverStr}, Fin ${finStr}`,
+                mainInfo: t("teks_msg_48", num),
+                detail: t("teks_msg_49", num, baseStr, coverStr, finStr),
               },
               applyVisuals: () => {
                 highlightedDigit = num;
@@ -1485,9 +1522,18 @@ const techniques = {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: "XY-Wing",
-                  mainInfo: `Pivot at r${pivot.r + 1}c${pivot.c + 1}`,
-                  detail: `Digits (${allCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${pincer1.r + 1}c${pincer1.c + 1} and r${pincer2.r + 1}c${pincer2.c + 1}`,
+                  name: t("tech_XY-Wing"),
+                  mainInfo: t("teks_msg_51", pivot.r + 1, pivot.c + 1),
+                  detail: t(
+                    "teks_msg_52",
+                    allCands,
+                    pivot.r + 1,
+                    pivot.c + 1,
+                    pincer1.r + 1,
+                    pincer1.c + 1,
+                    pincer2.r + 1,
+                    pincer2.c + 1,
+                  ),
                 },
                 applyVisuals: () => {
                   highlightedDigit = null;
@@ -1616,9 +1662,18 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: "XYZ-Wing",
-                mainInfo: `Pivot at r${pivot.r + 1}c${pivot.c + 1}`,
-                detail: `Digits (${pivotCands}) in Pivot r${pivot.r + 1}c${pivot.c + 1} with wings r${wing1.r + 1}c${wing1.c + 1} and r${wing2.r + 1}c${wing2.c + 1}`,
+                name: t("tech_XYZ-Wing"),
+                mainInfo: t("teks_msg_51", pivot.r + 1, pivot.c + 1),
+                detail: t(
+                  "teks_msg_55",
+                  pivotCands,
+                  pivot.r + 1,
+                  pivot.c + 1,
+                  wing1.r + 1,
+                  wing1.c + 1,
+                  wing2.r + 1,
+                  wing2.c + 1,
+                ),
               },
               applyVisuals: () => {
                 highlightedDigit = null;
@@ -1823,9 +1878,20 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: isGrouped ? "Grouped W-Wing" : "W-Wing",
-                mainInfo: `Using digits (${elimDigit}${linkDigit})`,
-                detail: `Digits (${elimDigit}${linkDigit}) in wings r${cell1.r + 1}c${cell1.c + 1} and r${cell2.r + 1}c${cell2.c + 1} connected by pivot ${unitType.slice(0, 1)}${unitIndex + 1} as ${strongLinkDetail}`,
+                name: isGrouped ? t("tech_Grouped W-Wing") : t("tech_W-Wing"),
+                mainInfo: t("teks_msg_58", elimDigit, linkDigit),
+                detail: t(
+                  "teks_msg_59",
+                  elimDigit,
+                  linkDigit,
+                  cell1.r + 1,
+                  cell1.c + 1,
+                  cell2.r + 1,
+                  cell2.c + 1,
+                  unitType.slice(0, 1),
+                  unitIndex + 1,
+                  strongLinkDetail,
+                ),
               },
               applyVisuals: () => {
                 highlightedDigit = null;
@@ -1970,9 +2036,9 @@ const techniques = {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: "Remote Pair",
-                  mainInfo: `using digits (${pair[0]}${pair[1]})`,
-                  detail: `(${pair[0]}${pair[1]}) on ${pathStr}`,
+                  name: t("tech_Remote Pair"),
+                  mainInfo: t("teks_msg_61", pair[0], pair[1]),
+                  detail: t("teks_msg_62", pair[0], pair[1], pathStr),
                 },
                 applyVisuals: () => {
                   highlightedDigit = null;
@@ -2105,8 +2171,8 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: "Skyscraper",
-                mainInfo: `Digit (${num})`,
+                name: t("tech_Skyscraper"),
+                mainInfo: t("teks_msg_48", num),
                 detail: `(${num})(${link1Str})-(${link2Str})`,
               },
               applyVisuals: () => {
@@ -2247,8 +2313,8 @@ const techniques = {
                     type: "remove",
                     cells: removals,
                     hint: {
-                      name: "2-String Kite",
-                      mainInfo: `Digit (${num})`,
+                      name: t("tech_2-String Kite"),
+                      mainInfo: t("teks_msg_48", num),
                       detail: `(${num})(${link1Str})-(${link2Str})`,
                     },
                     applyVisuals: () => {
@@ -2369,8 +2435,8 @@ const techniques = {
                       type: "remove",
                       cells: removals,
                       hint: {
-                        name: "Crane",
-                        mainInfo: `Digit (${num})`,
+                        name: t("tech_Crane"),
+                        mainInfo: t("teks_msg_48", num),
                         detail: `(${num})(${link1Str})-(${link2Str})`,
                       },
                       applyVisuals: () => {
@@ -2504,8 +2570,8 @@ const techniques = {
                 type: "remove",
                 cells: [{ r: r2, c: c2, num }],
                 hint: {
-                  name: "Grouped 2-String Kite",
-                  mainInfo: `Digit (${num})`,
+                  name: t("tech_Grouped 2-String Kite"),
+                  mainInfo: t("teks_msg_48", num),
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
                 applyVisuals: () => {
@@ -2695,8 +2761,8 @@ const techniques = {
                       type: "remove",
                       cells: [{ r: elimR, c: elimC, num }],
                       hint: {
-                        name: "Empty Rectangle",
-                        mainInfo: `Digit (${num})`,
+                        name: t("tech_Empty Rectangle"),
+                        mainInfo: t("teks_msg_48", num),
                         detail: `(${num})(${link1Str})-(${link2Str})`,
                       },
                       applyVisuals: () => {
@@ -2868,9 +2934,9 @@ const techniques = {
             type: "remove",
             cells: removals,
             hint: {
-              name: "BUG+1",
-              mainInfo: `Tri-value cell at r${r_plus1 + 1}c${c_plus1 + 1}`,
-              detail: `All digits appear exactly twice in all houses except for (${num})r${r_plus1 + 1}c${c_plus1 + 1}`,
+              name: t("tech_BUG+1"),
+              mainInfo: t("teks_msg_74", r_plus1 + 1, c_plus1 + 1),
+              detail: t("teks_msg_75", num, r_plus1 + 1, c_plus1 + 1),
             },
             applyVisuals: () => {
               highlightedDigit = null;
@@ -3094,9 +3160,15 @@ const techniques = {
             type: "remove",
             cells: _getUniqueRemovals(removals),
             hint: {
-              name: "Unique Rectangle Type 1",
-              mainInfo: `using Digits (${d1}${d2})`,
-              detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}`,
+              name: t("teks_msg_76"),
+              mainInfo: t("teks_msg_77", d1, d2),
+              detail: t(
+                "teks_msg_78",
+                d1,
+                d2,
+                basePosStr,
+                getGuardiansStr(extraCells, d1, d2),
+              ),
             },
             applyVisuals: getURVisuals(
               1,
@@ -3144,10 +3216,16 @@ const techniques = {
                 hint: {
                   name:
                     extraCells.length === 2
-                      ? "Unique Rectangle Type 2"
-                      : "Unique Rectangle Type 5",
-                  mainInfo: `using Digits (${d1}${d2})`,
-                  detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}`,
+                      ? t("teks_msg_79")
+                      : t("teks_msg_80"),
+                  mainInfo: t("teks_msg_77", d1, d2),
+                  detail: t(
+                    "teks_msg_78",
+                    d1,
+                    d2,
+                    basePosStr,
+                    getGuardiansStr(extraCells, d1, d2),
+                  ),
                 },
                 applyVisuals: getURVisuals(
                   extraCells.length === 2 ? 2 : 5,
@@ -3251,9 +3329,16 @@ const techniques = {
                 type: "remove",
                 cells: res.removals,
                 hint: {
-                  name: "Unique Rectangle Type 3",
-                  mainInfo: `using Digits (${d1}${d2})`,
-                  detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}, Exrta cells for vitrual naked subset ${subsetStr}`,
+                  name: t("teks_msg_83"),
+                  mainInfo: t("teks_msg_77", d1, d2),
+                  detail: t(
+                    "teks_msg_85",
+                    d1,
+                    d2,
+                    basePosStr,
+                    getGuardiansStr(extraCells, d1, d2),
+                    subsetStr,
+                  ),
                 },
                 applyVisuals: getURVisuals(
                   3,
@@ -3310,15 +3395,25 @@ const techniques = {
                 removals.push({ r: e2r, c: e2c, num: v });
               if (removals.length > 0) {
                 const lineStr =
-                  e1r === e2r ? `Row ${e1r + 1}` : `Col ${e1c + 1}`;
+                  e1r === e2r
+                    ? t("teks_msg_86", e1r + 1)
+                    : t("teks_msg_87", e1c + 1);
                 const resultObj = {
                   change: true,
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: "Unique Rectangle Type 4",
-                    mainInfo: `using Digits (${d1}${d2})`,
-                    detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}, Restricted guardians and base (${u}) in ${lineStr}`,
+                    name: t("teks_msg_88"),
+                    mainInfo: t("teks_msg_77", d1, d2),
+                    detail: t(
+                      "teks_msg_90",
+                      d1,
+                      d2,
+                      basePosStr,
+                      getGuardiansStr(extraCells, d1, d2),
+                      u,
+                      lineStr,
+                    ),
                   },
                   applyVisuals: getURVisuals(
                     4,
@@ -3366,9 +3461,16 @@ const techniques = {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: "Unique Rectangle Type 6",
-                    mainInfo: `using Digits (${d1}${d2})`,
-                    detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${getGuardiansStr(extraCells, d1, d2)}. Exclude a specific placement of (${u}) on UR removing all guardians`,
+                    name: t("teks_msg_91"),
+                    mainInfo: t("teks_msg_77", d1, d2),
+                    detail: t(
+                      "teks_msg_93",
+                      d1,
+                      d2,
+                      basePosStr,
+                      getGuardiansStr(extraCells, d1, d2),
+                      u,
+                    ),
                   },
                   applyVisuals: getURVisuals(
                     6,
@@ -3700,9 +3802,17 @@ const techniques = {
             type: "remove",
             cells: uniqueRemovals,
             hint: {
-              name: "Hidden Rectangle",
-              mainInfo: `using Digits (${d1}${d2})`,
-              detail: `Base (${d1}${d2}) in ${basePosStr}, Guardians ${guardiansStr}, Bivalue cells ${bivalueStr}, Conjugate pairs ${uniqueLinks}`,
+              name: t("tech_Hidden Rectangle"),
+              mainInfo: t("teks_msg_77", d1, d2),
+              detail: t(
+                "teks_msg_96",
+                d1,
+                d2,
+                basePosStr,
+                guardiansStr,
+                bivalueStr,
+                uniqueLinks,
+              ),
             },
             applyVisuals: () => {
               highlightState = 0;
@@ -4222,7 +4332,12 @@ const techniques = {
       );
 
       const baseDigitsStr = digits.sort().join("");
-      const detailPrefix = `Base (${baseDigitsStr}) in ${getBasePosStr(cells)}, Guardians ${getGuardiansStr(extra_cells, core_digits, pencils)}`;
+      const detailPrefix = t(
+        "teks_msg_97",
+        baseDigitsStr,
+        getBasePosStr(cells),
+        getGuardiansStr(extra_cells, core_digits, pencils),
+      );
 
       // --- Type 1 ---
       if (extra_cells.length === 1) {
@@ -4236,8 +4351,8 @@ const techniques = {
             type: "remove",
             cells: _getUniqueRemovals(removals),
             hint: {
-              name: "Extended Unique Rectangle Type 1",
-              mainInfo: `Digits (${baseDigitsStr})`,
+              name: t("teks_msg_98"),
+              mainInfo: t("teks_msg_99", baseDigitsStr),
               detail: detailPrefix,
             },
             applyVisuals: getEURVisuals(
@@ -4289,8 +4404,8 @@ const techniques = {
               type: "remove",
               cells: _getUniqueRemovals(removals),
               hint: {
-                name: "Extended Unique Rectangle Type 2",
-                mainInfo: `Digits (${baseDigitsStr})`,
+                name: t("teks_msg_100"),
+                mainInfo: t("teks_msg_99", baseDigitsStr),
                 detail: detailPrefix,
               },
               applyVisuals: getEURVisuals(
@@ -4394,9 +4509,9 @@ const techniques = {
                 type: "remove",
                 cells: _getUniqueRemovals(res.removals),
                 hint: {
-                  name: "Extended Unique Rectangle Type 3",
-                  mainInfo: `Digits (${baseDigitsStr})`,
-                  detail: `${detailPrefix}, Subset cells: ${subsetStr}`,
+                  name: t("teks_msg_102"),
+                  mainInfo: t("teks_msg_99", baseDigitsStr),
+                  detail: t("teks_msg_104", detailPrefix, subsetStr),
                 },
                 applyVisuals: getEURVisuals(
                   3,
@@ -4485,9 +4600,14 @@ const techniques = {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: "Extended Unique Rectangle Type 4",
-                    mainInfo: `Digits (${baseDigitsStr})`,
-                    detail: `${detailPrefix}, Restricted base (${d}) in ${restrictedCellsStr}`,
+                    name: t("teks_msg_105"),
+                    mainInfo: t("teks_msg_99", baseDigitsStr),
+                    detail: t(
+                      "teks_msg_107",
+                      detailPrefix,
+                      d,
+                      restrictedCellsStr,
+                    ),
                   },
                   applyVisuals: getEURVisuals(
                     4,
@@ -4560,9 +4680,9 @@ const techniques = {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: "Extended Unique Rectangle Type 6",
-                    mainInfo: `Digits (${baseDigitsStr})`,
-                    detail: `${detailPrefix}, Exclude a specific placement of (${d}) on ER removing all guardians`,
+                    name: t("teks_msg_108"),
+                    mainInfo: t("teks_msg_99", baseDigitsStr),
+                    detail: t("teks_msg_110", detailPrefix, d),
                   },
                   applyVisuals: getEURVisuals(
                     6,
@@ -4911,7 +5031,12 @@ const techniques = {
       );
 
       const baseDigitsStr = `${d1}${d2}`;
-      const detailPrefix = `Base (${baseDigitsStr}) in ${getBasePosStr(cells)}, Guardians: ${getGuardiansStr(extra_cells, d_set, pencils)}`;
+      const detailPrefix = t(
+        "teks_msg_111",
+        baseDigitsStr,
+        getBasePosStr(cells),
+        getGuardiansStr(extra_cells, d_set, pencils),
+      );
 
       // --- Type 1 ---
       if (extra_cells.length === 1) {
@@ -4924,8 +5049,8 @@ const techniques = {
             type: "remove",
             cells: _getUniqueRemovals(removals),
             hint: {
-              name: "Unique Loop Type 1",
-              mainInfo: `using Digits (${baseDigitsStr})`,
+              name: t("teks_msg_112"),
+              mainInfo: t("teks_msg_113", baseDigitsStr),
               detail: detailPrefix,
             },
             applyVisuals: getULVisuals(
@@ -4977,9 +5102,9 @@ const techniques = {
               hint: {
                 name:
                   extra_cells.length === 2
-                    ? "Unique Loop Type 2"
-                    : "Unique Loop Type 5",
-                mainInfo: `using Digits (${baseDigitsStr})`,
+                    ? t("teks_msg_114")
+                    : t("teks_msg_115"),
+                mainInfo: t("teks_msg_113", baseDigitsStr),
                 detail: detailPrefix,
               },
               applyVisuals: getULVisuals(
@@ -5076,9 +5201,9 @@ const techniques = {
                 type: "remove",
                 cells: _getUniqueRemovals(res.removals),
                 hint: {
-                  name: "Unique Loop Type 3",
-                  mainInfo: `using Digits (${baseDigitsStr})`,
-                  detail: `${detailPrefix}, Subset cells: ${subsetStr}`,
+                  name: t("teks_msg_117"),
+                  mainInfo: t("teks_msg_113", baseDigitsStr),
+                  detail: t("teks_msg_104", detailPrefix, subsetStr),
                 },
                 applyVisuals: getULVisuals(
                   3,
@@ -5153,9 +5278,14 @@ const techniques = {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: "Unique Loop Type 4",
-                    mainInfo: `using Digits (${baseDigitsStr})`,
-                    detail: `${detailPrefix}, Restricted base (${d}) in ${restrictedCellsStr}`,
+                    name: t("teks_msg_120"),
+                    mainInfo: t("teks_msg_113", baseDigitsStr),
+                    detail: t(
+                      "teks_msg_107",
+                      detailPrefix,
+                      d,
+                      restrictedCellsStr,
+                    ),
                   },
                   applyVisuals: getULVisuals(
                     4,
@@ -5245,9 +5375,9 @@ const techniques = {
                     type: "remove",
                     cells: _getUniqueRemovals(removals),
                     hint: {
-                      name: "Unique Loop Type 6",
-                      mainInfo: `using Digits (${baseDigitsStr})`,
-                      detail: `${detailPrefix}, Exclude a specific placement of (${u}) on Unique Loop removing all guardians`,
+                      name: t("teks_msg_123"),
+                      mainInfo: t("teks_msg_113", baseDigitsStr),
+                      detail: t("teks_msg_125", detailPrefix, u),
                     },
                     applyVisuals: getULVisuals(
                       6,
@@ -5478,8 +5608,15 @@ const techniques = {
                       : formatRC(outsideIntersection);
 
                   const techName =
-                    size === 2 ? "Almost Locked Pair" : "Almost Locked Triple";
-                  const mainInfo = `using ${isRow ? "Row" : "Col"} ${isLineToBox ? baseIdx + 1 : targetIdx + 1} and Box ${isLineToBox ? targetIdx + 1 : baseIdx + 1}`;
+                    size === 2
+                      ? t("tech_Almost Locked Pair")
+                      : t("tech_Almost Locked Triple");
+                  const mainInfo = t(
+                    "teks_almost_locked_info",
+                    isRow ? t("teks_msg_14") : t("teks_msg_15"),
+                    isLineToBox ? baseIdx + 1 : targetIdx + 1,
+                    isLineToBox ? targetIdx + 1 : baseIdx + 1,
+                  );
 
                   const resultObj = {
                     change: true,
@@ -5488,7 +5625,13 @@ const techniques = {
                     hint: {
                       name: techName,
                       mainInfo: mainInfo,
-                      detail: `ALS (${digitsStr})${alsStr}, Intersection ${intStr}, Off-intersection ${outStr}`,
+                      detail: t(
+                        "teks_msg_126",
+                        digitsStr,
+                        alsStr,
+                        intStr,
+                        outStr,
+                      ),
                     },
                     applyVisuals: () => {
                       highlightedDigit = null;
@@ -5789,8 +5932,10 @@ const techniques = {
                       );
                     }
                     if (eliminations.length > 0) {
-                      const hintName = "Sue de Coq";
-                      const lineName = isRow ? "Row" : "Col";
+                      const hintName = t("tech_Sue de Coq");
+                      const lineName = isRow
+                        ? t("teks_msg_14")
+                        : t("teks_msg_15");
 
                       // Build Hint Detail
                       const aCells = parsePosSet(A.positions);
@@ -5803,10 +5948,19 @@ const techniques = {
                       const totalMask = A.mask | B.mask | V_mask;
                       const strDigits = maskToDigitsStr(totalMask);
 
-                      let detailStr = `Intersection ${strC}, Off-intersection ${strA} and ${strB}, Digit (${strDigits})`;
+                      let detailStr = t(
+                        "teks_msg_130",
+                        strC,
+                        strA,
+                        strB,
+                        strDigits,
+                      );
 
                       if (overlapMask > 0) {
-                        detailStr += `, (${maskToDigitsStr(overlapMask)}) appears twice`;
+                        detailStr += t(
+                          "teks_msg_131",
+                          maskToDigitsStr(overlapMask),
+                        );
                       }
 
                       const resultObj = {
@@ -5815,7 +5969,12 @@ const techniques = {
                         cells: eliminations,
                         hint: {
                           name: hintName,
-                          mainInfo: `Intersecting ${lineName} ${lineIdx + 1} and Box ${boxNum}`,
+                          mainInfo: t(
+                            "teks_msg_132",
+                            lineName,
+                            lineIdx + 1,
+                            boxNum,
+                          ),
                           detail: detailStr,
                         },
                         applyVisuals: () => {
@@ -6164,9 +6323,19 @@ const techniques = {
                                     type: "remove",
                                     cells: eliminations,
                                     hint: {
-                                      name: "Triple Firework",
-                                      mainInfo: `using Row ${rIdx + 1} and Col ${cIdx + 1}`,
-                                      detail: `AHS (${ahsDigits})${rowAhsStr} and (${ahsDigits})${colAhsStr}`,
+                                      name: t("tech_Triple Firework"),
+                                      mainInfo: t(
+                                        "teks_msg_134",
+                                        rIdx + 1,
+                                        cIdx + 1,
+                                      ),
+                                      detail: t(
+                                        "teks_msg_135",
+                                        ahsDigits,
+                                        rowAhsStr,
+                                        ahsDigits,
+                                        colAhsStr,
+                                      ),
                                     },
                                     applyVisuals: () => {
                                       highlightedDigit = null;
@@ -6916,7 +7085,7 @@ const techniques = {
       nameOverride,
       pathFilter,
     } = config;
-    const techniqueName = nameOverride || "Alternating Inference Chain";
+    const techniqueName = nameOverride || t("tech_Alternating Inference Chain");
 
     let cache = techniques._aicCache;
 
@@ -7329,7 +7498,8 @@ const techniques = {
 
         if (als) {
           const alsIds = als.cells.map((c) => c[0] * 9 + c[1]);
-          const preferBox = als.unitName && als.unitName.startsWith("Box");
+          const preferBox =
+            als.unitName && als.unitName.startsWith(t("teks_msg_7"));
           orGateStr = `(${u.digits[0]}=${v.digits[0]})${getLoc(alsIds, preferBox)}`;
           lastDigit = v.digits[0];
         } else if (fish) {
@@ -7393,7 +7563,7 @@ const techniques = {
         cells: removals,
         hint: {
           name: name,
-          mainInfo: `Start with ${eurekaStr.split("-")[0]}`,
+          mainInfo: t("teks_msg_138", eurekaStr.split("-")[0]),
           detail: `[${path.length}] ${eurekaStr}`,
         },
         applyVisuals: () => {
@@ -7757,14 +7927,18 @@ const techniques = {
               if (!stringifiedFoundRemovals.has(removalsKey)) {
                 stringifiedFoundRemovals.add(removalsKey);
 
+                const chainStr = t("teks_msg_chain_term");
+                const aicStr = t("teks_msg_aic_term");
                 const ringName =
-                  techniqueName === "Alternating Inference Chain"
-                    ? "AIC Ring"
-                    : techniqueName.includes("Chain")
-                      ? techniqueName.replace("Chain", "Ring")
-                      : useAlsXZ
-                        ? "Doubly linked " + techniqueName
-                        : techniqueName + " Ring";
+                  techniqueName === t("tech_Alternating Inference Chain")
+                    ? t("teks_msg_aic_ring")
+                    : techniqueName.includes(aicStr)
+                      ? techniqueName + t("teks_msg_ring_suffix")
+                      : techniqueName.includes(chainStr)
+                        ? techniqueName.replace(chainStr, t("teks_msg_ring_term"))
+                        : useAlsXZ
+                          ? t("teks_msg_doubly_linked") + techniqueName
+                          : techniqueName + t("teks_msg_ring_suffix");
 
                 const res = buildResult(
                   uniqueRingRemovals,
@@ -7824,14 +7998,16 @@ const techniques = {
                 // Important: add only after a valid path is found and accepted.
                 stringifiedFoundRemovals.add(removalsKey);
 
+                const chainStr = t("teks_msg_chain_term");
+                const aicStr = t("teks_msg_aic_term");
                 const DNLName =
-                  techniqueName === "Alternating Inference Chain"
-                    ? "Discontinuous Nice Loop"
-                    : techniqueName.includes("Chain")
-                      ? techniqueName.replace("Chain", "DN Loop")
-                      : techniqueName.includes("AIC")
-                        ? techniqueName.replace("AIC", "DN Loop")
-                        : techniqueName;
+                  techniqueName === t("tech_Alternating Inference Chain")
+                    ? t("teks_msg_140")
+                    : techniqueName.includes(aicStr)
+                      ? techniqueName.replace(aicStr, t("teks_msg_dnloop_term"))
+                      : techniqueName.includes(chainStr)
+                        ? techniqueName.replace(chainStr, t("teks_msg_dnloop_term"))
+                        : techniqueName + t("teks_msg_dnloop_suffix");
 
                 const res = buildResult(dnRemovals, DNLName, path, false);
 
@@ -7850,7 +8026,8 @@ const techniques = {
         for (const D of A.OrNodes) {
           if (D.index <= A.index) continue;
           if (deadRings.has(`${A.index}_${D.index}`)) continue;
-          if ((bivalueOnly || useAlsXZ) && A.digits[0] !== D.digits[0]) continue;
+          if ((bivalueOnly || useAlsXZ) && A.digits[0] !== D.digits[0])
+            continue;
 
           const { hasOverlap, intersection } = techniques.getBitsetIntersection(
             A.NandBitset,
@@ -7910,7 +8087,7 @@ const techniques = {
         useGrouped: false,
         useAls: false,
         maxCycle: 2,
-        nameOverride: "X-Chain",
+        nameOverride: t("tech_X-Chain"),
       },
       findAll,
     );
@@ -7926,7 +8103,7 @@ const techniques = {
         useGrouped: true,
         useAls: false,
         maxCycle: 2,
-        nameOverride: "Grouped X-Chain",
+        nameOverride: t("tech_Grouped X-Chain"),
       },
       findAll,
     );
@@ -7942,7 +8119,7 @@ const techniques = {
         useGrouped: false,
         useAls: false,
         maxCycle: 3,
-        nameOverride: "XY-Chain",
+        nameOverride: t("tech_XY-Chain"),
       },
       findAll,
     );
@@ -7973,7 +8150,7 @@ const techniques = {
         useGrouped: true,
         useAls: false,
         maxCycle: 3,
-        nameOverride: "Grouped AIC",
+        nameOverride: t("tech_Grouped AIC"),
       },
       findAll,
     );
@@ -7990,7 +8167,7 @@ const techniques = {
         useAlsXZ: true, // Triggers standard ALS-XZ routing and visual logic
         useAls: true,
         maxCycle: 1, // Restricts to exactly 2 OR-gates (4 nodes total)
-        nameOverride: "WXYZ-Wing",
+        nameOverride: t("tech_WXYZ-Wing"),
         pathFilter: (path, cache) => {
           if (path.length !== 4) return false;
 
@@ -8031,7 +8208,7 @@ const techniques = {
         useAlsXZ: true,
         useAls: true,
         maxCycle: 1,
-        nameOverride: "Almost Locked Set XZ-Rule",
+        nameOverride: t("tech_Almost Locked Set XZ-Rule"),
       },
       findAll,
     );
@@ -8047,7 +8224,7 @@ const techniques = {
         useGrouped: true,
         useAls: true,
         maxCycle: 3,
-        nameOverride: "Almost Locked Set AIC",
+        nameOverride: t("tech_Almost Locked Set AIC"),
       },
       findAll,
     );
@@ -8064,7 +8241,7 @@ const techniques = {
         useAls: true,
         useFish: true,
         maxCycle: 3,
-        nameOverride: "Complex AIC",
+        nameOverride: t("tech_Complex AIC"),
       },
       findAll,
     );
@@ -8143,9 +8320,9 @@ const techniques = {
   _collectAllALS: (board, pencils, minSize = 1, maxSize = 8) => {
     const uniqueALS = new Map();
     const unitTypes = [
-      { name: "box", label: "Box" },
-      { name: "row", label: "Row" },
-      { name: "col", label: "Col" },
+      { name: "box", label: t("teks_msg_7") },
+      { name: "row", label: t("teks_msg_14") },
+      { name: "col", label: t("teks_msg_15") },
     ];
 
     for (const { name, label } of unitTypes) {
@@ -8249,7 +8426,7 @@ const techniques = {
                 mask: currentMask,
                 size: k,
                 candMap: candMap,
-                unitName: `${label} ${i + 1}`,
+                unitName: t("teks_msg_17", label, i + 1),
                 hash: hash,
                 positions: positions,
                 candidatePositions: candidatePositions,
@@ -8394,7 +8571,7 @@ const techniques = {
               size: cells.length,
               digit: d,
               cells,
-              houseName: `r${r + 1}`,
+              houseName: t("teks_msg_153", r + 1),
             });
         }
         // Cols
@@ -8407,7 +8584,7 @@ const techniques = {
               size: cells.length,
               digit: d,
               cells,
-              houseName: `c${c + 1}`,
+              houseName: t("teks_msg_154", c + 1),
             });
         }
         // Boxes
@@ -8425,7 +8602,7 @@ const techniques = {
               size: cells.length,
               digit: d,
               cells,
-              houseName: `b${b + 1}`,
+              houseName: t("teks_msg_155", b + 1),
             });
         }
       }
@@ -8565,7 +8742,8 @@ const techniques = {
             const als = alsLinkRegistry.get(n)?.get(o);
 
             if (als) {
-              const preferBox = als.unitName && als.unitName.startsWith("Box");
+              const preferBox =
+                als.unitName && als.unitName.startsWith(t("teks_msg_7"));
               const alsLoc = getLoc(
                 als.cells.map((ac) => ac[0] * 9 + ac[1]),
                 preferBox,
@@ -8579,11 +8757,11 @@ const techniques = {
         });
 
         const blossomName = isRegion
-          ? "Region Death Blossom"
-          : "Cell Death Blossom";
+          ? t("tech_Region Death Blossom")
+          : t("tech_Cell Death Blossom");
         const mainInfoStr = isRegion
-          ? `Stem (${stem.digit}) in ${stem.houseName}`
-          : `Stem at r${stem.r + 1}c${stem.c + 1}`;
+          ? t("teks_msg_157", stem.digit, stem.houseName)
+          : t("teks_msg_158", stem.r + 1, stem.c + 1);
 
         const resultObj = {
           change: true,
@@ -9086,9 +9264,9 @@ const techniques = {
 
                         const isFinned = !isZero(allFinsMask);
                         let fishName = isMutant
-                          ? "Mutant Swordfish"
-                          : "Franken Swordfish";
-                        if (isFinned) fishName = "Finned " + fishName;
+                          ? t("teks_msg_159")
+                          : t("teks_msg_160");
+                        if (isFinned) fishName = t("teks_msg_161") + fishName;
 
                         // Formatting strings
                         const formatUnits = (units) => {
@@ -9120,9 +9298,17 @@ const techniques = {
 
                         const baseStr = formatUnits([buA, buB, buC]);
                         const coverStr = formatUnits([cuA, cuB, cuC]);
-                        let detailStr = `Digit (${num}), Base ${baseStr}, Cover ${coverStr}`;
+                        let detailStr = t(
+                          "teks_msg_162",
+                          num,
+                          baseStr,
+                          coverStr,
+                        );
                         if (isFinned)
-                          detailStr += `, Fin ${formatFins(allFinsMask)}`;
+                          detailStr += t(
+                            "teks_msg_163",
+                            formatFins(allFinsMask),
+                          );
 
                         // Scope extraction for visuals
                         const _buA = buA,
@@ -9141,7 +9327,7 @@ const techniques = {
                           cells: _elims,
                           hint: {
                             name: fishName,
-                            mainInfo: `Digit (${_num})`,
+                            mainInfo: t("teks_msg_164", _num),
                             detail: detailStr,
                           },
                           applyVisuals: () => {
