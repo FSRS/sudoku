@@ -1,0 +1,1215 @@
+/*
+================================================================================
+|   SUDOKU CUSTOM STYLESHEET                                                   |
+|   -------------------------------------------------------------------------- |
+|   Refactored for clarity and maintainability.                                |
+|   Structure:                                                                 |
+|   1. GLOBAL & BASE STYLES                                                    |
+|   2. LAYOUT                                                                  |
+|   3. COMPONENTS                                                              |
+|   4. ANIMATIONS                                                              |
+|   5. DARK MODE OVERRIDES                                                     |
+|   6. RESPONSIVE STYLES                                                       |
+================================================================================
+*/
+
+:root {
+  --font-sans:
+    "Pretendard JP Variable", "Pretendard JP", Pretendard, "Fira Code",
+    monospace;
+  --font-mono:
+    "Pretendard JP Variable", "Pretendard JP", Pretendard, "Fira Code",
+    monospace;
+  --nc-bg-1: #e6e6fa;
+  --nc-tx-1: #4b0082;
+  --nc-accent-color: #8a2be2;
+  --nc-accent-hover-color: #9d48ff;
+  --nc-header-bg: #f2e6ff;
+  --nc-border-color: #d8c0ff;
+  --nc-text-light: #f0e6ff;
+}
+
+/*
+================================================================================
+|   1. GLOBAL & BASE STYLES                                                    |
+================================================================================
+*/
+body {
+  background-color: var(--nc-bg-1);
+  color: var(--nc-tx-1);
+}
+
+/* Override Tailwind classes for main container & text */
+.bg-white {
+  background-color: var(--nc-header-bg) !important;
+}
+
+/* Forms */
+select,
+input[type="text"] {
+  background-color: var(--nc-header-bg);
+  border-color: var(--nc-border-color);
+  color: var(--nc-tx-1);
+}
+
+/* Disabled Buttons */
+button:disabled {
+  background-color: var(--nc-border-color) !important;
+  color: var(--nc-tx-1) !important;
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: transparent !important;
+}
+button:disabled:hover {
+  background-color: var(--nc-border-color) !important;
+}
+
+/* --- Component: Year Sticker --- */
+/* --- Animation: Wiggle --- */
+@keyframes sticker-wiggle {
+  0% {
+    transform: rotate(-12deg) scale(1);
+  }
+  25% {
+    transform: rotate(-20deg) scale(1.1);
+  }
+  50% {
+    transform: rotate(-5deg) scale(1.1);
+  }
+  75% {
+    transform: rotate(-15deg) scale(1.1);
+  }
+  100% {
+    transform: rotate(-12deg) scale(1);
+  }
+}
+
+#year-sticker {
+  font-family: "Fira Code", monospace;
+  display: inline-block;
+  position: relative;
+
+  vertical-align: middle;
+
+  font-size: 0.6em;
+  font-weight: bold;
+
+  transform: rotate(-12deg) translateY(-2px);
+  margin-left: -0.4rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 2px;
+
+  /* smooth slide animation */
+  max-width: 100px;
+  overflow: hidden;
+
+  transition:
+    max-width 0.8s ease,
+    max-height 0.8s ease,
+    margin-left 0.8s ease,
+    padding 0.8s ease,
+    border-width 0.8s ease,
+    color 0.8s ease;
+
+  cursor: help;
+  user-select: none;
+
+  background-color: #fdf2f8;
+  color: #9d174d;
+  border: 1px dashed #f472b6;
+  box-shadow: 2px 3px 0px rgba(157, 23, 77, 0.15);
+}
+
+/* --- Tape Effect --- */
+#year-sticker::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 62%;
+  transform: translateX(-50%) rotate(-5deg);
+  width: 1rem;
+  height: 2rem;
+  background-color: rgba(255, 255, 255, 0.4);
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+#year-sticker:hover {
+  animation: sticker-wiggle 0.4s ease-in-out;
+}
+
+/* --- Animation: Sticker Fall --- */
+@keyframes sticker-drop-anim {
+  0% {
+    transform: rotate(-12deg) translateY(-2px);
+    opacity: 1;
+  }
+  20% {
+    /* The "snap" moment - it peels away slightly */
+    transform: rotate(5deg) translateY(10px) scale(1.1);
+  }
+  100% {
+    /* The drop - falls way off screen and fades out */
+    transform: rotate(45deg) translateY(120vh);
+    opacity: 0;
+  }
+}
+
+/* The falling animation class (Make sure you updated the ID selector as discussed before) */
+#year-sticker.sticker-falling {
+  animation: sticker-drop-anim 1.5s ease-in forwards;
+  pointer-events: none;
+  cursor: default;
+  z-index: 100;
+}
+
+#year-sticker.sticker-collapsed {
+  max-width: 0;
+  max-height: 0;
+  margin-left: 0;
+  padding: 0;
+  border-width: 0;
+  color: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+/*
+================================================================================
+|   2. LAYOUT                                                                  |
+================================================================================
+*/
+
+/* Message Area for displaying information to the user */
+#message-area {
+  min-height: 3rem;
+  max-height: 6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow-y: auto;
+}
+
+/* --- Responsive Horizontal Layout --- */
+.max-w-5xl {
+  /* Req 4: Reduced max-width to shrink overall scale for 16:9 screens */
+  max-width: 64rem;
+}
+
+.layout-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.left-col {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+@media (min-width: 550px) {
+  .left-col {
+    max-width: 38rem; /* Restricts the grid, adding natural horizontal padding */
+  }
+}
+
+.right-col {
+  flex: 1;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.numpad-grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+/* --- Fix for Numpad Visibility in Solver Mode --- */
+.numpad-grid.hidden {
+  display: none !important;
+}
+
+#theme-toggle,
+#share-btn,
+#pref-btn {
+  top: 0.75rem !important;
+  opacity: 0.65 !important;
+}
+
+#share-btn,
+#pref-btn {
+  filter: brightness(0.5) saturate(0.6);
+}
+
+#theme-toggle:hover,
+#share-btn:hover,
+#pref-btn:hover {
+  opacity: 1 !important;
+}
+
+#theme-toggle {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  right: auto;
+}
+
+#share-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  left: auto;
+}
+
+/* Add the new button positioning */
+#pref-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 2.75rem; /* Placed directly to the left of the share button */
+  left: auto;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+================================================================================
+|   3. COMPONENTS                                                              |
+================================================================================
+*/
+
+/* --- Component: Custom Tooltip --- */
+.custom-tooltip {
+  position: fixed;
+  z-index: 50;
+  border-radius: 0.375rem; /* rounded-md */
+  padding: 0.5rem 0.75rem; /* px-3 py-2 */
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 600; /* font-semibold */
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.9) translateY(4px);
+  transition:
+    opacity 150ms ease-in-out,
+    transform 150ms ease-in-out;
+
+  /* Light mode styles */
+  background-color: #e5e7eb;
+  border: 1px solid #4b5563;
+  color: var(--nc-tx-1);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.custom-tooltip.visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* --- Component: Difficulty Lamp --- */
+#difficulty-lamp {
+  width: 0.75rem; /* 12px */
+  height: 2rem; /* 32px */
+  border-radius: 0.25rem; /* 4px */
+  border: 2px solid var(--nc-tx-1);
+  transition: background-color 0.3s ease;
+  flex-shrink: 0; /* Prevents the lamp from shrinking */
+}
+.lamp-white {
+  background-color: #ffffff;
+}
+.lamp-green {
+  background-color: #4ade80;
+}
+.lamp-yellow {
+  background-color: #facc15;
+}
+.lamp-orange {
+  background-color: #fb923c;
+}
+.lamp-red {
+  background-color: #f87171;
+}
+.lamp-violet {
+  background-color: #8b5cf6; /* violet-500 */
+}
+.lamp-gray {
+  background-color: #9ca3af;
+}
+.lamp-black {
+  background-color: #111827;
+}
+.lamp-magenta {
+  background-color: #d946ef; /* Switched to fuchsia-500 */
+}
+/* --- Component: Sudoku Grid & Cells --- */
+.sudoku-cell {
+  width: 11.11%;
+  padding-bottom: 11.11%;
+  position: relative;
+  border: 1px solid var(--nc-border-color);
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.sudoku-cell .cell-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+}
+
+.sudoku-cell .user-value {
+  color: var(--color-indigo-600);
+  font-weight: 450;
+  font-size: clamp(1.1rem, 7cqi, 2.2rem);
+}
+
+.sudoku-cell .given-value {
+  color: var(--nc-tx-1);
+  font-weight: 600;
+  font-size: clamp(1.1rem, 7cqi, 2.2rem);
+}
+
+.sudoku-cell.invalid .user-value {
+  background-color: #fecaca;
+}
+
+/* -- Cell States -- */
+.sudoku-cell.selected {
+  outline: 3px solid var(--color-indigo-500);
+  outline-offset: -3px;
+  z-index: auto !important;
+}
+
+@media (prefers-color-scheme: light) {
+  .sudoku-cell.selected {
+    outline: 3px solid var(--color-indigo-600);
+    outline-offset: -3px;
+    z-index: auto !important;
+  }
+}
+
+.sudoku-cell.selected-green {
+  outline: 3px solid #c084fc;
+  outline-offset: -3px;
+  z-index: auto !important;
+}
+
+/* -- Highlighting Behavior -- */
+/* Default highlight for cells without a custom color */
+.sudoku-cell.highlighted:not(.has-color) {
+  background-color: #f6cefc;
+}
+
+/* For cells that have a custom color, use an inset shadow to avoid overwriting the color */
+.sudoku-cell.highlighted.has-color {
+  box-shadow: inset 0 0 0 3px rgba(250, 204, 21, 0.18);
+}
+
+/* Add a glow effect to colored cells when highlighted */
+.sudoku-cell.highlighted.has-color::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 3px solid rgba(250, 204, 21, 0.6); /* yellow glow */
+  pointer-events: none; /* don't block clicks */
+}
+
+/* -- 3x3 Box Borders -- */
+.sudoku-grid .grid-row .sudoku-cell:nth-child(3),
+.sudoku-grid .grid-row .sudoku-cell:nth-child(6) {
+  border-right: 3px solid var(--nc-tx-1);
+}
+
+.sudoku-grid .grid-row:nth-child(3),
+.sudoku-grid .grid-row:nth-child(6) {
+  border-bottom: 3px solid var(--nc-tx-1);
+}
+
+/* --- Component: Pencil Marks --- */
+.pencil-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr); /* NEW: Fixes vertical grid slots */
+  width: 100%;
+  height: 100%;
+  font-size: clamp(11px, 2.5vw, 0.95rem);
+  text-align: center;
+  line-height: 1;
+}
+
+.pencil-mark {
+  display: flex; /* NEW */
+  align-items: center; /* NEW: Vertically center */
+  justify-content: center; /* NEW: Horizontally center */
+  font-weight: bold;
+  overflow: hidden; /* NEW: Clips content if it accidentally overflows */
+  color: var(--color-gray-700);
+  opacity: 0.75;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease;
+  font-size: clamp(0.8rem, 3.2cqi, 1.2rem);
+}
+
+.pencil-mark[style*="color"] {
+  opacity: 1;
+}
+
+/* --- Component: Controls & Buttons --- */
+.control-btn.active {
+  background-color: var(--color-indigo-600) !important;
+  color: white;
+  border-color: var(--nc-accent-color);
+}
+
+@media (prefers-color-scheme: light) {
+  .control-btn.active {
+    background-color: var(--color-indigo-500) !important;
+  }
+}
+
+.control-btn.active-green {
+  background-color: #c084fc !important;
+  color: white;
+  border-color: #c084fc;
+}
+.color-btn.selected {
+  outline: 3px solid var(--nc-accent-color);
+  outline-offset: 2px;
+}
+
+.control-btn:not(.active):not(.active-green):hover,
+#undo-btn:hover,
+#redo-btn:hover,
+#clear-btn:hover,
+#clear-colors-btn:hover {
+  background-color: var(--nc-border-color) !important;
+}
+
+/* --- Component: Puzzle Completion Buttons --- */
+.puzzle-action-button {
+  /* Spacing */
+  padding: 0.25rem 0.75rem; /* px-3 py-1 */
+  margin-left: 0.5rem; /* Adds a little space next to the text */
+
+  /* Appearance */
+  -webkit-appearance: none; /* NEW: Fixes rounded corners on iOS/Mobile Safari */
+  appearance: none; /* NEW: Standard reset for other mobile browsers */
+
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--nc-text-light); /* Light text for contrast */
+  background-color: var(--nc-accent-color);
+  border: 1px solid transparent;
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px -1px rgba(0, 0, 0, 0.1);
+
+  /* Interactivity */
+  transition: all 150ms ease-in-out;
+  cursor: pointer;
+}
+
+.puzzle-action-button:hover {
+  background-color: var(--nc-accent-hover-color);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* -- Number Pad -- */
+#number-pad button {
+  background-color: transparent;
+  border-color: var(--nc-border-color);
+  color: var(--nc-tx-1);
+}
+
+#number-pad button:hover {
+  background-color: var(--nc-border-color);
+}
+
+/* --- Component: Modals --- */
+#candidate-modal,
+#date-modal {
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 50;
+}
+
+#resume-modal,
+#hint-confirm-modal,
+#solver-confirm-modal,
+#solver-first-time-modal,
+#copy-modal,
+#format-confirm-modal,
+#share-modal,
+#reset-confirm-modal,
+#preferences-modal,
+#autopencil-confirm-modal {
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 100; /* Beats pencil marks (z-index: 30) */
+}
+
+/* Add padding and rounded corners to modal action buttons */
+#reset-confirm-btn,
+#reset-cancel-btn,
+#pref-save-btn,
+#pref-cancel-btn,
+#pref-default-btn {
+  border-radius: var(--radius-md); /* Rounds the edges */
+  padding: 0.375rem 1.25rem; /* Adds vertical and horizontal spacing */
+  transition: all 0.15s ease-in-out; /* Smooth hover effect */
+}
+
+#hint-confirm-modal {
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 100; /* Increased to 100 to match the HTML intent and beat pencil marks (30) */
+}
+#candidate-modal > div,
+#date-modal > div {
+  background-color: var(--nc-header-bg);
+  border: 1px solid var(--nc-border-color);
+}
+
+/* Constrain the Preferences Modal height */
+#preferences-modal > div {
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Force the list container to shrink and scroll */
+#technique-list-container {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  padding-right: 0.5rem;
+}
+
+/* Make the score input boxes more round */
+.tech-score-input {
+  border-radius: var(--radius-md) !important;
+}
+
+#candidate-grid button:not(:disabled):hover {
+  background-color: var(--nc-border-color) !important;
+}
+
+#date-cancel-btn,
+#close-modal-btn {
+  background-color: transparent;
+  border: 1px solid var(--nc-border-color);
+  color: var(--nc-tx-1);
+}
+#date-cancel-btn:hover,
+#close-modal-btn:hover {
+  background-color: var(--nc-border-color);
+}
+
+/* Drawing Layer */
+#drawing-layer {
+  z-index: 10;
+}
+
+/* Pencil Marks: Elevate above the drawing layer to ensure readability */
+.pencil-mark {
+  position: relative;
+  z-index: 30;
+  /* ensure pointer events still work for clicking */
+  pointer-events: auto;
+}
+
+/* Base Line Style */
+.draw-line {
+  opacity: 0.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: d 0.1s ease; /* Smooth movement for preview */
+}
+
+.draw-endpoint {
+  opacity: 0.2;
+}
+
+/* Line Styles */
+.draw-line.solid {
+  stroke-width: 8px; /* Thick */
+}
+
+.draw-line.dash {
+  stroke-width: 4px; /* Thin */
+  stroke-dasharray: 6, 6;
+}
+
+/* Ensure the grid container is relative so absolute SVG works */
+.sudoku-grid {
+  position: relative;
+  container-type: inline-size;
+}
+
+.solver-active-textarea {
+  height: 56px !important;
+  min-height: 48px !important;
+  max-height: 56px !important;
+  overflow-y: hidden !important;
+  white-space: nowrap !important;
+}
+
+/*
+================================================================================
+|   4. ANIMATIONS                                                              |
+================================================================================
+*/
+@keyframes cell-solve-animation {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* Staggered animation when the puzzle is solved */
+.is-solved .sudoku-cell {
+  background-color: var(--nc-border-color);
+  animation: cell-solve-animation 1s ease-in-out;
+  animation-delay: calc((var(--row) * 9 + var(--col)) * 20ms);
+}
+
+/*
+================================================================================
+|   5. DARK MODE OVERRIDES                                                     |
+================================================================================
+*/
+html.dark {
+  /*
+  ------------------------------------------------------------------------------
+  |   Part A: Custom Violet Theme Variable Definitions                         |
+  |   ------------------------------------------------------------------------ |
+  |   These variables provide the specific colors for your custom violet       |
+  |   theme when dark mode is active.                                          |
+  ------------------------------------------------------------------------------
+  */
+  & {
+    --nc-bg-1: #1e003a;
+    --nc-tx-1: #d8bfd8;
+    --nc-header-bg: #272041;
+    --nc-border-color: #3b3a5b;
+  }
+
+  /* Dark Mode Overrides */
+
+  #year-sticker {
+    background-color: #831843;
+    color: #fce7f3;
+    border: 1px dashed #be185d;
+    box-shadow: 2px 3px 0px rgba(0, 0, 0, 0.4);
+  }
+  #year-sticker::before {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+
+  /*
+  ------------------------------------------------------------------------------
+  |   Part B: Generic Gray Theme & Base Style Overrides                        |
+  |   ------------------------------------------------------------------------ |
+  |   This section contains styles for a complete, gray-based theme.           |
+  |   NOTE: Because these rules are inside the dark-mode media query, they     |
+  |   are more specific than the global styles that use the variables from     |
+  |   Part A. This means they will override the custom violet theme,           |
+  |   resulting in a gray appearance for the page background, text, cell       |
+  |   colors, etc.                                                             |
+  ------------------------------------------------------------------------------
+  */
+
+  /* --- Component: Custom Tooltip --- */
+  .custom-tooltip {
+    background-color: #374151;
+    border-color: #4b5563;
+  }
+  /* --- Base Page & Text Colors (Gray Theme) --- */
+  .text-gray-800 {
+    color: #f9fafb !important;
+  }
+  .text-gray-700 {
+    color: #f3f4f6 !important;
+  }
+  .text-gray-600 {
+    color: #e5e7eb !important;
+  }
+  .text-gray-500 {
+    color: #d1d5db !important;
+  }
+  .border-green-300 {
+    border-color: #86efac;
+  }
+  .border-gray-300 {
+    border-color: #4b5563 !important; /* gray-600 */
+  }
+  .border-gray-700 {
+    border-color: #374151 !important; /* gray-700 */
+  }
+
+  /* --- Expt button --- */
+  .bg-green-100 {
+    background-color: #064e3b; /* green-950 */
+  }
+
+  /* Use light green text for contrast against the dark background */
+  .text-green-600 {
+    color: var(--color-green-400);
+  }
+
+  /* Bright text for the Expt ON state */
+  .text-green-800 {
+    color: #4ade80 !important; /* bright green-400 */
+  }
+
+  /* Darken the border so it's not a glowing neon line */
+  .border-green-300 {
+    border-color: #14532d; /* green-900 */
+  }
+
+  .text-blue-500 {
+    color: var(--color-blue-300);
+  }
+
+  /* Subtle hover effect */
+  .hover\:bg-green-200:hover {
+    background-color: #14532d; /* green-900 */
+  }
+
+  /* --- Difficulty Lamp (Dark Mode) --- */
+  #difficulty-lamp {
+    border-color: var(--nc-tx-1);
+  }
+  .lamp-white {
+    background-color: #e5e7eb;
+  } /* gray-200 */
+  .lamp-green {
+    background-color: #22c55e;
+  } /* green-500 */
+  .lamp-yellow {
+    background-color: #eab308;
+  } /* yellow-500 */
+  .lamp-orange {
+    background-color: #f97316;
+  } /* orange-500 */
+  .lamp-red {
+    background-color: #ef4444;
+  } /* red-500 */
+  .lamp-violet {
+    background-color: #a78bfa; /* violet-400, matches pattern of other dark mode colors */
+  }
+  .lamp-gray {
+    background-color: #6b7280;
+  } /* gray-500 */
+  .lamp-magenta {
+    background-color: #c026d3; /* A stronger fuchsia-600 for dark mode */
+  }
+
+  /* --- Sudoku Grid (Gray Theme) --- */
+  .sudoku-cell {
+    border-color: #4b5563 !important; /* gray-600 */
+    /* background-color: #1f2937; gray-800 */
+    position: relative;
+  }
+
+  /* FIX: This new rule ensures the vertical 3x3 box borders use the theme color. */
+  .sudoku-grid .grid-row .sudoku-cell:nth-child(3),
+  .sudoku-grid .grid-row .sudoku-cell:nth-child(6) {
+    border-right-color: var(--nc-tx-1) !important;
+  }
+  .sudoku-cell .given-value {
+    color: var(--color-gray-200) !important;
+  }
+  .sudoku-cell .user-value {
+    color: var(--color-blue-300) !important;
+  }
+
+  .pencil-mark {
+    color: var(--color-gray-300);
+  }
+
+  /* Apply hover effect for inactive control buttons in dark mode */
+  #mode-toggle-btn:not(.active):not(.active-green):hover,
+  [data-mode="color"]:not(.active):not(.active-green):hover,
+  #format-toggle-btn:not(.active):hover,
+  #expt-mode-btn:not(.active-green):hover,
+  #vague-hint-btn:hover {
+    background-color: #4b5563 !important; /* gray-600 */
+  }
+
+  /* --- Modals & Info (Gray Theme) --- */
+  #date-modal > div,
+  #candidate-modal > div {
+    background-color: #1f2937 !important; /* gray-800 */
+    color: #f3f4f6 !important; /* gray-100 */
+    border: 1px solid #4b5563; /* gray-600 */
+  }
+  #resume-modal > div,
+  #copy-modal > div,
+  #format-confirm-modal > div,
+  #share-modal > div,
+  #reset-confirm-modal > div,
+  #preferences-modal > div,
+  #autopencil-confirm-modal > div {
+    background-color: #1f2937 !important; /* gray-800 */
+    color: #f3f4f6 !important; /* gray-100 */
+    border: 1px solid #4b5563; /* gray-600 */
+  }
+
+  #resume-modal h3 {
+    color: #f3f4f6 !important; /* gray-100 */
+  }
+
+  #resume-modal p,
+  #resume-modal span {
+    color: #d1d5db !important; /* gray-300 */
+  }
+
+  /* Resume Button (Blue) */
+  #resume-btn {
+    background-color: #2563eb !important; /* blue-600 */
+    color: #ffffff !important;
+  }
+  #resume-btn:hover {
+    background-color: #3b82f6 !important; /* blue-500 */
+  }
+
+  /* New Game Button (Gray) */
+  #new-game-btn {
+    background-color: #374151 !important; /* gray-700 */
+    color: #e5e7eb !important; /* gray-200 */
+  }
+  #new-game-btn:hover {
+    background-color: #4b5563 !important; /* gray-600 */
+  }
+
+  #puzzle-info {
+    color: #b6bcc5;
+  }
+
+  #copy-btn {
+    background-color: #6366f1 !important; /* Bright Indigo-500 */
+    color: #ffffff !important;
+    border: 1px solid #818cf8 !important; /* Lighter Indigo-400 border to make it pop */
+  }
+
+  #copy-btn:hover {
+    background-color: #818cf8 !important; /* Indigo-400 on hover */
+  }
+
+  #copy-image-btn {
+    background-color: #a855f7 !important; /* Lighter purple for dark mode */
+    border: 1px solid #c084fc !important;
+  }
+
+  #copy-image-btn:hover {
+    background-color: #c084fc !important;
+  }
+
+  #share-btn,
+  #pref-btn {
+    filter: brightness(1.2) saturate(0.8);
+  }
+
+  #autopencil-confirm-btn {
+    background-color: #4f46e5 !important; /* Indigo-600 */
+  }
+  #autopencil-confirm-btn:hover {
+    background-color: #4338ca !important; /* Indigo-700 */
+  }
+
+  #autopencil-cancel-btn {
+    background-color: #374151 !important; /* Gray-700 */
+    color: #f3f4f6 !important; /* Gray-100 */
+  }
+  #autopencil-cancel-btn:hover {
+    background-color: #4b5563 !important; /* Gray-600 */
+  }
+
+  /*
+  ------------------------------------------------------------------------------
+  |   Part C: Specific Component Adjustments for Dark Mode                     |
+  |   ------------------------------------------------------------------------ |
+  |   These rules are finer-grained adjustments for specific elements like     |
+  |   buttons, highlights, and states.                                         |
+  ------------------------------------------------------------------------------
+  */
+
+  /* --- Sudoku Cell States & Highlights --- */
+  .sudoku-cell.selected {
+    outline-color: #3b82f6; /* blue-500 */
+  }
+  .sudoku-cell.selected-green {
+    outline-color: #c084fc; /* violet-400 */
+  }
+  .sudoku-cell.invalid .user-value {
+    background-color: #7f1d1d !important; /* darker red */
+    color: #fecaca; /* keep some contrast */
+  }
+  .is-solved .sudoku-cell {
+    background-color: #064e3b !important; /* A dark, muted green */
+  }
+  .sudoku-cell.highlighted.has-color {
+    box-shadow: inset 0 0 0 3px rgba(250, 204, 21, 0.12);
+  }
+  .sudoku-cell.highlighted:not(.has-color) {
+    background-color: #374151; /* gray-700 */
+  }
+  .sudoku-cell.highlighted.has-color::after {
+    border: 3px solid rgba(250, 204, 21, 0.1); /* softer glow */
+  }
+
+  .draw-line,
+  .draw-endpoint {
+    opacity: 0.65;
+  }
+
+  /* --- Specific Buttons & Controls --- */
+  #auto-pencil-btn {
+    background-color: var(--color-indigo-700);
+  }
+  #auto-pencil-btn:hover {
+    background-color: #3730a3;
+  }
+  #solve-btn {
+    background-color: var(--color-green-700);
+  }
+  #solve-btn:hover {
+    background-color: #166534;
+  }
+  #solver-link-container a {
+    background-color: var(--color-orange-700);
+  }
+  #solver-link-container a:hover {
+    background-color: #7c2d12;
+  }
+  #number-pad button[data-number] {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+  }
+  #number-pad button[data-number]:hover {
+    background-color: #4b5563;
+  }
+  #undo-btn:hover,
+  #redo-btn:hover,
+  #clear-btn:hover,
+  #clear-colors-btn:hover {
+    background-color: #4b5563 !important;
+  }
+  .color-btn.selected {
+    outline: 3px solid var(--color-blue-300) !important;
+    outline-offset: 2px;
+  }
+  #date-cancel-btn,
+  #close-modal-btn,
+  #hint-cancel-btn,
+  #solver-cancel-btn,
+  #solver-first-time-cancel-btn,
+  #copy-cancel-btn,
+  #format-cancel-btn,
+  #share-cancel-btn,
+  #reset-cancel-btn,
+  #completion-cancel-btn,
+  #share-back-btn,
+  #pref-cancel-btn {
+    background-color: #4b5563;
+    color: #e5e7eb;
+  }
+
+  #date-cancel-btn:hover,
+  #close-modal-btn:hover,
+  #hint-cancel-btn:hover,
+  #solver-cancel-btn:hover,
+  #solver-first-time-cancel-btn:hover,
+  #copy-cancel-btn:hover,
+  #format-cancel-btn:hover,
+  #share-cancel-btn:hover,
+  #reset-cancel-btn:hover,
+  #completion-cancel-btn:hover,
+  #share-back-btn:hover,
+  #pref-cancel-btn:hover {
+    background-color: #374151;
+  }
+  /* --- Forms & Misc UI --- */
+  select {
+    background-color: #374151;
+    color: #f3f4f6;
+    border-color: #4b5563;
+  }
+  .text-red-600 {
+    color: #f87171 !important;
+  }
+  .shortcut-highlight {
+    color: var(--color-orange-400);
+  }
+  .text-orange-500 {
+    color: var(--color-orange-400) !important;
+  }
+
+  #solver-prev-btn:hover,
+  #solver-next-btn:hover,
+  #solver-view-all-btn:hover,
+  #solver-back-from-all-btn:hover {
+    background-color: #374151 !important; /* gray-700 */
+  }
+
+  #solver-summary-list > div:hover {
+    background-color: #374151 !important; /* gray-700 */
+  }
+}
+
+/*
+================================================================================
+|   6. RESPONSIVE STYLES                                                       |
+================================================================================
+*/
+@media (max-width: 550px) {
+  /* Adjust main padding for small screens */
+  body.p-4 {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+  .bg-white.p-4 {
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+
+  /* Stack puzzle selectors vertically on small screens */
+  #puzzle-selectors {
+    flex-direction: column; /* Stack the selectors vertically */
+    align-items: stretch; /* Make each item take the full width */
+    gap: 0.5rem; /* Reduce the gap between them */
+  }
+
+  #puzzle-selectors > div {
+    /* This makes the label and select box in each row spread apart nicely */
+    justify-content: space-between;
+  }
+
+  /* Hide shortcut key hints on small screens to save space */
+  .shortcut-indicator {
+    display: none;
+  }
+
+  /* Reduce pencil mark font size to fit smaller cells */
+  .pencil-grid {
+    font-size: clamp(11px, 3.5vw, 15px) !important;
+    line-height: 0.9 !important;
+  }
+
+  .pencil-mark {
+    /* Adjust these clamp values if you want them larger/smaller */
+    /* clamp(MIN, PREFERRED, MAX) */
+    font-size: clamp(10px, 3.6vw, 17px) !important;
+  }
+}
+
+@media (max-width: 879px) {
+  #solver-summary-list {
+    max-height: 7.8rem !important;
+  }
+}
+
+@media (min-width: 880px) {
+  .layout-wrapper {
+    flex-direction: row;
+    gap: 2rem;
+    align-items: flex-start;
+  }
+
+  .left-col {
+    max-width: 42rem;
+  }
+
+  .right-col {
+    max-width: 22rem;
+    margin-top: 3.5rem;
+  }
+
+  .numpad-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #solver-summary-list {
+    max-height: clamp(10rem, calc(80vw - 30rem), 25.6rem) !important;
+  }
+
+  #puzzle-string {
+    min-height: 48px !important;
+    max-height: clamp(48px, 70vw - 560px, 216px) !important;
+    overflow-y: auto !important; /* Enable vertical scroll if max is reached */
+
+    white-space: pre !important;
+    overflow-wrap: normal !important;
+    word-wrap: normal !important;
+    word-break: keep-all !important;
+
+    font-variant-ligatures: none !important;
+    font-feature-settings:
+      "liga" 0,
+      "clig" 0 !important; /* Fallback for older browsers */
+  }
+}
+
+/* --- Preferences Modal Drag & Drop --- */
+.sortable-item {
+  transition: background-color 0.15s ease;
+  border-radius: var(--radius-md) !important;
+}
+.sortable-item.dragging {
+  opacity: 0.6;
+  background-color: #f3f4f6; /* Gray-100 */
+  box-shadow: inset 0 0 0 2px var(--color-blue-500);
+}
+html.dark .sortable-item.dragging {
+  background-color: #374151; /* Gray-700 */
+}
+.sortable-level-header {
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-gray-500);
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--nc-border-color);
+}
+.drag-handle {
+  cursor: grab;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+#sudoku-title-text,
+#sudoku-title-calligraphy-text,
+#puzzle-string,
+.score-string {
+  font-family: "Fira Code", monospace;
+}

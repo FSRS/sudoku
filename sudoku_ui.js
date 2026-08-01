@@ -107,7 +107,7 @@ async function updateVatSearchingButton(button, techniqueName, runId) {
     return false;
   }
 
-  button.textContent = `Searching ${techniqueName}...`;
+  button.textContent = t("ui_msg_1", techniqueName);
 
   // Ensure the text is visible before tech.func() blocks the main thread.
   await waitForBrowserPaint();
@@ -134,21 +134,20 @@ function updateSolverToggleButton() {
   const isMobile = window.innerWidth <= 550;
 
   if (isViewAllTechniquesMode && vatSelectedHint) {
-    btn.textContent = isMobile ? "Apply & Eval" : "Apply & Re-evaluate (A)";
+    btn.textContent = isMobile ? t("ui_msg_2") : t("ui_msg_3");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors";
-    btn.dataset.tooltip =
-      "Apply selected technique and re-evaluate from this step";
+    btn.dataset.tooltip = t("ui_msg_145");
   } else if (isSolverMode) {
-    btn.textContent = isMobile ? "Exit Solver Mode" : "Exit Solver Mode (S)";
+    btn.textContent = isMobile ? t("ui_msg_4") : t("ui_msg_5");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
-    btn.dataset.tooltip = "Exit solver and return to playing mode";
+    btn.dataset.tooltip = t("ui_msg_6");
   } else {
-    btn.textContent = isMobile ? "Solver Mode" : "Enter Solver Mode (S)";
+    btn.textContent = isMobile ? t("ui_msg_7") : t("ui_msg_8");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
-    btn.dataset.tooltip = "Enter solver mode to analyze the board";
+    btn.dataset.tooltip = t("ui_msg_9");
   }
 }
 
@@ -332,27 +331,28 @@ function updateButtonLabels() {
   }
 
   if (currentMode === "pencil") {
-    modeToggleButton.textContent = isMobile ? "Pen." : "Pen. (Z)";
-    modeToggleButton.dataset.tooltip =
-      "Pencil Mode: Click a cell, then a digit to toggle a candidate. (Z to switch)";
+    modeToggleButton.textContent = isMobile ? t("ui_msg_10") : t("ui_msg_11");
+    modeToggleButton.dataset.tooltip = t("ui_msg_12");
   } else {
-    modeToggleButton.textContent = isMobile ? "Num." : "Num. (Z)";
+    modeToggleButton.textContent = isMobile ? t("ui_msg_13") : t("ui_msg_14");
     if (currentMode === "concrete") {
-      modeToggleButton.dataset.tooltip =
-        "Number Mode: Click a cell, then a digit to set its value. (Z to switch)";
+      modeToggleButton.dataset.tooltip = t("ui_msg_15");
     } else {
-      modeToggleButton.dataset.tooltip = "Switch to Number/Pencil mode (Z)";
+      modeToggleButton.dataset.tooltip = t("ui_msg_16");
     }
   }
 
   if (currentMode === "draw") {
-    const label = drawSubMode === "solid" ? "Draw: Solid" : "Draw: Dash";
+    const label = drawSubMode === "solid" ? t("ui_msg_17") : t("ui_msg_18");
     drawButton.textContent = isMobile
       ? drawSubMode === "solid"
-        ? "Solid"
-        : "Dash"
+        ? t("ui_msg_19")
+        : t("ui_msg_20")
       : label;
-    drawButton.dataset.tooltip = `Draw Mode (${drawSubMode}): Click two candidates to connect. (X to toggle style)`;
+    drawButton.dataset.tooltip = t(
+      "ui_msg_21",
+      t(drawSubMode === "solid" ? "ui_msg_19" : "ui_msg_20"),
+    );
 
     drawButton.classList.remove("active", "active-green");
     if (drawSubMode === "dash") {
@@ -361,24 +361,22 @@ function updateButtonLabels() {
       drawButton.classList.add("active");
     }
   } else {
-    drawButton.textContent = isMobile ? "Draw" : "Draw (X)";
-    drawButton.dataset.tooltip = "Switch to Draw mode (X)";
+    drawButton.textContent = isMobile ? t("ui_msg_22") : t("ui_msg_23");
+    drawButton.dataset.tooltip = t("ui_msg_24");
     drawButton.classList.remove("active", "active-green");
   }
 
   if (currentMode === "color") {
     if (coloringSubMode === "cell") {
-      colorButton.textContent = isMobile ? "Cell" : "Color: Cell";
-      colorButton.dataset.tooltip =
-        "Color Cell Mode: Pick a color, then click a cell to paint it. (C to switch)";
+      colorButton.textContent = isMobile ? t("ui_msg_25") : t("ui_msg_26");
+      colorButton.dataset.tooltip = t("ui_msg_27");
     } else {
-      colorButton.textContent = isMobile ? "Cand." : "Color: Cand.";
-      colorButton.dataset.tooltip =
-        "Color Candidate Mode: Pick a color, then click a candidate to paint it. (C to switch)";
+      colorButton.textContent = isMobile ? t("ui_msg_28") : t("ui_msg_29");
+      colorButton.dataset.tooltip = t("ui_msg_30");
     }
   } else {
-    colorButton.textContent = isMobile ? "Color" : "Color (C)";
-    colorButton.dataset.tooltip = "Switch to Color mode (C)";
+    colorButton.textContent = isMobile ? t("ui_msg_31") : t("ui_msg_32");
+    colorButton.dataset.tooltip = t("ui_msg_33");
   }
 
   formatToggleBtn.style.display = "none";
@@ -386,7 +384,7 @@ function updateButtonLabels() {
 
   const exptShortcut = isMobile ? "" : " (E)";
   exptModeBtn.textContent =
-    (isExperimentalMode ? "Expt!" : "Expt.") + exptShortcut;
+    (isExperimentalMode ? t("ui_msg_34") : t("ui_msg_35")) + exptShortcut;
 
   updateSolverToggleButton();
 
@@ -411,9 +409,9 @@ function updateButtonLabels() {
     );
 
     if (isMobile) {
-      exptModeBtn.dataset.tooltip = "Experimental Mode Enabled!";
+      exptModeBtn.dataset.tooltip = t("ui_msg_36");
     } else {
-      exptModeBtn.dataset.tooltip = "Disable Experimental Mode (E).";
+      exptModeBtn.dataset.tooltip = t("ui_msg_37");
     }
   } else {
     // 1. Remove active class
@@ -431,21 +429,18 @@ function updateButtonLabels() {
     );
 
     if (isMobile) {
-      exptModeBtn.dataset.tooltip = "Experimental Mode Disabled.";
+      exptModeBtn.dataset.tooltip = t("ui_msg_38");
     } else {
-      exptModeBtn.dataset.tooltip =
-        "Enable Experimental Mode (E): Click candidates directly.";
+      exptModeBtn.dataset.tooltip = t("ui_msg_39");
     }
   }
   // --- UPDATED LOGIC END ---
 
   vagueHintBtn.textContent = isMobile ? "?" : "? (V)";
   if (isMobile) {
-    vagueHintBtn.dataset.tooltip =
-      "View increasingly concrete hints for the next step.";
+    vagueHintBtn.dataset.tooltip = t("ui_msg_40");
   } else {
-    vagueHintBtn.dataset.tooltip =
-      "View increasingly concrete hints for the next step (V).";
+    vagueHintBtn.dataset.tooltip = t("ui_msg_41");
   }
 
   if (!isMobile) {
@@ -467,11 +462,9 @@ function addSudokuCoachLink(puzzleString) {
 
   const btn = document.createElement("button");
   btn.id = "toggle-solver-mode-btn";
-  btn.dataset.tooltip = isMobile
-    ? "Toggle GUI Solver Mode"
-    : "Toggle GUI Solver Mode (S).";
+  btn.dataset.tooltip = isMobile ? t("ui_msg_42") : t("ui_msg_43");
 
-  btn.textContent = isMobile ? "Solver Mode" : "Enter Solver Mode (S)";
+  btn.textContent = isMobile ? t("ui_msg_7") : t("ui_msg_8");
   btn.className =
     "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600";
 
@@ -1374,35 +1367,35 @@ function updateLamp(color, { record = true, level = null } = {}) {
   // Visual-only states that must never touch timestamp logic
   if (color === "black") {
     difficultyLamp.dataset.tooltip = hasUsedAutoPencil
-      ? "Error: Incorrect progress has been made."
-      : "Auto Pencil not used; evaluation halted.";
+      ? t("ui_msg_46")
+      : t("ui_msg_47");
     return;
   }
 
   // --- Tooltip Generation Logic ---
   const baseLabels = {
-    white: "Easy",
-    green: "Medium",
-    yellow: "Hard",
-    orange: "Unfair",
-    red: "Extreme",
-    violet: "Insane",
-    magenta: "Unmeasured",
-    gray: "Invalid",
+    white: t("ui_msg_48"),
+    green: t("ui_msg_49"),
+    yellow: t("ui_msg_50"),
+    orange: t("ui_msg_51"),
+    red: t("ui_msg_52"),
+    violet: t("ui_msg_53"),
+    magenta: t("ui_msg_54"),
+    gray: t("ui_msg_55"),
   };
 
   const defaultRanges = {
-    white: "Level 0",
-    green: "Level 1 - 2",
-    yellow: "Level 3 - 5",
-    orange: "Level 6",
-    red: "Level 7 - 8",
-    violet: "Level 9-10",
-    magenta: "Level 11",
-    gray: "This puzzle does not have a unique solution.",
+    white: t("ui_msg_56"),
+    green: t("ui_msg_57"),
+    yellow: t("ui_msg_58"),
+    orange: t("ui_msg_59"),
+    red: t("ui_msg_60"),
+    violet: t("ui_msg_61"),
+    magenta: t("ui_msg_62"),
+    gray: t("ui_msg_63"),
   };
 
-  let tooltipText = "Difficulty Indicator";
+  let tooltipText = t("ui_msg_64");
 
   if (baseLabels[color]) {
     const label = baseLabels[color];
@@ -1411,14 +1404,14 @@ function updateLamp(color, { record = true, level = null } = {}) {
     // If a specific level is provided (and it's a solved state color), use it
     if (level !== null && color !== "gray") {
       const isCustom = hasCustomPreferences();
-      desc = isCustom ? `Level ${level}*` : `Level ${level}`;
+      desc = isCustom ? t("ui_msg_65", level) : t("ui_msg_66", level);
     }
 
     tooltipText = `${label}: ${desc}`;
   }
 
   if (window.innerWidth <= 550) {
-    tooltipText = tooltipText.replace("Level", "Lv.");
+    tooltipText = tooltipText.replace(t("ui_msg_67"), "Lv.");
   }
 
   difficultyLamp.dataset.tooltip = tooltipText;
@@ -1806,16 +1799,16 @@ function setupEventListeners() {
 
   copyInitialBtn.addEventListener("click", () => {
     if (!initialPuzzleString) {
-      showMessage("No puzzle loaded to copy.", "red");
+      showMessage(t("ui_msg_68"), "red");
     } else {
       navigator.clipboard
         .writeText(initialPuzzleString)
         .then(() => {
-          showMessage("Initial grid copied to clipboard!", "green");
+          showMessage(t("ui_msg_69"), "green");
         })
         .catch((err) => {
           console.error("Copy failed:", err);
-          showMessage("Failed to copy to clipboard.", "red");
+          showMessage(t("ui_msg_70"), "red");
         });
     }
     copyModal.classList.add("hidden");
@@ -1827,11 +1820,11 @@ function setupEventListeners() {
     navigator.clipboard
       .writeText(asciiBoard)
       .then(() => {
-        showMessage("Current board copied to clipboard!", "green");
+        showMessage(t("ui_msg_71"), "green");
       })
       .catch((err) => {
         console.error("Copy failed:", err);
-        showMessage("Failed to copy to clipboard.", "red");
+        showMessage(t("ui_msg_70"), "red");
       });
     copyModal.classList.add("hidden");
     copyModal.classList.remove("flex");
@@ -1939,7 +1932,7 @@ function setupEventListeners() {
     resetModal.classList.remove("flex");
     clearUserBoard();
     clearAllColors();
-    showMessage("Board cleared.", "gray");
+    showMessage(t("ui_msg_73"), "gray");
   });
 
   resetCancelBtn.addEventListener("click", () => {
@@ -1960,9 +1953,10 @@ function setupEventListeners() {
   // 1. Define the actual toggle logic
   const executeFormatToggle = () => {
     candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
-    const tip = `Candidate display set to ${
-      candidatePopupFormat === "A" ? "Phone (A)" : "Numpad (B)"
-    } layout. (Press 'D' to toggle)`;
+    const tip = t(
+      "ui_msg_candidate_format_tip",
+      candidatePopupFormat === "A" ? t("ui_msg_74") : t("ui_msg_75"),
+    );
     showMessage(tip, "gray");
 
     updateControls();
@@ -2052,9 +2046,13 @@ function setupEventListeners() {
   if (!isMobile) {
     modeToggleButton.addEventListener("mouseenter", () => {
       if (currentMode === "concrete") {
-        modeToggleButton.textContent = isMobile ? "Pen?" : "Pen? (Z)";
+        modeToggleButton.textContent = isMobile
+          ? t("ui_msg_76")
+          : t("ui_msg_77");
       } else if (currentMode === "pencil") {
-        modeToggleButton.textContent = isMobile ? "Num?" : "Num? (Z)";
+        modeToggleButton.textContent = isMobile
+          ? t("ui_msg_78")
+          : t("ui_msg_79");
       }
     });
     modeToggleButton.addEventListener("mouseleave", () => {
@@ -2064,9 +2062,9 @@ function setupEventListeners() {
     colorButton.addEventListener("mouseenter", () => {
       if (currentMode === "color") {
         if (coloringSubMode === "cell") {
-          colorButton.textContent = "Color: Cand?";
+          colorButton.textContent = t("ui_msg_80");
         } else {
-          colorButton.textContent = "Color: Cell?";
+          colorButton.textContent = t("ui_msg_81");
         }
       }
     });
@@ -2077,9 +2075,9 @@ function setupEventListeners() {
     drawButton.addEventListener("mouseenter", () => {
       if (currentMode === "draw") {
         if (drawSubMode === "solid") {
-          drawButton.textContent = "Draw: Dash?";
+          drawButton.textContent = t("ui_msg_82");
         } else {
-          drawButton.textContent = "Draw: Sol.?";
+          drawButton.textContent = t("ui_msg_83");
         }
       }
     });
@@ -2138,7 +2136,7 @@ function setupEventListeners() {
     const todayNum = parseInt(`${yyyy}${mm}${dd}`);
     const todayStr = `${yyyy}-${mm}-${dd}`;
     if (dateNum < minDateNum || dateNum > todayNum) {
-      dateError.textContent = `Date must be between 2026-03-01 and ${todayStr}.`;
+      dateError.textContent = t("ui_msg_84", todayStr);
       return;
     }
     let customOption = [...dateSelect.options].find(
@@ -2179,15 +2177,15 @@ function setupEventListeners() {
       let color = "green";
 
       if (!currentHintData || !currentHintData.hint) {
-        message = `Vague Hint: ${vagueHintMessage}`;
+        message = t("ui_msg_85", vagueHintMessage);
       } else {
         const h = currentHintData.hint;
         const { r, c, num, type } = currentHintData;
 
         if (hintClickCount === 1) {
-          message = `Vague Hint: ${h.name}`;
+          message = t("ui_msg_86", h.name);
         } else if (hintClickCount === 2) {
-          message = `Hint: ${h.name} - ${h.mainInfo || ""}`;
+          message = t("ui_msg_87", h.name, h.mainInfo || "");
         } else {
           // --- BEGIN VISUAL HINT LOGIC ---
           clearAllColors();
@@ -2252,7 +2250,7 @@ function setupEventListeners() {
       }
       showMessage(message, color === "blue" ? "blue" : "green");
     } else {
-      showMessage("Hint not found!", "orange");
+      showMessage(t("ui_msg_88"), "orange");
     }
   };
 
@@ -2262,7 +2260,7 @@ function setupEventListeners() {
     if (activeTooltipElement === vagueHintBtn) activeTooltipElement = null;
     // A. Validation Checks (Keep these before the modal)
     if (isBoardIdenticalToSolution()) {
-      showMessage("The Sudoku is already solved!", "green");
+      showMessage(t("ui_msg_89"), "green");
       return;
     }
     let emptyCount = 0;
@@ -2272,22 +2270,19 @@ function setupEventListeners() {
       }
     }
     if (emptyCount <= 3) {
-      showMessage(
-        "Hints and Solver Mode are disabled for trivial states.",
-        "orange",
-      );
+      showMessage(t("ui_msg_90"), "orange");
       return;
     }
 
     if (currentLampColor === "gray") {
-      showMessage("No hint available for an invalid puzzle.", "red");
+      showMessage(t("ui_msg_91"), "red");
       return;
     } else if (currentLampColor === "black") {
-      showMessage("Hint unavailable: a wrong progress has been made.", "red");
+      showMessage(t("ui_msg_92"), "red");
       return;
     }
     if (!vagueHintMessage) {
-      showMessage("Hint not found!", "orange");
+      showMessage(t("ui_msg_88"), "orange");
       return;
     }
 
@@ -2317,10 +2312,7 @@ function setupEventListeners() {
   exptModeBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (arePencilsHidden && !isExperimentalMode) {
-      showMessage(
-        "Experimental mode is disabled while marks are hidden.",
-        "orange",
-      );
+      showMessage(t("ui_msg_94"), "orange");
       return;
     }
     isExperimentalMode = !isExperimentalMode;
@@ -2328,13 +2320,9 @@ function setupEventListeners() {
     updateButtonLabels();
     let tip = "";
     if (isExperimentalMode) {
-      tip = isMobile
-        ? "Expt. ON: Direct coloring, plus click candidates to remove (Pencil) or set (Number)."
-        : "Expt. ON: Click candidates to remove (Pencil mode) or set as value (Number mode).";
+      tip = isMobile ? t("ui_msg_95") : t("ui_msg_96");
     } else {
-      tip = isMobile
-        ? "Expt. OFF: Popup coloring enabled."
-        : "Expt. OFF: Click-to-set/remove candidates disabled.";
+      tip = isMobile ? t("ui_msg_97") : t("ui_msg_98");
     }
     showMessage(tip, "gray");
     if (isMobile) {
@@ -2363,15 +2351,14 @@ function setupEventListeners() {
     hideTooltip(shareBtn);
     if (activeTooltipElement === shareBtn) activeTooltipElement = null;
     if (!initialPuzzleString) {
-      showMessage("No puzzle loaded to share.", "orange");
+      showMessage(t("ui_msg_99"), "orange");
       return;
     }
     shareStep1.classList.remove("hidden");
     shareStep1.classList.add("flex");
     shareStep2.classList.add("hidden");
     shareStep2.classList.remove("flex");
-    document.getElementById("share-modal-desc").textContent =
-      "What do you want to share?";
+    document.getElementById("share-modal-desc").textContent = t("ui_msg_100");
     shareModal.classList.remove("hidden");
     shareModal.classList.add("flex");
   });
@@ -2382,8 +2369,7 @@ function setupEventListeners() {
     shareStep1.classList.remove("flex");
     shareStep2.classList.remove("hidden");
     shareStep2.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent =
-      "Share Initial State as:";
+    document.getElementById("share-modal-desc").textContent = t("ui_msg_101");
   });
 
   shareCurrentBtn.addEventListener("click", () => {
@@ -2392,8 +2378,7 @@ function setupEventListeners() {
     shareStep1.classList.remove("flex");
     shareStep2.classList.remove("hidden");
     shareStep2.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent =
-      "Share Current Progress as:";
+    document.getElementById("share-modal-desc").textContent = t("ui_msg_102");
   });
 
   shareBackBtn.addEventListener("click", () => {
@@ -2401,8 +2386,7 @@ function setupEventListeners() {
     shareStep2.classList.remove("flex");
     shareStep1.classList.remove("hidden");
     shareStep1.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent =
-      "What do you want to share?";
+    document.getElementById("share-modal-desc").textContent = t("ui_msg_100");
   });
 
   shareCancelBtn.addEventListener("click", () => {
@@ -2431,13 +2415,22 @@ function setupEventListeners() {
       .writeText(url)
       .then(() => {
         showMessage(
-          `Copied ${mode === "solver" ? "Solver" : "Playing"} Link!`,
+          t(
+            "ui_msg_104",
+            mode === "solver"
+              ? currentLang === "ko"
+                ? "솔버"
+                : "Solver"
+              : currentLang === "ko"
+                ? "플레이"
+                : "Playing",
+          ),
           "green",
         );
       })
       .catch((err) => {
         console.error("Copy failed:", err);
-        showMessage("Failed to copy link.", "red");
+        showMessage(t("ui_msg_105"), "red");
       });
 
     shareModal.classList.add("hidden");
@@ -2590,7 +2583,7 @@ function setupEventListeners() {
       if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
       const evalId = ++currentEvaluationId;
 
-      showMessage("Evaluating from beginning...", "blue");
+      showMessage(t("ui_msg_106"), "blue");
       // Start our own tracked evaluation & await it
       await evaluateBoardDifficulty({ waitForFrame: false });
 
@@ -2632,12 +2625,17 @@ function setupEventListeners() {
         messageArea.classList.add("text-green-600");
 
         const successText = document.createTextNode(
-          `Copied ${format === "discord" ? "Discord" : "Plain"} format! `,
+          t(
+            "ui_msg_107",
+            format === "discord"
+              ? t("ui_msg_format_discord")
+              : t("ui_msg_format_plain"),
+          ),
         );
         messageArea.appendChild(successText);
 
         const copyAgainButton = document.createElement("button");
-        copyAgainButton.textContent = "Copy Again";
+        copyAgainButton.textContent = t("ui_msg_108");
         copyAgainButton.className = "puzzle-action-button rounded-md";
         copyAgainButton.onclick = () => {
           compShareModal.classList.remove("hidden");
@@ -2647,7 +2645,7 @@ function setupEventListeners() {
       })
       .catch((err) => {
         console.error("Failed to copy text: ", err);
-        showMessage("Error: Could not copy text!", "red");
+        showMessage(t("ui_msg_109"), "red");
       });
 
     compShareModal.classList.add("hidden");
@@ -2783,11 +2781,11 @@ function handleKeyDown(e) {
         navigator.clipboard
           .writeText(asciiBoard)
           .then(() => {
-            showMessage("Board state copied to clipboard!", "green");
+            showMessage(t("ui_msg_110"), "green");
           })
           .catch((err) => {
             console.error("Copy failed:", err);
-            showMessage("Failed to copy to clipboard.", "red");
+            showMessage(t("ui_msg_70"), "red");
           });
       }
       return;
@@ -2824,11 +2822,11 @@ function handleKeyDown(e) {
       navigator.clipboard
         .writeText(asciiBoard)
         .then(() => {
-          showMessage("Board state copied to clipboard!", "green");
+          showMessage(t("ui_msg_110"), "green");
         })
         .catch((err) => {
           console.error("Copy failed:", err);
-          showMessage("Failed to copy to clipboard.", "red");
+          showMessage(t("ui_msg_70"), "red");
         });
     }
     return;
@@ -2860,24 +2858,24 @@ function handleKeyDown(e) {
       // Force-switch from pencil to number mode if active
       if (currentMode === "pencil") {
         currentMode = "concrete";
-        message += " Switched to Number mode.";
+        message += t("ui_msg_114");
       }
       // Force-switch from candidate to cell coloring if active
       if (currentMode === "color" && coloringSubMode === "candidate") {
         coloringSubMode = "cell";
-        message += " Switched to Cell coloring mode.";
+        message += t("ui_msg_115");
       }
       // Force-disable experimental mode if active
       if (isExperimentalMode) {
         isExperimentalMode = false;
-        message += " Experimental mode disabled.";
+        message += t("ui_msg_116");
       }
       showMessage(message, "gray");
       updateControls();
       updateButtonLabels();
       renderBoard();
     } else {
-      showMessage("Pencil marks are now visible.", "gray");
+      showMessage(t("ui_msg_117"), "gray");
       renderBoard();
     }
     return;
@@ -3096,10 +3094,7 @@ function handleKeyDown(e) {
   }
   if (key_lower === "e" && !isCtrlOrCmd) {
     if (arePencilsHidden) {
-      showMessage(
-        "Experimental mode is disabled while marks are hidden. (Press Alt+A to make visible)",
-        "orange",
-      );
+      showMessage(t("ui_msg_118"), "orange");
       return;
     }
     exptModeBtn.click();
@@ -3216,10 +3211,7 @@ function handleModeChange(e) {
   if (clickedButton === modeToggleButton) {
     const targetMode = currentMode === "concrete" ? "pencil" : "concrete";
     if (targetMode === "pencil" && arePencilsHidden) {
-      showMessage(
-        "Pencil mode is disabled while marks are hidden. (Press Alt+A to make visible)",
-        "orange",
-      );
+      showMessage(t("ui_msg_119"), "orange");
       return;
     }
   }
@@ -3228,10 +3220,7 @@ function handleModeChange(e) {
     if (currentMode === "color") {
       const targetSubMode = coloringSubMode === "cell" ? "candidate" : "cell";
       if (targetSubMode === "candidate" && arePencilsHidden) {
-        showMessage(
-          "Candidate coloring is disabled while marks are hidden. (Press Alt+A to make visible)",
-          "orange",
-        );
+        showMessage(t("ui_msg_120"), "orange");
         return;
       }
     }
@@ -3338,26 +3327,22 @@ function handleModeChange(e) {
   let tip = "";
 
   if (currentMode === "concrete") {
-    tip = isMobile
-      ? "Tip: Touch a filled cell to highlight its number."
-      : "Tip: Click a filled&nbsp;cell&nbsp;<span class='shortcut-highlight'>(or press 'Enter')</span> to highlight its number.";
+    tip = isMobile ? t("ui_msg_121") : t("ui_msg_121_desktop");
   } else if (currentMode === "pencil") {
-    tip = isMobile
-      ? "Tip: Touch a cell, then a digit to toggle a pencil mark."
-      : "Tip: Click a cell, then a digit to toggle a pencil mark.";
+    tip = isMobile ? t("ui_msg_122") : t("ui_msg_123");
   } else if (currentMode === "color") {
     tip =
       coloringSubMode === "cell"
         ? isMobile
-          ? "Tip: Pick a color, then touch a cell to paint it."
-          : "Tip: Pick a color, then click a&nbsp;cell&nbsp;<span class='shortcut-highlight'>(or press 'C')</span> to paint it."
+          ? t("ui_msg_124")
+          : t("ui_msg_124_desktop")
         : isMobile
-          ? "Tip: Pick a color, then touch a cell to select a candidate."
-          : "Tip: Pick a color, hover over a candidate to preview, and click to apply.";
+          ? t("ui_msg_125")
+          : t("ui_msg_126");
   } else if (currentMode === "draw") {
     tip = isMobile
-      ? `Draw (${drawSubMode}): Touch start then end candidate.`
-      : `Draw (${drawSubMode}): Click two candidates to connect. (X to switch)`;
+      ? t("ui_msg_127", t(drawSubMode === "solid" ? "ui_msg_19" : "ui_msg_20"))
+      : t("ui_msg_128", t(drawSubMode === "solid" ? "ui_msg_19" : "ui_msg_20"));
   }
   showMessage(tip, "gray");
 
@@ -3367,16 +3352,16 @@ function handleModeChange(e) {
   if (isExperimentalMode) {
     window.exptTipTimer = setTimeout(() => {
       let exptTip = "";
-      const actionTxt = isMobile ? "Long press" : "Right-click";
+      const actionTxt = isMobile ? t("ui_msg_129") : t("ui_msg_130");
 
       if (currentMode === "concrete") {
-        exptTip = `Expt feature: ${actionTxt} a candidate to erase it directly.`;
+        exptTip = t("ui_msg_131", actionTxt);
       } else if (currentMode === "draw" && drawSubMode === "solid") {
-        exptTip = `Expt feature: ${actionTxt} a candidate to draw a dash line.`;
+        exptTip = t("ui_msg_132", actionTxt);
       } else if (currentMode === "color" && coloringSubMode === "cell") {
-        exptTip = `Expt feature: ${actionTxt} a candidate to apply the previously selected cell color.`;
+        exptTip = t("ui_msg_133", actionTxt);
       } else if (currentMode === "color" && coloringSubMode === "candidate") {
-        exptTip = `Expt feature: ${actionTxt} a candidate to apply the previously selected color.`;
+        exptTip = t("ui_msg_134", actionTxt);
       }
 
       if (exptTip) {
@@ -3593,7 +3578,11 @@ async function populateSelectors() {
       recentDates.push({
         dateNum,
         label:
-          i === 0 ? "Today" : i === 1 ? "Yesterday" : `${yyyy}-${mm}-${dd}`,
+          i === 0
+            ? t("date_today")
+            : i === 1
+              ? t("date_yesterday")
+              : `${yyyy}-${mm}-${dd}`,
       });
     }
   }
@@ -3606,17 +3595,17 @@ async function populateSelectors() {
   });
   const customOption = document.createElement("option");
   customOption.value = "custom";
-  customOption.textContent = "Enter a date";
+  customOption.textContent = t("ui_msg_135");
   dateSelect.appendChild(customOption);
 
   const unlimitedOption = document.createElement("option");
   unlimitedOption.value = "unlimited";
-  unlimitedOption.textContent = "Unlimited";
+  unlimitedOption.textContent = t("ui_msg_136");
   dateSelect.appendChild(unlimitedOption);
 
   const dateBlankOption = document.createElement("option");
   dateBlankOption.value = "";
-  dateBlankOption.textContent = "Custom";
+  dateBlankOption.textContent = t("ui_msg_137");
   dateBlankOption.hidden = true;
   dateSelect.appendChild(dateBlankOption);
 }
@@ -3641,7 +3630,7 @@ async function findAndLoadSelectedPuzzle() {
     levelSelect.value = "0";
   }
 
-  // 1. Handle "Unlimited" Mode
+  // 1. Handle t("ui_msg_136") Mode
   if (dateSelect.value === "unlimited") {
     let level = parseInt(levelSelect.value, 10);
 
@@ -3668,7 +3657,7 @@ async function findAndLoadSelectedPuzzle() {
       const resumeBtn = document.getElementById("resume-btn");
       const newGameBtn = document.getElementById("new-game-btn");
 
-      levelText.textContent = `Level ${level}`;
+      levelText.textContent = t("ui_msg_66", level);
       modal.classList.remove("hidden");
       modal.classList.add("flex");
 
@@ -3687,7 +3676,7 @@ async function findAndLoadSelectedPuzzle() {
         };
 
         loadPuzzle(savedGame.puzzle, unlimitedData);
-        puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
+        puzzleLevelEl.textContent = t("ui_msg_139", level);
       };
 
       newGameBtn.onclick = (e) => {
@@ -3716,7 +3705,7 @@ async function findAndLoadSelectedPuzzle() {
   const selectedLevel = parseInt(levelSelect.value, 10);
   const selectedDateInt = parseInt(dateStr, 10);
 
-  showMessage("Fetching puzzle...", "blue");
+  showMessage(t("ui_msg_140"), "blue");
 
   try {
     const response = await fetch(
@@ -3740,13 +3729,13 @@ async function findAndLoadSelectedPuzzle() {
       puzzleStringInput.value = decompressedPuzzle;
       loadPuzzle(decompressedPuzzle, puzzleData);
     } else {
-      throw new Error("Puzzle level not found in daily file");
+      throw new Error(t("ui_msg_141"));
     }
   } catch (err) {
     console.error(err);
     initBoardState();
     onBoardUpdated();
-    showMessage("No puzzle found for this date and level.", "red");
+    showMessage(t("ui_msg_142"), "red");
     puzzleLevelEl.textContent = "";
     puzzleScoreEl.textContent = "";
     puzzleTimerEl.textContent = "";
@@ -3762,7 +3751,7 @@ async function fetchUnlimitedPuzzle(level) {
   // Update the URL here
   const filename = `https://json.sudoku.darksabun.club/unlimited/Lv${fileIndex}.txt`;
 
-  showMessage(`Fetching Unlimited Puzzle (Lv. ${level})...`, "blue");
+  showMessage(t("ui_msg_143", level), "blue");
 
   try {
     const response = await fetch(filename);
@@ -3780,8 +3769,7 @@ async function fetchUnlimitedPuzzle(level) {
     const rawString = lines[randomIndex];
     const puzzleStr = decompressPuzzleString(rawString);
 
-    if (puzzleStr.length !== 81)
-      throw new Error("Puzzle integrity check failed.");
+    if (puzzleStr.length !== 81) throw new Error(t("ui_msg_144"));
 
     puzzleStringInput.value = puzzleStr;
 
@@ -3794,12 +3782,12 @@ async function fetchUnlimitedPuzzle(level) {
 
     loadPuzzle(puzzleStr, unlimitedData);
 
-    puzzleLevelEl.textContent = `Unlimited Lv. ${level}`;
+    puzzleLevelEl.textContent = t("ui_msg_139", level);
     puzzleScoreEl.textContent = "";
-    showMessage("Loaded Unlimited Puzzle!", "green");
+    showMessage(t("ui_msg_146"), "green");
   } catch (err) {
     console.error(err);
-    showMessage("Error loading unlimited puzzle.", "red");
+    showMessage(t("ui_msg_147"), "red");
     initBoardState();
     renderBoard();
   }
@@ -3820,10 +3808,10 @@ function checkCompletion() {
       messageArea.className =
         "text-center text-sm font-semibold flex items-center justify-center gap-2";
       const congratsText = document.createTextNode(
-        `You solved it!${hadUsedHint ? "" : " ★"} → `,
+        t("ui_msg_148", hadUsedHint ? "" : " ★"),
       );
       const shareButton = document.createElement("button");
-      shareButton.textContent = "Share";
+      shareButton.textContent = t("ui_msg_149");
       shareButton.className = "puzzle-action-button rounded-md";
       shareButton.onclick = () => {
         const compShareModal = document.getElementById(
@@ -3835,7 +3823,7 @@ function checkCompletion() {
       messageArea.appendChild(congratsText);
       messageArea.appendChild(shareButton);
     } else {
-      showMessage(`You solved it!${hadUsedHint ? "" : " ★"}`, "green");
+      showMessage(t("ui_msg_150", hadUsedHint ? "" : " ★"), "green");
     }
     triggerSolveAnimation();
     stopTimer();
@@ -3909,7 +3897,7 @@ function clearAllColors() {
   renderLines(); // Update the SVG layer
   saveState();
   renderBoard();
-  showMessage("All colors cleared.", "gray");
+  showMessage(t("ui_msg_151"), "gray");
 }
 
 function autoPencil(skipConfirm = false) {
@@ -3958,14 +3946,12 @@ function autoPencil(skipConfirm = false) {
     onBoardUpdated();
   }
 
-  showMessage("Auto-Pencil complete!", "green");
+  showMessage(t("ui_msg_152"), "green");
   hasUsedAutoPencil = true;
   isAutoPencilPending = false;
 
   const isMobile = window.innerWidth <= 550;
-  const tip = isMobile
-    ? "Tip: To highlight all bivalue cells, touch one when highlighting is off."
-    : "Tip: To highlight bivalue cells, click one when highlighting is off or press '0'.";
+  const tip = isMobile ? t("ui_msg_153") : t("ui_msg_154");
 
   setTimeout(() => {
     showMessage(tip, "gray");
@@ -4100,7 +4086,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   } else {
     const cleanString = puzzleString.replace(/\s/g, "");
     if (cleanString.length !== 81 || !/^[0-9\.]+$/.test(cleanString)) {
-      showMessage("Error: Invalid puzzle string.", "red");
+      showMessage(t("ui_msg_155"), "red");
       addSudokuCoachLink(null);
       return;
     }
@@ -4166,7 +4152,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     if (savedTime > 0) {
       wasSaveLoaded = true;
       isLoadingSavedGame = true;
-      showMessage("Resumed saved game.", "green");
+      showMessage(t("ui_msg_156"), "green");
       checkCompletion();
     }
   }
@@ -4229,18 +4215,21 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   addSudokuCoachLink(initialPuzzleString);
 
   if (isCustomPuzzle) {
-    if (!isUnlimited && !wasSaveLoaded)
-      showMessage("Custom puzzle loaded!", "green");
+    if (!isUnlimited && !wasSaveLoaded) showMessage(t("ui_msg_157"), "green");
   } else if (!wasSaveLoaded && puzzleData) {
     showMessage(
-      `Loaded puzzle for ${dateSelect.options[dateSelect.selectedIndex].text}, Level ${puzzleData.level}`,
+      t(
+        "ui_msg_158",
+        dateSelect.options[dateSelect.selectedIndex].text,
+        puzzleData.level,
+      ),
       "green",
     );
   }
 
   if (puzzleData && !isUnlimited) {
     setTimeout(() => {
-      const tip = levelTips[puzzleData.level];
+      const tip = getLevelTips()[puzzleData.level];
       if (tip) showMessage(tip, "gray");
     }, 5000);
   }
@@ -4249,8 +4238,8 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     if (!hasUsedAutoPencil) {
       const isMobile = window.innerWidth <= 550;
       const tip = isMobile
-        ? "Tip: Touch 'Auto-Pencil' below to fill in all possible candidates."
-        : "Tip: Click&nbsp;'Auto-Pencil'&nbsp;<span class='shortcut-highlight'>(or press 'A')</span> to fill in all possible candidates.";
+        ? t("ui_msg_159")
+        : t("ui_msg_auto_pencil_tip_desktop");
       showMessage(tip, "gray");
     }
   }, 10000);
@@ -4262,7 +4251,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
       const modifierKey = isMac ? "Cmd" : "Ctrl";
 
-      const tip = `Tip: Press <span class='shortcut-highlight'>${modifierKey}+C</span> to copy the grid as text, or <span class='shortcut-highlight'>${modifierKey}+Shift+C</span> to copy as an image.`;
+      const tip = t("ui_msg_copy_tip_desktop", modifierKey);
 
       showMessage(tip, "gray");
     }
@@ -4529,17 +4518,17 @@ function applySavedProgress(puzzleData) {
       difficultyLamp.classList.add(`lamp-${last}`);
 
       const tooltips = {
-        white: "Easy: Level 0",
-        green: "Medium: Level 1 - 2",
-        yellow: "Hard: Level 3 - 5",
-        orange: "Unfair: Level 6",
-        red: "Extreme: Level 7 - 8",
-        violet: "Insane: Level 9-10",
-        magenta: "Unmeasured: Level 11",
+        white: t("ui_msg_160"),
+        green: t("ui_msg_161"),
+        yellow: t("ui_msg_162"),
+        orange: t("ui_msg_163"),
+        red: t("ui_msg_164"),
+        violet: t("ui_msg_165"),
+        magenta: t("ui_msg_166"),
       };
-      let tooltipText = tooltips[last] || "Difficulty Indicator";
+      let tooltipText = tooltips[last] || t("ui_msg_64");
       if (window.innerWidth <= 550)
-        tooltipText = tooltipText.replace("Level", "Lv.");
+        tooltipText = tooltipText.replace(t("ui_msg_67"), "Lv.");
       difficultyLamp.dataset.tooltip = tooltipText;
     }
   }
@@ -4557,7 +4546,7 @@ function applySavedProgress(puzzleData) {
     }
   }
 
-  showMessage("Loaded saved progress.", "green");
+  showMessage(t("ui_msg_169"), "green");
   return typeof savedGame.time === "number" ? savedGame.time : 0;
 }
 
@@ -4583,7 +4572,7 @@ function validateBoard() {
 
 function enterSolverModeUI() {
   if (solverSteps.length === 0) {
-    showMessage("Evaluation in progress or failed!", "orange");
+    showMessage(t("ui_msg_170"), "orange");
     return;
   }
 
@@ -4629,16 +4618,13 @@ function enterSolverModeUI() {
 
 async function solve() {
   if (!initialPuzzleString) {
-    showMessage("Error: No initial puzzle loaded.", "red");
+    showMessage(t("ui_msg_171"), "red");
     return;
   }
 
   // 1. Refuse entering solver mode if the puzzle does not have a unique solution
   if (currentLampColor === "gray") {
-    showMessage(
-      "Solver mode is unavailable for puzzles without a unique solution.",
-      "red",
-    );
+    showMessage(t("ui_msg_172"), "red");
     return;
   }
 
@@ -4670,7 +4656,7 @@ async function solve() {
     if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
     const evalId = ++currentEvaluationId;
 
-    showMessage("Evaluating from beginning...", "blue");
+    showMessage(t("ui_msg_106"), "blue");
     await evaluateBoardDifficulty({ waitForFrame: false });
 
     if (currentEvaluationId !== evalId) return;
@@ -4687,10 +4673,7 @@ async function solve() {
 
   // If nearly solved (<= 3 empty cells) but not fully correct/completed
   if (emptyCount <= 3) {
-    showMessage(
-      "Puzzle is nearly complete. Hints and Solver Mode are disabled for trivial states.",
-      "orange",
-    );
+    showMessage(t("ui_msg_174"), "orange");
     return;
   }
 
@@ -4731,7 +4714,7 @@ async function proceedToSolverMode() {
     if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
     const evalId = ++currentEvaluationId;
 
-    showMessage("Evaluating...", "blue");
+    showMessage(t("ui_msg_175"), "blue");
     await evaluateBoardDifficulty({ waitForFrame: false });
 
     if (currentEvaluationId !== evalId) return;
@@ -4745,12 +4728,10 @@ async function proceedToSolverMode() {
   const currentBtn = document.getElementById("solver-current-btn");
 
   if (currentLampColor === "black") {
-    textEl.innerHTML =
-      "Incorrect progress has been made.<br><span class='font-bold text-red-500'>The solver will start from the beginning.</span>";
+    textEl.innerHTML = t("ui_msg_188");
     currentBtn.style.display = "none"; // Hide 'Current State' option
   } else {
-    textEl.innerHTML =
-      "You have made progress.<br>Where do you want the solver to start from?";
+    textEl.innerHTML = t("ui_msg_189");
     currentBtn.style.display = "block";
   }
 
@@ -4795,7 +4776,7 @@ function exitSolverMode() {
   highlightState = userHighlightStateSnapshot;
   highlightedDigit = userHighlightedDigitSnapshot;
 
-  showMessage("Exited Solver Mode", "gray");
+  showMessage(t("ui_msg_176"), "gray");
 
   onBoardUpdated();
 
@@ -4998,7 +4979,7 @@ function buildViewAllTechniquesList(step) {
   if (allHints.length === 0) {
     const msg = document.createElement("div");
     msg.className = "p-2 text-sm text-gray-500 italic text-center";
-    msg.textContent = "No standard techniques found for this state.";
+    msg.textContent = t("ui_msg_177");
     list.appendChild(msg);
     return;
   }
@@ -5171,7 +5152,7 @@ function buildViewAllTechniquesList(step) {
       showMoreBtn.style.padding = "4px";
       showMoreBtn.style.borderRadius = "3px";
       showMoreBtn.style.cursor = "pointer";
-      showMoreBtn.textContent = `Show ${group.items.length - 3} more...`;
+      showMoreBtn.textContent = t("ui_msg_178", group.items.length - 3);
 
       showMoreBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -5228,10 +5209,10 @@ async function searchAndAppendVatLevel(
     return true;
   });
 
-  // Always prepend "Eliminate Candidates" if requested
+  // Always prepend t("ui_msg_210") if requested
   if (includeEliminate) {
     const elimTech = vatActiveTechniques.find(
-      (t) => t.name === "Eliminate Candidates",
+      (tech) => tech.name === t("ui_msg_210"),
     );
     if (elimTech && !techsToSearch.includes(elimTech)) {
       techsToSearch.unshift(elimTech);
@@ -5242,7 +5223,7 @@ async function searchAndAppendVatLevel(
   const searchBtn = document.getElementById("vat-search-next-btn");
 
   if (searchBtn) {
-    searchBtn.textContent = "Preparing search...";
+    searchBtn.textContent = t("ui_msg_179");
     searchBtn.disabled = true;
     searchBtn.classList.remove("hidden");
     searchBtn.classList.add("opacity-50", "cursor-wait");
@@ -5307,7 +5288,7 @@ async function searchAndAppendVatLevel(
     const msg = document.createElement("div");
     msg.id = "vat-no-tech-msg";
     msg.className = "p-2 text-sm text-gray-500 italic text-center";
-    msg.textContent = "No standard techniques found.";
+    msg.textContent = t("ui_msg_180");
     list.appendChild(msg);
   } else if (newHints.length > 0) {
     const noMsg = document.getElementById("vat-no-tech-msg");
@@ -5475,7 +5456,7 @@ async function searchAndAppendVatLevel(
         showMoreBtn.style.padding = "4px";
         showMoreBtn.style.borderRadius = "3px";
         showMoreBtn.style.cursor = "pointer";
-        showMoreBtn.textContent = `Show ${group.items.length - 3} more...`;
+        showMoreBtn.textContent = t("ui_msg_178", group.items.length - 3);
 
         showMoreBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -5514,7 +5495,7 @@ async function searchAndAppendVatLevel(
     searchBtn.classList.remove("opacity-50", "cursor-wait");
 
     if (vatNextLevel <= vatMaxLevel) {
-      searchBtn.textContent = `Search Lv. ${vatNextLevel}`;
+      searchBtn.textContent = t("ui_msg_182", vatNextLevel);
       searchBtn.onclick = () => {
         const nextLvlToRun = vatNextLevel;
         vatNextLevel++;
@@ -5676,9 +5657,9 @@ function renderSolverStep(index) {
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
     if (isBruteForce) {
-      msg = `Done? Evaluated Level 11${star}, Score: ?${star}`;
+      msg = t("ui_msg_183", star, star);
     } else {
-      msg = `Done! Evaluated Level ${step.level}${star}, Score: ${step.score}${star}`;
+      msg = t("ui_msg_184", step.level, star, step.score, star);
     }
     msgColor = "green";
 
@@ -5690,7 +5671,7 @@ function renderSolverStep(index) {
       puzzleScoreEl.textContent = `${star}`;
     }
   } else if (step.type === "done") {
-    msg = `Puzzle Fully Solved!`;
+    msg = t("ui_msg_185");
     msgColor = "green";
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (0${star})`;
@@ -5700,7 +5681,7 @@ function renderSolverStep(index) {
       puzzleScoreEl.textContent = `(0${star})`;
     }
   } else if (step.type === "bruteforce") {
-    msg = `Sorry! Built-in techniques failed to solve this. Showing Solution.`;
+    msg = t("ui_msg_186");
     msgColor = "red";
   } else if (step.type === "step") {
     const h = step.result.hint;
@@ -5960,7 +5941,7 @@ function buildSolverSummary() {
     nameEl.style.flexGrow = "1";
     nameEl.style.overflow = "hidden";
     nameEl.style.textOverflow = "ellipsis";
-    nameEl.textContent = "Brute Force :(";
+    nameEl.textContent = t("ui_msg_187");
 
     const scoreEl = document.createElement("div");
     scoreEl.style.textAlign = "right";
@@ -6461,7 +6442,7 @@ function undo() {
 
   let finalDesc = actionDesc;
 
-  if (finalDesc === "No visible changes" && lineDesc) {
+  if (finalDesc === t("ui_msg_191") && lineDesc) {
     finalDesc = lineDesc;
   } else if (lineDesc) {
     finalDesc += `, ${lineDesc}`;
@@ -6487,7 +6468,7 @@ function undo() {
   updateUndoRedoButtons();
   savePuzzleProgress();
 
-  showMessage(`Undid: ${finalDesc}`, "gray");
+  showMessage(t("ui_msg_192", finalDesc), "gray");
 }
 
 function redo() {
@@ -6509,7 +6490,7 @@ function redo() {
 
   let finalDesc = actionDesc;
 
-  if (finalDesc === "No visible changes" && lineDesc) {
+  if (finalDesc === t("ui_msg_191") && lineDesc) {
     finalDesc = lineDesc;
   } else if (lineDesc) {
     finalDesc += `, ${lineDesc}`;
@@ -6535,7 +6516,7 @@ function redo() {
   updateUndoRedoButtons();
   savePuzzleProgress();
 
-  showMessage(`Redid: ${finalDesc}`, "gray");
+  showMessage(t("ui_msg_194", finalDesc), "gray");
 }
 
 function updateUndoRedoButtons() {
@@ -6691,7 +6672,7 @@ async function evaluateBoardDifficulty(opts = {}) {
   const star = hasCustomPreferences() ? "*" : "";
   if (emptyCount <= 3) {
     updateLamp("white", { level: 0 });
-    vagueHintMessage = "Full House";
+    vagueHintMessage = t("ui_msg_195");
 
     lastValidScore = 4 * emptyCount;
 
@@ -6721,8 +6702,8 @@ async function evaluateBoardDifficulty(opts = {}) {
   const solveStartTime = performance.now();
   if (IS_DEBUG_MODE) {
     console.clear();
-    console.log("--- Starting New Difficulty Evaluation ---");
-    console.log("Initial Board State (0 = empty):");
+    console.log(t("ui_msg_196"));
+    console.log(t("ui_msg_197"));
     console.table(virtualBoard);
   }
 
@@ -6807,7 +6788,7 @@ async function evaluateBoardDifficulty(opts = {}) {
           if (result.type === "place") {
             console.log(`  r${result.r + 1}c${result.c + 1}=${result.num}`);
           } else if (result.type === "remove") {
-            console.log(`Remove candidates:`);
+            console.log(t("ui_msg_198"));
             result.cells.forEach(({ r, c, num }) => {
               console.log(`  - r${r + 1}c${c + 1}<>${num}`);
             });
@@ -6860,7 +6841,7 @@ async function evaluateBoardDifficulty(opts = {}) {
     });
 
     if (IS_DEBUG_MODE) {
-      console.log(`Level: ${maxDifficulty}, Score: ${evaluatedScore}`);
+      console.log(t("ui_msg_199", maxDifficulty, evaluatedScore));
     }
 
     const star = hasCustomPreferences() ? "*" : "";
@@ -6871,7 +6852,7 @@ async function evaluateBoardDifficulty(opts = {}) {
       if (!isCustomDifficultyEvaluated) {
         if (dateSelect.value !== "unlimited") {
           const star = hasCustomPreferences() ? "*" : "";
-          puzzleLevelEl.textContent = `Custom Lv. ${maxDifficulty}${star}`;
+          puzzleLevelEl.textContent = t("ui_msg_200", maxDifficulty, star);
         }
         customScoreEvaluated = evaluatedScore;
         isCustomDifficultyEvaluated = true;
@@ -6916,13 +6897,13 @@ async function evaluateBoardDifficulty(opts = {}) {
     if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
       if (dateSelect.value !== "unlimited") {
         const star = hasCustomPreferences() ? "*" : "";
-        puzzleLevelEl.textContent = `Custom Lv. 11${star}`;
+        puzzleLevelEl.textContent = t("ui_msg_201", star);
       }
       isCustomDifficultyEvaluated = true;
     }
 
     if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
-      puzzleLevelEl.textContent = `Lv. 11 (NULL)`;
+      puzzleLevelEl.textContent = t("ui_msg_202");
       isCustomDifficultyEvaluated = true;
     }
 
@@ -6963,46 +6944,44 @@ async function evaluateBoardDifficulty(opts = {}) {
   }
   if (IS_DEBUG_MODE) {
     const solveEndTime = performance.now();
-    console.log(
-      `Evaluation completed in ${(solveEndTime - solveStartTime).toFixed(2)} ms`,
-    );
+    console.log(t("ui_msg_203", (solveEndTime - solveStartTime).toFixed(2)));
     console.log("-----------------------------------------------");
   }
   syncCurrentHistoryEvaluationState(myEvaluationId);
 }
 
-const UNIQUENESS_TECHNIQUES = [
-  "BUG+1",
-  "Unique Rectangle",
-  "Unique Loop",
-  "Extended Unique Rectangle",
-  "Hidden Rectangle",
+const getUniquenessTechniques = () => [
+  t("ui_msg_204"),
+  t("ui_msg_205"),
+  t("ui_msg_206"),
+  t("ui_msg_207"),
+  t("ui_msg_208"),
 ];
-const MANDATORY_TECHNIQUES = ["Full House", "Eliminate Candidates"];
-const TECHNIQUE_HIERARCHIES = [
-  ["Crane", "Empty Rectangle", "X-Chain"],
-  ["Skyscraper", "Finned X-Wing", "X-Chain"],
-  ["2-String Kite", "Grouped 2-String Kite", "X-Chain"],
-  ["W-Wing", "Grouped W-Wing"],
-  ["Remote Pair", "X-Chain"],
-  ["Remote Pair", "XY-Chain"],
-  ["X-Wing", "X-Chain"],
-  ["Locked Pair", "Naked Pair", "XY-Chain"],
-  ["Locked Triple", "Naked Triple"],
-  ["Locked Pair", "Locked Candidate"],
-  ["Locked Triple", "Locked Candidate"],
-  ["Hidden Pair", "Alternating Inference Chain"],
-  ["X-Chain", "Grouped X-Chain", "Grouped AIC"],
-  ["XY-Wing", "XY-Chain", "Alternating Inference Chain", "Grouped AIC"],
-  ["W-Wing", "Alternating Inference Chain"],
-  ["Grouped W-Wing", "Grouped AIC"],
-  ["Almost Locked Pair", "Grouped AIC", "Almost Locked Set AIC", "Complex AIC"],
-  ["Almost Locked Pair", "Sue de Coq"],
-  ["Almost Locked Triple", "Sue de Coq"],
-  ["XY-Wing", "Almost Locked Set XZ-Rule"],
-  ["XYZ-Wing", "Almost Locked Set XZ-Rule"],
-  ["WXYZ-Wing", "Almost Locked Set XZ-Rule"],
-  ["Almost Locked Set XZ-Rule", "Almost Locked Set AIC"],
+const getMandatoryTechniques = () => [t("ui_msg_195"), t("ui_msg_210")];
+const getTechniqueHierarchies = () => [
+  [t("ui_msg_211"), t("ui_msg_212"), t("ui_msg_213")],
+  [t("ui_msg_214"), t("ui_msg_215"), t("ui_msg_213")],
+  [t("ui_msg_217"), t("ui_msg_218"), t("ui_msg_213")],
+  [t("ui_msg_220"), t("ui_msg_221")],
+  [t("ui_msg_222"), t("ui_msg_213")],
+  [t("ui_msg_222"), t("ui_msg_225")],
+  [t("ui_msg_226"), t("ui_msg_213")],
+  [t("ui_msg_228"), t("ui_msg_229"), t("ui_msg_225")],
+  [t("ui_msg_231"), t("ui_msg_232")],
+  [t("ui_msg_228"), t("ui_msg_234")],
+  [t("ui_msg_231"), t("ui_msg_234")],
+  [t("ui_msg_237"), t("ui_msg_238")],
+  [t("ui_msg_213"), t("ui_msg_240"), t("ui_msg_241")],
+  [t("ui_msg_242"), t("ui_msg_225"), t("ui_msg_238"), t("ui_msg_241")],
+  [t("ui_msg_220"), t("ui_msg_238")],
+  [t("ui_msg_221"), t("ui_msg_241")],
+  [t("ui_msg_283"), t("ui_msg_241"), t("ui_msg_251"), t("ui_msg_299")],
+  [t("ui_msg_283"), t("tech_Sue de Coq")],
+  [t("ui_msg_284"), t("tech_Sue de Coq")],
+  [t("ui_msg_242"), t("ui_msg_250")],
+  [t("ui_msg_271"), t("ui_msg_250")],
+  [t("tech_WXYZ-Wing"), t("ui_msg_250")],
+  [t("ui_msg_250"), t("ui_msg_251")],
 ];
 
 function getDefaultTechniques() {
@@ -7010,262 +6989,297 @@ function getDefaultTechniques() {
   // If we didn't specify it, it defaults to true.
   return [
     {
-      name: "Eliminate Candidates",
+      name: t("tech_Eliminate Candidates"),
       func: techniques.eliminateCandidates,
       level: 0,
       score: 0,
     },
-    { name: "Full House", func: techniques.fullHouse, level: 0, score: 4 },
-    { name: "Naked Single", func: techniques.nakedSingle, level: 0, score: 4 },
     {
-      name: "Hidden Single",
+      name: t("tech_Full House"),
+      func: techniques.fullHouse,
+      level: 0,
+      score: 4,
+    },
+    {
+      name: t("tech_Naked Single"),
+      func: techniques.nakedSingle,
+      level: 0,
+      score: 4,
+    },
+    {
+      name: t("tech_Hidden Single"),
       func: techniques.hiddenSingle,
       level: 0,
       score: 14,
     },
     {
-      name: "Locked Pair",
+      name: t("ui_msg_228"),
       func: (b, p, findAll) => techniques.lockedSubset(b, p, 2, findAll),
       level: 1,
       score: 40,
     },
     {
-      name: "Locked Triple",
+      name: t("ui_msg_231"),
       func: (b, p, findAll) => techniques.lockedSubset(b, p, 3, findAll),
       level: 1,
       score: 60,
     },
     {
-      name: "Locked Candidate",
+      name: t("ui_msg_234"),
       func: (b, p, findAll) => techniques.intersection(b, p, findAll),
       level: 2,
       score: 50,
     },
     {
-      name: "Naked Pair",
+      name: t("ui_msg_229"),
       func: (b, p, findAll) => techniques.nakedSubset(b, p, 2, findAll),
       level: 2,
       score: 60,
     },
     {
-      name: "Hidden Pair",
+      name: t("ui_msg_237"),
       func: (b, p, findAll) => techniques.hiddenSubset(b, p, 2, findAll),
       level: 2,
       score: 70,
     },
     {
-      name: "Naked Triple",
+      name: t("ui_msg_232"),
       func: (b, p, findAll) => techniques.nakedSubset(b, p, 3, findAll),
       level: 2,
       score: 80,
     },
     {
-      name: "Hidden Triple",
+      name: t("ui_msg_262"),
       func: (b, p, findAll) => techniques.hiddenSubset(b, p, 3, findAll),
       level: 2,
       score: 100,
     },
     {
-      name: "Naked Quad",
+      name: t("ui_msg_263"),
       func: (b, p, findAll) => techniques.nakedSubset(b, p, 4, findAll),
       level: 3,
       score: 120,
     },
     {
-      name: "Hidden Quad",
+      name: t("ui_msg_264"),
       func: (b, p, findAll) => techniques.hiddenSubset(b, p, 4, findAll),
       level: 3,
       score: 150,
     },
     {
-      name: "X-Wing",
+      name: t("ui_msg_226"),
       func: (b, p, findAll) => techniques.fish(b, p, 2, findAll),
       level: 3,
       score: 100,
     },
     {
-      name: "Swordfish",
+      name: t("ui_msg_266"),
       func: (b, p, findAll) => techniques.fish(b, p, 3, findAll),
       level: 3,
       score: 130,
     },
     {
-      name: "XY-Wing",
+      name: t("ui_msg_242"),
       func: (b, p, findAll) => techniques.xyWing(b, p, findAll),
       level: 3,
       score: 120,
     },
     {
-      name: "Remote Pair",
+      name: t("ui_msg_222"),
       func: (b, p, findAll) => techniques.remotePair(b, p, findAll),
       level: 3,
       score: 110,
     },
     {
-      name: "BUG+1",
+      name: t("ui_msg_204"),
       func: (b, p, findAll) => techniques.bugPlusOne(b, p, findAll),
       level: 4,
       score: 100,
     },
     {
-      name: "Jellyfish",
+      name: t("ui_msg_270"),
       func: (b, p, findAll) => techniques.fish(b, p, 4, findAll),
       level: 4,
       score: 160,
     },
     {
-      name: "XYZ-Wing",
+      name: t("ui_msg_271"),
       func: (b, p, findAll) => techniques.xyzWing(b, p, findAll),
       level: 4,
       score: 140,
     },
     {
-      name: "W-Wing",
+      name: t("ui_msg_220"),
       func: (b, p, findAll) => techniques.wWing(b, p, findAll),
       level: 4,
       score: 160,
     },
-    { name: "Skyscraper", func: techniques.skyscraper, level: 4, score: 110 },
     {
-      name: "2-String Kite",
+      name: t("tech_Skyscraper"),
+      func: techniques.skyscraper,
+      level: 4,
+      score: 110,
+    },
+    {
+      name: t("tech_2-String Kite"),
       func: techniques.twoStringKite,
       level: 4,
       score: 120,
     },
-    { name: "Crane", func: techniques.crane, level: 4, score: 130 },
+    { name: t("tech_Crane"), func: techniques.crane, level: 4, score: 130 },
     {
-      name: "Unique Rectangle",
+      name: t("ui_msg_205"),
       func: (b, p, findAll) => techniques.uniqueRectangle(b, p, findAll),
       level: 4,
       score: 100,
     },
     {
-      name: "Unique Loop",
+      name: t("tech_Unique Loop"),
       func: techniques.uniqueLoop,
       level: 5,
       score: 120,
     },
     {
-      name: "Extended Unique Rectangle",
+      name: t("tech_Extended Unique Rectangle"),
       func: techniques.extendedRectangle,
       level: 5,
       score: 140,
     },
     {
-      name: "Grouped W-Wing",
+      name: t("tech_Grouped W-Wing"),
       func: techniques.groupedWWing,
       level: 5,
       score: 170,
     },
     {
-      name: "Finned X-Wing",
+      name: t("tech_Finned X-Wing"),
       func: techniques.finnedXWing,
       level: 5,
       score: 140,
     },
     {
-      name: "Grouped 2-String Kite",
+      name: t("tech_Grouped 2-String Kite"),
       func: techniques.groupedKite,
       level: 5,
       score: 150,
     },
     {
-      name: "Empty Rectangle",
+      name: t("tech_Empty Rectangle"),
       func: techniques.emptyRectangle,
       level: 5,
       score: 150,
     },
     {
-      name: "Almost Locked Pair",
+      name: t("tech_Almost Locked Pair"),
       func: techniques.almostLockedPair,
       level: 5,
       score: 180,
     },
     {
-      name: "Almost Locked Triple",
+      name: t("tech_Almost Locked Triple"),
       func: techniques.almostLockedTriple,
       level: 5,
       score: 200,
     },
     {
-      name: "Hidden Rectangle",
+      name: t("tech_Hidden Rectangle"),
       func: techniques.hiddenRectangle,
       level: 5,
       score: 110,
     },
     {
-      name: "Finned Swordfish",
+      name: t("tech_Finned Swordfish"),
       func: techniques.finnedSwordfish,
       level: 6,
       score: 200,
     },
     {
-      name: "Finned Jellyfish",
+      name: t("tech_Finned Jellyfish"),
       func: techniques.finnedJellyfish,
       level: 6,
       score: 260,
     },
-    { name: "X-Chain", func: techniques.xChain, level: 6, score: 200 },
-    { name: "XY-Chain", func: techniques.xyChain, level: 6, score: 240 },
+    { name: t("tech_X-Chain"), func: techniques.xChain, level: 6, score: 200 },
     {
-      name: "Triple Firework",
+      name: t("tech_XY-Chain"),
+      func: techniques.xyChain,
+      level: 6,
+      score: 240,
+    },
+    {
+      name: t("tech_Triple Firework"),
       func: techniques.firework,
       level: 6,
       score: 240,
     },
-    { name: "WXYZ-Wing", func: techniques.wxyzWing, level: 6, score: 200 },
-    { name: "Sue de Coq", func: techniques.sueDeCoq, level: 6, score: 240 },
     {
-      name: "Grouped X-Chain",
+      name: t("tech_WXYZ-Wing"),
+      func: techniques.wxyzWing,
+      level: 6,
+      score: 200,
+    },
+    {
+      name: t("tech_Sue de Coq"),
+      func: techniques.sueDeCoq,
+      level: 6,
+      score: 240,
+    },
+    {
+      name: t("tech_Grouped X-Chain"),
       func: techniques.groupedXChain,
       level: 7,
       score: 240,
     },
     {
-      name: "Alternating Inference Chain",
+      name: t("tech_Alternating Inference Chain"),
       func: techniques.alternatingInferenceChain,
       level: 7,
       score: 280,
     },
-    { name: "Grouped AIC", func: techniques.groupedAIC, level: 8, score: 300 },
     {
-      name: "Almost Locked Set XZ-Rule",
+      name: t("tech_Grouped AIC"),
+      func: techniques.groupedAIC,
+      level: 8,
+      score: 300,
+    },
+    {
+      name: t("tech_Almost Locked Set XZ-Rule"),
       func: techniques.alsXZ,
       level: 8,
       score: 300,
     },
     {
-      name: "Almost Locked Set AIC",
+      name: t("tech_Almost Locked Set AIC"),
       func: techniques.alsAic,
       level: 9,
       score: 340,
     },
     {
-      name: "Cell Death Blossom",
+      name: t("tech_Cell Death Blossom"),
       func: techniques.cellDeathBlossom,
       level: 10,
       score: 380,
     },
     {
-      name: "Region Death Blossom",
+      name: t("tech_Region Death Blossom"),
       func: techniques.regionDeathBlossom,
       level: 10,
       score: 400,
     },
     {
-      name: "Finned Franken Swordfish",
+      name: t("tech_Finned Franken Swordfish"),
       func: techniques.finnedFrankenSwordfish,
       level: 10,
       score: 410,
     },
     {
-      name: "Finned Mutant Swordfish",
+      name: t("tech_Finned Mutant Swordfish"),
       func: techniques.finnedMutantSwordfish,
       level: 10,
       score: 430,
     },
     {
-      name: "Complex AIC",
+      name: t("tech_Complex AIC"),
       func: techniques.complexAic,
       level: 10,
       score: 450,
@@ -7310,7 +7324,7 @@ function getActiveTechniques() {
   const active = [];
   savedPrefs.forEach((p) => {
     const tech = defaults.find((t) => t.name === p.name);
-    if (tech && (p.enabled || MANDATORY_TECHNIQUES.includes(p.name))) {
+    if (tech && (p.enabled || getMandatoryTechniques().includes(p.name))) {
       // Overwrite the level property if the user dragged it elsewhere
       if (p.level !== undefined) tech.level = p.level;
       // Overwrite score if user customized it
@@ -7350,7 +7364,7 @@ function updateListLabels() {
       // --- HIERARCHY LOGIC ---
       let shouldDisable = false;
       if (!isMandatory) {
-        for (const chain of TECHNIQUE_HIERARCHIES) {
+        for (const chain of getTechniqueHierarchies()) {
           const myIdx = chain.indexOf(techName);
           if (myIdx !== -1) {
             // Check if any higher technique in this chain was already seen and enabled
@@ -7528,10 +7542,10 @@ function openPreferencesModal() {
   // Force Mandatory Techniques to the top of the UI list
   const topOrder = [];
   const restOrder = [];
-  for (const t of currentOrder) {
-    if (t.name === "Eliminate Candidates") topOrder[0] = t;
-    else if (t.name === "Full House") topOrder[1] = t;
-    else restOrder.push(t);
+  for (const techObj of currentOrder) {
+    if (techObj.name === t("ui_msg_210")) topOrder[0] = techObj;
+    else if (techObj.name === t("ui_msg_195")) topOrder[1] = techObj;
+    else restOrder.push(techObj);
   }
   currentOrder = [...topOrder.filter(Boolean), ...restOrder];
 
@@ -7551,8 +7565,8 @@ function openPreferencesModal() {
   currentOrder.forEach((tech) => {
     const item = document.createElement("div");
 
-    const isMandatory = MANDATORY_TECHNIQUES.includes(tech.name);
-    const isUniqueness = UNIQUENESS_TECHNIQUES.includes(tech.name);
+    const isMandatory = getMandatoryTechniques().includes(tech.name);
+    const isUniqueness = getUniquenessTechniques().includes(tech.name);
 
     item.className = `sortable-item bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded py-1 px-2 flex justify-between items-center shadow-sm mt-1 ${isMandatory ? "locked-item" : ""}`;
     item.draggable = !isMandatory;
@@ -7580,7 +7594,7 @@ function openPreferencesModal() {
               style="width: 3rem;"
               data-default-score="${tech.origScore}"
               value="${tech.currentScore}"
-              title="Score (default: ${tech.origScore})"
+              title=t("ui_msg_302")
             >
           </div>
         </div>
@@ -7733,11 +7747,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // 5. Force a fresh "Refresh/Re-evaluation" of the board
       currentEvaluationId++;
-      showMessage("Preferences saved! Re-evaluating board...", "blue");
+      showMessage(t("ui_msg_303"), "blue");
 
       await evaluateBoardDifficulty({ waitForFrame: false });
 
-      showMessage("Board evaluation updated!", "green");
+      showMessage(t("ui_msg_304"), "green");
     });
 
   // --- CANCEL BUTTON ---
@@ -7754,7 +7768,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // 1. Wipe the local cache
       localStorage.removeItem("sudokuTechniquePrefs");
 
-      // 3. Reset Candidate Display layout to "Phone (A)"
+      // 3. Reset Candidate Display layout to t("ui_msg_74")
       candidatePopupFormat = "A";
 
       localStorage.setItem("sudokuDisplayFormat", candidatePopupFormat);
@@ -7774,11 +7788,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // 6. Force a fresh "Refresh/Re-evaluation" using defaults
       currentEvaluationId++;
-      showMessage("Defaults restored! Re-evaluating board...", "blue");
+      showMessage(t("ui_msg_305"), "blue");
 
       await evaluateBoardDifficulty({ waitForFrame: false });
 
-      showMessage("Defaults restored and applied!", "green");
+      showMessage(t("ui_msg_306"), "green");
     });
 });
 
@@ -8132,23 +8146,23 @@ function copyGridAsImage() {
   try {
     canvas.toBlob((blob) => {
       if (!blob) {
-        showMessage("Failed to generate image.", "red");
+        showMessage(t("ui_msg_307"), "red");
         return;
       }
       const item = new ClipboardItem({ "image/png": blob });
       navigator.clipboard
         .write([item])
         .then(() => {
-          showMessage("Image copied to clipboard!", "green");
+          showMessage(t("ui_msg_308"), "green");
         })
         .catch((err) => {
           console.error("Clipboard write failed:", err);
-          showMessage("Clipboard access denied. Check permissions.", "red");
+          showMessage(t("ui_msg_309"), "red");
         });
     }, "image/png");
   } catch (err) {
     console.error("Canvas toBlob failed:", err);
-    showMessage("Failed to copy image to clipboard.", "red");
+    showMessage(t("ui_msg_310"), "red");
   }
 }
 
@@ -8156,7 +8170,7 @@ function copyGridAsImage() {
  * specific helper to map hex codes to "[Color N]" format
  */
 function getColorName(hex) {
-  if (!hex) return "Color";
+  if (!hex) return t("ui_msg_31");
 
   // Group palettes to make the search logic scalable
   const palettes = [
@@ -8173,11 +8187,11 @@ function getColorName(hex) {
   for (const palette of palettes) {
     const idx = palette.indexOf(hex);
     if (idx !== -1) {
-      return `[Color ${idx + 1}]`;
+      return t("ui_msg_312", idx + 1);
     }
   }
 
-  return "Custom Color";
+  return t("ui_msg_313");
 }
 
 /**
@@ -8219,16 +8233,16 @@ function getLineDiffDescription(before, after) {
   if (after.length > before.length) {
     // Find the line in 'after' that isn't in 'before'
     const added = after.find((a) => !before.some((b) => isSameLine(a, b)));
-    if (added) return `Line added: ${formatLineLabel(added)}`;
-    return "Line added";
+    if (added) return t("ui_msg_314", formatLineLabel(added));
+    return t("ui_msg_315");
   }
 
   // Case 2: Line Removed
   if (before.length > after.length) {
     // Find the line in 'before' that isn't in 'after'
     const removed = before.find((b) => !after.some((a) => isSameLine(a, b)));
-    if (removed) return `Line removed: ${formatLineLabel(removed)}`;
-    return "Line removed";
+    if (removed) return t("ui_msg_316", formatLineLabel(removed));
+    return t("ui_msg_317");
   }
 
   // Case 3: Line Modified (Style/Color change)
@@ -8255,8 +8269,8 @@ function getLineDiffDescription(before, after) {
       return match && (match.color !== a.color || match.style !== a.style);
     });
 
-    if (changed) return `Line updated: ${formatLineLabel(changed)}`;
-    return "Line style updated";
+    if (changed) return t("ui_msg_318", formatLineLabel(changed));
+    return t("ui_msg_319");
   }
 
   return null;
@@ -8279,9 +8293,9 @@ function getDiffDescription(before, after) {
       if (b.value !== a.value) {
         isCellChanged = true;
         if (a.value !== 0) {
-          placements.push(`Placed r${r + 1}c${c + 1} = ${a.value}`);
+          placements.push(t("ui_msg_320", r + 1, c + 1, a.value));
         } else {
-          valueRemovals.push(`Removed ${b.value} from r${r + 1}c${c + 1}`);
+          valueRemovals.push(t("ui_msg_321", b.value, r + 1, c + 1));
         }
       }
       // 2. Pencil Marks (Candidates)
@@ -8298,10 +8312,10 @@ function getDiffDescription(before, after) {
 
         if (added.length > 0) {
           isCellChanged = true;
-          cellDesc = `Marked (${added.join("")})r${r + 1}c${c + 1}`;
+          cellDesc = t("ui_msg_322", added.join(""), r + 1, c + 1);
         } else if (removed.length > 0) {
           isCellChanged = true;
-          cellDesc = `Unmarked (${removed.join("")})r${r + 1}c${c + 1}`;
+          cellDesc = t("ui_msg_323", removed.join(""), r + 1, c + 1);
         }
 
         // 3. Colors (Cell & Candidate)
@@ -8311,9 +8325,9 @@ function getDiffDescription(before, after) {
             isCellChanged = true;
             if (a.cellColor) {
               const cName = getColorName(a.cellColor);
-              cellDesc = `${cName} in r${r + 1}c${c + 1}`;
+              cellDesc = t("ui_msg_324", cName, r + 1, c + 1);
             } else {
-              cellDesc = `Cleared color in r${r + 1}c${c + 1}`;
+              cellDesc = t("ui_msg_325", r + 1, c + 1);
             }
           }
           // Candidate Colors
@@ -8325,9 +8339,9 @@ function getDiffDescription(before, after) {
                 isCellChanged = true;
                 if (cA) {
                   const cName = getColorName(cA);
-                  cellDesc = `${cName} in (${n})r${r + 1}c${c + 1}`;
+                  cellDesc = t("ui_msg_326", cName, n, r + 1, c + 1);
                 } else {
-                  cellDesc = `Cleared color in (${n})r${r + 1}c${c + 1}`;
+                  cellDesc = t("ui_msg_327", n, r + 1, c + 1);
                 }
                 break; // Stop after finding one change per cell
               }
@@ -8350,8 +8364,8 @@ function getDiffDescription(before, after) {
     return valueRemovals[0];
   if (totalChangedCells === 1 && otherChanges.length > 0)
     return otherChanges[0];
-  if (totalChangedCells === 0) return "No visible changes";
-  return "Multiple cells updated (Highlight/Wipe/Reset/Solve)";
+  if (totalChangedCells === 0) return t("ui_msg_191");
+  return t("ui_msg_329");
 }
 
 function getHighlightDiff(before, after) {
@@ -8362,15 +8376,15 @@ function getHighlightDiff(before, after) {
   ) {
     // Case 1: Highlight Turned Off
     if (after.highlightState === 0) {
-      return "Unhighlighted all";
+      return t("ui_msg_330");
     }
     // Case 2: Digit Highlighted
     if (after.highlightState === 1) {
-      return `Highlighted Digit ${after.highlightedDigit}`;
+      return t("ui_msg_331", after.highlightedDigit);
     }
     // Case 3: Bi-value Highlighted
     if (after.highlightState === 2) {
-      return "Highlighted Bi-value cells";
+      return t("ui_msg_332");
     }
   }
   return null;
@@ -8503,7 +8517,7 @@ async function handleUrlParameters() {
       hadUsedSolver = true;
       hadUsedHint = true;
       currentEvaluationId++;
-      showMessage("Evaluating puzzle from URL...", "blue");
+      showMessage(t("ui_msg_333"), "blue");
       await evaluateBoardDifficulty({ waitForFrame: true });
 
       enterSolverModeUI();
@@ -8527,7 +8541,7 @@ async function handleUrlParameters() {
       hadUsedSolver = true;
       hadUsedHint = true;
       currentEvaluationId++;
-      showMessage("Evaluating puzzle from URL...", "blue");
+      showMessage(t("ui_msg_333"), "blue");
       await evaluateBoardDifficulty({ waitForFrame: true });
 
       enterSolverModeUI();
