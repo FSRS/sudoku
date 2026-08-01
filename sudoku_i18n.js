@@ -838,7 +838,8 @@ const TRANSLATIONS = {
     // === Solver first time modal ===
     modal_solver_first_title: "솔버 모드로 진입할까요?",
     modal_solver_first_desc: "정말로 솔버를 사용하시겠습니까?",
-    modal_solver_first_warning: "(별 마크가 없어집니다.)",
+    modal_solver_first_warning:
+      "(솔버 모드로 진입하면 완벽 클리어의 상징 '별'은 날아갑니다.)",
     btn_solver_confirm: "사용하기",
     btn_solver_deny: "쫌만 더 해보고",
 
