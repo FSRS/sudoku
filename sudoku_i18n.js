@@ -1,4 +1,4 @@
-// sudoku_i18n.js - Internationalization Layer
+﻿// sudoku_i18n.js - Internationalization Layer
 // This file must be loaded BEFORE all other scripts.
 
 const TRANSLATIONS = {
@@ -245,7 +245,8 @@ const TRANSLATIONS = {
     ui_msg_73: "Board cleared.",
     ui_msg_74: "Phone (A)",
     ui_msg_75: "Numpad (B)",
-    ui_msg_candidate_format_tip: "Candidate display set to {0} layout. (Press 'D' to toggle)",
+    ui_msg_candidate_format_tip:
+      "Candidate display set to {0} layout. (Press 'D' to toggle)",
     ui_msg_76: "Pen?",
     ui_msg_77: "Pen? (Z)",
     ui_msg_78: "Num?",
@@ -277,6 +278,8 @@ const TRANSLATIONS = {
     ui_msg_102: "Share Current Progress as:",
     ui_msg_103: "What do you want to share?",
     ui_msg_104: "Copied {0} Link!",
+    ui_msg_word_solver: "Solver",
+    ui_msg_word_playing: "Playing",
     ui_msg_105: "Failed to copy link.",
     ui_msg_106: "Evaluating from beginning...",
     ui_msg_107: "Copied {0} format! ",
@@ -329,6 +332,7 @@ const TRANSLATIONS = {
     ui_msg_142: "No puzzle found for this date and level.",
     ui_msg_143: "Fetching Unlimited Puzzle (Lv. {0})...",
     ui_msg_144: "Puzzle integrity check failed.",
+    ui_msg_145: "Apply selected technique and re-evaluate from this step",
     ui_msg_146: "Loaded Unlimited Puzzle!",
     ui_msg_147: "Error loading unlimited puzzle.",
     ui_msg_148: "You solved it!{0} → ",
@@ -380,6 +384,10 @@ const TRANSLATIONS = {
     ui_msg_186:
       "Sorry! Built-in techniques failed to solve this. Showing Solution.",
     ui_msg_187: "Brute Force :(",
+    ui_msg_188:
+      "Incorrect progress has been made.<br><span class='font-bold text-red-500'>The solver will start from the beginning.</span>",
+    ui_msg_189:
+      "You have made progress.<br>Where do you want the solver to start from?",
     ui_msg_191: "No visible changes",
     ui_msg_192: "Undid: {0}",
     ui_msg_193: "No visible changes",
@@ -839,7 +847,7 @@ const TRANSLATIONS = {
     modal_solver_first_title: "솔버 모드로 진입할까요?",
     modal_solver_first_desc: "정말로 솔버를 사용하시겠습니까?",
     modal_solver_first_warning:
-      "(솔버 모드로 진입하면 완벽 클리어의 상징 '별'은 날아갑니다.)",
+      "(솔버를 사용하면 완벽 클리어의 상징 '별'은 날아갑니다.)",
     btn_solver_confirm: "사용하기",
     btn_solver_deny: "쫌만 더 해보고",
 
@@ -1008,7 +1016,8 @@ const TRANSLATIONS = {
     ui_msg_73: "퍼즐이 지워졌습니다.",
     ui_msg_74: "전화기(A)",
     ui_msg_75: "숫자패드(B)",
-    ui_msg_candidate_format_tip: "후보수 표시가 {0} 레이아웃으로 설정되었습니다. ('D'를 눌러 전환)",
+    ui_msg_candidate_format_tip:
+      "후보수 표시가 {0} 레이아웃으로 설정되었습니다. ('D'를 눌러 전환)",
     ui_msg_76: "연필?",
     ui_msg_77: "연필? (Z)",
     ui_msg_78: "숫자?",
@@ -1091,6 +1100,7 @@ const TRANSLATIONS = {
     ui_msg_142: "이 날짜와 레벨에 해당하는 퍼즐을 찾을 수 없습니다.",
     ui_msg_143: "무제한 퍼즐 가져오는 중 (레벨 {0})...",
     ui_msg_144: "퍼즐 무결성 검사에 실패했습니다.",
+    ui_msg_145: "선택한 테크닉을 적용하고 이 단계부터 재평가합니다.",
     ui_msg_146: "무제한 퍼즐을 불러왔습니다!",
     ui_msg_147: "무제한 퍼즐을 불러오는 중 오류가 발생했습니다.",
     ui_msg_148: "퍼즐을 풀었습니다!{0} → ",
@@ -1142,6 +1152,9 @@ const TRANSLATIONS = {
     ui_msg_186:
       "내장된 기술로는 이 퍼즐을 풀지 못했습니다. 무작위 대입을 이용한 해답을 표시합니다.",
     ui_msg_187: "무작위 대입 :(",
+    ui_msg_188:
+      "잘못된 진행이 있습니다.<br><span class='font-bold text-red-500'>솔버를 처음부터 시작합니다.</span>",
+    ui_msg_189: "진행 중인 퍼즐입니다.<br>솔버를 어디서부터 시작하시겠습니까?",
     ui_msg_191: "눈에 띄는 변경 사항 없음",
     ui_msg_192: "실행 취소: {0}",
     ui_msg_193: "눈에 띄는 변경 사항 없음",
@@ -1151,8 +1164,8 @@ const TRANSLATIONS = {
     ui_msg_197: "초기 보드 상태 (0 = 비어있음):",
     ui_msg_198: "후보수 제거:",
     ui_msg_199: "레벨: {0}, 점수: {1}",
-    ui_msg_200: "사용자 지정 레벨 {0}{1}",
-    ui_msg_201: "사용자 지정 레벨 11{0}",
+    ui_msg_200: "Custom Lv. {0}{1}",
+    ui_msg_201: "Custom Lv. 11{0}",
     ui_msg_202: "레벨 11 (NULL)",
     ui_msg_203: "난이도 평가 완료까지 걸린 시간: {0} ms",
     ui_msg_204: "전역 이중값+1",

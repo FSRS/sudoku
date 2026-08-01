@@ -137,8 +137,7 @@ function updateSolverToggleButton() {
     btn.textContent = isMobile ? t("ui_msg_2") : t("ui_msg_3");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors";
-    btn.dataset.tooltip =
-      "Apply selected technique and re-evaluate from this step";
+    btn.dataset.tooltip = t("ui_msg_145");
   } else if (isSolverMode) {
     btn.textContent = isMobile ? t("ui_msg_4") : t("ui_msg_5");
     btn.className =
@@ -1956,7 +1955,7 @@ function setupEventListeners() {
     candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
     const tip = t(
       "ui_msg_candidate_format_tip",
-      candidatePopupFormat === "A" ? t("ui_msg_74") : t("ui_msg_75")
+      candidatePopupFormat === "A" ? t("ui_msg_74") : t("ui_msg_75"),
     );
     showMessage(tip, "gray");
 
@@ -2416,7 +2415,16 @@ function setupEventListeners() {
       .writeText(url)
       .then(() => {
         showMessage(
-          t("ui_msg_104", mode === "solver" ? "Solver" : "Playing"),
+          t(
+            "ui_msg_104",
+            mode === "solver"
+              ? currentLang === "ko"
+                ? "솔버"
+                : "Solver"
+              : currentLang === "ko"
+                ? "플레이"
+                : "Playing",
+          ),
           "green",
         );
       })
@@ -4720,12 +4728,10 @@ async function proceedToSolverMode() {
   const currentBtn = document.getElementById("solver-current-btn");
 
   if (currentLampColor === "black") {
-    textEl.innerHTML =
-      "Incorrect progress has been made.<br><span class='font-bold text-red-500'>The solver will start from the beginning.</span>";
+    textEl.innerHTML = t("ui_msg_188");
     currentBtn.style.display = "none"; // Hide 'Current State' option
   } else {
-    textEl.innerHTML =
-      "You have made progress.<br>Where do you want the solver to start from?";
+    textEl.innerHTML = t("ui_msg_189");
     currentBtn.style.display = "block";
   }
 
