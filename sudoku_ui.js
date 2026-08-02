@@ -3662,6 +3662,8 @@ async function findAndLoadSelectedPuzzle() {
 
       if (levelText) {
         if (currentLang === "ko" && [2, 4, 9].includes(level)) {
+          levelText.textContent = t("ui_msg_66_2", level);
+        } else if (currentLang === "ko") {
           levelText.textContent = t("ui_msg_66_1", level);
         } else {
           levelText.textContent = t("ui_msg_66", level);
