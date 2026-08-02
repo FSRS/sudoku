@@ -6988,6 +6988,7 @@ const getTechniqueHierarchies = () => [
   [t("ui_msg_228"), t("ui_msg_234")],
   [t("ui_msg_231"), t("ui_msg_234")],
   [t("ui_msg_237"), t("ui_msg_238")],
+  [t("ui_msg_334"), t("ui_msg_335")],
   [t("ui_msg_213"), t("ui_msg_240"), t("ui_msg_241")],
   [t("ui_msg_242"), t("ui_msg_225"), t("ui_msg_238"), t("ui_msg_241")],
   [t("ui_msg_220"), t("ui_msg_238")],
@@ -7187,6 +7188,13 @@ function getDefaultTechniques() {
       score: 150,
     },
     {
+      name: t("ui_msg_334"),
+      func: (b, p, findAll) => techniques.simpleColoring(b, p, findAll),
+      level: 5,
+      score: 150,
+      defaultEnabled: false,
+    },
+    {
       name: t("ui_msg_283"),
       func: techniques.almostLockedPair,
       level: 5,
@@ -7222,6 +7230,13 @@ function getDefaultTechniques() {
       func: techniques.xyChain,
       level: 6,
       score: 240,
+    },
+    {
+      name: t("ui_msg_335"),
+      func: (b, p, findAll) => techniques.medusa3D(b, p, findAll),
+      level: 6,
+      score: 200,
+      defaultEnabled: false,
     },
     {
       name: t("ui_msg_224"),
