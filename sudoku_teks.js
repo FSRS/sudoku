@@ -1411,7 +1411,7 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: `${t("teks_Finned")} ${
+                name: `${t("teks_finned")} ${
                   fishSize === 2
                     ? t("teks_msg_47")
                     : fishSize === 3
@@ -7494,7 +7494,7 @@ const techniques = {
         if (als) {
           const alsIds = als.cells.map((c) => c[0] * 9 + c[1]);
           const preferBox =
-            als.unitName && als.unitName.startsWith(t("teks_msg_7"));
+            als.unitName && als.unitName.includes(t("teks_msg_7"));
           orGateStr = `(${u.digits[0]}=${v.digits[0]})${getLoc(alsIds, preferBox)}`;
           lastDigit = v.digits[0];
         } else if (fish) {
@@ -8744,7 +8744,7 @@ const techniques = {
 
             if (als) {
               const preferBox =
-                als.unitName && als.unitName.startsWith(t("teks_msg_7"));
+                als.unitName && als.unitName.includes(t("teks_msg_7"));
               const alsLoc = getLoc(
                 als.cells.map((ac) => ac[0] * 9 + ac[1]),
                 preferBox,
@@ -8757,7 +8757,7 @@ const techniques = {
           return str;
         });
 
-        const blossomName = isRegion ? t("teks_msg_166") : t("teks_msg_165");
+        const blossomName = isRegion ? t("teks_msg_165") : t("teks_msg_164");
         const mainInfoStr = isRegion
           ? t("teks_msg_157", stem.digit, stem.houseName)
           : t("teks_msg_158", stem.r + 1, stem.c + 1);
@@ -9326,7 +9326,7 @@ const techniques = {
                           cells: _elims,
                           hint: {
                             name: fishName,
-                            mainInfo: t("teks_msg_164", _num),
+                            mainInfo: t("teks_msg_48", _num),
                             detail: detailStr,
                           },
                           applyVisuals: () => {

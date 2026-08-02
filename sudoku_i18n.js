@@ -1,4 +1,4 @@
-﻿// sudoku_i18n.js - Internationalization Layer
+// sudoku_i18n.js - Internationalization Layer
 // This file must be loaded BEFORE all other scripts.
 
 const TRANSLATIONS = {
@@ -496,7 +496,7 @@ const TRANSLATIONS = {
     ui_msg_299: "Complex AIC",
     ui_msg_300: "Eliminate Candidates",
     ui_msg_301: "Full House",
-    ui_msg_302: "Score (default: ${tech.origScore})",
+    ui_msg_302: "Score (default: {0})",
     ui_msg_303: "Preferences saved! Re-evaluating board...",
     ui_msg_304: "Board evaluation updated!",
     ui_msg_305: "Defaults restored! Re-evaluating board...",
@@ -696,13 +696,11 @@ const TRANSLATIONS = {
     teks_msg_161: "Finned ",
     teks_msg_162: "Digit ({0}), Base {1}, Cover {2}",
     teks_msg_163: ", Fin {0}",
-    teks_msg_164: "Digit ({0})",
-    teks_msg_165: "Cell Death Blossom",
-    teks_msg_166: "Region Death Blossom",
-    // Technique Names
+    teks_msg_164: "Cell Death Blossom",
+    teks_msg_165: "Region Death Blossom",
     teks_naked: "Naked",
     teks_hidden: "Hidden",
-    teks_Finned: "Finned",
+    teks_finned: "Finned",
   },
 
   ko: {
@@ -741,10 +739,10 @@ const TRANSLATIONS = {
     // === Solver bar ===
     tooltip_prev_step: "이전 단계",
     tooltip_next_step: "다음 단계",
-    tooltip_view_all: "현재 퍼즐 상태에서 적용 가능한 모든 테크닉 보기",
+    tooltip_view_all: "현재 퍼즐 상태에서 적용 가능한 모든 기술 보기",
     tooltip_back_solver: "솔버 모드로 돌아가기",
     solver_back_btn: "뒤로 가기",
-    vat_mode_text: "모든 테크닉 보기",
+    vat_mode_text: "모든 기술 보기",
 
     // === Puzzle string area ===
     btn_load: "불러오기",
@@ -842,7 +840,7 @@ const TRANSLATIONS = {
     level_tip_5:
       "Lv. 5: 유일성 논법, 그룹 두 줄 연/비어있는 직사각형/지느러미 X-윙, 거의 잠긴 둘/셋, 숨은 직사각형",
     level_tip_6:
-      "Lv. 6: 지느러미 황새치/해파리, X-사슬, XY-사슬, 불꽃놀이, WXYZ-윙, 수 드 콕",
+      "Lv. 6: 지느러미 물고기류, X-사슬, XY-사슬, 불꽃놀이, WXYZ-윙, 수 드 콕",
     level_tip_7: "Lv. 7: 그룹 X-사슬, 교대 추론 사슬",
     level_tip_8: "Lv. 8: 그룹 AIC, 거의 드러난 집합 XZ",
     level_tip_9: "Lv. 9: 거의 드러난 집합 교대 추론 사슬",
@@ -1029,7 +1027,7 @@ const TRANSLATIONS = {
     ui_msg_142: "이 날짜와 레벨에 해당하는 퍼즐을 찾을 수 없습니다.",
     ui_msg_143: "무제한 퍼즐 가져오는 중 (레벨 {0})...",
     ui_msg_144: "퍼즐 무결성 검사에 실패했습니다.",
-    ui_msg_145: "선택한 테크닉을 적용하고 이 단계부터 재평가합니다.",
+    ui_msg_145: "선택한 기술을 적용하고 이 단계부터 재평가합니다.",
     ui_msg_146: "무제한 퍼즐을 불러왔습니다!",
     ui_msg_147: "무제한 퍼즐을 불러오는 중 오류가 발생했습니다.",
     ui_msg_148: "퍼즐을 풀었습니다!{0} → ",
@@ -1069,10 +1067,10 @@ const TRANSLATIONS = {
       "퍼즐이 거의 완료되었습니다. 매우 쉬운 상태에서는 힌트와 솔버 모드가 비활성화됩니다.",
     ui_msg_175: "평가중...",
     ui_msg_176: "솔버 모드를 종료했습니다.",
-    ui_msg_177: "이 상태에 대한 테크닉을 찾을 수 없습니다.",
+    ui_msg_177: "이 상태에 대해 적용할 수 있는 기술을 찾지 못했습니다.",
     ui_msg_178: "{0}개 더 보기...",
     ui_msg_179: "검색 준비중...",
-    ui_msg_180: "이 상태에 대한 테크닉을 찾을 수 없습니다.",
+    ui_msg_180: "적용할 수 있는 기술을 찾지 못했습니다.",
     ui_msg_181: "{0}개 더 보기...",
     ui_msg_182: "Lv. {0} 검색",
     ui_msg_183: "완료? 평가된 레벨 11{0}, 점수: ?{1}",
@@ -1194,7 +1192,7 @@ const TRANSLATIONS = {
     ui_msg_299: "복합 교대 추론 사슬",
     ui_msg_300: "후보수 제거",
     ui_msg_301: "가득찬 집",
-    ui_msg_302: "점수 (기본값: ${tech.origScore})",
+    ui_msg_302: "점수 (기본값: {0})",
     ui_msg_303: "기본 설정이 저장되었습니다! 보드 재평가 중...",
     ui_msg_304: "보드 평가가 업데이트되었습니다!",
     ui_msg_305: "기본값이 복원되었습니다! 보드 재평가 중...",
@@ -1304,35 +1302,35 @@ const TRANSLATIONS = {
       "({0})r{1}c{2}을(를) 제외한 모든 숫자가 모든 하우스에서 정확히 두 번 나타남",
     teks_msg_76: "유일한 직사각형 유형 ①",
     teks_msg_77: "숫자 ({0}{1}) 사용",
-    teks_msg_78: "기반 숫자 ({0}{1}) ({2}), 수호자 {3}",
+    teks_msg_78: "({2})의 기반 숫자 ({0}{1}), 수호자 {3}",
     teks_msg_79: "유일한 직사각형 유형 ②",
     teks_msg_80: "유일한 직사각형 유형 ⑤",
     teks_msg_83: "유일한 직사각형 유형 ③",
     teks_msg_85:
-      "기반 숫자 ({0}{1}) ({2}), 수호자 {3}, 가상의 드러난 부분집합을 위한 추가 칸 {4}",
+      "({2})의 기반 숫자 ({0}{1}), 수호자 {3}, 가상의 드러난 부분집합을 위한 추가 칸 {4}",
     teks_msg_86: "{0}번 행",
     teks_msg_87: "{0}번 열",
     teks_msg_88: "유일한 직사각형 유형 ④",
     teks_msg_90:
-      "기반 숫자 ({0}{1}) ({2}), 수호자 {3}, {5}에서 수호자와 기반 숫자 ({4}) 제한됨",
+      "({2})의 기반 숫자 ({0}{1}), 수호자 {3}, {5}에서 수호자와 기반 숫자 ({4}) 제한됨",
     teks_msg_91: "유일한 직사각형 유형 ⑥",
     teks_msg_93:
-      "기반 숫자 ({0}{1}) ({2}), 수호자 {3}. 모든 수호자를 제거하는 직사각형 위의 특정 ({4}) 배치 제외",
+      "({2})의 기반 숫자 ({0}{1}), 수호자 {3}. 모든 수호자를 제거하는 직사각형 위의 특정 ({4}) 배치 제외",
     teks_msg_94: "숨은 직사각형",
     teks_msg_96:
-      "기반 숫자 ({0}{1}) ({2}), 수호자 {3}, 이중값 칸 {4}, 이중 위치 {5}",
-    teks_msg_97: "기반 숫자 ({0}) ({1}), 수호자 {2}",
+      "({2})의 기반 숫자 ({0}{1}), 수호자 {3}, 이중값 칸 {4}, 이중 위치 {5}",
+    teks_msg_97: "({1})의 기반 숫자 ({0}), 수호자 {2}",
     teks_msg_98: "확장된 유일한 직사각형 유형 ①",
     teks_msg_99: "숫자 ({0}) 사용",
     teks_msg_100: "확장된 유일한 직사각형 유형 ②",
     teks_msg_102: "확장된 유일한 직사각형 유형 ③",
-    teks_msg_104: "{0}, 부분집합 칸: {1}",
+    teks_msg_104: "{0}, 가상의 드러난 부분집합을 위한 추가 칸 {1}",
     teks_msg_105: "확장된 유일한 직사각형 유형 ④",
     teks_msg_107: "{0}, {2}에서 기반 숫자 ({1}) 제한됨",
     teks_msg_108: "확장된 유일한 직사각형 유형 ⑥",
     teks_msg_110:
-      "{0}, 모든 수호자를 제거하는 직사각형 상의 특정 ({1}) 배치 제외",
-    teks_msg_111: "기반 숫자 ({0}) ({1}), 수호자 {2}",
+      "{0}, 모든 수호자를 제거하는 직사각형 위의 특정 ({1}) 배치 제외",
+    teks_msg_111: "({1})의 기반 숫자 ({0}), 수호자 {2}",
     teks_msg_112: "유일한 고리 유형 ①",
     teks_msg_113: "숫자 ({0}) 사용",
     teks_msg_114: "유일한 고리 유형 ②",
@@ -1341,7 +1339,7 @@ const TRANSLATIONS = {
     teks_msg_119: "{0}, 부분집합 칸: {1}",
     teks_msg_120: "유일한 고리 유형 ④",
     teks_msg_121: "유일한 고리 유형 ⑥",
-    teks_msg_122: "{0}, 모든 수호자를 제거하는 고리 상의 특정 ({1}) 배치 제외",
+    teks_msg_122: "{0}, 모든 수호자를 제거하는 고리 위의 특정 ({1}) 배치 제외",
     teks_msg_123: "거의 잠긴 둘",
     teks_msg_124: "거의 잠긴 셋",
     teks_msg_125: "{1}번 {0}과(와) {2}번 상자 사용",
@@ -1391,12 +1389,11 @@ const TRANSLATIONS = {
     teks_msg_161: "지느러미 달린 ",
     teks_msg_162: "숫자 ({0}) 사용, 밑 {1}, 덮개 {2}",
     teks_msg_163: ", 지느러미 {0}",
-    teks_msg_164: "숫자 ({0})",
-    teks_msg_165: "죽음의 꽃 (칸)",
-    teks_msg_166: "죽음의 꽃 (영역)",
+    teks_msg_164: "죽음의 꽃 (칸)",
+    teks_msg_165: "죽음의 꽃 (영역)",
     teks_naked: "드러난",
     teks_hidden: "숨은",
-    teks_Finned: "지느러미",
+    teks_finned: "지느러미",
   },
 };
 

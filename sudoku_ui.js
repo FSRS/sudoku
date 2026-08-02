@@ -7579,7 +7579,7 @@ function openPreferencesModal() {
               style="width: 3rem;"
               data-default-score="${tech.origScore}"
               value="${tech.currentScore}"
-              title=t("ui_msg_302")
+              title="${t("ui_msg_302", tech.origScore)}"
             >
           </div>
         </div>
