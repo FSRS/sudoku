@@ -17,9 +17,7 @@
   --font-sans:
     "Pretendard JP Variable", "Pretendard JP", Pretendard, "Fira Code",
     monospace;
-  --font-mono:
-    "Pretendard JP Variable", "Pretendard JP", Pretendard, "Fira Code",
-    monospace;
+  --font-mono: "Fira Code", "Nanum Gothic Coding", monospace;
   --nc-bg-1: #e6e6fa;
   --nc-tx-1: #4b0082;
   --nc-accent-color: #8a2be2;

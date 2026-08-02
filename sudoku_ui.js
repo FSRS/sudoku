@@ -2183,7 +2183,7 @@ function setupEventListeners() {
         const { r, c, num, type } = currentHintData;
 
         if (hintClickCount === 1) {
-          message = t("ui_msg_86", h.name);
+          message = t("ui_msg_85", h.name);
         } else if (hintClickCount === 2) {
           message = t("ui_msg_87", h.name, h.mainInfo || "");
         } else {
@@ -5034,7 +5034,7 @@ function buildViewAllTechniquesList(step) {
     // --- LEVEL 1: Parent Group (Technique + Action) ---
     const parentRow = document.createElement("div");
     parentRow.className =
-      "font-mono hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
+      "hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
     parentRow.style.display = "flex";
     parentRow.style.flexDirection = "column";
     parentRow.style.gap = "2px";
@@ -5341,7 +5341,7 @@ async function searchAndAppendVatLevel(
       // LEVEL 1: Parent Group (Technique + Action)
       const parentRow = document.createElement("div");
       parentRow.className =
-        "font-mono hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
+        "hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
       parentRow.style.display = "flex";
       parentRow.style.flexDirection = "column";
       parentRow.style.gap = "2px";
@@ -5807,16 +5807,8 @@ function buildSolverSummary() {
     // Main Container
     const row = document.createElement("div");
     row.dataset.tech = tech; // Tag for highlighting
-    row.className = "font-mono";
-    row.style.display = "flex";
-    row.style.alignItems = "center";
-    row.style.gap = "0.5rem";
-    row.style.padding = "2px 4px"; // Slightly padded for highlight box
-    row.style.borderRadius = "4px"; // Rounded corners for highlight
-    row.style.transition = "background-color 0.2s, filter 0.2s"; // Smooth highlight transition
-    row.style.fontWeight = "bold";
-
-    row.style.cursor = "pointer";
+    row.className =
+      "flex items-center gap-2 py-0.5 px-1 rounded transition-[background-color,filter] duration-200 duration-200 font-bold cursor-pointer";
 
     row.addEventListener("click", () => {
       // 1. Find all indices where this technique was used
@@ -5905,15 +5897,8 @@ function buildSolverSummary() {
 
     const row = document.createElement("div");
     row.dataset.tech = "bruteforce"; // Matches the techName we added in evaluateBoardDifficulty
-    row.className = "font-mono";
-    row.style.display = "flex";
-    row.style.alignItems = "center";
-    row.style.gap = "0.5rem";
-    row.style.padding = "2px 4px";
-    row.style.borderRadius = "4px";
-    row.style.transition = "background-color 0.2s, filter 0.2s";
-    row.style.fontWeight = "bold";
-    row.style.cursor = "pointer";
+    row.className =
+      "flex items-center gap-2 py-0.5 px-1 rounded transition-[background-color,filter] duration-200 font-bold cursor-pointer";
 
     // Clicking it jumps to the very last step
     row.addEventListener("click", () => {
@@ -5930,7 +5915,7 @@ function buildSolverSummary() {
     countEl.style.textAlign = "right";
     countEl.style.flexShrink = "0";
     countEl.style.opacity = "0.9";
-    countEl.textContent = ` 1x`;
+    countEl.textContent = ` 1`;
 
     const dotEl = document.createElement("div");
     dotEl.style.opacity = "0.75";
@@ -6976,11 +6961,11 @@ const getTechniqueHierarchies = () => [
   [t("ui_msg_220"), t("ui_msg_238")],
   [t("ui_msg_221"), t("ui_msg_241")],
   [t("ui_msg_283"), t("ui_msg_241"), t("ui_msg_251"), t("ui_msg_299")],
-  [t("ui_msg_283"), t("tech_Sue de Coq")],
-  [t("ui_msg_284"), t("tech_Sue de Coq")],
+  [t("ui_msg_283"), t("ui_msg_249")],
+  [t("ui_msg_284"), t("ui_msg_249")],
   [t("ui_msg_242"), t("ui_msg_250")],
   [t("ui_msg_271"), t("ui_msg_250")],
-  [t("tech_WXYZ-Wing"), t("ui_msg_250")],
+  [t("ui_msg_245"), t("ui_msg_250")],
   [t("ui_msg_250"), t("ui_msg_251")],
 ];
 
@@ -6989,25 +6974,25 @@ function getDefaultTechniques() {
   // If we didn't specify it, it defaults to true.
   return [
     {
-      name: t("tech_Eliminate Candidates"),
+      name: t("ui_msg_210"),
       func: techniques.eliminateCandidates,
       level: 0,
       score: 0,
     },
     {
-      name: t("tech_Full House"),
+      name: t("ui_msg_209"),
       func: techniques.fullHouse,
       level: 0,
       score: 4,
     },
     {
-      name: t("tech_Naked Single"),
+      name: t("ui_msg_254"),
       func: techniques.nakedSingle,
       level: 0,
       score: 4,
     },
     {
-      name: t("tech_Hidden Single"),
+      name: t("ui_msg_255"),
       func: techniques.hiddenSingle,
       level: 0,
       score: 14,
@@ -7115,18 +7100,18 @@ function getDefaultTechniques() {
       score: 160,
     },
     {
-      name: t("tech_Skyscraper"),
+      name: t("ui_msg_273"),
       func: techniques.skyscraper,
       level: 4,
       score: 110,
     },
     {
-      name: t("tech_2-String Kite"),
+      name: t("ui_msg_274"),
       func: techniques.twoStringKite,
       level: 4,
       score: 120,
     },
-    { name: t("tech_Crane"), func: techniques.crane, level: 4, score: 130 },
+    { name: t("ui_msg_275"), func: techniques.crane, level: 4, score: 130 },
     {
       name: t("ui_msg_205"),
       func: (b, p, findAll) => techniques.uniqueRectangle(b, p, findAll),
@@ -7134,152 +7119,152 @@ function getDefaultTechniques() {
       score: 100,
     },
     {
-      name: t("tech_Unique Loop"),
+      name: t("ui_msg_206"),
       func: techniques.uniqueLoop,
       level: 5,
       score: 120,
     },
     {
-      name: t("tech_Extended Unique Rectangle"),
+      name: t("ui_msg_207"),
       func: techniques.extendedRectangle,
       level: 5,
       score: 140,
     },
     {
-      name: t("tech_Grouped W-Wing"),
+      name: t("ui_msg_221"),
       func: techniques.groupedWWing,
       level: 5,
       score: 170,
     },
     {
-      name: t("tech_Finned X-Wing"),
+      name: t("ui_msg_215"),
       func: techniques.finnedXWing,
       level: 5,
       score: 140,
     },
     {
-      name: t("tech_Grouped 2-String Kite"),
+      name: t("ui_msg_218"),
       func: techniques.groupedKite,
       level: 5,
       score: 150,
     },
     {
-      name: t("tech_Empty Rectangle"),
+      name: t("ui_msg_212"),
       func: techniques.emptyRectangle,
       level: 5,
       score: 150,
     },
     {
-      name: t("tech_Almost Locked Pair"),
+      name: t("ui_msg_283"),
       func: techniques.almostLockedPair,
       level: 5,
       score: 180,
     },
     {
-      name: t("tech_Almost Locked Triple"),
+      name: t("ui_msg_284"),
       func: techniques.almostLockedTriple,
       level: 5,
       score: 200,
     },
     {
-      name: t("tech_Hidden Rectangle"),
+      name: t("ui_msg_285"),
       func: techniques.hiddenRectangle,
       level: 5,
       score: 110,
     },
     {
-      name: t("tech_Finned Swordfish"),
+      name: t("ui_msg_286"),
       func: techniques.finnedSwordfish,
       level: 6,
       score: 200,
     },
     {
-      name: t("tech_Finned Jellyfish"),
+      name: t("ui_msg_287"),
       func: techniques.finnedJellyfish,
       level: 6,
       score: 260,
     },
-    { name: t("tech_X-Chain"), func: techniques.xChain, level: 6, score: 200 },
+    { name: t("ui_msg_288"), func: techniques.xChain, level: 6, score: 200 },
     {
-      name: t("tech_XY-Chain"),
+      name: t("ui_msg_289"),
       func: techniques.xyChain,
       level: 6,
       score: 240,
     },
     {
-      name: t("tech_Triple Firework"),
+      name: t("ui_msg_224"),
       func: techniques.firework,
       level: 6,
       score: 240,
     },
     {
-      name: t("tech_WXYZ-Wing"),
+      name: t("ui_msg_245"),
       func: techniques.wxyzWing,
       level: 6,
       score: 200,
     },
     {
-      name: t("tech_Sue de Coq"),
+      name: t("ui_msg_249"),
       func: techniques.sueDeCoq,
       level: 6,
       score: 240,
     },
     {
-      name: t("tech_Grouped X-Chain"),
+      name: t("ui_msg_240"),
       func: techniques.groupedXChain,
       level: 7,
       score: 240,
     },
     {
-      name: t("tech_Alternating Inference Chain"),
+      name: t("ui_msg_238"),
       func: techniques.alternatingInferenceChain,
       level: 7,
       score: 280,
     },
     {
-      name: t("tech_Grouped AIC"),
+      name: t("ui_msg_241"),
       func: techniques.groupedAIC,
       level: 8,
       score: 300,
     },
     {
-      name: t("tech_Almost Locked Set XZ-Rule"),
+      name: t("ui_msg_250"),
       func: techniques.alsXZ,
       level: 8,
       score: 300,
     },
     {
-      name: t("tech_Almost Locked Set AIC"),
+      name: t("ui_msg_251"),
       func: techniques.alsAic,
       level: 9,
       score: 340,
     },
     {
-      name: t("tech_Cell Death Blossom"),
+      name: t("ui_msg_295"),
       func: techniques.cellDeathBlossom,
       level: 10,
       score: 380,
     },
     {
-      name: t("tech_Region Death Blossom"),
+      name: t("ui_msg_296"),
       func: techniques.regionDeathBlossom,
       level: 10,
       score: 400,
     },
     {
-      name: t("tech_Finned Franken Swordfish"),
+      name: t("ui_msg_297"),
       func: techniques.finnedFrankenSwordfish,
       level: 10,
       score: 410,
     },
     {
-      name: t("tech_Finned Mutant Swordfish"),
+      name: t("ui_msg_298"),
       func: techniques.finnedMutantSwordfish,
       level: 10,
       score: 430,
     },
     {
-      name: t("tech_Complex AIC"),
+      name: t("ui_msg_299"),
       func: techniques.complexAic,
       level: 10,
       score: 450,

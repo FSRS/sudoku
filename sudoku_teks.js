@@ -286,7 +286,7 @@ const techniques = {
         type: "remove",
         cells: uniqueRemovals,
         hint: {
-          name: t("tech_Eliminate Candidates"),
+          name: t("teks_msg_1"),
           mainInfo: t("teks_msg_2", newpr + 1, newpc + 1),
           detail: t("teks_msg_3", newd, newr, newc),
         },
@@ -422,7 +422,7 @@ const techniques = {
       c,
       num: missingNum,
       hint: {
-        name: t("tech_Full House"),
+        name: t("teks_msg_9"),
         mainInfo: unitName,
         detail,
       },
@@ -452,7 +452,7 @@ const techniques = {
             c,
             num,
             hint: {
-              name: t("tech_Naked Single"),
+              name: t("teks_msg_10"),
               mainInfo: t("teks_msg_11", r + 1, c + 1),
               detail: t("teks_msg_12", num, r + 1, c + 1),
             },
@@ -510,7 +510,7 @@ const techniques = {
               c,
               num,
               hint: {
-                name: t("tech_Hidden Single"),
+                name: t("teks_msg_19"),
                 mainInfo: unitLabel,
                 detail,
               },
@@ -640,10 +640,7 @@ const techniques = {
                   type: "remove",
                   cells: removals,
                   hint: {
-                    name:
-                      size === 2
-                        ? t("tech_Locked Pair")
-                        : t("tech_Locked Triple"),
+                    name: size === 2 ? t("teks_msg_22") : t("teks_msg_23"),
                     mainInfo: t("teks_msg_24", lineType, line_idx + 1, b + 1),
                     detail: t(
                       "teks_msg_25",
@@ -964,7 +961,7 @@ const techniques = {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: `${t("tech_naked")} ${
+                  name: `${t("teks_naked")} ${
                     size === 2
                       ? t("teks_msg_38")
                       : size === 3
@@ -1094,7 +1091,7 @@ const techniques = {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: `${t("tech_hidden")} ${
+                  name: `${t("teks_hidden")} ${
                     size === 2
                       ? t("teks_msg_38")
                       : size === 3
@@ -1195,10 +1192,10 @@ const techniques = {
                 hint: {
                   name:
                     size === 2
-                      ? t("tech_X-Wing")
+                      ? t("teks_msg_47")
                       : size === 3
-                        ? t("tech_Swordfish")
-                        : t("tech_Jellyfish"),
+                        ? t("teks_msg_47_1")
+                        : t("teks_msg_47_2"),
                   mainInfo: t("teks_msg_48", num),
                   detail: t("teks_msg_162", num, baseStr, coverStr),
                 },
@@ -1414,12 +1411,12 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: `${t("tech_Finned")} ${
+                name: `${t("teks_Finned")} ${
                   fishSize === 2
-                    ? t("tech_X-Wing")
+                    ? t("teks_msg_47")
                     : fishSize === 3
-                      ? t("tech_Swordfish")
-                      : t("tech_Jellyfish")
+                      ? t("teks_msg_47_1")
+                      : t("teks_msg_47_2")
                 }`,
                 mainInfo: t("teks_msg_48", num),
                 detail: t("teks_msg_49", num, baseStr, coverStr, finStr),
@@ -1522,7 +1519,7 @@ const techniques = {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: t("tech_XY-Wing"),
+                  name: t("teks_msg_50"),
                   mainInfo: t("teks_msg_51", pivot.r + 1, pivot.c + 1),
                   detail: t(
                     "teks_msg_52",
@@ -1662,7 +1659,7 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: t("tech_XYZ-Wing"),
+                name: t("teks_msg_53"),
                 mainInfo: t("teks_msg_51", pivot.r + 1, pivot.c + 1),
                 detail: t(
                   "teks_msg_55",
@@ -1878,7 +1875,7 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: isGrouped ? t("tech_Grouped W-Wing") : t("tech_W-Wing"),
+                name: isGrouped ? t("teks_msg_56") : t("teks_msg_57"),
                 mainInfo: t("teks_msg_58", elimDigit, linkDigit),
                 detail: t(
                   "teks_msg_59",
@@ -2036,7 +2033,7 @@ const techniques = {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: t("tech_Remote Pair"),
+                  name: t("teks_msg_60"),
                   mainInfo: t("teks_msg_61", pair[0], pair[1]),
                   detail: t("teks_msg_62", pair[0], pair[1], pathStr),
                 },
@@ -2171,7 +2168,7 @@ const techniques = {
               type: "remove",
               cells: removals,
               hint: {
-                name: t("tech_Skyscraper"),
+                name: t("teks_msg_63"),
                 mainInfo: t("teks_msg_48", num),
                 detail: `(${num})(${link1Str})-(${link2Str})`,
               },
@@ -2313,7 +2310,7 @@ const techniques = {
                     type: "remove",
                     cells: removals,
                     hint: {
-                      name: t("tech_2-String Kite"),
+                      name: t("teks_msg_65"),
                       mainInfo: t("teks_msg_48", num),
                       detail: `(${num})(${link1Str})-(${link2Str})`,
                     },
@@ -2435,7 +2432,7 @@ const techniques = {
                       type: "remove",
                       cells: removals,
                       hint: {
-                        name: t("tech_Crane"),
+                        name: t("teks_msg_67"),
                         mainInfo: t("teks_msg_48", num),
                         detail: `(${num})(${link1Str})-(${link2Str})`,
                       },
@@ -2570,7 +2567,7 @@ const techniques = {
                 type: "remove",
                 cells: [{ r: r2, c: c2, num }],
                 hint: {
-                  name: t("tech_Grouped 2-String Kite"),
+                  name: t("teks_msg_69"),
                   mainInfo: t("teks_msg_48", num),
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
@@ -2761,7 +2758,7 @@ const techniques = {
                       type: "remove",
                       cells: [{ r: elimR, c: elimC, num }],
                       hint: {
-                        name: t("tech_Empty Rectangle"),
+                        name: t("teks_msg_71"),
                         mainInfo: t("teks_msg_48", num),
                         detail: `(${num})(${link1Str})-(${link2Str})`,
                       },
@@ -2934,7 +2931,7 @@ const techniques = {
             type: "remove",
             cells: removals,
             hint: {
-              name: t("tech_BUG+1"),
+              name: t("teks_msg_73"),
               mainInfo: t("teks_msg_74", r_plus1 + 1, c_plus1 + 1),
               detail: t("teks_msg_75", num, r_plus1 + 1, c_plus1 + 1),
             },
@@ -3802,7 +3799,7 @@ const techniques = {
             type: "remove",
             cells: uniqueRemovals,
             hint: {
-              name: t("tech_Hidden Rectangle"),
+              name: t("teks_msg_94"),
               mainInfo: t("teks_msg_77", d1, d2),
               detail: t(
                 "teks_msg_96",
@@ -5375,9 +5372,9 @@ const techniques = {
                     type: "remove",
                     cells: _getUniqueRemovals(removals),
                     hint: {
-                      name: t("teks_msg_123"),
+                      name: t("teks_msg_121"),
                       mainInfo: t("teks_msg_113", baseDigitsStr),
-                      detail: t("teks_msg_125", detailPrefix, u),
+                      detail: t("teks_msg_122", detailPrefix, u),
                     },
                     applyVisuals: getULVisuals(
                       6,
@@ -5608,11 +5605,9 @@ const techniques = {
                       : formatRC(outsideIntersection);
 
                   const techName =
-                    size === 2
-                      ? t("tech_Almost Locked Pair")
-                      : t("tech_Almost Locked Triple");
+                    size === 2 ? t("teks_msg_123") : t("teks_msg_124");
                   const mainInfo = t(
-                    "teks_almost_locked_info",
+                    "teks_msg_125",
                     isRow ? t("teks_msg_14") : t("teks_msg_15"),
                     isLineToBox ? baseIdx + 1 : targetIdx + 1,
                     isLineToBox ? targetIdx + 1 : baseIdx + 1,
@@ -5932,7 +5927,7 @@ const techniques = {
                       );
                     }
                     if (eliminations.length > 0) {
-                      const hintName = t("tech_Sue de Coq");
+                      const hintName = t("teks_msg_127");
                       const lineName = isRow
                         ? t("teks_msg_14")
                         : t("teks_msg_15");
@@ -6323,7 +6318,7 @@ const techniques = {
                                     type: "remove",
                                     cells: eliminations,
                                     hint: {
-                                      name: t("tech_Triple Firework"),
+                                      name: t("teks_msg_133"),
                                       mainInfo: t(
                                         "teks_msg_134",
                                         rIdx + 1,
@@ -7085,7 +7080,7 @@ const techniques = {
       nameOverride,
       pathFilter,
     } = config;
-    const techniqueName = nameOverride || t("tech_Alternating Inference Chain");
+    const techniqueName = nameOverride || t("teks_msg_136");
 
     let cache = techniques._aicCache;
 
@@ -7930,12 +7925,15 @@ const techniques = {
                 const chainStr = t("teks_msg_chain_term");
                 const aicStr = t("teks_msg_aic_term");
                 const ringName =
-                  techniqueName === t("tech_Alternating Inference Chain")
+                  techniqueName === t("teks_msg_136")
                     ? t("teks_msg_aic_ring")
                     : techniqueName.includes(aicStr)
                       ? techniqueName + t("teks_msg_ring_suffix")
                       : techniqueName.includes(chainStr)
-                        ? techniqueName.replace(chainStr, t("teks_msg_ring_term"))
+                        ? techniqueName.replace(
+                            chainStr,
+                            t("teks_msg_ring_term"),
+                          )
                         : useAlsXZ
                           ? t("teks_msg_doubly_linked") + techniqueName
                           : techniqueName + t("teks_msg_ring_suffix");
@@ -8001,12 +7999,15 @@ const techniques = {
                 const chainStr = t("teks_msg_chain_term");
                 const aicStr = t("teks_msg_aic_term");
                 const DNLName =
-                  techniqueName === t("tech_Alternating Inference Chain")
+                  techniqueName === t("teks_msg_136")
                     ? t("teks_msg_140")
                     : techniqueName.includes(aicStr)
                       ? techniqueName.replace(aicStr, t("teks_msg_dnloop_term"))
                       : techniqueName.includes(chainStr)
-                        ? techniqueName.replace(chainStr, t("teks_msg_dnloop_term"))
+                        ? techniqueName.replace(
+                            chainStr,
+                            t("teks_msg_dnloop_term"),
+                          )
                         : techniqueName + t("teks_msg_dnloop_suffix");
 
                 const res = buildResult(dnRemovals, DNLName, path, false);
@@ -8087,7 +8088,7 @@ const techniques = {
         useGrouped: false,
         useAls: false,
         maxCycle: 2,
-        nameOverride: t("tech_X-Chain"),
+        nameOverride: t("teks_msg_141"),
       },
       findAll,
     );
@@ -8103,7 +8104,7 @@ const techniques = {
         useGrouped: true,
         useAls: false,
         maxCycle: 2,
-        nameOverride: t("tech_Grouped X-Chain"),
+        nameOverride: t("teks_msg_142"),
       },
       findAll,
     );
@@ -8119,7 +8120,7 @@ const techniques = {
         useGrouped: false,
         useAls: false,
         maxCycle: 3,
-        nameOverride: t("tech_XY-Chain"),
+        nameOverride: t("teks_msg_143"),
       },
       findAll,
     );
@@ -8150,7 +8151,7 @@ const techniques = {
         useGrouped: true,
         useAls: false,
         maxCycle: 3,
-        nameOverride: t("tech_Grouped AIC"),
+        nameOverride: t("teks_msg_144"),
       },
       findAll,
     );
@@ -8167,7 +8168,7 @@ const techniques = {
         useAlsXZ: true, // Triggers standard ALS-XZ routing and visual logic
         useAls: true,
         maxCycle: 1, // Restricts to exactly 2 OR-gates (4 nodes total)
-        nameOverride: t("tech_WXYZ-Wing"),
+        nameOverride: t("teks_msg_145"),
         pathFilter: (path, cache) => {
           if (path.length !== 4) return false;
 
@@ -8208,7 +8209,7 @@ const techniques = {
         useAlsXZ: true,
         useAls: true,
         maxCycle: 1,
-        nameOverride: t("tech_Almost Locked Set XZ-Rule"),
+        nameOverride: t("teks_msg_146"),
       },
       findAll,
     );
@@ -8224,7 +8225,7 @@ const techniques = {
         useGrouped: true,
         useAls: true,
         maxCycle: 3,
-        nameOverride: t("tech_Almost Locked Set AIC"),
+        nameOverride: t("teks_msg_147"),
       },
       findAll,
     );
@@ -8241,7 +8242,7 @@ const techniques = {
         useAls: true,
         useFish: true,
         maxCycle: 3,
-        nameOverride: t("tech_Complex AIC"),
+        nameOverride: t("teks_msg_148"),
       },
       findAll,
     );
@@ -8756,9 +8757,7 @@ const techniques = {
           return str;
         });
 
-        const blossomName = isRegion
-          ? t("tech_Region Death Blossom")
-          : t("tech_Cell Death Blossom");
+        const blossomName = isRegion ? t("teks_msg_166") : t("teks_msg_165");
         const mainInfoStr = isRegion
           ? t("teks_msg_157", stem.digit, stem.houseName)
           : t("teks_msg_158", stem.r + 1, stem.c + 1);
