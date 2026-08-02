@@ -3649,7 +3649,10 @@ async function findAndLoadSelectedPuzzle() {
       // CLEAR BOARD VISUALS immediately
       initBoardState();
       renderBoard();
-      document.getElementById("candidate-modal").classList.add("hidden");
+      const candidateModal = document.getElementById("candidate-modal");
+      if (candidateModal) {
+        candidateModal.classList.add("hidden");
+      }
 
       // Show Resume Modal
       const modal = document.getElementById("resume-modal");
@@ -3657,36 +3660,65 @@ async function findAndLoadSelectedPuzzle() {
       const resumeBtn = document.getElementById("resume-btn");
       const newGameBtn = document.getElementById("new-game-btn");
 
-      levelText.textContent = t("ui_msg_66", level);
-      modal.classList.remove("hidden");
-      modal.classList.add("flex");
+      if (levelText) {
+        if (currentLang === "ko" && [2, 4, 9].includes(level)) {
+          levelText.textContent = t("ui_msg_66_1", level);
+        } else {
+          levelText.textContent = t("ui_msg_66", level);
+        }
+      }
 
-      // Define one-time handlers
-      resumeBtn.onclick = (e) => {
-        e.stopPropagation(); // STOP PROPAGATION
-        modal.classList.add("hidden");
-        modal.classList.remove("flex");
+      if (modal) {
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+      } else {
+        // Fallback: If no modal, just load the saved game automatically.
         puzzleStringInput.value = savedGame.puzzle;
-
         const unlimitedData = {
           date: "unlimited",
           level: level,
           score: 0,
           puzzle: savedGame.puzzle,
         };
-
         loadPuzzle(savedGame.puzzle, unlimitedData);
-        puzzleLevelEl.textContent = t("ui_msg_139", level);
-      };
+        if (typeof puzzleLevelEl !== "undefined" && puzzleLevelEl) {
+          puzzleLevelEl.textContent = t("ui_msg_139", level);
+        }
+        return;
+      }
 
-      newGameBtn.onclick = (e) => {
-        e.stopPropagation(); // STOP PROPAGATION
-        modal.classList.add("hidden");
-        modal.classList.remove("flex");
-        // Remove the old save since user chose New Game
-        removeCurrentPuzzleSave();
-        fetchUnlimitedPuzzle(level);
-      };
+      // Define one-time handlers
+      if (resumeBtn) {
+        resumeBtn.onclick = (e) => {
+          e.stopPropagation(); // STOP PROPAGATION
+          modal.classList.add("hidden");
+          modal.classList.remove("flex");
+          puzzleStringInput.value = savedGame.puzzle;
+
+          const unlimitedData = {
+            date: "unlimited",
+            level: level,
+            score: 0,
+            puzzle: savedGame.puzzle,
+          };
+
+          loadPuzzle(savedGame.puzzle, unlimitedData);
+          if (typeof puzzleLevelEl !== "undefined" && puzzleLevelEl) {
+            puzzleLevelEl.textContent = t("ui_msg_139", level);
+          }
+        };
+      }
+
+      if (newGameBtn) {
+        newGameBtn.onclick = (e) => {
+          e.stopPropagation(); // STOP PROPAGATION
+          modal.classList.add("hidden");
+          modal.classList.remove("flex");
+          // Remove the old save since user chose New Game
+          removeCurrentPuzzleSave();
+          fetchUnlimitedPuzzle(level);
+        };
+      }
 
       return; // Stop here, wait for user input
     }
