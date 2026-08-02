@@ -1410,7 +1410,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     tooltipText = `${label}: ${desc}`;
   }
 
-  if (window.innerWidth <= 550) {
+  if (window.innerWidth <= 550 && currentLang === "en") {
     tooltipText = tooltipText.replace(t("ui_msg_67"), "Lv.");
   }
 
@@ -4561,7 +4561,7 @@ function applySavedProgress(puzzleData) {
         magenta: t("ui_msg_166"),
       };
       let tooltipText = tooltips[last] || t("ui_msg_64");
-      if (window.innerWidth <= 550)
+      if (window.innerWidth <= 550 && currentLang === "en")
         tooltipText = tooltipText.replace(t("ui_msg_67"), "Lv.");
       difficultyLamp.dataset.tooltip = tooltipText;
     }
