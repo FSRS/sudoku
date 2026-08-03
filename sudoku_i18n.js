@@ -530,6 +530,8 @@ const TRANSLATIONS = {
     ui_msg_333: "Evaluating puzzle from URL...",
     ui_msg_334: "Simple Coloring",
     ui_msg_335: "3D Medusa",
+    ui_msg_336: "ALS XY-Wing",
+    ui_msg_337: "ALS W-Wing",
     teks_msg_1: "Eliminate Candidates",
     teks_msg_2: "at r{0}c{1}",
     teks_msg_3: "Concrete number ({0})r{1}c{2}",
@@ -670,6 +672,7 @@ const TRANSLATIONS = {
     teks_msg_ring_term: "Ring",
     teks_msg_dnloop_term: "DN Loop",
     teks_msg_doubly_linked: "Doubly linked ",
+    teks_msg_triply_linked: "Triply linked ",
     teks_msg_ring_suffix: " Ring",
     teks_msg_dnloop_suffix: " DN Loop",
     teks_msg_aic_ring: "AIC Ring",
@@ -716,6 +719,8 @@ const TRANSLATIONS = {
     teks_msg_178: "C1 at {0}",
     teks_msg_179: "C2 at {0}",
     teks_msg_180: "Color Trap ({0}).",
+    teks_msg_181: "Almost Locked Set XY-Wing",
+    teks_msg_182: "Almost Locked Set W-Wing",
   },
 
   ko: {
@@ -789,18 +794,16 @@ const TRANSLATIONS = {
     // === Solver first time modal ===
     modal_solver_first_title: "솔버 모드로 진입할까요?",
     modal_solver_first_desc: "정말로 솔버를 사용하시겠습니까?",
-    modal_solver_first_warning:
-      "(솔버를 사용하면 완벽 클리어의 상징 '별'은 날아갑니다.)",
+    modal_solver_first_warning: "(기록에 '별' 마크가 나타나지 않게 됩니다.)",
     btn_solver_confirm: "사용하기",
-    btn_solver_deny: "쫌만 더 해보고",
+    btn_solver_deny: "취소하기",
 
     // === Hint confirm modal ===
     modal_hint_title: "힌트를 볼까요?",
     modal_hint_desc: "정말로 힌트를 보시겠습니까?",
-    modal_hint_warning:
-      "(힌트를 보는 순간 완벽 클리어의 상징 '별'은 날아갑니다.)",
-    btn_hint_confirm: "별이 밥 먹여주냐",
-    btn_hint_deny: "쫌만 더 해보고",
+    modal_hint_warning: "(기록에 '별' 마크가 나타나지 않게 됩니다.)",
+    btn_hint_confirm: "사용하기",
+    btn_hint_deny: "취소하기",
 
     // === Copy modal ===
     modal_copy_title: "퍼즐 데이터 복사하기",
@@ -1243,6 +1246,8 @@ const TRANSLATIONS = {
     ui_msg_333: "URL에서 퍼즐 평가 중...",
     ui_msg_334: "심플 컬러링",
     ui_msg_335: "3D 메두사",
+    ui_msg_336: "거의 드러난 집합 XY-윙",
+    ui_msg_337: "거의 드러난 집합 W-윙",
     teks_msg_1: "후보수 제거",
     teks_msg_2: "r{0}c{1}에서",
     teks_msg_3: "확정된 숫자 ({0}) r{1}c{2}에 의해",
@@ -1379,10 +1384,11 @@ const TRANSLATIONS = {
     teks_msg_chain_term: "사슬",
     teks_msg_aic_term: "교대 추론 사슬",
     teks_msg_ring_term: "고리",
-    teks_msg_dnloop_term: "어긋난 고리",
+    teks_msg_dnloop_term: "불연속 고리",
     teks_msg_doubly_linked: "이중 연결된 ",
+    teks_msg_triply_linked: "삼중 연결된 ",
     teks_msg_ring_suffix: " 고리",
-    teks_msg_dnloop_suffix: " 어긋난 고리",
+    teks_msg_dnloop_suffix: " 불연속 고리",
     teks_msg_aic_ring: "교대 추론 사슬 고리",
     teks_msg_141: "X-사슬",
     teks_msg_142: "그룹 X-사슬",
@@ -1430,6 +1436,8 @@ const TRANSLATIONS = {
     teks_msg_178: "색 1이 {0}에",
     teks_msg_179: "색 2가 {0}에",
     teks_msg_180: "삭제되는 후보 숫자가 두 색상({0}) 모두와 NAND 관계에 있음.",
+    teks_msg_181: "거의 드러난 집합 XY-윙",
+    teks_msg_182: "거의 드러난 집합 W-윙",
   },
 };
 
