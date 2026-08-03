@@ -7253,7 +7253,6 @@ const techniques = {
 
       node.OrNandNodesMap = new Map();
 
-      // New: only expand newly discovered nodes each cycle.
       node.OrFrontier = new Set(node.OrNodes);
       node.OrNandFrontier = new Set();
     });
@@ -7392,8 +7391,6 @@ const techniques = {
       return null;
     };
 
-    const pathMemo = new Map();
-
     const findAICPath = (startNode, endNode, maxNodes, kind = "chain") => {
       // 1. Fast Path: Backtrack using memoized origins
       const fastPath = buildBacktrackPath(startNode, endNode, true);
@@ -7426,57 +7423,109 @@ const techniques = {
       }
 
       // 2. Fallback: Standard BFS
-      const queue = [{ node: startNode, isNextOr: true, path: [startNode] }];
+      // A path is reconstructed only when an endpoint is reached.
+      const EMPTY_NEIGHBORS = new Set();
+
+      const states = [
+        {
+          node: startNode,
+          isNextOr: true,
+          parent: -1,
+          depth: 1,
+        },
+      ];
+
       let head = 0;
 
-      while (head < queue.length) {
-        const { node, isNextOr, path } = queue[head++];
+      const reconstructPath = (stateIndex) => {
+        const path = [];
 
-        if (node === endNode && path.length > 1) {
-          // The path must finish immediately after an OR link.
-          if (!isNextOr && acceptsConfiguredPath(path, kind)) {
-            return path;
+        while (stateIndex !== -1) {
+          const state = states[stateIndex];
+          path.push(state.node);
+          stateIndex = state.parent;
+        }
+
+        path.reverse();
+        return path;
+      };
+
+      const ancestorContains = (stateIndex, targetNode) => {
+        while (stateIndex !== -1) {
+          const state = states[stateIndex];
+
+          if (state.node === targetNode) {
+            return true;
+          }
+
+          stateIndex = state.parent;
+        }
+
+        return false;
+      };
+
+      const bestDepth = pathFilter
+        ? null
+        : new Map([[`${startNode.index}:1`, 1]]);
+
+      while (head < states.length) {
+        const stateIndex = head++;
+        const state = states[stateIndex];
+
+        const { node, isNextOr, depth } = state;
+
+        if (node === endNode && depth > 1) {
+          // A valid chain ends immediately after an OR link.
+          if (!isNextOr) {
+            const path = reconstructPath(stateIndex);
+
+            if (acceptsConfiguredPath(path, kind)) {
+              return path;
+            }
           }
 
           continue;
         }
 
-        if (path.length >= maxNodes) continue;
+        if (depth >= maxNodes) {
+          continue;
+        }
 
-        if (isNextOr) {
-          const nextNodes = baseOrMap.get(node) || new Set();
+        const nextNodes = isNextOr
+          ? baseOrMap.get(node) || EMPTY_NEIGHBORS
+          : node.NandNodes || EMPTY_NEIGHBORS;
 
-          for (const nxt of nextNodes) {
-            const nextLength = path.length + 1;
-            if (nextLength > maxNodes) continue;
+        const nextIsOr = !isNextOr;
+        const nextDepth = depth + 1;
 
-            const prev = path.length >= 2 ? path[path.length - 2] : null;
+        for (const nxt of nextNodes) {
+          // Repeating a node is forbidden except when closing a ring back
+          // onto its starting node.
+          const closesRing = startNode === endNode && nxt === endNode;
 
-            if (nxt !== prev && (!path.includes(nxt) || nxt === endNode)) {
-              queue.push({
-                node: nxt,
-                isNextOr: false,
-                path: [...path, nxt],
-              });
-            }
+          if (ancestorContains(stateIndex, nxt) && !closesRing) {
+            continue;
           }
-        } else {
-          const nextNodes = node.NandNodes;
 
-          for (const nxt of nextNodes) {
-            const nextLength = path.length + 1;
-            if (nextLength > maxNodes) continue;
+          // The destination is checked before dominance pruning so a ring can
+          // return to its starting node.
+          if (bestDepth && nxt !== endNode) {
+            const stateKey = `${nxt.index}:${nextIsOr ? 1 : 0}`;
+            const previousDepth = bestDepth.get(stateKey);
 
-            const prev = path.length >= 2 ? path[path.length - 2] : null;
-
-            if (nxt !== prev && (!path.includes(nxt) || nxt === endNode)) {
-              queue.push({
-                node: nxt,
-                isNextOr: true,
-                path: [...path, nxt],
-              });
+            if (previousDepth !== undefined && previousDepth <= nextDepth) {
+              continue;
             }
+
+            bestDepth.set(stateKey, nextDepth);
           }
+
+          states.push({
+            node: nxt,
+            isNextOr: nextIsOr,
+            parent: stateIndex,
+            depth: nextDepth,
+          });
         }
       }
 
@@ -7813,9 +7862,6 @@ const techniques = {
     };
 
     for (let cycle = 0; cycle < maxCycles; cycle++) {
-      const nextOrNandNodesMap = new Map();
-      const nextOrNandOrigins = new Map();
-
       let anyExpansion = false;
 
       // Expand NAND links only from newly discovered OR nodes.
@@ -7852,6 +7898,10 @@ const techniques = {
         }
 
         A.OrFrontier = nextFrontier;
+      }
+
+      if (!anyExpansion) {
+        break;
       }
 
       if (
@@ -8334,9 +8384,7 @@ const techniques = {
               orTypes[1] === "region" &&
               isIntraAls(orTypes[2])
             );
-          }
-
-          if (kind === "ring" && path.length === 8) {
+          } else if (kind === "ring" && path.length === 8) {
             const phase0 = orTypes.every((type, index) =>
               index % 2 === 0 ? isIntraAls(type) : type === "region",
             );
