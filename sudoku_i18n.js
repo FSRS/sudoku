@@ -589,8 +589,6 @@ const TRANSLATIONS = {
     teks_msg_52:
       "Digits ({0}) in Pivot r{1}c{2} with wings r{3}c{4} and r{5}c{6}",
     teks_msg_53: "XYZ-Wing",
-    teks_msg_55:
-      "Digits ({0}) in Pivot r{1}c{2} with wings r{3}c{4} and r{5}c{6}",
     teks_msg_56: "Grouped W-Wing",
     teks_msg_57: "W-Wing",
     teks_msg_58: "Using digits ({0}{1})",
