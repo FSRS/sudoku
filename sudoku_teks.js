@@ -1662,7 +1662,7 @@ const techniques = {
                 name: t("teks_msg_53"),
                 mainInfo: t("teks_msg_51", pivot.r + 1, pivot.c + 1),
                 detail: t(
-                  "teks_msg_55",
+                  "teks_msg_52",
                   pivotCands,
                   pivot.r + 1,
                   pivot.c + 1,
