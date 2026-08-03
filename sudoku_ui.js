@@ -4161,24 +4161,15 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     }
   }
 
-  // --- SPECIAL HANDLING FOR UNLIMITED: INITIAL EVALUATION ---
-  if (isUnlimited) {
-    // [FIX] If we loaded a score from the save, use it directly!
-    if (puzzleData && puzzleData.score > 0) {
-      customScoreEvaluated = puzzleData.score;
-      isCustomDifficultyEvaluated = true;
-    } else {
-      // Otherwise, we must evaluate. Use { waitForFrame: false } to minimize race conditions.
-      await evaluateBoardDifficulty({ waitForFrame: false });
+  if (puzzleData) {
+    await evaluateBoardDifficulty({ waitForFrame: false });
 
-      // RETRY LOGIC: If evaluation aborted, retry once.
-      if (!isCustomDifficultyEvaluated) {
-        currentEvaluationId++;
-        await evaluateBoardDifficulty({ waitForFrame: false });
-      }
+    // Retry once if the evaluation was interrupted or aborted.
+    if (!isCustomDifficultyEvaluated) {
+      currentEvaluationId++;
+      await evaluateBoardDifficulty({ waitForFrame: false });
     }
   }
-
   // --- APPLY SAVED PROGRESS ---
   if (puzzleData) {
     // For Unlimited, puzzleData is constructed manually
@@ -4205,13 +4196,19 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   puzzleTimerEl.classList.remove("hidden");
 
   // UI Labels
+  // UI Labels
   if (puzzleData) {
-    currentPuzzleScore = puzzleData.score;
+    // The JSON score is intentionally ignored.
+    currentPuzzleScore = 0;
+
     if (!isUnlimited) {
       puzzleLevelEl.textContent = `Lv. ${puzzleData.level} (${difficultyWords[puzzleData.level]})`;
-      puzzleScoreEl.textContent = `~${puzzleData.score}`;
     }
-    levelSelect.value = puzzleData.level; // Keep dropdown synced for daily/unlimited
+
+    puzzleScoreEl.textContent =
+      customScoreEvaluated > 0 ? `~${customScoreEvaluated}` : "";
+
+    levelSelect.value = puzzleData.level; // Keep dropdown synced
   } else {
     currentPuzzleScore = 0;
     puzzleLevelEl.textContent = "";
@@ -6695,6 +6692,17 @@ async function evaluateBoardDifficulty(opts = {}) {
 
     lastValidScore = 4 * emptyCount;
 
+    // The normal solving loop is skipped for <= 3 empty cells,
+    // so capture the browser score here.
+    if (!isCustomDifficultyEvaluated) {
+      if (isCustomPuzzle && dateSelect.value !== "unlimited") {
+        puzzleLevelEl.textContent = t("ui_msg_200", 0, star);
+      }
+
+      customScoreEvaluated = lastValidScore;
+      isCustomDifficultyEvaluated = true;
+    }
+
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore}${star})`;
     } else if (customScoreEvaluated > 0) {
@@ -6702,6 +6710,7 @@ async function evaluateBoardDifficulty(opts = {}) {
     } else {
       puzzleScoreEl.textContent = `(${lastValidScore}${star})`;
     }
+
     syncCurrentHistoryEvaluationState(myEvaluationId);
     return;
   }
@@ -6866,16 +6875,22 @@ async function evaluateBoardDifficulty(opts = {}) {
     const star = hasCustomPreferences() ? "*" : "";
 
     if (currentPuzzleScore > 0) {
+      // Legacy/pre-evaluated score path, if ever explicitly used elsewhere.
       puzzleScoreEl.textContent = `~${currentPuzzleScore} (${evaluatedScore}${star})`;
-    } else if (isCustomPuzzle) {
+    } else {
+      // Capture the first successful browser evaluation as the initial score.
+      // This now applies to daily, unlimited, and custom puzzles.
       if (!isCustomDifficultyEvaluated) {
-        if (dateSelect.value !== "unlimited") {
-          const star = hasCustomPreferences() ? "*" : "";
+        // Only user-entered custom puzzles should have their level label replaced.
+        // Daily puzzles keep the level supplied by the daily JSON metadata.
+        if (isCustomPuzzle && dateSelect.value !== "unlimited") {
           puzzleLevelEl.textContent = t("ui_msg_200", maxDifficulty, star);
         }
+
         customScoreEvaluated = evaluatedScore;
         isCustomDifficultyEvaluated = true;
       }
+
       if (customScoreEvaluated > 0) {
         puzzleScoreEl.textContent = `~${customScoreEvaluated} (${evaluatedScore}${star})`;
       } else {
@@ -6913,16 +6928,12 @@ async function evaluateBoardDifficulty(opts = {}) {
       puzzleScoreEl.textContent = "";
     }
 
-    if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
-      if (dateSelect.value !== "unlimited") {
-        const star = hasCustomPreferences() ? "*" : "";
+    if (!isCustomDifficultyEvaluated) {
+      // Do not overwrite the JSON level label for daily puzzles.
+      if (isCustomPuzzle && dateSelect.value !== "unlimited") {
         puzzleLevelEl.textContent = t("ui_msg_201", star);
       }
-      isCustomDifficultyEvaluated = true;
-    }
 
-    if (isCustomPuzzle && !isCustomDifficultyEvaluated) {
-      puzzleLevelEl.textContent = t("ui_msg_202");
       isCustomDifficultyEvaluated = true;
     }
 
