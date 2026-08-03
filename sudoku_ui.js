@@ -7283,6 +7283,18 @@ function getDefaultTechniques() {
       score: 300,
     },
     {
+      name: t("ui_msg_336"),
+      func: techniques.alsXYWing,
+      level: 9,
+      score: 320,
+    },
+    {
+      name: t("ui_msg_337"),
+      func: techniques.alsWWing,
+      level: 9,
+      score: 330,
+    },
+    {
       name: t("ui_msg_251"),
       func: techniques.alsAic,
       level: 9,

@@ -7079,6 +7079,7 @@ const techniques = {
       maxCycle,
       nameOverride,
       pathFilter,
+      allowedOrLinkTypes = null,
     } = config;
     const techniqueName = nameOverride || t("teks_msg_136");
 
@@ -7174,8 +7175,65 @@ const techniques = {
       aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.FishMap);
     }
 
+    const getOrLinkType = (u, v) => {
+      // Multi-cell intra-ALS link.
+      if (activeAlsLinkRegistry.get(u)?.has(v)) {
+        return "als";
+      }
+
+      // One-cell ALS: two candidates in the same bivalue cell.
+      if (
+        u.cells.length === 1 &&
+        v.cells.length === 1 &&
+        u.cells[0] === v.cells[0] &&
+        u.digits[0] !== v.digits[0]
+      ) {
+        return "bivalue";
+      }
+
+      // Bilocation or grouped single-digit intra-region link.
+      if (
+        u.digits.length === 1 &&
+        v.digits.length === 1 &&
+        u.digits[0] === v.digits[0]
+      ) {
+        return "region";
+      }
+
+      return "other";
+    };
+
+    if (allowedOrLinkTypes) {
+      const allowed = new Set(allowedOrLinkTypes);
+      const filteredOrMap = new Map();
+
+      allNodes.forEach((node) => filteredOrMap.set(node, new Set()));
+
+      for (const [u, neighbors] of aicOrMap) {
+        if (!filteredOrMap.has(u)) {
+          filteredOrMap.set(u, new Set());
+        }
+
+        for (const v of neighbors) {
+          if (allowed.has(getOrLinkType(u, v))) {
+            filteredOrMap.get(u).add(v);
+          }
+        }
+      }
+
+      aicOrMap = filteredOrMap;
+    }
+
     const baseOrMap = new Map();
     allNodes.forEach((n) => baseOrMap.set(n, new Set(aicOrMap.get(n))));
+
+    const acceptsConfiguredPath = (path, kind) =>
+      !pathFilter ||
+      pathFilter(path, cache, {
+        kind, // "chain", "ring", or "dnLoop"
+        isRing: kind === "ring",
+        getOrLinkType,
+      });
 
     const interestedNodes = allNodes.filter(
       (n) => aicOrMap.has(n) && aicOrMap.get(n).size > 0,
@@ -7229,8 +7287,6 @@ const techniques = {
         }
       }
 
-      // Different-digit weak links only happen inside the same single cell.
-      // The old code allowed this for general AIC, but not for X-chain / XY-chain mode.
       if (!singleDigit && !bivalueOnly && A.cells.length === 1) {
         const sameCellNodes = singleCellNodesByCell[A.cells[0]];
 
@@ -7247,7 +7303,6 @@ const techniques = {
     // cycle 0 => 4 nodes
     // cycle 1 => 8 nodes
     // cycle 2 => 16 nodes
-    // cycle 3 => 32 nodes
     const getMaxPathLenForCycle = (cycle) => {
       return 1 << (cycle + 2);
     };
@@ -7339,7 +7394,7 @@ const techniques = {
 
     const pathMemo = new Map();
 
-    const findAICPath = (startNode, endNode, maxNodes) => {
+    const findAICPath = (startNode, endNode, maxNodes, kind = "chain") => {
       // 1. Fast Path: Backtrack using memoized origins
       const fastPath = buildBacktrackPath(startNode, endNode, true);
 
@@ -7365,7 +7420,9 @@ const techniques = {
           seen.add(n);
         }
 
-        if (isSimplePath) return fastPath;
+        if (isSimplePath && acceptsConfiguredPath(fastPath, kind)) {
+          return fastPath;
+        }
       }
 
       // 2. Fallback: Standard BFS
@@ -7376,9 +7433,11 @@ const techniques = {
         const { node, isNextOr, path } = queue[head++];
 
         if (node === endNode && path.length > 1) {
-          // Valid AIC path must end immediately after an OR step.
-          // Since isNextOr toggles after every step, !isNextOr means the last step was OR.
-          if (!isNextOr) return path;
+          // The path must finish immediately after an OR link.
+          if (!isNextOr && acceptsConfiguredPath(path, kind)) {
+            return path;
+          }
+
           continue;
         }
 
@@ -7795,18 +7854,24 @@ const techniques = {
         A.OrFrontier = nextFrontier;
       }
 
+      if (
+        techniqueName === t("teks_msg_181") ||
+        techniqueName === t("teks_msg_182")
+      ) {
+        if (cycle !== 1) continue;
+      }
+
+      let maxPathLen = getMaxPathLenForCycle(cycle);
+
       // Priority 1: AIC Ring
       for (const A of interestedNodes) {
         for (const D of A.OrNodes) {
           if (D.index <= A.index || !A.NandNodes.has(D)) continue;
           if (deadRings.has(`${A.index}_${D.index}`)) continue;
 
-          const maxPathLen = getMaxPathLenForCycle(cycle);
-          const path = findAICPath(A, D, maxPathLen);
+          const path = findAICPath(A, D, maxPathLen, "ring");
 
           if (path) {
-            if (config.pathFilter && !config.pathFilter(path, cache)) continue;
-
             let ringRemovals = [];
             for (let i = 1; i < path.length - 1; i += 2) {
               const { hasOverlap, intersection } =
@@ -7934,9 +7999,11 @@ const techniques = {
                             chainStr,
                             t("teks_msg_ring_term"),
                           )
-                        : useAlsXZ
+                        : useAlsXZ || techniqueName === t("teks_msg_182")
                           ? t("teks_msg_doubly_linked") + techniqueName
-                          : techniqueName + t("teks_msg_ring_suffix");
+                          : techniqueName === t("teks_msg_181")
+                            ? t("teks_msg_triply_linked") + techniqueName
+                            : techniqueName + t("teks_msg_ring_suffix");
 
                 const res = buildResult(
                   uniqueRingRemovals,
@@ -7955,6 +8022,8 @@ const techniques = {
         }
       }
       if (results.length > 0 && !findAll) return results[0];
+
+      if (techniqueName === t("teks_msg_182")) maxPathLen = 6;
 
       // Priority 2: DN Loop
       if (!bivalueOnly && !useAlsXZ) {
@@ -7986,14 +8055,10 @@ const techniques = {
               );
 
               if (!stringifiedFoundRemovals.has(removalsKey)) {
-                const maxPathLen = Math.pow(2, cycle + 1) * 2;
-                const path = findAICPath(A, D, maxPathLen);
+                const path = findAICPath(A, D, maxPathLen, "dnLoop");
 
                 if (!path) continue;
-                // if (config.pathFilter && !config.pathFilter(path, cache))
-                //   continue;
 
-                // Important: add only after a valid path is found and accepted.
                 stringifiedFoundRemovals.add(removalsKey);
 
                 const chainStr = t("teks_msg_chain_term");
@@ -8008,7 +8073,7 @@ const techniques = {
                             chainStr,
                             t("teks_msg_dnloop_term"),
                           )
-                        : techniqueName + t("teks_msg_dnloop_suffix");
+                        : techniqueName;
 
                 const res = buildResult(dnRemovals, DNLName, path, false);
 
@@ -8045,14 +8110,10 @@ const techniques = {
               );
 
               if (!stringifiedFoundRemovals.has(removalsKey)) {
-                const maxPathLen = Math.pow(2, cycle + 1) * 2;
-                const path = findAICPath(A, D, maxPathLen);
+                const path = findAICPath(A, D, maxPathLen, "chain");
 
                 if (!path) continue;
-                if (config.pathFilter && !config.pathFilter(path, cache))
-                  continue;
 
-                // Important: add only after a valid path is found and accepted.
                 stringifiedFoundRemovals.add(removalsKey);
 
                 const res = buildResult(
@@ -8070,7 +8131,6 @@ const techniques = {
         }
       }
       if (results.length > 0 && !findAll) return results[0];
-      // if (!anyExpansion && cycle > 0) break;
     }
 
     return findAll ? results : { change: false };
@@ -8210,6 +8270,82 @@ const techniques = {
         useAls: true,
         maxCycle: 1,
         nameOverride: t("teks_msg_146"),
+      },
+      findAll,
+    );
+  },
+
+  alsXYWing: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        bivalueOnly: false,
+        useGrouped: false,
+        useAls: true,
+        maxCycle: 2,
+        nameOverride: t("teks_msg_181"),
+        allowedOrLinkTypes: ["als", "bivalue"],
+
+        pathFilter: (path, cache, { kind, getOrLinkType }) => {
+          if (path.length !== 6) return false;
+
+          for (let i = 0; i < path.length; i += 2) {
+            const type = getOrLinkType(path[i], path[i + 1]);
+
+            if (type !== "als" && type !== "bivalue") {
+              return false;
+            }
+          }
+
+          return true;
+        },
+      },
+      findAll,
+    );
+  },
+
+  alsWWing: (board, pencils, findAll = false) => {
+    return techniques._findAic(
+      board,
+      pencils,
+      {
+        singleDigit: false,
+        bivalueOnly: false,
+        useGrouped: true,
+        useAls: true,
+        maxCycle: 2,
+        nameOverride: t("teks_msg_182"),
+        allowedOrLinkTypes: ["als", "bivalue", "region"],
+
+        pathFilter: (path, cache, { kind, getOrLinkType }) => {
+          const isIntraAls = (type) => type === "als" || type === "bivalue";
+
+          const orTypes = [];
+
+          for (let i = 0; i < path.length; i += 2) {
+            orTypes.push(getOrLinkType(path[i], path[i + 1]));
+          }
+
+          if (path.length === 6) {
+            return (
+              isIntraAls(orTypes[0]) &&
+              orTypes[1] === "region" &&
+              isIntraAls(orTypes[2])
+            );
+          }
+
+          if (kind === "ring" && path.length === 8) {
+            const phase0 = orTypes.every((type, index) =>
+              index % 2 === 0 ? isIntraAls(type) : type === "region",
+            );
+
+            return phase0;
+          }
+
+          return false;
+        },
       },
       findAll,
     );
