@@ -708,7 +708,7 @@ const TRANSLATIONS = {
     teks_msg_167: "3D Medusa",
     teks_msg_168: "Digit ({0})",
     teks_msg_169: "Start Color 1 with ({0})r{1}c{2}",
-    teks_msg_170: "Start Color C1 with ({0})r{1}c{2}.",
+    teks_msg_170: "Start Color C1 with ({0})r{1}c{2}. ",
     teks_msg_171: "Invalid Color C{0} appears twice in r{1}c{2}.",
     teks_msg_172: "Invalid Color C{0} for digit ({0}) sees itself at r{2}c{3}.",
     teks_msg_173: "Bad Color C{2} emptied cell r{0}c{1}.",
