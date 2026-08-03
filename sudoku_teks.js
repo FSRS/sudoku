@@ -7246,13 +7246,6 @@ const techniques = {
       node.OrNandNodes = new Set();
       node.NandNodes = new Set();
 
-      node.OrNodesMap = new Map();
-      for (const target of node.OrNodes) {
-        node.OrNodesMap.set(target, { source: node });
-      }
-
-      node.OrNandNodesMap = new Map();
-
       node.OrFrontier = new Set(node.OrNodes);
       node.OrNandFrontier = new Set();
     });
@@ -7362,67 +7355,7 @@ const techniques = {
       return removals;
     };
 
-    const buildBacktrackPath = (start, end, isOrNodeMap) => {
-      // The greedy start === end check is removed so cycles can resolve
-
-      if (isOrNodeMap) {
-        const memo = start.OrNodesMap.get(end);
-        if (!memo) return null;
-        if (memo.source) return [start, end];
-
-        if (memo.viaNand) {
-          const C = memo.viaNand;
-          const leftPath = buildBacktrackPath(start, C, false);
-          const rightPath = buildBacktrackPath(C, end, true);
-          if (!leftPath || !rightPath) return null;
-          return [...leftPath, ...rightPath.slice(1)];
-        }
-      } else {
-        const memo = start.OrNandNodesMap.get(end);
-        if (!memo) return null;
-
-        if (memo.viaOr) {
-          const B = memo.viaOr;
-          const leftPath = buildBacktrackPath(start, B, true);
-          if (!leftPath) return null;
-          return [...leftPath, end];
-        }
-      }
-      return null;
-    };
-
     const findAICPath = (startNode, endNode, maxNodes, kind = "chain") => {
-      // 1. Fast Path: Backtrack using memoized origins
-      const fastPath = buildBacktrackPath(startNode, endNode, true);
-
-      if (fastPath && fastPath.length <= maxNodes && fastPath.length > 1) {
-        let isSimplePath = true;
-        const seen = new Set();
-
-        for (let i = 0; i < fastPath.length; i++) {
-          const n = fastPath[i];
-
-          if (seen.has(n)) {
-            const validLoopClosure =
-              i === fastPath.length - 1 &&
-              n === startNode &&
-              startNode === endNode;
-
-            if (!validLoopClosure) {
-              isSimplePath = false;
-              break;
-            }
-          }
-
-          seen.add(n);
-        }
-
-        if (isSimplePath && acceptsConfiguredPath(fastPath, kind)) {
-          return fastPath;
-        }
-      }
-
-      // 2. Fallback: Standard BFS
       // A path is reconstructed only when an endpoint is reached.
       const EMPTY_NEIGHBORS = new Set();
 
@@ -7872,7 +7805,6 @@ const techniques = {
           for (const C of B.NandNodes) {
             if (!A.OrNandNodes.has(C)) {
               A.OrNandNodes.add(C);
-              A.OrNandNodesMap.set(C, { viaOr: B });
               nextFrontier.add(C);
               anyExpansion = true;
             }
@@ -7890,7 +7822,6 @@ const techniques = {
           for (const D of C.OrNodes) {
             if (!A.OrNodes.has(D)) {
               A.OrNodes.add(D);
-              A.OrNodesMap.set(D, { viaNand: C });
               nextFrontier.add(D);
               anyExpansion = true;
             }
