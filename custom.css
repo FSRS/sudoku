@@ -673,6 +673,22 @@ button:disabled:hover {
   white-space: nowrap !important;
 }
 
+.font-calligraphy {
+  font-family: "Satisfy", cursive;
+}
+
+.shortcut-highlight {
+  color: var(--color-indigo-700);
+  font-weight: 600;
+}
+
+#sudoku-title-text,
+#sudoku-title-calligraphy-text,
+#puzzle-string,
+.score-string {
+  font-family: "Fira Code", monospace;
+}
+
 /*
 ================================================================================
 |   4. ANIMATIONS                                                              |
@@ -1203,11 +1219,4 @@ html.dark .sortable-item.dragging {
 }
 .drag-handle:active {
   cursor: grabbing;
-}
-
-#sudoku-title-text,
-#sudoku-title-calligraphy-text,
-#puzzle-string,
-.score-string {
-  font-family: "Fira Code", monospace;
 }
