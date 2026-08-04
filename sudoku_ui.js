@@ -3657,16 +3657,18 @@ async function findAndLoadSelectedPuzzle() {
       // Show Resume Modal
       const modal = document.getElementById("resume-modal");
       const levelText = document.getElementById("resume-level-text");
+      const resumeSuffix = document.getElementById("resume-desc-suffix");
       const resumeBtn = document.getElementById("resume-btn");
       const newGameBtn = document.getElementById("new-game-btn");
 
       if (levelText) {
-        if (currentLang === "ko" && [2, 4, 9].includes(level)) {
-          levelText.textContent = t("ui_msg_66_2", level);
-        } else if (currentLang === "ko") {
-          levelText.textContent = t("ui_msg_66_1", level);
-        } else {
-          levelText.textContent = t("ui_msg_66", level);
+        levelText.textContent = t("ui_msg_66", level);
+        if (resumeSuffix) {
+          if (currentLang === "ko" && [2, 4, 9].includes(level)) {
+            resumeSuffix.textContent = t("modal_resume_desc_suffix_2");
+          } else {
+            resumeSuffix.textContent = t("modal_resume_desc_suffix");
+          }
         }
       }
 

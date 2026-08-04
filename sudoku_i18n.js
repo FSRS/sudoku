@@ -63,6 +63,7 @@ const TRANSLATIONS = {
     // === Resume modal ===
     modal_resume_title: "Resume Saved Game?",
     modal_resume_desc: "You have an unfinished puzzle for",
+    modal_resume_desc_suffix: ".",
     btn_resume: "Resume Puzzle",
     btn_new_game: "New Game",
 
@@ -783,6 +784,8 @@ const TRANSLATIONS = {
     // === Resume modal ===
     modal_resume_title: "하던 게임을 이어할까요?",
     modal_resume_desc: "아직 하던 게임인",
+    modal_resume_desc_suffix: "이 있습니다.",
+    modal_resume_desc_suffix_2: "가 있습니다.", // ko only
     btn_resume: "이어하기",
     btn_new_game: "새 게임",
 
@@ -953,8 +956,6 @@ const TRANSLATIONS = {
     ui_msg_64: "난이도 표시기",
     ui_msg_65: "레벨 {0}*",
     ui_msg_66: "레벨 {0}",
-    ui_msg_66_1: "레벨 {0}이 있습니다", // ko only
-    ui_msg_66_2: "레벨 {0}가 있습니다", // ko only
     ui_msg_67: "레벨",
     ui_msg_68: "복사할 퍼즐이 없습니다.",
     ui_msg_69: "초기 퍼즐이 클립보드에 복사되었습니다!",
