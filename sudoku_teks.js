@@ -6645,96 +6645,183 @@ const techniques = {
     return orMap;
   },
 
-  buildAlsOrMap: (board, pencils, getNode, alsLinkRegistry) => {
+  buildAlsOrMap: (board, pencils, getNode, alsLinkRegistry, options = {}) => {
+    const normalizedOptions =
+      options && typeof options === "object" ? options : {};
+
+    // ALS sizes that must not be removed by subset reduction.
+    const preserveAlsSizes = new Set(normalizedOptions.preserveAlsSizes || []);
+
+    // When several ALSs generate the same node pair, prefer this size.
+    const preferredAlsSize = normalizedOptions.preferredAlsSize ?? null;
+
     const alses = techniques._collectAllALS(board, pencils);
     const candidateLinks = [];
 
     const hasNandCandidates = (node) => {
       const d = node.digits[0];
+
       for (let p = 0; p < 3; p++) {
         let mask = node.NandBitset[d - 1][p];
         let bitPos = 0;
+
         while (mask > 0) {
           if (mask & 1) {
             const id = p * 27 + bitPos;
             const r = Math.floor(id / 9);
             const c = id % 9;
-            if (pencils[r][c] && pencils[r][c].has(d)) return true;
+
+            if (pencils[r][c] && pencils[r][c].has(d)) {
+              return true;
+            }
           }
+
           mask >>>= 1;
           bitPos++;
         }
       }
+
       return false;
     };
 
     for (const als of alses) {
       const digits = Object.keys(als.candMap).map(Number);
+
       for (let i = 0; i < digits.length; i++) {
         for (let j = i + 1; j < digits.length; j++) {
           const d1 = digits[i];
           const d2 = digits[j];
+
           const cells1 = als.candMap[d1].map(([r, c]) => r * 9 + c);
           const cells2 = als.candMap[d2].map(([r, c]) => r * 9 + c);
 
           const node1 = getNode(cells1, d1);
           const node2 = getNode(cells2, d2);
 
-          if (!hasNandCandidates(node1) || !hasNandCandidates(node2)) continue;
+          if (!hasNandCandidates(node1) || !hasNandCandidates(node2)) {
+            continue;
+          }
 
-          // SAVE THE ALS REFERENCE HERE
-          candidateLinks.push({ nodeA: node1, nodeB: node2, als });
+          candidateLinks.push({
+            nodeA: node1,
+            nodeB: node2,
+            als,
+          });
         }
       }
     }
 
     const isSubset = (subNode, superNode) => {
-      if (subNode.digits[0] !== superNode.digits[0]) return false;
+      if (subNode.digits[0] !== superNode.digits[0]) {
+        return false;
+      }
+
       return subNode.cells.every((id) => superNode.cells.includes(id));
     };
 
-    // 2. Subset Reduction Filter
+    // Subset-reduction stage.
     const finalLinks = [];
+
     for (let i = 0; i < candidateLinks.length; i++) {
-      const { nodeA, nodeB } = candidateLinks[i];
+      const candidate = candidateLinks[i];
+      const { nodeA, nodeB, als } = candidate;
+
+      /*
+       * WXYZ-Wing requires the actual three-cell ALS provenance.
+       * Keep requested ALS sizes even when another ALS supplies a
+       * smaller equivalent OR-link representation.
+       */
+      if (preserveAlsSizes.has(als.cells.length)) {
+        finalLinks.push(candidate);
+        continue;
+      }
+
       let isDominated = false;
+
       for (let j = 0; j < candidateLinks.length; j++) {
         if (i === j) continue;
+
         const other = candidateLinks[j];
-        if (
-          (isSubset(other.nodeA, nodeA) && isSubset(other.nodeB, nodeB)) ||
-          (isSubset(other.nodeA, nodeB) && isSubset(other.nodeB, nodeA))
-        ) {
-          if (
+
+        const directlyDominated =
+          isSubset(other.nodeA, nodeA) && isSubset(other.nodeB, nodeB);
+
+        const reverseDominated =
+          isSubset(other.nodeA, nodeB) && isSubset(other.nodeB, nodeA);
+
+        if (directlyDominated || reverseDominated) {
+          const differentNodeSizes =
             other.nodeA.cells.length !== nodeA.cells.length ||
-            other.nodeB.cells.length !== nodeB.cells.length
-          ) {
+            other.nodeB.cells.length !== nodeB.cells.length;
+
+          if (differentNodeSizes) {
             isDominated = true;
             break;
           }
         }
       }
-      if (!isDominated) finalLinks.push(candidateLinks[i]);
-    }
-    const alsMap = new Map();
-    for (const { nodeA, nodeB, als } of finalLinks) {
-      if (als.cells.length > 1) {
-        if (!alsMap.has(nodeA)) alsMap.set(nodeA, new Set());
-        if (!alsMap.has(nodeB)) alsMap.set(nodeB, new Set());
-        alsMap.get(nodeA).add(nodeB);
-        alsMap.get(nodeB).add(nodeA);
 
-        // Register the ALS against the node pair
-        if (alsLinkRegistry) {
-          if (!alsLinkRegistry.has(nodeA))
-            alsLinkRegistry.set(nodeA, new Map());
-          if (!alsLinkRegistry.has(nodeB))
-            alsLinkRegistry.set(nodeB, new Map());
-          alsLinkRegistry.get(nodeA).set(nodeB, als);
-          alsLinkRegistry.get(nodeB).set(nodeA, als);
-        }
+      if (!isDominated) {
+        finalLinks.push(candidate);
       }
     }
+
+    const alsMap = new Map();
+
+    /*
+     * Register an ALS for a node pair.
+     *
+     * In the generic map this retains the previous last-write behavior.
+     * In the WXYZ-specific map, a three-cell ALS takes priority over
+     * an equivalent larger ALS.
+     */
+    const registerAls = (nodeA, nodeB, als) => {
+      if (!alsLinkRegistry.has(nodeA)) {
+        alsLinkRegistry.set(nodeA, new Map());
+      }
+
+      const pairMap = alsLinkRegistry.get(nodeA);
+      const existing = pairMap.get(nodeB);
+
+      if (!existing) {
+        pairMap.set(nodeB, als);
+        return;
+      }
+
+      if (preferredAlsSize !== null) {
+        const existingIsPreferred = existing.cells.length === preferredAlsSize;
+        const newIsPreferred = als.cells.length === preferredAlsSize;
+
+        if (newIsPreferred && !existingIsPreferred) {
+          pairMap.set(nodeB, als);
+          return;
+        }
+
+        if (existingIsPreferred && !newIsPreferred) {
+          return;
+        }
+      }
+
+      // Original behavior when no ALS size has priority.
+      pairMap.set(nodeB, als);
+    };
+
+    for (const { nodeA, nodeB, als } of finalLinks) {
+      // One-cell ALS links are represented by BivalueOrMap.
+      if (als.cells.length <= 1) continue;
+
+      if (!alsMap.has(nodeA)) alsMap.set(nodeA, new Set());
+      if (!alsMap.has(nodeB)) alsMap.set(nodeB, new Set());
+
+      alsMap.get(nodeA).add(nodeB);
+      alsMap.get(nodeB).add(nodeA);
+
+      if (alsLinkRegistry) {
+        registerAls(nodeA, nodeB, als);
+        registerAls(nodeB, nodeA, als);
+      }
+    }
+
     return alsMap;
   },
 
@@ -6999,6 +7086,7 @@ const techniques = {
     BilocationOrMap: new Map(),
     GroupedOrMap: new Map(),
     AlsMap: new Map(),
+    AlsPolicyCache: new Map(),
     FishMap: new Map(),
     GroupedLinkRegistry: new Map(),
     AlsLinkRegistry: new Map(),
@@ -7015,6 +7103,7 @@ const techniques = {
       BilocationOrMap: new Map(),
       GroupedOrMap: new Map(),
       AlsMap: new Map(),
+      AlsPolicyCache: new Map(),
       FishMap: new Map(),
       GroupedLinkRegistry: new Map(),
       AlsLinkRegistry: new Map(),
@@ -7080,6 +7169,8 @@ const techniques = {
       nameOverride,
       pathFilter,
       allowedOrLinkTypes = null,
+      preserveAlsSizes = null,
+      preferredAlsSize = null,
     } = config;
     const techniqueName = nameOverride || t("teks_msg_136");
 
@@ -7146,20 +7237,62 @@ const techniques = {
       }
       aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.GroupedOrMap);
     }
-
     let activeAlsLinkRegistry = cache.AlsLinkRegistry;
     const activeGroupedLinkRegistry = cache.GroupedLinkRegistry;
+
     if (useAls) {
-      if (cache.AlsMap.size === 0) {
-        cache.AlsMap = techniques.buildAlsOrMap(
-          board,
-          pencils,
-          (cells, d) => getNode(cells, [d]),
-          cache.AlsLinkRegistry,
-          false,
-        );
+      const normalizedPreserveSizes = Array.isArray(preserveAlsSizes)
+        ? [...new Set(preserveAlsSizes)].sort((a, b) => a - b)
+        : [];
+
+      const usesTechniqueAlsPolicy =
+        normalizedPreserveSizes.length > 0 || preferredAlsSize !== null;
+
+      if (usesTechniqueAlsPolicy) {
+        const policyKey =
+          `${normalizedPreserveSizes.join(",")}|` +
+          `${preferredAlsSize ?? "none"}`;
+
+        let policyEntry = cache.AlsPolicyCache.get(policyKey);
+
+        if (!policyEntry) {
+          const registry = new Map();
+
+          const map = techniques.buildAlsOrMap(
+            board,
+            pencils,
+            (cells, d) => getNode(cells, [d]),
+            registry,
+            {
+              preserveAlsSizes: normalizedPreserveSizes,
+              preferredAlsSize,
+            },
+          );
+
+          policyEntry = {
+            map,
+            registry,
+          };
+
+          cache.AlsPolicyCache.set(policyKey, policyEntry);
+        }
+
+        activeAlsLinkRegistry = policyEntry.registry;
+
+        aicOrMap = techniques.mergeOrMaps(aicOrMap, policyEntry.map);
+      } else {
+        // Existing generic optimized ALS map.
+        if (cache.AlsMap.size === 0) {
+          cache.AlsMap = techniques.buildAlsOrMap(
+            board,
+            pencils,
+            (cells, d) => getNode(cells, [d]),
+            cache.AlsLinkRegistry,
+          );
+        }
+
+        aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.AlsMap);
       }
-      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.AlsMap);
     }
 
     let activeFishLinkRegistry = cache.FishLinkRegistry;
@@ -7175,9 +7308,12 @@ const techniques = {
       aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.FishMap);
     }
 
+    const getAlsForLink = (u, v) =>
+      activeAlsLinkRegistry.get(u)?.get(v) || null;
+
     const getOrLinkType = (u, v) => {
       // Multi-cell intra-ALS link.
-      if (activeAlsLinkRegistry.get(u)?.has(v)) {
+      if (getAlsForLink(u, v)) {
         return "als";
       }
 
@@ -7230,9 +7366,10 @@ const techniques = {
     const acceptsConfiguredPath = (path, kind) =>
       !pathFilter ||
       pathFilter(path, cache, {
-        kind, // "chain", "ring", or "dnLoop"
+        kind,
         isRing: kind === "ring",
         getOrLinkType,
+        getAlsForLink,
       });
 
     const interestedNodes = allNodes.filter(
@@ -8206,33 +8343,58 @@ const techniques = {
         singleDigit: false,
         bivalueOnly: false,
         useGrouped: false,
-        useAlsXZ: true, // Triggers standard ALS-XZ routing and visual logic
+        useAlsXZ: true,
         useAls: true,
-        maxCycle: 1, // Restricts to exactly 2 OR-gates (4 nodes total)
+
+        // Exactly two OR gates: four AIC nodes.
+        maxCycle: 1,
+
         nameOverride: t("teks_msg_145"),
-        pathFilter: (path, cache) => {
-          if (path.length !== 4) return false;
 
-          // Helper to check if an OR link comes from a single bivalue cell
-          const isBivalue = (nA, nB) =>
-            nA.cells.length === 1 &&
-            nB.cells.length === 1 &&
-            nA.cells[0] === nB.cells[0];
+        /*
+         * Preserve the three-cell ALS representation even when a
+         * larger ALS has an equivalent/dominating intra-ALS OR link.
+         */
+        preserveAlsSizes: [3],
 
-          // Helper to check if an OR link comes from a 3-cell ALS
-          const isAls3 = (nA, nB) => {
-            const als = cache.AlsLinkRegistry.get(nA)?.get(nB);
-            return als && als.cells.length === 3;
+        /*
+         * If the exact same node pair is produced by a three-cell ALS
+         * and by a larger ALS, register the three-cell ALS.
+         */
+        preferredAlsSize: 3,
+
+        // WXYZ consists only of one bivalue OR gate and one ALS OR gate.
+        allowedOrLinkTypes: ["als", "bivalue"],
+
+        pathFilter: (path, cache, { getOrLinkType, getAlsForLink }) => {
+          if (path.length !== 4) {
+            return false;
+          }
+
+          const isBivalue = (nodeA, nodeB) =>
+            getOrLinkType(nodeA, nodeB) === "bivalue";
+
+          const isThreeCellAls = (nodeA, nodeB) => {
+            const als = getAlsForLink(nodeA, nodeB);
+
+            return (
+              getOrLinkType(nodeA, nodeB) === "als" && als?.cells.length === 3
+            );
           };
 
-          const b1 = isBivalue(path[0], path[1]);
-          const a1 = isAls3(path[0], path[1]);
+          const firstIsBivalue = isBivalue(path[0], path[1]);
+          const firstIsAls3 = isThreeCellAls(path[0], path[1]);
 
-          const b2 = isBivalue(path[2], path[3]);
-          const a2 = isAls3(path[2], path[3]);
+          const secondIsBivalue = isBivalue(path[2], path[3]);
+          const secondIsAls3 = isThreeCellAls(path[2], path[3]);
 
-          // The chain must be constructed of exactly one Bivalue and one ALS of size 3
-          return (b1 && a2) || (b2 && a1);
+          /*
+           * Exactly one one-cell ALS/bivalue link and one
+           * three-cell ALS link.
+           */
+          return (
+            (firstIsBivalue && secondIsAls3) || (secondIsBivalue && firstIsAls3)
+          );
         },
       },
       findAll,
