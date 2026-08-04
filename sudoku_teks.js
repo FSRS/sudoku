@@ -7168,6 +7168,8 @@ const techniques = {
       maxCycle,
       nameOverride,
       pathFilter,
+      useAlsOnly = false,
+      endSameDigits = false,
       allowedOrLinkTypes = null,
       preserveAlsSizes = null,
       preferredAlsSize = null,
@@ -7175,6 +7177,9 @@ const techniques = {
     const techniqueName = nameOverride || t("teks_msg_136");
 
     let cache = techniques._aicCache;
+
+    let AlsOnly = useAlsXZ || useAlsOnly;
+    let SameDigits = bivalueOnly || useAlsXZ || endSameDigits;
 
     // 1. Initialize & Cache Base Nodes
     if (cache.AllNodes.length === 0) {
@@ -7213,7 +7218,7 @@ const techniques = {
     };
 
     // 2. Map Generation & Cache Hydration
-    if (singleDigit || (!singleDigit && !bivalueOnly && !useAlsXZ)) {
+    if (singleDigit || (!singleDigit && !bivalueOnly && !AlsOnly)) {
       if (cache.BilocationOrMap.size === 0) {
         cache.BilocationOrMap = techniques.buildBilocationOrMap(allNodes);
       }
@@ -7985,6 +7990,7 @@ const techniques = {
       for (const A of interestedNodes) {
         for (const D of A.OrNodes) {
           if (D.index <= A.index || !A.NandNodes.has(D)) continue;
+          if (SameDigits && A.digits[0] !== D.digits[0]) continue;
           if (deadRings.has(`${A.index}_${D.index}`)) continue;
 
           const path = findAICPath(A, D, maxPathLen, "ring");
@@ -8148,6 +8154,7 @@ const techniques = {
         for (const A of interestedNodes) {
           for (const D of A.OrNodes) {
             if (D.index < A.index) continue;
+            if (SameDigits && A.digits[0] !== D.digits[0]) continue;
             // Strict equality (original): A and D are the same node
             const isEqual = D.index === A.index;
 
@@ -8210,8 +8217,7 @@ const techniques = {
         for (const D of A.OrNodes) {
           if (D.index <= A.index) continue;
           if (deadRings.has(`${A.index}_${D.index}`)) continue;
-          if ((bivalueOnly || useAlsXZ) && A.digits[0] !== D.digits[0])
-            continue;
+          if (SameDigits && A.digits[0] !== D.digits[0]) continue;
 
           const { hasOverlap, intersection } = techniques.getBitsetIntersection(
             A.NandBitset,
@@ -8427,6 +8433,7 @@ const techniques = {
         bivalueOnly: false,
         useGrouped: false,
         useAls: true,
+        useAlsOnly: true,
         maxCycle: 2,
         nameOverride: t("teks_msg_181"),
         allowedOrLinkTypes: ["als", "bivalue"],
@@ -8458,6 +8465,7 @@ const techniques = {
         bivalueOnly: false,
         useGrouped: true,
         useAls: true,
+        endSameDigits: true,
         maxCycle: 2,
         nameOverride: t("teks_msg_182"),
         allowedOrLinkTypes: ["als", "bivalue", "region"],
