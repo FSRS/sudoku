@@ -377,7 +377,7 @@ const TRANSLATIONS = {
     ui_msg_180: "No standard techniques found.",
     ui_msg_181: "Show {0} more...",
     ui_msg_182: "Search Lv. {0}",
-    ui_msg_183: "Done? Evaluated Level 11{0}, Score: ?{1}",
+    ui_msg_183: "Done? Evaluated Level 11{2}{0}, Score: ?{1}",
     ui_msg_184: "Done! Evaluated Level {0}{1}, Score: {2}{3}",
     ui_msg_185: "Puzzle Fully Solved!",
     ui_msg_186:
@@ -1094,7 +1094,7 @@ const TRANSLATIONS = {
     ui_msg_180: "적용할 수 있는 기술을 찾지 못했습니다.",
     ui_msg_181: "{0}개 더 보기...",
     ui_msg_182: "Lv. {0} 검색",
-    ui_msg_183: "완료? 평가된 레벨 11{0}, 점수: ?{1}",
+    ui_msg_183: "완료? 평가된 레벨 11{2}{0}, 점수: ?{1}",
     ui_msg_184: "완료! 평가된 레벨 {0}{1}, 점수: {2}{3}",
     ui_msg_185: "퍼즐 완벽히 해결됨!",
     ui_msg_186:

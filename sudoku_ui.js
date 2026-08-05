@@ -5689,10 +5689,26 @@ function renderSolverStep(index) {
     const isBruteForce =
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
+    let skfrText = "";
+    if (
+      window.getSkfrRating &&
+      typeof initialPuzzleString !== "undefined" &&
+      initialPuzzleString
+    ) {
+      const skfr = window.getSkfrRating(initialPuzzleString);
+      if (skfr !== null) {
+        skfrText = ` (skfr ${skfr})`;
+      }
+    }
+
     if (isBruteForce) {
-      msg = t("ui_msg_183", star, star);
+      msg = t("ui_msg_183", star, star, skfrText);
     } else {
-      msg = t("ui_msg_184", step.level, star, step.score, star);
+      let lvlStr = step.level;
+      if (skfrText !== "") {
+        lvlStr += skfrText;
+      }
+      msg = t("ui_msg_184", lvlStr, star, step.score, star);
     }
     msgColor = "green";
 
