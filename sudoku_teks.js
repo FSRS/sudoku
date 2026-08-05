@@ -6061,6 +6061,303 @@ const techniques = {
   },
 
   firework: (board, pencils, findAll = false) => {
+    const resTriple = techniques.fireworkTriple(board, pencils, findAll);
+    if (findAll) {
+      const resQuad = techniques.fireworkQuadruple(board, pencils, true);
+      return resTriple.concat(resQuad);
+    } else {
+      if (resTriple.change) return resTriple;
+      return techniques.fireworkQuadruple(board, pencils, false);
+    }
+  },
+
+  fireworkQuadruple: (board, pencils, findAll = false) => {
+    const results = [];
+    const bitFor = (d) => 1 << (d - 1);
+    const maskFromSet = (s) => {
+      let m = 0;
+      for (const v of s) m |= bitFor(v);
+      return m;
+    };
+    const bitCount = (m) => {
+      let c = 0;
+      while (m) {
+        m &= m - 1;
+        c++;
+      }
+      return c;
+    };
+    const maskToDigits = (mask) => {
+      const out = [];
+      for (let d = 1; d <= 9; d++) if (mask & bitFor(d)) out.push(d);
+      return out;
+    };
+    const boxIndex = (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3);
+
+    const eliminations = [];
+
+    const restrictMask = (r, c, mask) => {
+      const before = maskFromSet(pencils[r][c]);
+      const after = before & mask;
+      if (after !== before) {
+        for (let d = 1; d <= 9; d++) {
+          const bit = bitFor(d);
+          if (before & bit && !(after & bit))
+            eliminations.push({ r, c, num: d });
+        }
+      }
+    };
+
+    const removeMask = (r, c, mask) => {
+      const before = maskFromSet(pencils[r][c]);
+      const after = before & ~mask;
+      if (after !== before && before & mask) {
+        for (let d = 1; d <= 9; d++) {
+          const bit = bitFor(d);
+          if (mask & bit && before & bit) eliminations.push({ r, c, num: d });
+        }
+      }
+    };
+
+    const getFireworkDigits = (c1, c2, pivot) => {
+      const pivotBox = boxIndex(pivot[0], pivot[1]);
+      const excluded1 = [];
+      const isRow = c1[0] === pivot[0];
+      if (isRow) {
+        for (let c = 0; c < 9; c++) {
+          if (boxIndex(pivot[0], c) !== pivotBox && c !== c1[1])
+            excluded1.push([pivot[0], c]);
+        }
+      } else {
+        for (let r = 0; r < 9; r++) {
+          if (boxIndex(r, pivot[1]) !== pivotBox && r !== c1[0])
+            excluded1.push([r, pivot[1]]);
+        }
+      }
+
+      const excluded2 = [];
+      const isRow2 = c2[0] === pivot[0];
+      if (isRow2) {
+        for (let c = 0; c < 9; c++) {
+          if (boxIndex(pivot[0], c) !== pivotBox && c !== c2[1])
+            excluded2.push([pivot[0], c]);
+        }
+      } else {
+        for (let r = 0; r < 9; r++) {
+          if (boxIndex(r, pivot[1]) !== pivotBox && r !== c2[0])
+            excluded2.push([r, pivot[1]]);
+        }
+      }
+
+      let finalMask = 0;
+      let availableMask =
+        maskFromSet(pencils[c1[0]][c1[1]]) |
+        maskFromSet(pencils[c2[0]][c2[1]]) |
+        maskFromSet(pencils[pivot[0]][pivot[1]]);
+      for (let d = 1; d <= 9; d++) {
+        if ((availableMask & bitFor(d)) === 0) continue;
+
+        let ok = true;
+        for (const [r, c] of excluded1) {
+          if (
+            board[r][c] === d ||
+            (board[r][c] === 0 && pencils[r][c].has(d))
+          ) {
+            ok = false;
+            break;
+          }
+        }
+        if (!ok) continue;
+
+        for (const [r, c] of excluded2) {
+          if (
+            board[r][c] === d ||
+            (board[r][c] === 0 && pencils[r][c].has(d))
+          ) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) {
+          finalMask |= bitFor(d);
+        }
+      }
+      return finalMask;
+    };
+
+    for (let r1 = 0; r1 < 9; r1++) {
+      for (let r2 = r1 + 1; r2 < 9; r2++) {
+        if (Math.floor(r1 / 3) === Math.floor(r2 / 3)) continue;
+        for (let c1 = 0; c1 < 9; c1++) {
+          for (let c2 = c1 + 1; c2 < 9; c2++) {
+            if (Math.floor(c1 / 3) === Math.floor(c2 / 3)) continue;
+
+            if (
+              board[r1][c1] !== 0 ||
+              board[r1][c2] !== 0 ||
+              board[r2][c1] !== 0 ||
+              board[r2][c2] !== 0
+            )
+              continue;
+
+            const map = [
+              [r1, c1],
+              [r1, c2],
+              [r2, c1],
+              [r2, c2],
+            ];
+            let unionMask = 0;
+            for (const [r, c] of map) unionMask |= maskFromSet(pencils[r][c]);
+
+            if (bitCount(unionMask) < 4) continue;
+
+            const allDigits = maskToDigits(unionMask);
+            for (const digits of techniques.combinations(allDigits, 4)) {
+              const cases = [
+                [
+                  [digits[0], digits[1]],
+                  [digits[2], digits[3]],
+                ],
+                [
+                  [digits[0], digits[2]],
+                  [digits[1], digits[3]],
+                ],
+                [
+                  [digits[0], digits[3]],
+                  [digits[1], digits[2]],
+                ],
+                [
+                  [digits[1], digits[2]],
+                  [digits[0], digits[3]],
+                ],
+                [
+                  [digits[1], digits[3]],
+                  [digits[0], digits[2]],
+                ],
+                [
+                  [digits[2], digits[3]],
+                  [digits[0], digits[1]],
+                ],
+              ];
+
+              const pivotPairs = [
+                [map[0], map[3]],
+                [map[1], map[2]],
+              ];
+
+              for (const [pivot1, pivot2] of pivotPairs) {
+                const other1 = pivot1 === map[0] ? map[1] : map[0];
+                const other2 = pivot1 === map[0] ? map[2] : map[3];
+
+                for (const [[d1, d2], [d3, d4]] of cases) {
+                  const pair1Mask = bitFor(d1) | bitFor(d2);
+                  const pair2Mask = bitFor(d3) | bitFor(d4);
+
+                  const satisfied1 = getFireworkDigits(other1, other2, pivot1);
+                  const satisfied2 = getFireworkDigits(other1, other2, pivot2);
+
+                  if (
+                    (satisfied1 & pair1Mask) !== pair1Mask ||
+                    (satisfied2 & pair2Mask) !== pair2Mask
+                  ) {
+                    continue;
+                  }
+
+                  eliminations.length = 0;
+                  const fourDigitsMask = pair1Mask | pair2Mask;
+
+                  restrictMask(pivot1[0], pivot1[1], pair1Mask);
+                  restrictMask(pivot2[0], pivot2[1], pair2Mask);
+                  restrictMask(other1[0], other1[1], fourDigitsMask);
+                  restrictMask(other2[0], other2[1], fourDigitsMask);
+
+                  const p1BlockR = Math.floor(pivot1[0] / 3) * 3;
+                  const p1BlockC = Math.floor(pivot1[1] / 3) * 3;
+                  for (let r = p1BlockR; r < p1BlockR + 3; r++) {
+                    for (let c = p1BlockC; c < p1BlockC + 3; c++) {
+                      if (
+                        r !== pivot1[0] &&
+                        c !== pivot1[1] &&
+                        board[r][c] === 0
+                      ) {
+                        removeMask(r, c, pair1Mask);
+                      }
+                    }
+                  }
+
+                  const p2BlockR = Math.floor(pivot2[0] / 3) * 3;
+                  const p2BlockC = Math.floor(pivot2[1] / 3) * 3;
+                  for (let r = p2BlockR; r < p2BlockR + 3; r++) {
+                    for (let c = p2BlockC; c < p2BlockC + 3; c++) {
+                      if (
+                        r !== pivot2[0] &&
+                        c !== pivot2[1] &&
+                        board[r][c] === 0
+                      ) {
+                        removeMask(r, c, pair2Mask);
+                      }
+                    }
+                  }
+
+                  if (eliminations.length > 0) {
+                    const res = {
+                      change: true,
+                      type: "remove",
+                      cells: [...eliminations],
+                      hint: {
+                        name: t("teks_msg_133_2"),
+                        mainInfo: t("teks_msg_134_2", pivot1[0] + 1, pivot1[1] + 1, pivot2[0] + 1, pivot2[1] + 1),
+                        detail: t("teks_msg_135_2", maskToDigits(pair1Mask).join(""), maskToDigits(pair2Mask).join("")),
+                      },
+                      applyVisuals: () => {
+                        highlightedDigit = null;
+                        highlightState = 0;
+
+                        [pivot1, pivot2, other1, other2].forEach(([r, c]) => {
+                          window.addCellColor(r, c, cellColorPalette[6]);
+                        });
+
+                        const paintCand = (r, c, mask) => {
+                          for (let d = 1; d <= 9; d++) {
+                            if (
+                              mask & bitFor(d) &&
+                              boardState[r][c].pencils.has(d)
+                            ) {
+                              boardState[r][c].pencilColors.set(
+                                d,
+                                candidateColorPalette[4],
+                              );
+                            }
+                          }
+                        };
+
+                        paintCand(pivot1[0], pivot1[1], pair1Mask);
+                        paintCand(pivot2[0], pivot2[1], pair2Mask);
+                        paintCand(other1[0], other1[1], fourDigitsMask);
+                        paintCand(other2[0], other2[1], fourDigitsMask);
+
+                        res.cells.forEach((el) => {
+                          boardState[el.r][el.c].pencilColors.set(
+                            el.num,
+                            candidateColorPalette[0],
+                          );
+                        });
+                      },
+                    };
+                    if (!findAll) return res;
+                    results.push(res);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return findAll ? results : { change: false };
+  },
+
+  fireworkTriple: (board, pencils, findAll = false) => {
     const results = [];
     const bitFor = (d) => 1 << (d - 1);
     const maskFromSet = (s) => {
