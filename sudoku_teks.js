@@ -6306,8 +6306,18 @@ const techniques = {
                       cells: [...eliminations],
                       hint: {
                         name: t("teks_msg_133_2"),
-                        mainInfo: t("teks_msg_134_2", pivot1[0] + 1, pivot1[1] + 1, pivot2[0] + 1, pivot2[1] + 1),
-                        detail: t("teks_msg_135_2", maskToDigits(pair1Mask).join(""), maskToDigits(pair2Mask).join("")),
+                        mainInfo: t(
+                          "teks_msg_134_2",
+                          pivot1[0] + 1,
+                          pivot1[1] + 1,
+                          pivot2[0] + 1,
+                          pivot2[1] + 1,
+                        ),
+                        detail: t(
+                          "teks_msg_135_2",
+                          maskToDigits(pair1Mask).join(""),
+                          maskToDigits(pair2Mask).join(""),
+                        ),
                       },
                       applyVisuals: () => {
                         highlightedDigit = null;
@@ -10518,5 +10528,715 @@ const techniques = {
 
   medusa3D: (board, pencils, findAll = false) => {
     return techniques._solveColoring(board, pencils, null, findAll);
+  },
+
+  bivalueOddagon: (board, pencils, findAll = false) => {
+    const results = [];
+    const MAX_LOOPS = 100;
+
+    const getHouse = (cell, type) => {
+      const r = Math.floor(cell / 9);
+      const c = cell % 9;
+      if (type === 0) return r;
+      if (type === 1) return 9 + c;
+      if (type === 2) return 18 + (Math.floor(r / 3) * 3 + Math.floor(c / 3));
+    };
+
+    const getHouses = (cell) => {
+      const r = Math.floor(cell / 9);
+      const c = cell % 9;
+      return [r, 9 + c, 18 + (Math.floor(r / 3) * 3 + Math.floor(c / 3))];
+    };
+
+    const housesMap = Array.from({ length: 27 }, () => []);
+    for (let i = 0; i < 81; i++) {
+      const h = getHouses(i);
+      housesMap[h[0]].push(i);
+      housesMap[h[1]].push(i);
+      housesMap[h[2]].push(i);
+    }
+
+    const isPow2 = (n) => (n & (n - 1)) === 0 && n !== 0;
+    const trailingZeroCount = (n) => {
+      if (n === 0) return 32;
+      let count = 0;
+      while ((n & 1) === 0) {
+        count++;
+        n >>= 1;
+      }
+      return count;
+    };
+    const popCount = (n) => {
+      let count = 0;
+      while (n) {
+        count += n & 1;
+        n >>= 1;
+      }
+      return count;
+    };
+
+    const getSharedHouse = (cells) => {
+      if (cells.length === 0) return -1;
+      let shared = [true, true, true];
+      const r0 = Math.floor(cells[0] / 9),
+        c0 = cells[0] % 9,
+        b0 = Math.floor(r0 / 3) * 3 + Math.floor(c0 / 3);
+      for (let i = 1; i < cells.length; i++) {
+        const r = Math.floor(cells[i] / 9),
+          c = cells[i] % 9,
+          b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+        if (r !== r0) shared[0] = false;
+        if (c !== c0) shared[1] = false;
+        if (b !== b0) shared[2] = false;
+      }
+      if (shared[0]) return r0;
+      if (shared[1]) return 9 + c0;
+      if (shared[2]) return 18 + b0;
+      return -1;
+    };
+
+    const getSharedHousesList = (cells) => {
+      if (cells.length === 0) return [];
+      let shared = [true, true, true];
+      const r0 = Math.floor(cells[0] / 9),
+        c0 = cells[0] % 9,
+        b0 = Math.floor(r0 / 3) * 3 + Math.floor(c0 / 3);
+      for (let i = 1; i < cells.length; i++) {
+        const r = Math.floor(cells[i] / 9),
+          c = cells[i] % 9,
+          b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+        if (r !== r0) shared[0] = false;
+        if (c !== c0) shared[1] = false;
+        if (b !== b0) shared[2] = false;
+      }
+      const list = [];
+      if (shared[0]) list.push(r0);
+      if (shared[1]) list.push(9 + c0);
+      if (shared[2]) list.push(18 + b0);
+      return list;
+    };
+
+    const getPeerIntersection = (cells) => {
+      if (cells.length === 0) return [];
+      let common = PEER_MAP[cells[0]];
+      for (let i = 1; i < cells.length; i++) {
+        common &= PEER_MAP[cells[i]];
+      }
+      const res = [];
+      for (let i = 0; i < 81; i++) {
+        if ((common & (1n << BigInt(i))) !== 0n) res.push(i);
+      }
+      return res;
+    };
+
+    for (let d1 = 1; d1 <= 8; d1++) {
+      for (let d2 = d1 + 1; d2 <= 9; d2++) {
+        const cellsContainingBothTwoDigits = [];
+        const cellMasks = new Array(81).fill(0);
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            if (
+              board[r][c] === 0 &&
+              pencils[r][c].has(d1) &&
+              pencils[r][c].has(d2)
+            ) {
+              const id = r * 9 + c;
+              cellsContainingBothTwoDigits.push(id);
+              let mask = 0;
+              for (let num of pencils[r][c]) {
+                mask |= 1 << (num - 1);
+              }
+              cellMasks[id] = mask;
+            }
+          }
+        }
+
+        if (cellsContainingBothTwoDigits.length < 4) continue;
+
+        const comparer = (1 << (d1 - 1)) | (1 << (d2 - 1));
+        const resultLoops = [];
+        let loopsCount = 0;
+
+        const dfs = (
+          startCell,
+          previousCell,
+          previousHouse,
+          loopSet,
+          loopArr,
+          extraCells,
+          extraDigitsMask,
+        ) => {
+          if (loopsCount > MAX_LOOPS) return;
+
+          for (let houseType = 0; houseType < 3; houseType++) {
+            const nextHouse = getHouse(previousCell, houseType);
+            if (nextHouse === previousHouse) continue;
+
+            const houseCells = housesMap[nextHouse];
+            let loopCellsInThisHouse = 0;
+            let hasStartCell = false;
+            for (const cell of houseCells) {
+              if (loopSet.has(cell)) {
+                loopCellsInThisHouse++;
+                if (cell === startCell) hasStartCell = true;
+              }
+            }
+
+            if (loopCellsInThisHouse >= 2 && !hasStartCell) continue;
+
+            const otherCellsCanBeIterated = [];
+            for (const cell of houseCells) {
+              if (
+                (cellsContainingBothTwoDigits.includes(cell) &&
+                  !loopSet.has(cell)) ||
+                cell === startCell
+              ) {
+                otherCellsCanBeIterated.push(cell);
+              }
+            }
+            if (otherCellsCanBeIterated.length === 0) continue;
+
+            for (const cell of otherCellsCanBeIterated) {
+              const h = getHouses(cell);
+              let countH0 = 0,
+                countH1 = 0,
+                countH2 = 0;
+              for (const lc of loopArr) {
+                const lh = getHouses(lc);
+                if (lh[0] === h[0]) countH0++;
+                if (lh[1] === h[1]) countH1++;
+                if (lh[2] === h[2]) countH2++;
+              }
+              if (
+                (countH0 >= 2 || countH1 >= 2 || countH2 >= 2) &&
+                startCell !== cell
+              ) {
+                continue;
+              }
+
+              if (startCell === cell) {
+                if (loopArr.length % 2 !== 0 && loopArr.length > 4) {
+                  if (++loopsCount <= MAX_LOOPS) {
+                    const sortedLoop = [...loopArr]
+                      .sort((a, b) => a - b)
+                      .join(",");
+                    resultLoops.push({
+                      loop: [...loopArr],
+                      extraCells: [...extraCells],
+                      comparer,
+                      key: sortedLoop,
+                    });
+                  }
+                  return;
+                }
+              } else {
+                const cMask = cellMasks[cell];
+                const newExtraDigitsMask =
+                  extraDigitsMask | (cMask & ~comparer);
+                const isExtra = popCount(cMask) > 2;
+                const newExtraCells = isExtra
+                  ? [...extraCells, cell]
+                  : [...extraCells];
+
+                let shouldProceed = false;
+                const firstSharedHouse = getSharedHouse(newExtraCells);
+                if (firstSharedHouse !== -1) shouldProceed = true;
+                else if (newExtraCells.length < 3) shouldProceed = true;
+                else {
+                  if (isPow2(newExtraDigitsMask)) {
+                    const extraDigit =
+                      trailingZeroCount(newExtraDigitsMask) + 1;
+                    const peers = getPeerIntersection(newExtraCells);
+                    let hasDigitInPeers = false;
+                    for (const p of peers) {
+                      if (
+                        board[Math.floor(p / 9)][p % 9] === 0 &&
+                        pencils[Math.floor(p / 9)][p % 9].has(extraDigit)
+                      ) {
+                        hasDigitInPeers = true;
+                        break;
+                      }
+                    }
+                    if (hasDigitInPeers) shouldProceed = true;
+                  }
+                }
+
+                if (shouldProceed) {
+                  loopSet.add(cell);
+                  loopArr.push(cell);
+                  dfs(
+                    startCell,
+                    cell,
+                    nextHouse,
+                    loopSet,
+                    loopArr,
+                    newExtraCells,
+                    newExtraDigitsMask,
+                  );
+                  loopArr.pop();
+                  loopSet.delete(cell);
+                }
+              }
+            }
+          }
+        };
+
+        for (const cell of cellsContainingBothTwoDigits) {
+          const isExtra = popCount(cellMasks[cell]) > 2;
+          const extra = isExtra ? [cell] : [];
+          dfs(cell, cell, -1, new Set([cell]), [cell], extra, 0);
+        }
+
+        const uniqueLoops = [];
+        const seenLoops = new Set();
+        for (const r of resultLoops) {
+          if (!seenLoops.has(r.key)) {
+            seenLoops.add(r.key);
+            uniqueLoops.push(r);
+          }
+        }
+
+        for (const oddagon of uniqueLoops) {
+          const { loop, extraCells } = oddagon;
+          const d1Cand = d1;
+          const d2Cand = d2;
+
+          if (extraCells.length === 0) continue;
+
+          const checkType2 = () => {
+            let mask = 0;
+            for (const cell of extraCells) mask |= cellMasks[cell];
+            mask &= ~comparer;
+
+            if (!isPow2(mask)) return null;
+
+            const extraDigit = trailingZeroCount(mask) + 1;
+            const peers = getPeerIntersection(extraCells);
+            const elimMap = [];
+            for (const p of peers) {
+              if (
+                board[Math.floor(p / 9)][p % 9] === 0 &&
+                pencils[Math.floor(p / 9)][p % 9].has(extraDigit)
+              ) {
+                elimMap.push({
+                  r: Math.floor(p / 9),
+                  c: p % 9,
+                  num: extraDigit,
+                });
+              }
+            }
+
+            if (elimMap.length > 0) {
+              return {
+                change: true,
+                type: "remove",
+                cells: elimMap,
+                hint: {
+                  name: t("teks_msg_183"),
+                  mainInfo: t("teks_msg_184", loop.length),
+                  detail: t("teks_msg_185", extraDigit),
+                },
+                applyVisuals: () => {
+                  highlightedDigit = null;
+                  highlightState = 0;
+                  loop.forEach((id) => {
+                    window.addCellColor(
+                      Math.floor(id / 9),
+                      id % 9,
+                      cellColorPalette[7],
+                    );
+                    if (
+                      boardState[Math.floor(id / 9)][id % 9].pencils.has(d1Cand)
+                    )
+                      boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
+                        d1Cand,
+                        candidateColorPalette[7],
+                      );
+                    if (
+                      boardState[Math.floor(id / 9)][id % 9].pencils.has(d2Cand)
+                    )
+                      boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
+                        d2Cand,
+                        candidateColorPalette[7],
+                      );
+                  });
+                  extraCells.forEach((id) => {
+                    boardState[Math.floor(id / 9)][id % 9].pencils.forEach(
+                      (cand) => {
+                        if (cand !== d1Cand && cand !== d2Cand) {
+                          boardState[Math.floor(id / 9)][
+                            id % 9
+                          ].pencilColors.set(cand, candidateColorPalette[3]);
+                        }
+                      },
+                    );
+                  });
+                  elimMap.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  );
+                },
+              };
+            }
+            return null;
+          };
+
+          const checkType3 = () => {
+            let notSatisfiedType3 = false;
+            for (const cell of extraCells) {
+              const mask = cellMasks[cell];
+              if ((mask & comparer) === 0 || (mask & comparer) !== comparer) {
+                notSatisfiedType3 = true;
+                break;
+              }
+            }
+            const firstSharedHouse = getSharedHouse(extraCells);
+            if (firstSharedHouse === -1 || notSatisfiedType3) return null;
+
+            let m = 0;
+            for (const cell of extraCells) m |= cellMasks[cell];
+            if ((m & comparer) !== comparer) return null;
+
+            const otherDigitsMask = m & ~comparer;
+            const otherDigitsCount = popCount(otherDigitsMask);
+
+            const sharedHouses = getSharedHousesList(extraCells);
+            for (const house of sharedHouses) {
+              let hasValue = false;
+              for (const cell of housesMap[house]) {
+                const v = board[Math.floor(cell / 9)][cell % 9];
+                if (v === d1 || v === d2) {
+                  hasValue = true;
+                  break;
+                }
+              }
+              if (hasValue) continue;
+
+              const otherCellsInHouse = [];
+              for (const cell of housesMap[house]) {
+                if (
+                  board[Math.floor(cell / 9)][cell % 9] === 0 &&
+                  !loop.includes(cell)
+                ) {
+                  otherCellsInHouse.push(cell);
+                }
+              }
+
+              for (
+                let size = otherDigitsCount - 1;
+                size <= otherCellsInHouse.length;
+                size++
+              ) {
+                if (size <= 0) continue;
+
+                for (const combo of techniques.combinations(
+                  otherCellsInHouse,
+                  size,
+                )) {
+                  let comboMask = 0;
+                  for (const c of combo) comboMask |= cellMasks[c];
+
+                  if (
+                    popCount(comboMask) !== size + 1 ||
+                    (comboMask & otherDigitsMask) !== otherDigitsMask
+                  )
+                    continue;
+
+                  const elimMap = [];
+                  for (const cell of housesMap[house]) {
+                    if (
+                      board[Math.floor(cell / 9)][cell % 9] === 0 &&
+                      !loop.includes(cell) &&
+                      !combo.includes(cell)
+                    ) {
+                      for (let i = 1; i <= 9; i++) {
+                        if (
+                          (comboMask & (1 << (i - 1))) !== 0 &&
+                          pencils[Math.floor(cell / 9)][cell % 9].has(i)
+                        ) {
+                          elimMap.push({
+                            r: Math.floor(cell / 9),
+                            c: cell % 9,
+                            num: i,
+                          });
+                        }
+                      }
+                    }
+                  }
+
+                  if (elimMap.length > 0) {
+                    return {
+                      change: true,
+                      type: "remove",
+                      cells: elimMap,
+                      hint: {
+                        name: t("teks_msg_186"),
+                        mainInfo: t("teks_msg_187", loop.length),
+                        detail: t("teks_msg_188"),
+                      },
+                      applyVisuals: () => {
+                        highlightedDigit = null;
+                        highlightState = 0;
+                        loop.forEach((id) => {
+                          window.addCellColor(
+                            Math.floor(id / 9),
+                            id % 9,
+                            cellColorPalette[7],
+                          );
+
+                          if (
+                            boardState[Math.floor(id / 9)][id % 9].pencils.has(
+                              d1Cand,
+                            )
+                          )
+                            boardState[Math.floor(id / 9)][
+                              id % 9
+                            ].pencilColors.set(
+                              d1Cand,
+                              candidateColorPalette[7],
+                            );
+                          if (
+                            boardState[Math.floor(id / 9)][id % 9].pencils.has(
+                              d2Cand,
+                            )
+                          )
+                            boardState[Math.floor(id / 9)][
+                              id % 9
+                            ].pencilColors.set(
+                              d2Cand,
+                              candidateColorPalette[7],
+                            );
+                        });
+                        extraCells.forEach((id) => {
+                          boardState[Math.floor(id / 9)][
+                            id % 9
+                          ].pencils.forEach((cand) => {
+                            if (cand !== d1Cand && cand !== d2Cand) {
+                              boardState[Math.floor(id / 9)][
+                                id % 9
+                              ].pencilColors.set(
+                                cand,
+                                candidateColorPalette[3],
+                              );
+                            }
+                          });
+                        });
+                        combo.forEach((id) => {
+                          window.addCellColor(
+                            Math.floor(id / 9),
+                            id % 9,
+                            cellColorPalette[7],
+                          );
+                          boardState[Math.floor(id / 9)][
+                            id % 9
+                          ].pencils.forEach((cand) => {
+                            if (cand !== d1Cand && cand !== d2Cand) {
+                              boardState[Math.floor(id / 9)][
+                                id % 9
+                              ].pencilColors.set(
+                                cand,
+                                candidateColorPalette[4],
+                              );
+                            }
+                          });
+                        });
+                        elimMap.forEach((el) =>
+                          boardState[el.r][el.c].pencilColors.set(
+                            el.num,
+                            candidateColorPalette[0],
+                          ),
+                        );
+                      },
+                    };
+                  }
+                }
+              }
+            }
+            return null;
+          };
+
+          const checkType4 = () => {
+            let mask = 0;
+            for (const cell of extraCells) mask |= cellMasks[cell];
+            mask &= ~comparer;
+            if (!isPow2(mask) || extraCells.length !== 2) return null;
+
+            const extraDigit = trailingZeroCount(mask) + 1;
+            const [c1, c2] = extraCells;
+
+            let adjacent = false;
+            for (let i = 0; i < loop.length; i++) {
+              const next = (i + 1) % loop.length;
+              if (
+                (loop[i] === c1 && loop[next] === c2) ||
+                (loop[i] === c2 && loop[next] === c1)
+              ) {
+                adjacent = true;
+                break;
+              }
+            }
+            if (!adjacent) return null;
+
+            const loopCellsCanSee = new Set();
+            for (const lc of loop) {
+              if (
+                lc !== c1 &&
+                lc !== c2 &&
+                (techniques._sees(
+                  techniques._idToCell(lc),
+                  techniques._idToCell(c1),
+                ) ||
+                  techniques._sees(
+                    techniques._idToCell(lc),
+                    techniques._idToCell(c2),
+                  ))
+              ) {
+                loopCellsCanSee.add(lc);
+              }
+            }
+
+            let isAnyLoopCellSeeingBothCells = false;
+            let elimMapMap = null;
+
+            for (const extraCell of extraCells) {
+              const sees = [];
+              for (const lc of loopCellsCanSee) {
+                if (
+                  techniques._sees(
+                    techniques._idToCell(lc),
+                    techniques._idToCell(extraCell),
+                  )
+                ) {
+                  sees.push(lc);
+                }
+              }
+              if (sees.length !== 1) {
+                isAnyLoopCellSeeingBothCells = true;
+                break;
+              }
+
+              const localElims = [];
+              for (const lc of loopCellsCanSee) {
+                const intersection = getPeerIntersection([extraCell, lc]);
+                for (const cell of intersection) {
+                  if (!loop.includes(cell)) {
+                    if (board[Math.floor(cell / 9)][cell % 9] === 0) {
+                      if (pencils[Math.floor(cell / 9)][cell % 9].has(d1)) {
+                        localElims.push(cell * 10 + d1);
+                      }
+                      if (pencils[Math.floor(cell / 9)][cell % 9].has(d2)) {
+                        localElims.push(cell * 10 + d2);
+                      }
+                    }
+                  }
+                }
+              }
+              if (elimMapMap === null) {
+                elimMapMap = new Set(localElims);
+              } else {
+                const nextElimMap = new Set();
+                for (const el of localElims) {
+                  if (elimMapMap.has(el)) nextElimMap.add(el);
+                }
+                elimMapMap = nextElimMap;
+              }
+            }
+
+            if (
+              isAnyLoopCellSeeingBothCells ||
+              elimMapMap === null ||
+              elimMapMap.size === 0
+            )
+              return null;
+
+            const elims = [];
+            for (const el of elimMapMap) {
+              const cell = Math.floor(el / 10);
+              const digit = el % 10;
+              elims.push({ r: Math.floor(cell / 9), c: cell % 9, num: digit });
+            }
+
+            if (elims.length > 0) {
+              return {
+                change: true,
+                type: "remove",
+                cells: elims,
+                hint: {
+                  name: t("teks_msg_189"),
+                  mainInfo: t("teks_msg_190", loop.length),
+                  detail: t("teks_msg_191"),
+                },
+                applyVisuals: () => {
+                  highlightedDigit = null;
+                  highlightState = 0;
+                  loop.forEach((id) => {
+                    window.addCellColor(
+                      Math.floor(id / 9),
+                      id % 9,
+                      cellColorPalette[7],
+                    );
+
+                    if (
+                      boardState[Math.floor(id / 9)][id % 9].pencils.has(d1Cand)
+                    )
+                      boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
+                        d1Cand,
+                        candidateColorPalette[7],
+                      );
+                    if (
+                      boardState[Math.floor(id / 9)][id % 9].pencils.has(d2Cand)
+                    )
+                      boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
+                        d2Cand,
+                        candidateColorPalette[7],
+                      );
+                  });
+                  extraCells.forEach((id) => {
+                    boardState[Math.floor(id / 9)][id % 9].pencils.forEach(
+                      (cand) => {
+                        if (cand !== d1Cand && cand !== d2Cand) {
+                          boardState[Math.floor(id / 9)][
+                            id % 9
+                          ].pencilColors.set(cand, candidateColorPalette[3]);
+                        }
+                      },
+                    );
+                  });
+                  elims.forEach((el) =>
+                    boardState[el.r][el.c].pencilColors.set(
+                      el.num,
+                      candidateColorPalette[0],
+                    ),
+                  );
+                },
+              };
+            }
+            return null;
+          };
+
+          let res2 = checkType2();
+          if (res2) {
+            if (!findAll) return res2;
+            results.push(res2);
+          } else {
+            let res3 = checkType3();
+            if (res3) {
+              if (!findAll) return res3;
+              results.push(res3);
+            } else {
+              let res4 = checkType4();
+              if (res4) {
+                if (!findAll) return res4;
+                results.push(res4);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return findAll ? results : { change: false };
   },
 };

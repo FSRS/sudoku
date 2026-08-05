@@ -7288,6 +7288,12 @@ function getDefaultTechniques() {
       score: 240,
     },
     {
+      name: t("ui_msg_338"),
+      func: techniques.bivalueOddagon,
+      level: 6,
+      score: 250,
+    },
+    {
       name: t("ui_msg_240"),
       func: techniques.groupedXChain,
       level: 7,
