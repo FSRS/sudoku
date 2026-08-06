@@ -6335,10 +6335,7 @@ const techniques = {
                               boardState[r][c].pencils.has(d)
                             ) {
                               hasPairCandidate = true;
-                              boardState[r][c].pencilColors.set(
-                                d,
-                                color,
-                              );
+                              boardState[r][c].pencilColors.set(d, color);
                             }
                           }
                           return hasPairCandidate;
@@ -6633,10 +6630,7 @@ const techniques = {
                                     cells: eliminations,
                                     hint: {
                                       name: t("teks_msg_133"),
-                                      mainInfo: t(
-                                        "teks_msg_134",
-                                        ahsDigits,
-                                      ),
+                                      mainInfo: t("teks_msg_134", ahsDigits),
                                       detail: t(
                                         "teks_msg_135",
                                         ahsDigits,
@@ -6652,7 +6646,8 @@ const techniques = {
                                       // Every AHS cell uses Cell Color 6.
                                       const ahsCells = new Map();
                                       [...rowAhsCells, ...colAhsCells].forEach(
-                                        ([r, c]) => ahsCells.set(`${r},${c}`, [r, c]),
+                                        ([r, c]) =>
+                                          ahsCells.set(`${r},${c}`, [r, c]),
                                       );
                                       ahsCells.forEach(([r, c]) => {
                                         window.addCellColor(
@@ -10790,8 +10785,9 @@ const techniques = {
 
         for (const oddagon of uniqueLoops) {
           const { loop, extraCells } = oddagon;
-          const d1Cand = d1;
-          const d2Cand = d2;
+          const pathStr = loop
+            .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+            .join("-");
 
           if (extraCells.length === 0) continue;
 
@@ -10825,8 +10821,8 @@ const techniques = {
                 cells: elimMap,
                 hint: {
                   name: t("teks_msg_183"),
-                  mainInfo: t("teks_msg_184", loop.length),
-                  detail: t("teks_msg_185", extraDigit),
+                  mainInfo: t("teks_msg_184", d1, d2),
+                  detail: t("teks_msg_185", d1, d2, extraDigit, pathStr),
                 },
                 applyVisuals: () => {
                   highlightedDigit = null;
@@ -10837,25 +10833,21 @@ const techniques = {
                       id % 9,
                       cellColorPalette[7],
                     );
-                    if (
-                      boardState[Math.floor(id / 9)][id % 9].pencils.has(d1Cand)
-                    )
+                    if (boardState[Math.floor(id / 9)][id % 9].pencils.has(d1))
                       boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
-                        d1Cand,
+                        d1,
                         candidateColorPalette[7],
                       );
-                    if (
-                      boardState[Math.floor(id / 9)][id % 9].pencils.has(d2Cand)
-                    )
+                    if (boardState[Math.floor(id / 9)][id % 9].pencils.has(d2))
                       boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
-                        d2Cand,
+                        d2,
                         candidateColorPalette[7],
                       );
                   });
                   extraCells.forEach((id) => {
                     boardState[Math.floor(id / 9)][id % 9].pencils.forEach(
                       (cand) => {
-                        if (cand !== d1Cand && cand !== d2Cand) {
+                        if (cand !== d1 && cand !== d2) {
                           boardState[Math.floor(id / 9)][
                             id % 9
                           ].pencilColors.set(cand, candidateColorPalette[3]);
@@ -10959,14 +10951,32 @@ const techniques = {
                   }
 
                   if (elimMap.length > 0) {
+                    const extraDigitsArr = [];
+                    for (let i = 1; i <= 9; i++) {
+                      if ((otherDigitsMask & (1 << (i - 1))) !== 0) {
+                        extraDigitsArr.push(i);
+                      }
+                    }
+                    const extraDigit = extraDigitsArr.join("");
+                    const subsetStr = combo
+                      .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+                      .join("-");
+
                     return {
                       change: true,
                       type: "remove",
                       cells: elimMap,
                       hint: {
                         name: t("teks_msg_186"),
-                        mainInfo: t("teks_msg_187", loop.length),
-                        detail: t("teks_msg_188"),
+                        mainInfo: t("teks_msg_184", d1, d2),
+                        detail: t(
+                          "teks_msg_187",
+                          d1,
+                          d2,
+                          extraDigit,
+                          pathStr,
+                          subsetStr,
+                        ),
                       },
                       applyVisuals: () => {
                         highlightedDigit = null;
@@ -10980,32 +10990,26 @@ const techniques = {
 
                           if (
                             boardState[Math.floor(id / 9)][id % 9].pencils.has(
-                              d1Cand,
+                              d1,
                             )
                           )
                             boardState[Math.floor(id / 9)][
                               id % 9
-                            ].pencilColors.set(
-                              d1Cand,
-                              candidateColorPalette[7],
-                            );
+                            ].pencilColors.set(d1, candidateColorPalette[7]);
                           if (
                             boardState[Math.floor(id / 9)][id % 9].pencils.has(
-                              d2Cand,
+                              d2,
                             )
                           )
                             boardState[Math.floor(id / 9)][
                               id % 9
-                            ].pencilColors.set(
-                              d2Cand,
-                              candidateColorPalette[7],
-                            );
+                            ].pencilColors.set(d2, candidateColorPalette[7]);
                         });
                         extraCells.forEach((id) => {
                           boardState[Math.floor(id / 9)][
                             id % 9
                           ].pencils.forEach((cand) => {
-                            if (cand !== d1Cand && cand !== d2Cand) {
+                            if (cand !== d1 && cand !== d2) {
                               boardState[Math.floor(id / 9)][
                                 id % 9
                               ].pencilColors.set(
@@ -11019,12 +11023,12 @@ const techniques = {
                           window.addCellColor(
                             Math.floor(id / 9),
                             id % 9,
-                            cellColorPalette[7],
+                            cellColorPalette[6],
                           );
                           boardState[Math.floor(id / 9)][
                             id % 9
                           ].pencils.forEach((cand) => {
-                            if (cand !== d1Cand && cand !== d2Cand) {
+                            if (cand !== d1 && cand !== d2) {
                               boardState[Math.floor(id / 9)][
                                 id % 9
                               ].pencilColors.set(
@@ -11151,18 +11155,36 @@ const techniques = {
             }
 
             if (elims.length > 0) {
+              const restrictedDigit = elims[0].num === d1 ? d2 : d1;
               return {
                 change: true,
                 type: "remove",
                 cells: elims,
                 hint: {
-                  name: t("teks_msg_189"),
-                  mainInfo: t("teks_msg_190", loop.length),
-                  detail: t("teks_msg_191"),
+                  name: t("teks_msg_188"),
+                  mainInfo: t("teks_msg_184", d1, d2),
+                  detail: t(
+                    "teks_msg_189",
+                    d1,
+                    d2,
+                    restrictedDigit,
+                    extraDigit,
+                    pathStr,
+                  ),
                 },
                 applyVisuals: () => {
-                  highlightedDigit = null;
-                  highlightState = 0;
+                  highlightedDigit = restrictedDigit;
+                  highlightState = 1;
+                  drawnLines.push({
+                    r1: Math.floor(c1 / 9),
+                    c1: c1 % 9,
+                    n1: restrictedDigit,
+                    r2: Math.floor(c2 / 9),
+                    c2: c2 % 9,
+                    n2: restrictedDigit,
+                    color: lineColorPalette[0],
+                    style: "solid",
+                  });
                   loop.forEach((id) => {
                     window.addCellColor(
                       Math.floor(id / 9),
@@ -11170,25 +11192,21 @@ const techniques = {
                       cellColorPalette[7],
                     );
 
-                    if (
-                      boardState[Math.floor(id / 9)][id % 9].pencils.has(d1Cand)
-                    )
+                    if (boardState[Math.floor(id / 9)][id % 9].pencils.has(d1))
                       boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
-                        d1Cand,
+                        d1,
                         candidateColorPalette[7],
                       );
-                    if (
-                      boardState[Math.floor(id / 9)][id % 9].pencils.has(d2Cand)
-                    )
+                    if (boardState[Math.floor(id / 9)][id % 9].pencils.has(d2))
                       boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
-                        d2Cand,
+                        d2,
                         candidateColorPalette[7],
                       );
                   });
                   extraCells.forEach((id) => {
                     boardState[Math.floor(id / 9)][id % 9].pencils.forEach(
                       (cand) => {
-                        if (cand !== d1Cand && cand !== d2Cand) {
+                        if (cand !== d1 && cand !== d2) {
                           boardState[Math.floor(id / 9)][
                             id % 9
                           ].pencilColors.set(cand, candidateColorPalette[3]);

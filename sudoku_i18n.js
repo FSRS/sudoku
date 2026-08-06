@@ -727,14 +727,14 @@ const TRANSLATIONS = {
     teks_msg_181: "Almost Locked Set XY-Wing",
     teks_msg_182: "Almost Locked Set W-Wing",
     teks_msg_183: "Bivalue Oddagon Type 2",
-    teks_msg_184: "Loop: {0} cells",
+    teks_msg_184: "using Digits ({0}{1})",
     teks_msg_185: "Extra digit ({0}) eliminated from peers of extra cells",
     teks_msg_186: "Bivalue Oddagon Type 3",
-    teks_msg_187: "Loop: {0} cells",
-    teks_msg_188: "Naked subset formed with extra cells in shared house",
-    teks_msg_189: "Bivalue Oddagon Type 4",
-    teks_msg_190: "Loop: {0} cells",
-    teks_msg_191: "Conjugate pair eliminations",
+    teks_msg_187:
+      "Base ({0}{1}) in {3}, Guardians {2}, Exrta cells for vitrual naked subset {4}",
+    teks_msg_188: "Bivalue Oddagon Type 4",
+    teks_msg_189:
+      "Base ({0}{1}) in {4}, Guardians {3}, Restricted guardians and base ({3})",
   },
 
   ko: {
@@ -1458,15 +1458,13 @@ const TRANSLATIONS = {
     teks_msg_181: "거의 드러난 집합 XY-윙",
     teks_msg_182: "거의 드러난 집합 W-윙",
     teks_msg_183: "이중값 홀수각형 유형 ②",
-    teks_msg_184: "고리: {0}칸",
-    teks_msg_185: "추가 셀들의 수호자와 모두 NAND 관계인 숫자 ({0}) 제거됨",
+    teks_msg_184: "숫자 ({0}{1}) 사용",
+    teks_msg_185: "숫자 ({0}{1}) 사용, 수호자 ({2}), {3}",
     teks_msg_186: "이중값 홀수각형 유형 ③",
-    teks_msg_187: "고리: {0}칸",
-    teks_msg_188:
-      "공유하는 하우스 내에서 추가 셀들과 함께 드러난 부분집합 형성",
-    teks_msg_189: "이중값 홀수각형 유형 ④",
-    teks_msg_190: "고리: {0}칸",
-    teks_msg_191: "이중위치에 따른 제거",
+    teks_msg_187:
+      "숫자 ({0}{1}) 사용, 수호자 {2}, {3}, 가상의 드러난 부분집합을 위한 추가 칸 {4}",
+    teks_msg_188: "이중값 홀수각형 유형 ④",
+    teks_msg_189: "숫자 ({0}{1}) 사용, 수호자 {2}, 기반 숫자 ({3}) 제한됨, {4}",
   },
 };
 
