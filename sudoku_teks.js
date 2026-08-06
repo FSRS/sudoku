@@ -6308,43 +6308,69 @@ const techniques = {
                         name: t("teks_msg_133_2"),
                         mainInfo: t(
                           "teks_msg_134_2",
-                          pivot1[0] + 1,
-                          pivot1[1] + 1,
-                          pivot2[0] + 1,
-                          pivot2[1] + 1,
+                          maskToDigits(pair1Mask).join(""),
+                          maskToDigits(pair2Mask).join(""),
                         ),
                         detail: t(
                           "teks_msg_135_2",
                           maskToDigits(pair1Mask).join(""),
+                          pivot1[0] + 1,
+                          pivot1[1] + 1,
+                          boxIndex(pivot1[0], pivot1[1]) + 1,
                           maskToDigits(pair2Mask).join(""),
+                          pivot2[0] + 1,
+                          pivot2[1] + 1,
+                          boxIndex(pivot2[0], pivot2[1]) + 1,
                         ),
                       },
                       applyVisuals: () => {
                         highlightedDigit = null;
                         highlightState = 0;
 
-                        [pivot1, pivot2, other1, other2].forEach(([r, c]) => {
-                          window.addCellColor(r, c, cellColorPalette[6]);
-                        });
-
-                        const paintCand = (r, c, mask) => {
+                        const paintCand = (r, c, mask, color) => {
+                          let hasPairCandidate = false;
                           for (let d = 1; d <= 9; d++) {
                             if (
                               mask & bitFor(d) &&
                               boardState[r][c].pencils.has(d)
                             ) {
+                              hasPairCandidate = true;
                               boardState[r][c].pencilColors.set(
                                 d,
-                                candidateColorPalette[4],
+                                color,
                               );
+                            }
+                          }
+                          return hasPairCandidate;
+                        };
+
+                        const paintPairLines = (pivot, mask, colorIndex) => {
+                          for (let r = 0; r < 9; r++) {
+                            for (let c = 0; c < 9; c++) {
+                              if (r !== pivot[0] && c !== pivot[1]) continue;
+                              if (
+                                paintCand(
+                                  r,
+                                  c,
+                                  mask,
+                                  candidateColorPalette[colorIndex],
+                                )
+                              ) {
+                                window.addCellColor(
+                                  r,
+                                  c,
+                                  cellColorPalette[colorIndex],
+                                );
+                              }
                             }
                           }
                         };
 
-                        paintCand(pivot1[0], pivot1[1], pair1Mask);
-                        paintCand(pivot2[0], pivot2[1], pair2Mask);
-                        paintCand(other1[0], other1[1], fourDigitsMask);
-                        paintCand(other2[0], other2[1], fourDigitsMask);
+                        // Highlight every occurrence of each pair along the
+                        // row and column of its Firework pivot. Shared cells
+                        // retain both colors.
+                        paintPairLines(pivot1, pair1Mask, 5);
+                        paintPairLines(pivot2, pair2Mask, 6);
 
                         res.cells.forEach((el) => {
                           boardState[el.r][el.c].pencilColors.set(
@@ -6416,23 +6442,6 @@ const techniques = {
         }
       }
     };
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-      if (cells.every((c) => c[0] === cells[0][0])) {
-        return `r${cells[0][0] + 1}c${cells
-          .map((c) => c[1] + 1)
-          .sort((a, b) => a - b)
-          .join("")}`;
-      }
-      if (cells.every((c) => c[1] === cells[0][1])) {
-        return `r${cells
-          .map((c) => c[0] + 1)
-          .sort((a, b) => a - b)
-          .join("")}c${cells[0][1] + 1}`;
-      }
-      return cells.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
-
     for (let rIdx = 0; rIdx < 9; rIdx++) {
       const rowCells = [];
       for (let c = 0; c < 9; c++)
@@ -6617,8 +6626,6 @@ const techniques = {
                                 if (eliminations.length) {
                                   const ahsDigitArr = maskToDigits(candMask);
                                   const ahsDigits = ahsDigitArr.join("");
-                                  const rowAhsStr = formatRC(rowAhsCells);
-                                  const colAhsStr = formatRC(colAhsCells);
 
                                   const resultObj = {
                                     change: true,
@@ -6628,52 +6635,37 @@ const techniques = {
                                       name: t("teks_msg_133"),
                                       mainInfo: t(
                                         "teks_msg_134",
-                                        rIdx + 1,
-                                        cIdx + 1,
+                                        ahsDigits,
                                       ),
                                       detail: t(
                                         "teks_msg_135",
                                         ahsDigits,
-                                        rowAhsStr,
-                                        ahsDigits,
-                                        colAhsStr,
+                                        intersect[0] + 1,
+                                        intersect[1] + 1,
+                                        boxIdx + 1,
                                       ),
                                     },
                                     applyVisuals: () => {
                                       highlightedDigit = null;
                                       highlightState = 0;
 
-                                      // Color Row AHS
-                                      rowAhsCells.forEach(([r, c]) => {
+                                      // Every AHS cell uses Cell Color 6.
+                                      const ahsCells = new Map();
+                                      [...rowAhsCells, ...colAhsCells].forEach(
+                                        ([r, c]) => ahsCells.set(`${r},${c}`, [r, c]),
+                                      );
+                                      ahsCells.forEach(([r, c]) => {
                                         window.addCellColor(
                                           r,
                                           c,
-                                          cellColorPalette[6],
+                                          cellColorPalette[5],
                                         );
                                         ahsDigitArr.forEach((d) => {
                                           if (boardState[r][c].pencils.has(d)) {
                                             boardState[r][c].pencilColors.set(
                                               d,
-                                              candidateColorPalette[4],
-                                            ); // AHS candidate Color 5
-                                          }
-                                        });
-                                      });
-
-                                      // Color Col AHS
-                                      colAhsCells.forEach(([r, c]) => {
-                                        window.addCellColor(
-                                          r,
-                                          c,
-                                          cellColorPalette[7],
-                                        );
-
-                                        ahsDigitArr.forEach((d) => {
-                                          if (boardState[r][c].pencils.has(d)) {
-                                            boardState[r][c].pencilColors.set(
-                                              d,
-                                              candidateColorPalette[4],
-                                            ); // AHS candidate Color 5
+                                              candidateColorPalette[5],
+                                            ); // AHS candidate Color 6
                                           }
                                         });
                                       });

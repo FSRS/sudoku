@@ -7270,6 +7270,13 @@ function getDefaultTechniques() {
       defaultEnabled: false,
     },
     {
+      name: t("ui_msg_338"),
+      func: techniques.bivalueOddagon,
+      level: 6,
+      score: 220,
+      defaultEnabled: false,
+    },
+    {
       name: t("ui_msg_224"),
       func: techniques.firework,
       level: 6,
@@ -7286,12 +7293,6 @@ function getDefaultTechniques() {
       func: techniques.sueDeCoq,
       level: 6,
       score: 240,
-    },
-    {
-      name: t("ui_msg_338"),
-      func: techniques.bivalueOddagon,
-      level: 6,
-      score: 250,
     },
     {
       name: t("ui_msg_240"),
