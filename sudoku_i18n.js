@@ -728,13 +728,13 @@ const TRANSLATIONS = {
     teks_msg_182: "Almost Locked Set W-Wing",
     teks_msg_183: "Bivalue Oddagon Type 2",
     teks_msg_184: "using Digits ({0}{1})",
-    teks_msg_185: "Extra digit ({0}) eliminated from peers of extra cells",
+    teks_msg_185: "Base ({0}{1}) in {3}, Guardians ({2})",
     teks_msg_186: "Bivalue Oddagon Type 3",
     teks_msg_187:
-      "Base ({0}{1}) in {3}, Guardians {2}, Exrta cells for vitrual naked subset {4}",
+      "Base ({0}{1}) in {3}, Guardians ({2}), Exrta cells for vitrual naked subset {4}",
     teks_msg_188: "Bivalue Oddagon Type 4",
     teks_msg_189:
-      "Base ({0}{1}) in {4}, Guardians {3}, Restricted guardians and base ({3})",
+      "Base ({0}{1}) in {4}, Guardians ({3}), Restricted guardians and base ({3})",
   },
 
   ko: {
