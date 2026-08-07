@@ -10616,23 +10616,80 @@ const techniques = {
       return res;
     };
 
+    const getGuardiansStr = (extraCells, d1, d2) => {
+      const guardiansByDigit = new Map();
+
+      for (const cell of extraCells) {
+        const r = Math.floor(cell / 9);
+        const c = cell % 9;
+        for (const digit of pencils[r][c]) {
+          if (digit === d1 || digit === d2) continue;
+          if (!guardiansByDigit.has(digit)) guardiansByDigit.set(digit, []);
+          guardiansByDigit.get(digit).push({ r, c });
+        }
+      }
+
+      const formatCells = (cells) => {
+        const rows = new Set(cells.map(({ r }) => r));
+        const cols = new Set(cells.map(({ c }) => c));
+        const groupByRow = rows.size <= cols.size;
+        const groups = new Map();
+
+        for (const { r, c } of cells) {
+          const key = groupByRow ? r : c;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(groupByRow ? c : r);
+        }
+
+        return Array.from(groups.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([key, values]) => {
+            const positions = values
+              .sort((a, b) => a - b)
+              .map((value) => value + 1)
+              .join("");
+            return groupByRow
+              ? `r${key + 1}c${positions}`
+              : `r${positions}c${key + 1}`;
+          })
+          .join(",");
+      };
+
+      return Array.from(guardiansByDigit.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([digit, cells]) => `(${digit})${formatCells(cells)}`)
+        .join(",");
+    };
+
     for (let d1 = 1; d1 <= 8; d1++) {
       for (let d2 = d1 + 1; d2 <= 9; d2++) {
         const cellsContainingBothTwoDigits = [];
+
+        // Used by the existing Oddagon loop search.
+        // Only cells containing both d1 and d2 are populated.
         const cellMasks = new Array(81).fill(0);
+
+        // Full candidate mask for every unsolved cell.
+        // Type 3 needs this when examining ALS cells outside the Oddagon loop.
+        const allCellMasks = new Array(81).fill(0);
+
         for (let r = 0; r < 9; r++) {
           for (let c = 0; c < 9; c++) {
-            if (
-              board[r][c] === 0 &&
-              pencils[r][c].has(d1) &&
-              pencils[r][c].has(d2)
-            ) {
-              const id = r * 9 + c;
+            if (board[r][c] !== 0) continue;
+
+            const id = r * 9 + c;
+
+            let mask = 0;
+            for (const num of pencils[r][c]) {
+              mask |= 1 << (num - 1);
+            }
+
+            // Store candidates for EVERY unsolved cell.
+            allCellMasks[id] = mask;
+
+            // Existing Oddagon-loop candidate selection.
+            if (pencils[r][c].has(d1) && pencils[r][c].has(d2)) {
               cellsContainingBothTwoDigits.push(id);
-              let mask = 0;
-              for (let num of pencils[r][c]) {
-                mask |= 1 << (num - 1);
-              }
               cellMasks[id] = mask;
             }
           }
@@ -10785,9 +10842,10 @@ const techniques = {
 
         for (const oddagon of uniqueLoops) {
           const { loop, extraCells } = oddagon;
-          const pathStr = loop
-            .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
-            .join("-");
+          const pathStr =
+            loop
+              .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+              .join("-") + "-";
 
           if (extraCells.length === 0) continue;
 
@@ -10822,7 +10880,13 @@ const techniques = {
                 hint: {
                   name: t("teks_msg_183"),
                   mainInfo: t("teks_msg_184", d1, d2),
-                  detail: t("teks_msg_185", d1, d2, extraDigit, pathStr),
+                  detail: t(
+                    "teks_msg_185",
+                    d1,
+                    d2,
+                    getGuardiansStr(extraCells, d1, d2),
+                    pathStr,
+                  ),
                 },
                 applyVisuals: () => {
                   highlightedDigit = null;
@@ -10868,48 +10932,88 @@ const techniques = {
           };
 
           const checkType3 = () => {
-            let notSatisfiedType3 = false;
+            // ------------------------------------------------------------
+            // 1. Validate Oddagon extra cells
+            // ------------------------------------------------------------
+
             for (const cell of extraCells) {
-              const mask = cellMasks[cell];
-              if ((mask & comparer) === 0 || (mask & comparer) !== comparer) {
-                notSatisfiedType3 = true;
-                break;
+              const mask = allCellMasks[cell];
+
+              // Every extra cell must contain both Oddagon base digits.
+              if ((mask & comparer) !== comparer) {
+                return null;
               }
             }
-            const firstSharedHouse = getSharedHouse(extraCells);
-            if (firstSharedHouse === -1 || notSatisfiedType3) return null;
 
-            let m = 0;
-            for (const cell of extraCells) m |= cellMasks[cell];
-            if ((m & comparer) !== comparer) return null;
+            // Type 3 requires all extra cells to share at least one house.
+            const sharedHouses = getSharedHousesList(extraCells);
 
-            const otherDigitsMask = m & ~comparer;
+            if (sharedHouses.length === 0) {
+              return null;
+            }
+
+            // ------------------------------------------------------------
+            // 2. Determine the Oddagon extra digits
+            // ------------------------------------------------------------
+
+            let extraCellsUnionMask = 0;
+
+            for (const cell of extraCells) {
+              extraCellsUnionMask |= allCellMasks[cell];
+            }
+
+            if ((extraCellsUnionMask & comparer) !== comparer) {
+              return null;
+            }
+
+            const otherDigitsMask = extraCellsUnionMask & ~comparer;
             const otherDigitsCount = popCount(otherDigitsMask);
 
-            const sharedHouses = getSharedHousesList(extraCells);
+            // ------------------------------------------------------------
+            // 3. Search each house shared by all extra cells
+            // ------------------------------------------------------------
+
             for (const house of sharedHouses) {
-              let hasValue = false;
+              // If d1 or d2 is already solved in this house,
+              // this house cannot be used for this Type 3 deduction.
+              let hasPairValue = false;
+
               for (const cell of housesMap[house]) {
-                const v = board[Math.floor(cell / 9)][cell % 9];
-                if (v === d1 || v === d2) {
-                  hasValue = true;
+                const r = Math.floor(cell / 9);
+                const c = cell % 9;
+                const value = board[r][c];
+
+                if (value === d1 || value === d2) {
+                  hasPairValue = true;
                   break;
                 }
               }
-              if (hasValue) continue;
+
+              if (hasPairValue) {
+                continue;
+              }
+
+              // ----------------------------------------------------------
+              // 4. Candidate cells for the ALS
+              // ----------------------------------------------------------
 
               const otherCellsInHouse = [];
+
               for (const cell of housesMap[house]) {
-                if (
-                  board[Math.floor(cell / 9)][cell % 9] === 0 &&
-                  !loop.includes(cell)
-                ) {
+                const r = Math.floor(cell / 9);
+                const c = cell % 9;
+
+                if (board[r][c] === 0 && !loop.includes(cell)) {
                   otherCellsInHouse.push(cell);
                 }
               }
 
+              // The ALS must be large enough to cover all Oddagon
+              // extra digits.
+              const minimumSize = otherDigitsCount - 1;
+
               for (
-                let size = otherDigitsCount - 1;
+                let size = minimumSize;
                 size <= otherCellsInHouse.length;
                 size++
               ) {
@@ -10919,53 +11023,73 @@ const techniques = {
                   otherCellsInHouse,
                   size,
                 )) {
-                  let comboMask = 0;
-                  for (const c of combo) comboMask |= cellMasks[c];
+                  // ------------------------------------------------------
+                  // 5. Build the FULL candidate union of this ALS
+                  // ------------------------------------------------------
 
-                  if (
-                    popCount(comboMask) !== size + 1 ||
-                    (comboMask & otherDigitsMask) !== otherDigitsMask
-                  )
+                  let comboMask = 0;
+
+                  for (const cell of combo) {
+                    comboMask |= allCellMasks[cell];
+                  }
+
+                  // N cells / N+1 candidates = ALS.
+                  if (popCount(comboMask) !== size + 1) {
                     continue;
+                  }
+
+                  // The ALS must contain every extra digit produced
+                  // by the Oddagon extra cells.
+                  if ((comboMask & otherDigitsMask) !== otherDigitsMask) {
+                    continue;
+                  }
+
+                  // ------------------------------------------------------
+                  // 6. Eliminate ALS candidates elsewhere in the house
+                  // ------------------------------------------------------
 
                   const elimMap = [];
+
                   for (const cell of housesMap[house]) {
+                    const r = Math.floor(cell / 9);
+                    const c = cell % 9;
+
                     if (
-                      board[Math.floor(cell / 9)][cell % 9] === 0 &&
-                      !loop.includes(cell) &&
-                      !combo.includes(cell)
+                      board[r][c] !== 0 ||
+                      loop.includes(cell) ||
+                      combo.includes(cell)
                     ) {
-                      for (let i = 1; i <= 9; i++) {
-                        if (
-                          (comboMask & (1 << (i - 1))) !== 0 &&
-                          pencils[Math.floor(cell / 9)][cell % 9].has(i)
-                        ) {
-                          elimMap.push({
-                            r: Math.floor(cell / 9),
-                            c: cell % 9,
-                            num: i,
-                          });
-                        }
+                      continue;
+                    }
+
+                    const removableMask = allCellMasks[cell] & comboMask;
+
+                    for (let digit = 1; digit <= 9; digit++) {
+                      const bit = 1 << (digit - 1);
+
+                      if ((removableMask & bit) !== 0) {
+                        elimMap.push({
+                          r,
+                          c,
+                          num: digit,
+                        });
                       }
                     }
                   }
 
+                  // ------------------------------------------------------
+                  // 7. Return Type 3 result
+                  // ------------------------------------------------------
+
                   if (elimMap.length > 0) {
-                    const extraDigitsArr = [];
-                    for (let i = 1; i <= 9; i++) {
-                      if ((otherDigitsMask & (1 << (i - 1))) !== 0) {
-                        extraDigitsArr.push(i);
-                      }
-                    }
-                    const extraDigit = extraDigitsArr.join("");
                     const subsetStr = combo
                       .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
                       .join("-");
-
                     return {
                       change: true,
                       type: "remove",
                       cells: elimMap,
+
                       hint: {
                         name: t("teks_msg_186"),
                         mainInfo: t("teks_msg_184", d1, d2),
@@ -10973,7 +11097,7 @@ const techniques = {
                           "teks_msg_187",
                           d1,
                           d2,
-                          extraDigit,
+                          getGuardiansStr(extraCells, d1, d2),
                           pathStr,
                           subsetStr,
                         ),
@@ -10981,75 +11105,75 @@ const techniques = {
                       applyVisuals: () => {
                         highlightedDigit = null;
                         highlightState = 0;
-                        loop.forEach((id) => {
-                          window.addCellColor(
-                            Math.floor(id / 9),
-                            id % 9,
-                            cellColorPalette[7],
-                          );
 
-                          if (
-                            boardState[Math.floor(id / 9)][id % 9].pencils.has(
+                        // Oddagon loop
+                        loop.forEach((id) => {
+                          const r = Math.floor(id / 9);
+                          const c = id % 9;
+
+                          window.addCellColor(r, c, cellColorPalette[7]);
+
+                          if (boardState[r][c].pencils.has(d1)) {
+                            boardState[r][c].pencilColors.set(
                               d1,
-                            )
-                          )
-                            boardState[Math.floor(id / 9)][
-                              id % 9
-                            ].pencilColors.set(d1, candidateColorPalette[7]);
-                          if (
-                            boardState[Math.floor(id / 9)][id % 9].pencils.has(
+                              candidateColorPalette[7],
+                            );
+                          }
+
+                          if (boardState[r][c].pencils.has(d2)) {
+                            boardState[r][c].pencilColors.set(
                               d2,
-                            )
-                          )
-                            boardState[Math.floor(id / 9)][
-                              id % 9
-                            ].pencilColors.set(d2, candidateColorPalette[7]);
+                              candidateColorPalette[7],
+                            );
+                          }
                         });
+
+                        // Oddagon extra candidates
                         extraCells.forEach((id) => {
-                          boardState[Math.floor(id / 9)][
-                            id % 9
-                          ].pencils.forEach((cand) => {
+                          const r = Math.floor(id / 9);
+                          const c = id % 9;
+
+                          boardState[r][c].pencils.forEach((cand) => {
                             if (cand !== d1 && cand !== d2) {
-                              boardState[Math.floor(id / 9)][
-                                id % 9
-                              ].pencilColors.set(
+                              boardState[r][c].pencilColors.set(
                                 cand,
                                 candidateColorPalette[3],
                               );
                             }
                           });
                         });
+
+                        // ALS cells
                         combo.forEach((id) => {
-                          window.addCellColor(
-                            Math.floor(id / 9),
-                            id % 9,
-                            cellColorPalette[6],
-                          );
-                          boardState[Math.floor(id / 9)][
-                            id % 9
-                          ].pencils.forEach((cand) => {
+                          const r = Math.floor(id / 9);
+                          const c = id % 9;
+
+                          window.addCellColor(r, c, cellColorPalette[6]);
+
+                          boardState[r][c].pencils.forEach((cand) => {
                             if (cand !== d1 && cand !== d2) {
-                              boardState[Math.floor(id / 9)][
-                                id % 9
-                              ].pencilColors.set(
+                              boardState[r][c].pencilColors.set(
                                 cand,
                                 candidateColorPalette[4],
                               );
                             }
                           });
                         });
-                        elimMap.forEach((el) =>
+
+                        // Eliminations
+                        elimMap.forEach((el) => {
                           boardState[el.r][el.c].pencilColors.set(
                             el.num,
                             candidateColorPalette[0],
-                          ),
-                        );
+                          );
+                        });
                       },
                     };
                   }
                 }
               }
             }
+
             return null;
           };
 
@@ -11059,7 +11183,6 @@ const techniques = {
             mask &= ~comparer;
             if (!isPow2(mask) || extraCells.length !== 2) return null;
 
-            const extraDigit = trailingZeroCount(mask) + 1;
             const [c1, c2] = extraCells;
 
             let adjacent = false;
@@ -11168,7 +11291,7 @@ const techniques = {
                     d1,
                     d2,
                     restrictedDigit,
-                    extraDigit,
+                    getGuardiansStr(extraCells, d1, d2),
                     pathStr,
                   ),
                 },

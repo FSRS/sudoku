@@ -728,13 +728,13 @@ const TRANSLATIONS = {
     teks_msg_182: "Almost Locked Set W-Wing",
     teks_msg_183: "Bivalue Oddagon Type 2",
     teks_msg_184: "using Digits ({0}{1})",
-    teks_msg_185: "Base ({0}{1}) in {3}, Guardians ({2})",
+    teks_msg_185: "({0}{1}){3}, Guardians {2}",
     teks_msg_186: "Bivalue Oddagon Type 3",
     teks_msg_187:
-      "Base ({0}{1}) in {3}, Guardians ({2}), Exrta cells for vitrual naked subset {4}",
+      "({0}{1}){3} Guardians {2}, Exrta cells for vitrual naked subset {4}",
     teks_msg_188: "Bivalue Oddagon Type 4",
     teks_msg_189:
-      "Base ({0}{1}) in {4}, Guardians ({3}), Restricted guardians and base ({3})",
+      "({0}{1}){4}, Guardians {3}, Restricted guardians and base ({3})",
   },
 
   ko: {
@@ -1459,12 +1459,12 @@ const TRANSLATIONS = {
     teks_msg_182: "거의 드러난 집합 W-윙",
     teks_msg_183: "이중값 홀수각형 유형 ②",
     teks_msg_184: "숫자 ({0}{1}) 사용",
-    teks_msg_185: "{3}에서 숫자 ({0}{1}) 사용, 수호자 ({2})",
+    teks_msg_185: "({0}{1}){3}, 수호자 {2}",
     teks_msg_186: "이중값 홀수각형 유형 ③",
     teks_msg_187:
-      "{3}에서 숫자 ({0}{1}) 사용, 수호자 ({2}), 가상의 드러난 부분집합을 위한 추가 칸 {4}",
+      "({0}{1}){3}, 수호자 {2}, 가상의 드러난 부분집합을 위한 추가 칸 {4}",
     teks_msg_188: "이중값 홀수각형 유형 ④",
-    teks_msg_189: "{4}에서 숫자 ({0}{1}) 사용, 수호자 ({2}), 기반 숫자 ({3}) 제한됨",
+    teks_msg_189: "({0}{1}){4}, 수호자 {3}, 기반 숫자 ({3}) 제한됨",
   },
 };
 
