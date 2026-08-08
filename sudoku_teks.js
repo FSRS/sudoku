@@ -7956,6 +7956,41 @@ const techniques = {
         .join("");
     };
 
+    const getCompactFinLoc = (cells) => {
+      if (cells.length <= 1) return getLoc(cells);
+
+      const uniqueCells = [...new Set(cells)];
+      const rows = new Set(uniqueCells.map((id) => Math.floor(id / 9)));
+      const cols = new Set(uniqueCells.map((id) => id % 9));
+
+      if (rows.size === 1 || cols.size === 1) return getLoc(uniqueCells);
+
+      // Use the direction that produces fewer groups. Keep group order based
+      // on the fish-node cell order so Eureka notation follows the fin order.
+      const groupByRow = rows.size <= cols.size;
+      const groups = new Map();
+
+      for (const id of uniqueCells) {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        const key = groupByRow ? r : c;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(groupByRow ? c : r);
+      }
+
+      return Array.from(groups.entries())
+        .map(([key, values]) => {
+          const positions = values
+            .sort((a, b) => a - b)
+            .map((value) => value + 1)
+            .join("");
+          return groupByRow
+            ? `r${key + 1}c${positions}`
+            : `r${positions}c${key + 1}`;
+        })
+        .join(",");
+    };
+
     const buildCompactEureka = (path, isRing) => {
       let str = "";
       let lastDigit = null;
@@ -7975,7 +8010,7 @@ const techniques = {
           orGateStr = `(${u.digits[0]}=${v.digits[0]})${getLoc(alsIds, preferBox)}`;
           lastDigit = v.digits[0];
         } else if (fish) {
-          orGateStr = `(${fish.d})(${getLoc(u.cells)}=${getLoc(v.cells)})(${fish.basesStr}\\${fish.coversStr})`;
+          orGateStr = `(${fish.d})(${getCompactFinLoc(u.cells)}=${getCompactFinLoc(v.cells)})(${fish.basesStr}\\${fish.coversStr})`;
           lastDigit = fish.d;
         } else if (
           u.digits[0] !== v.digits[0] &&
