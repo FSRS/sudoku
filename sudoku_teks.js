@@ -11313,7 +11313,6 @@ const techniques = {
             }
 
             if (elims.length > 0) {
-              const restrictedDigit = elims[0].num === d1 ? d2 : d1;
               return {
                 change: true,
                 type: "remove",
@@ -11325,24 +11324,12 @@ const techniques = {
                     "teks_msg_189",
                     d1,
                     d2,
-                    restrictedDigit,
                     getGuardiansStr(extraCells, d1, d2),
                     pathStr,
                   ),
                 },
                 applyVisuals: () => {
-                  highlightedDigit = restrictedDigit;
-                  highlightState = 1;
-                  drawnLines.push({
-                    r1: Math.floor(c1 / 9),
-                    c1: c1 % 9,
-                    n1: restrictedDigit,
-                    r2: Math.floor(c2 / 9),
-                    c2: c2 % 9,
-                    n2: restrictedDigit,
-                    color: lineColorPalette[0],
-                    style: "solid",
-                  });
+                  highlightState = 0;
                   loop.forEach((id) => {
                     window.addCellColor(
                       Math.floor(id / 9),

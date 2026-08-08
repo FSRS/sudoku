@@ -7274,7 +7274,6 @@ function getDefaultTechniques() {
       func: techniques.bivalueOddagon,
       level: 6,
       score: 220,
-      defaultEnabled: false,
     },
     {
       name: t("ui_msg_224"),

@@ -733,8 +733,7 @@ const TRANSLATIONS = {
     teks_msg_187:
       "({0}{1}){3} Guardians {2}, Exrta cells for vitrual naked subset {4}",
     teks_msg_188: "Bivalue Oddagon Type 4",
-    teks_msg_189:
-      "({0}{1}){4}, Guardians {3}, Restricted guardians and base ({3})",
+    teks_msg_189: "({0}{1}){3}, Guardians {2} are on adjacent two cells",
   },
 
   ko: {
@@ -1464,7 +1463,7 @@ const TRANSLATIONS = {
     teks_msg_187:
       "({0}{1}){3}, 수호자 {2}, 가상의 드러난 부분집합을 위한 추가 칸 {4}",
     teks_msg_188: "이중값 홀수각형 유형 ④",
-    teks_msg_189: "({0}{1}){4}, 수호자 {3}, 기반 숫자 ({3}) 제한됨",
+    teks_msg_189: "({0}{1}){3}, 수호자 {2}가 인접한 두 칸에 위치함",
   },
 };
 
