@@ -5702,13 +5702,9 @@ function renderSolverStep(index) {
     }
 
     if (isBruteForce) {
-      msg = t("ui_msg_183", star, star, skfrText);
+      msg = t("ui_msg_183", star, skfrText, star);
     } else {
-      let lvlStr = step.level;
-      if (skfrText !== "") {
-        lvlStr += skfrText;
-      }
-      msg = t("ui_msg_184", lvlStr, star, step.score, star);
+      msg = t("ui_msg_184", step.level, star, skfrText, step.score, star);
     }
     msgColor = "green";
 
