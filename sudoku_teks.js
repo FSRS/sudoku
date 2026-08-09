@@ -4847,7 +4847,11 @@ const techniques = {
             const sorted_ids = hex_cells
               .map(([r, c]) => r * 9 + c)
               .sort((a, b) => a - b);
-            const hex_key = sorted_ids.join(",");
+            // The same six cells can support more than one base pair when
+            // extra cells contain only a partial base pair.  Keep each
+            // cell/pair interpretation so an earlier, non-productive
+            // interpretation cannot hide a valid Unique Loop.
+            const hex_key = `${pair_key}:${sorted_ids.join(",")}`;
             if (found.has(hex_key)) continue;
 
             // Check that the found hexagon contains at least 2 pure bivalue cells
