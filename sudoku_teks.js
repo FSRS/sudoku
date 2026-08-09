@@ -11466,7 +11466,11 @@ const techniques = {
       return res;
     };
 
-    for (let num = 1; num <= 9; num++) {
+    // Check all candidates at the shortest valid odd loop length before
+    // considering loops that are two cells longer.
+    const maxLen = 11;
+    for (let pathLength = 5; pathLength <= maxLen; pathLength += 2) {
+      for (let num = 1; num <= 9; num++) {
       const templating = techniques._getTemplating(board, pencils, num);
       const { cellsWithNum, allNumMask, units } = templating;
 
@@ -11493,7 +11497,6 @@ const techniques = {
         }
       }
 
-      const maxLen = 11;
       for (const start of cellsWithNum) {
         const stack = [
           {
@@ -11506,7 +11509,7 @@ const techniques = {
 
         while (stack.length > 0) {
           const { current, path, guards, targets } = stack.pop();
-          if (path.length > maxLen) continue;
+          if (path.length > pathLength) continue;
 
           for (const edge of adj[current]) {
             let edgeTargets = targets;
@@ -11520,8 +11523,7 @@ const techniques = {
 
             if (
               edge.to === start &&
-              path.length >= 5 &&
-              path.length % 2 === 1
+              path.length === pathLength
             ) {
               const cycleGuards = new Set(guards);
               edge.guardians.forEach((g) => cycleGuards.add(g));
@@ -11565,15 +11567,20 @@ const techniques = {
                       path.forEach((id) => {
                         const r = Math.floor(id / 9),
                           c = id % 9;
-                        boardState[r][c].cellColor = cellColorPalette[6];
+                        // A guardian can also belong to the loop, so retain
+                        // both roles in the cell's multi-color annotation.
+                        window.addCellColor(r, c, cellColorPalette[6]);
                         boardState[r][c].pencilColors.set(
                           num,
                           candidateColorPalette[4],
                         );
                       });
                       guardCells.forEach((cell) => {
-                        boardState[cell[0]][cell[1]].cellColor =
-                          cellColorPalette[4];
+                        window.addCellColor(
+                          cell[0],
+                          cell[1],
+                          cellColorPalette[4],
+                        );
                         boardState[cell[0]][cell[1]].pencilColors.set(
                           num,
                           candidateColorPalette[3],
@@ -11605,7 +11612,11 @@ const techniques = {
                   }
                 }
               }
-            } else if (!path.includes(edge.to) && edge.to > start) {
+            } else if (
+              path.length < pathLength &&
+              !path.includes(edge.to) &&
+              edge.to > start
+            ) {
               const newGuards = new Set(guards);
               edge.guardians.forEach((g) => newGuards.add(g));
               stack.push({
@@ -11618,6 +11629,7 @@ const techniques = {
           }
         }
       }
+    }
     }
     return findAll ? results : { change: false };
   },
