@@ -128,6 +128,8 @@ class AICNode {
 }
 
 const techniques = {
+  _templatingCache: null,
+
   _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
   _getPointIndex: (r, c) => Math.floor(r % 3) * 3 + Math.floor(c % 3),
 
@@ -7391,8 +7393,6 @@ const techniques = {
     FishLinkRegistry: new Map(),
   },
 
-  _templatingCache: null,
-
   _getTemplating: (board, pencils, num) => {
     if (!techniques._templatingCache) techniques._templatingCache = {};
     if (techniques._templatingCache[num])
@@ -7462,26 +7462,7 @@ const techniques = {
       FishLinkRegistry: new Map(),
     };
   },
-  _makeAICSignature: (board, pencils) => {
-    let s = "";
 
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        if (board[r][c] !== 0) {
-          s += board[r][c] + "|";
-        } else {
-          s +=
-            "." +
-            Array.from(pencils[r][c])
-              .sort((a, b) => a - b)
-              .join("") +
-            "|";
-        }
-      }
-    }
-
-    return s;
-  },
   _addLink: (map, u, v) => {
     if (!map.has(u.key)) map.set(u.key, []);
     map.get(u.key).push(v);
@@ -7502,13 +7483,6 @@ const techniques = {
   },
 
   _findAic: (board, pencils, config, findAll = false) => {
-    const sig = techniques._makeAICSignature(board, pencils);
-
-    if (techniques._aicCache.signature !== sig) {
-      techniques._resetAICCache();
-      techniques._aicCache.signature = sig;
-    }
-
     const results = [];
     const {
       singleDigit,
@@ -11466,170 +11440,202 @@ const techniques = {
       return res;
     };
 
+    const getCompactLoc = (cellIds) => {
+      if (cellIds.length === 0) return "";
+      if (cellIds.length === 1)
+        return `r${Math.floor(cellIds[0] / 9) + 1}c${(cellIds[0] % 9) + 1}`;
+
+      const rows = new Set(cellIds.map((id) => Math.floor(id / 9)));
+      const cols = new Set(cellIds.map((id) => id % 9));
+
+      // Group by the dimension that produces fewer groups
+      const groupByRow = rows.size <= cols.size;
+      const groups = new Map();
+
+      for (const id of cellIds) {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        const key = groupByRow ? r : c;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(groupByRow ? c : r);
+      }
+
+      return Array.from(groups.entries())
+        .sort(([k1], [k2]) => k1 - k2)
+        .map(([key, values]) => {
+          const positions = values
+            .sort((a, b) => a - b)
+            .map((value) => value + 1)
+            .join("");
+          return groupByRow
+            ? `r${key + 1}c${positions}`
+            : `r${positions}c${key + 1}`;
+        })
+        .join(",");
+    };
+
     // Check all candidates at the shortest valid odd loop length before
     // considering loops that are two cells longer.
     const maxLen = 11;
     for (let pathLength = 5; pathLength <= maxLen; pathLength += 2) {
       for (let num = 1; num <= 9; num++) {
-      const templating = techniques._getTemplating(board, pencils, num);
-      const { cellsWithNum, allNumMask, units } = templating;
+        const templating = techniques._getTemplating(board, pencils, num);
+        const { cellsWithNum, allNumMask, units } = templating;
 
-      if (cellsWithNum.length < 5) continue;
+        if (cellsWithNum.length < 5) continue;
 
-      const adj = {};
-      for (let i = 0; i < cellsWithNum.length; i++) {
-        adj[cellsWithNum[i]] = [];
-      }
-
-      // --- TEMPLATING STEP (Optimization) ---
-      for (let i = 0; i < 27; i++) {
-        const present = units[i];
-        if (present.length >= 2) {
-          for (let p1 = 0; p1 < present.length; p1++) {
-            for (let p2 = p1 + 1; p2 < present.length; p2++) {
-              const u = present[p1];
-              const v = present[p2];
-              const guards = present.filter((id) => id !== u && id !== v);
-              adj[u].push({ to: v, guardians: guards });
-              adj[v].push({ to: u, guardians: guards });
-            }
-          }
+        const adj = {};
+        for (let i = 0; i < cellsWithNum.length; i++) {
+          adj[cellsWithNum[i]] = [];
         }
-      }
 
-      for (const start of cellsWithNum) {
-        const stack = [
-          {
-            current: start,
-            path: [start],
-            guards: new Set(),
-            targets: allNumMask,
-          },
-        ];
-
-        while (stack.length > 0) {
-          const { current, path, guards, targets } = stack.pop();
-          if (path.length > pathLength) continue;
-
-          for (const edge of adj[current]) {
-            let edgeTargets = targets;
-
-            for (const g of edge.guardians) {
-              edgeTargets &= PEER_MAP[g];
-            }
-
-            // --- Pruning Step ---
-            if (edgeTargets === 0n) continue;
-
-            if (
-              edge.to === start &&
-              path.length === pathLength
-            ) {
-              const cycleGuards = new Set(guards);
-              edge.guardians.forEach((g) => cycleGuards.add(g));
-
-              if (cycleGuards.size > 0) {
-                const removals = [];
-                let tempTargets = edgeTargets;
-                let i = 0;
-                while (tempTargets > 0n) {
-                  if ((tempTargets & 1n) !== 0n) {
-                    removals.push({ r: Math.floor(i / 9), c: i % 9, num });
-                  }
-                  tempTargets >>= 1n;
-                  i++;
-                }
-
-                if (removals.length > 0) {
-                  const guardCells = Array.from(cycleGuards).map((id) =>
-                    techniques._idToCell(id),
-                  );
-                  const pathStr =
-                    path
-                      .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
-                      .join("-") + "-";
-                  const guardStr = guardCells
-                    .map((c) => `r${c[0] + 1}c${c[1] + 1}`)
-                    .join(", ");
-
-                  const res = {
-                    change: true,
-                    type: "remove",
-                    cells: removals,
-                    hint: {
-                      name: t("teks_msg_190"),
-                      mainInfo: t("teks_msg_191"),
-                      detail: t("teks_msg_192", num, pathStr, guardStr),
-                    },
-                    applyVisuals: () => {
-                      highlightedDigit = num;
-                      highlightState = 1;
-                      path.forEach((id) => {
-                        const r = Math.floor(id / 9),
-                          c = id % 9;
-                        // A guardian can also belong to the loop, so retain
-                        // both roles in the cell's multi-color annotation.
-                        window.addCellColor(r, c, cellColorPalette[6]);
-                        boardState[r][c].pencilColors.set(
-                          num,
-                          candidateColorPalette[4],
-                        );
-                      });
-                      guardCells.forEach((cell) => {
-                        window.addCellColor(
-                          cell[0],
-                          cell[1],
-                          cellColorPalette[4],
-                        );
-                        boardState[cell[0]][cell[1]].pencilColors.set(
-                          num,
-                          candidateColorPalette[3],
-                        );
-                      });
-                      removals.forEach((el) =>
-                        boardState[el.r][el.c].pencilColors.set(
-                          num,
-                          candidateColorPalette[0],
-                        ),
-                      );
-                    },
-                  };
-
-                  const removalKey = removals
-                    .map((r) => `${r.r},${r.c}`)
-                    .sort()
-                    .join(";");
-                  const exists = results.some(
-                    (r) =>
-                      r.cells
-                        .map((x) => `${x.r},${x.c}`)
-                        .sort()
-                        .join(";") === removalKey,
-                  );
-                  if (!exists) {
-                    if (!findAll) return res;
-                    results.push(res);
-                  }
-                }
+        // --- TEMPLATING STEP (Optimization) ---
+        for (let i = 0; i < 27; i++) {
+          const present = units[i];
+          if (present.length >= 2) {
+            for (let p1 = 0; p1 < present.length; p1++) {
+              for (let p2 = p1 + 1; p2 < present.length; p2++) {
+                const u = present[p1];
+                const v = present[p2];
+                const guards = present.filter((id) => id !== u && id !== v);
+                adj[u].push({ to: v, guardians: guards });
+                adj[v].push({ to: u, guardians: guards });
               }
-            } else if (
-              path.length < pathLength &&
-              !path.includes(edge.to) &&
-              edge.to > start
-            ) {
-              const newGuards = new Set(guards);
-              edge.guardians.forEach((g) => newGuards.add(g));
-              stack.push({
-                current: edge.to,
-                path: [...path, edge.to],
-                guards: newGuards,
-                targets: edgeTargets,
-              });
+            }
+          }
+        }
+
+        for (const start of cellsWithNum) {
+          const stack = [
+            {
+              current: start,
+              path: [start],
+              guards: new Set(),
+              targets: allNumMask,
+            },
+          ];
+
+          while (stack.length > 0) {
+            const { current, path, guards, targets } = stack.pop();
+            if (path.length > pathLength) continue;
+
+            for (const edge of adj[current]) {
+              let edgeTargets = targets;
+
+              for (const g of edge.guardians) {
+                edgeTargets &= PEER_MAP[g];
+              }
+
+              // --- Pruning Step ---
+              if (edgeTargets === 0n) continue;
+
+              if (edge.to === start && path.length === pathLength) {
+                const cycleGuards = new Set(guards);
+                edge.guardians.forEach((g) => cycleGuards.add(g));
+
+                if (cycleGuards.size > 0) {
+                  const removals = [];
+                  let tempTargets = edgeTargets;
+                  let i = 0;
+                  while (tempTargets > 0n) {
+                    if ((tempTargets & 1n) !== 0n) {
+                      removals.push({ r: Math.floor(i / 9), c: i % 9, num });
+                    }
+                    tempTargets >>= 1n;
+                    i++;
+                  }
+
+                  if (removals.length > 0) {
+                    const cycleGuardsArr = Array.from(cycleGuards);
+                    const guardCells = Array.from(cycleGuards).map((id) =>
+                      techniques._idToCell(id),
+                    );
+                    const pathStr =
+                      path
+                        .map(
+                          (id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`,
+                        )
+                        .join("-") + "-";
+                    const guardStr = getCompactLoc(cycleGuardsArr);
+
+                    const res = {
+                      change: true,
+                      type: "remove",
+                      cells: removals,
+                      hint: {
+                        name: t("teks_msg_190"),
+                        mainInfo: t("teks_msg_191"),
+                        detail: t("teks_msg_192", num, pathStr, guardStr),
+                      },
+                      applyVisuals: () => {
+                        highlightedDigit = num;
+                        highlightState = 1;
+                        path.forEach((id) => {
+                          const r = Math.floor(id / 9),
+                            c = id % 9;
+                          // A guardian can also belong to the loop, so retain
+                          // both roles in the cell's multi-color annotation.
+                          window.addCellColor(r, c, cellColorPalette[6]);
+                          boardState[r][c].pencilColors.set(
+                            num,
+                            candidateColorPalette[4],
+                          );
+                        });
+                        guardCells.forEach((cell) => {
+                          window.addCellColor(
+                            cell[0],
+                            cell[1],
+                            cellColorPalette[4],
+                          );
+                          boardState[cell[0]][cell[1]].pencilColors.set(
+                            num,
+                            candidateColorPalette[3],
+                          );
+                        });
+                        removals.forEach((el) =>
+                          boardState[el.r][el.c].pencilColors.set(
+                            num,
+                            candidateColorPalette[0],
+                          ),
+                        );
+                      },
+                    };
+
+                    const removalKey = removals
+                      .map((r) => `${r.r},${r.c}`)
+                      .sort()
+                      .join(";");
+                    const exists = results.some(
+                      (r) =>
+                        r.cells
+                          .map((x) => `${x.r},${x.c}`)
+                          .sort()
+                          .join(";") === removalKey,
+                    );
+                    if (!exists) {
+                      if (!findAll) return res;
+                      results.push(res);
+                    }
+                  }
+                }
+              } else if (
+                path.length < pathLength &&
+                !path.includes(edge.to) &&
+                edge.to > start
+              ) {
+                const newGuards = new Set(guards);
+                edge.guardians.forEach((g) => newGuards.add(g));
+                stack.push({
+                  current: edge.to,
+                  path: [...path, edge.to],
+                  guards: newGuards,
+                  targets: edgeTargets,
+                });
+              }
             }
           }
         }
       }
-    }
     }
     return findAll ? results : { change: false };
   },
