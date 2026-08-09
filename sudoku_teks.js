@@ -7391,7 +7391,61 @@ const techniques = {
     FishLinkRegistry: new Map(),
   },
 
+  _templatingCache: null,
+
+  _getTemplating: (board, pencils, num) => {
+    if (!techniques._templatingCache) techniques._templatingCache = {};
+    if (techniques._templatingCache[num])
+      return techniques._templatingCache[num];
+
+    let cb = [0, 0, 0];
+    const cellsWithNum = [];
+    let allNumMask = 0n;
+
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] === 0 && pencils[r][c].has(num)) {
+          const id = r * 9 + c;
+          cellsWithNum.push(id);
+          cb[Math.floor(id / 27)] |= 1 << (id % 27);
+          allNumMask |= CELL_MASK[id];
+        }
+      }
+    }
+
+    const units = Array.from({ length: 27 }, () => []);
+
+    for (let i = 0; i < 27; i++) {
+      const inter = [
+        cb[0] & UNIT_BITSETS[i][0],
+        cb[1] & UNIT_BITSETS[i][1],
+        cb[2] & UNIT_BITSETS[i][2],
+      ];
+      const res = [];
+      for (let p = 0; p < 3; p++) {
+        let m = inter[p];
+        let bit = 0;
+        while (m > 0) {
+          if (m & 1) res.push(p * 27 + bit);
+          m >>= 1;
+          bit++;
+        }
+      }
+      units[i] = res;
+    }
+
+    techniques._templatingCache[num] = {
+      cb,
+      cellsWithNum,
+      allNumMask,
+      units,
+    };
+
+    return techniques._templatingCache[num];
+  },
+
   _resetAICCache: () => {
+    techniques._templatingCache = null;
     techniques._aicCache = {
       signature: null,
 
@@ -9603,19 +9657,10 @@ const techniques = {
         ];
 
     for (let num = 1; num <= 9; num++) {
-      // 1. Build Candidate Bitset for this digit
-      let cb = [0, 0, 0];
-      let hasCand = false;
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          if (pencils[r][c].has(num)) {
-            setBit(cb, r * 9 + c);
-            hasCand = true;
-          }
-        }
-      }
+      const templating = techniques._getTemplating(board, pencils, num);
+      const { cb, cellsWithNum, units } = templating;
 
-      if (!hasCand) continue;
+      if (cellsWithNum.length === 0) continue;
       if (getUnsolvedUnitCount(num) < fishSize * 2) continue;
 
       // Memoization check using string representation of the bitset arrays
@@ -9630,9 +9675,9 @@ const techniques = {
       const rowsWith = [];
 
       for (let r = 0; r < 9; r++) {
-        const inter = bitAnd(cb, UNIT_BITSETS[r]); // Row is 0-8 in UNIT_BITSETS
-        if (!isZero(inter)) {
-          rowToInds[r] = getBits(inter);
+        const present = units[r]; // Row is 0-8 in units
+        if (present.length > 0) {
+          rowToInds[r] = present;
           rowsWith.push(r);
         }
       }
@@ -11396,6 +11441,184 @@ const techniques = {
       }
     }
 
+    return findAll ? results : { change: false };
+  },
+
+  brokenWing: (board, pencils, findAll = false) => {
+    const results = [];
+
+    // --- 3x27 Bitset Helpers ---
+    const bitAnd = (a, b) => [a[0] & b[0], a[1] & b[1], a[2] & b[2]];
+    const setBit = (a, id) => {
+      a[Math.floor(id / 27)] |= 1 << (id % 27);
+    };
+    const getBits = (a) => {
+      const res = [];
+      for (let p = 0; p < 3; p++) {
+        let m = a[p];
+        let bit = 0;
+        while (m > 0) {
+          if (m & 1) res.push(p * 27 + bit);
+          m >>= 1;
+          bit++;
+        }
+      }
+      return res;
+    };
+
+    for (let num = 1; num <= 9; num++) {
+      const templating = techniques._getTemplating(board, pencils, num);
+      const { cellsWithNum, allNumMask, units } = templating;
+
+      if (cellsWithNum.length < 5) continue;
+
+      const adj = {};
+      for (let i = 0; i < cellsWithNum.length; i++) {
+        adj[cellsWithNum[i]] = [];
+      }
+
+      // --- TEMPLATING STEP (Optimization) ---
+      for (let i = 0; i < 27; i++) {
+        const present = units[i];
+        if (present.length >= 2) {
+          for (let p1 = 0; p1 < present.length; p1++) {
+            for (let p2 = p1 + 1; p2 < present.length; p2++) {
+              const u = present[p1];
+              const v = present[p2];
+              const guards = present.filter((id) => id !== u && id !== v);
+              adj[u].push({ to: v, guardians: guards });
+              adj[v].push({ to: u, guardians: guards });
+            }
+          }
+        }
+      }
+
+      const maxLen = 11;
+      for (const start of cellsWithNum) {
+        const stack = [
+          {
+            current: start,
+            path: [start],
+            guards: new Set(),
+            targets: allNumMask,
+          },
+        ];
+
+        while (stack.length > 0) {
+          const { current, path, guards, targets } = stack.pop();
+          if (path.length > maxLen) continue;
+
+          for (const edge of adj[current]) {
+            let edgeTargets = targets;
+
+            for (const g of edge.guardians) {
+              edgeTargets &= PEER_MAP[g];
+            }
+
+            // --- Pruning Step ---
+            if (edgeTargets === 0n) continue;
+
+            if (
+              edge.to === start &&
+              path.length >= 5 &&
+              path.length % 2 === 1
+            ) {
+              const cycleGuards = new Set(guards);
+              edge.guardians.forEach((g) => cycleGuards.add(g));
+
+              if (cycleGuards.size > 0) {
+                const removals = [];
+                let tempTargets = edgeTargets;
+                let i = 0;
+                while (tempTargets > 0n) {
+                  if ((tempTargets & 1n) !== 0n) {
+                    removals.push({ r: Math.floor(i / 9), c: i % 9, num });
+                  }
+                  tempTargets >>= 1n;
+                  i++;
+                }
+
+                if (removals.length > 0) {
+                  const guardCells = Array.from(cycleGuards).map((id) =>
+                    techniques._idToCell(id),
+                  );
+                  const pathStr =
+                    path
+                      .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+                      .join("-") + "-";
+                  const guardStr = guardCells
+                    .map((c) => `r${c[0] + 1}c${c[1] + 1}`)
+                    .join(", ");
+
+                  const res = {
+                    change: true,
+                    type: "remove",
+                    cells: removals,
+                    hint: {
+                      name: t("teks_msg_190"),
+                      mainInfo: t("teks_msg_191"),
+                      detail: t("teks_msg_192", num, pathStr, guardStr),
+                    },
+                    applyVisuals: () => {
+                      highlightedDigit = num;
+                      highlightState = 1;
+                      path.forEach((id) => {
+                        const r = Math.floor(id / 9),
+                          c = id % 9;
+                        boardState[r][c].cellColor = cellColorPalette[6];
+                        boardState[r][c].pencilColors.set(
+                          num,
+                          candidateColorPalette[4],
+                        );
+                      });
+                      guardCells.forEach((cell) => {
+                        boardState[cell[0]][cell[1]].cellColor =
+                          cellColorPalette[4];
+                        boardState[cell[0]][cell[1]].pencilColors.set(
+                          num,
+                          candidateColorPalette[3],
+                        );
+                      });
+                      removals.forEach((el) =>
+                        boardState[el.r][el.c].pencilColors.set(
+                          num,
+                          candidateColorPalette[0],
+                        ),
+                      );
+                    },
+                  };
+
+                  const removalKey = removals
+                    .map((r) => `${r.r},${r.c}`)
+                    .sort()
+                    .join(";");
+                  const exists = results.some(
+                    (r) =>
+                      r.cells
+                        .map((x) => `${x.r},${x.c}`)
+                        .sort()
+                        .join(";") === removalKey,
+                  );
+                  if (!exists) {
+                    if (!findAll) return res;
+                    results.push(res);
+                  }
+                }
+              }
+            } else if (!path.includes(edge.to) && edge.to > start) {
+              const newGuards = new Set(guards);
+              edge.guardians.forEach((g) => newGuards.add(g));
+              stack.push({
+                current: edge.to,
+                path: [...path, edge.to],
+                guards: newGuards,
+                targets: edgeTargets,
+              });
+            }
+          }
+        }
+      }
+    }
     return findAll ? results : { change: false };
   },
 };

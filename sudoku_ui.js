@@ -7266,6 +7266,12 @@ function getDefaultTechniques() {
       defaultEnabled: false,
     },
     {
+      name: t("ui_msg_339"),
+      func: techniques.brokenWing,
+      level: 6,
+      score: 210,
+    },
+    {
       name: t("ui_msg_338"),
       func: techniques.bivalueOddagon,
       level: 6,

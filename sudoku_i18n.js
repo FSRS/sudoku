@@ -534,6 +534,7 @@ const TRANSLATIONS = {
     ui_msg_336: "Almost Locked Set XY-Wing",
     ui_msg_337: "Almost Locked Set W-Wing",
     ui_msg_338: "Bivalue Oddagon",
+    ui_msg_339: "Broken Wing",
     teks_msg_1: "Eliminate Candidates",
     teks_msg_2: "at r{0}c{1}",
     teks_msg_3: "Concrete number ({0})r{1}c{2}",
@@ -734,6 +735,9 @@ const TRANSLATIONS = {
       "({0}{1}){3} Guardians {2}, Exrta cells for vitrual naked subset {4}",
     teks_msg_188: "Bivalue Oddagon Type 4",
     teks_msg_189: "({0}{1}){3}, Guardians {2} are on adjacent two cells",
+    teks_msg_190: "Broken Wing",
+    teks_msg_191: "Digit ({0})",
+    teks_msg_192: "({0}){1}, Guardians {2}",
   },
 
   ko: {
@@ -1262,6 +1266,7 @@ const TRANSLATIONS = {
     ui_msg_336: "거의 드러난 집합 XY-윙",
     ui_msg_337: "거의 드러난 집합 W-윙",
     ui_msg_338: "이중값 홀수각형",
+    ui_msg_339: "꺾인 날개",
     teks_msg_1: "후보수 제거",
     teks_msg_2: "r{0}c{1}에서",
     teks_msg_3: "확정된 숫자 ({0}) r{1}c{2}에 의해",
@@ -1464,6 +1469,9 @@ const TRANSLATIONS = {
       "({0}{1}){3}, 수호자 {2}, 가상의 드러난 부분집합을 위한 추가 칸 {4}",
     teks_msg_188: "이중값 홀수각형 유형 ④",
     teks_msg_189: "({0}{1}){3}, 수호자 {2}가 인접한 두 칸에 위치함",
+    teks_msg_190: "꺾인 날개",
+    teks_msg_191: "숫자 ({0}) 사용",
+    teks_msg_192: "({0}){1}, 수호자 {2}",
   },
 };
 
