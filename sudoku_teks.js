@@ -3948,198 +3948,103 @@ const techniques = {
     );
   },
 
-  _checkAndAddER: (cells, d1, d2, d3, pencils, er_list, is_3x2) => {
-    const core_digits = new Set([d1, d2, d3]);
-
-    let extra_count = 0;
-    const masked_cands = [];
-
-    for (const [r, c] of cells) {
-      const cands = pencils[r][c];
-      if (!cands) return; // Skip if cell is solved
-      const core_cands_in_cell = new Set();
-      let has_extra = false;
-
-      for (const cand of cands) {
-        if (core_digits.has(cand)) {
-          core_cands_in_cell.add(cand);
-        } else {
-          has_extra = true;
-        }
+  _checkAndAddER: (pairs, pencils, er_list, is_nx2, found) => {
+    const pairMasks = [];
+    const digitFrequency = new Uint8Array(10);
+    const bitCount = (mask) => {
+      let count = 0;
+      while (mask) {
+        mask &= mask - 1;
+        count++;
       }
-
-      if (core_cands_in_cell.size === 0) return; // Cell must have at least one core digit
-      if (has_extra) extra_count++;
-
-      masked_cands.push({ r, c, cands: core_cands_in_cell });
-    }
-
-    if (extra_count > 4) return;
-
-    const check_unit = (unit_cells) => {
-      const union = new Set();
-      unit_cells.forEach((cell) =>
-        cell.cands.forEach((cand) => union.add(cand)),
-      );
-      return union.size === 3;
+      return count;
     };
 
-    if (is_3x2) {
-      const cA = cells[0][1];
-      const col1_cands = masked_cands.filter((mc) => mc.c === cA);
-      const col2_cands = masked_cands.filter((mc) => mc.c !== cA);
-      if (check_unit(col1_cands) && check_unit(col2_cands)) {
-        er_list.push({ cells, digits: [d1, d2, d3], is_3x2: true });
+    for (const [[r1, c1], [r2, c2]] of pairs) {
+      let mask = 0;
+      for (const digit of pencils[r1][c1]) {
+        if (pencils[r2][c2].has(digit)) mask |= 1 << digit;
       }
-    } else {
-      // 2x3
-      const rA = cells[0][0];
-      const row1_cands = masked_cands.filter((mc) => mc.r === rA);
-      const row2_cands = masked_cands.filter((mc) => mc.r !== rA);
-      if (check_unit(row1_cands) && check_unit(row2_cands)) {
-        er_list.push({ cells, digits: [d1, d2, d3], is_3x2: false });
+      if (bitCount(mask) < 2) return;
+      pairMasks.push(mask);
+      for (let digit = 1; digit <= 9; digit++) {
+        if (mask & (1 << digit)) digitFrequency[digit]++;
       }
+    }
+
+    // A deadly digit must be supported by at least two corresponding pairs.
+    // The same cells may support more than one N-digit interpretation, so
+    // evaluate every N-digit subset independently instead of merging them.
+    const eligibleDigits = [];
+    for (let digit = 1; digit <= 9; digit++) {
+      if (digitFrequency[digit] >= 2) eligibleDigits.push(digit);
+    }
+    if (eligibleDigits.length < pairs.length) return;
+
+    const cells = pairs.flat();
+    for (const digits of techniques.combinations(
+      eligibleDigits,
+      pairs.length,
+    )) {
+      let coreMask = 0;
+      for (const digit of digits) coreMask |= 1 << digit;
+      if (pairMasks.some((mask) => bitCount(mask & coreMask) < 2)) continue;
+
+      const key = `${digits.join("")}:${cells
+        .map(([r, c]) => r * 9 + c)
+        .sort((a, b) => a - b)
+        .join(",")}`;
+      if (found.has(key)) continue;
+      found.add(key);
+      er_list.push({ cells, digits, is_nx2 });
     }
   },
 
   _findExtendedRectangles: function (pencils) {
     const rectangles = [];
+    const found = new Set();
+    const indexes = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
-    for (let d1 = 1; d1 <= 7; d1++) {
-      for (let d2 = d1 + 1; d2 <= 8; d2++) {
-        for (let d3 = d2 + 1; d3 <= 9; d3++) {
-          // --- 3x2 ERs (3 rows in different bands, 2 cols in same stack) ---
-          for (let r1 = 0; r1 < 3; r1++) {
-            for (let r2 = 3; r2 < 6; r2++) {
-              for (let r3 = 6; r3 < 9; r3++) {
-                for (let stack = 0; stack < 3; stack++) {
-                  const cols_in_stack = [
-                    stack * 3,
-                    stack * 3 + 1,
-                    stack * 3 + 2,
-                  ];
-                  for (const col_pair of techniques.combinations(
-                    cols_in_stack,
-                    2,
-                  )) {
-                    const [c1, c2] = col_pair;
-                    const cells = [
-                      [r1, c1],
-                      [r2, c1],
-                      [r3, c1],
-                      [r1, c2],
-                      [r2, c2],
-                      [r3, c2],
-                    ];
-                    techniques._checkAndAddER(
-                      cells,
-                      d1,
-                      d2,
-                      d3,
-                      pencils,
-                      rectangles,
-                      true,
-                    );
-                  }
-                }
-              }
-            }
+    for (let r1 = 0; r1 < 8; r1++) {
+      for (let r2 = r1 + 1; r2 < 9; r2++) {
+        const columnSets = [];
+        if (Math.floor(r1 / 3) === Math.floor(r2 / 3)) {
+          for (let size = 3; size <= 7; size++) {
+            columnSets.push(...techniques.combinations(indexes, size));
           }
-
-          // --- NEW: 3x2 ERs (3 rows in SAME band, 2 cols in DIFFERENT stacks) ---
-          for (let band = 0; band < 3; band++) {
-            const r1 = band * 3;
-            const r2 = band * 3 + 1;
-            const r3 = band * 3 + 2;
-
-            for (let c1 = 0; c1 < 8; c1++) {
-              for (let c2 = c1 + 1; c2 < 9; c2++) {
-                // Check if cols are in different stacks
-                if (Math.floor(c1 / 3) !== Math.floor(c2 / 3)) {
-                  const cells = [
-                    [r1, c1],
-                    [r2, c1],
-                    [r3, c1],
-                    [r1, c2],
-                    [r2, c2],
-                    [r3, c2],
-                  ];
-                  techniques._checkAndAddER(
-                    cells,
-                    d1,
-                    d2,
-                    d3,
-                    pencils,
-                    rectangles,
-                    true, // is_3x2
-                  );
-                }
-              }
-            }
-          }
-
-          // --- 2x3 ERs (2 rows in same band, 3 cols in different stacks) ---
-          for (let band = 0; band < 3; band++) {
-            const rows_in_band = [band * 3, band * 3 + 1, band * 3 + 2];
-            for (const row_pair of techniques.combinations(rows_in_band, 2)) {
-              const [r1, r2] = row_pair;
-              for (let c1 = 0; c1 < 3; c1++) {
-                for (let c2 = 3; c2 < 6; c2++) {
-                  for (let c3 = 6; c3 < 9; c3++) {
-                    const cells = [
-                      [r1, c1],
-                      [r1, c2],
-                      [r1, c3],
-                      [r2, c1],
-                      [r2, c2],
-                      [r2, c3],
-                    ];
-                    techniques._checkAndAddER(
-                      cells,
-                      d1,
-                      d2,
-                      d3,
-                      pencils,
-                      rectangles,
-                      false,
-                    );
-                  }
-                }
-              }
-            }
-          }
-
-          // --- NEW: 2x3 ERs (2 rows in DIFFERENT bands, 3 cols in SAME stack) ---
+        } else {
           for (let stack = 0; stack < 3; stack++) {
-            const c1 = stack * 3;
-            const c2 = stack * 3 + 1;
-            const c3 = stack * 3 + 2;
-
-            for (let r1 = 0; r1 < 8; r1++) {
-              for (let r2 = r1 + 1; r2 < 9; r2++) {
-                // Check if rows are in different bands
-                if (Math.floor(r1 / 3) !== Math.floor(r2 / 3)) {
-                  const cells = [
-                    [r1, c1],
-                    [r1, c2],
-                    [r1, c3],
-                    [r2, c1],
-                    [r2, c2],
-                    [r2, c3],
-                  ];
-                  techniques._checkAndAddER(
-                    cells,
-                    d1,
-                    d2,
-                    d3,
-                    pencils,
-                    rectangles,
-                    false, // is_3x2 = false
-                  );
-                }
-              }
-            }
+            columnSets.push([stack * 3, stack * 3 + 1, stack * 3 + 2]);
           }
+        }
+        for (const cols of columnSets) {
+          const pairs = cols.map((c) => [
+            [r1, c],
+            [r2, c],
+          ]);
+          techniques._checkAndAddER(pairs, pencils, rectangles, false, found);
+        }
+      }
+    }
+
+    for (let c1 = 0; c1 < 8; c1++) {
+      for (let c2 = c1 + 1; c2 < 9; c2++) {
+        const rowSets = [];
+        if (Math.floor(c1 / 3) === Math.floor(c2 / 3)) {
+          for (let size = 3; size <= 7; size++) {
+            rowSets.push(...techniques.combinations(indexes, size));
+          }
+        } else {
+          for (let band = 0; band < 3; band++) {
+            rowSets.push([band * 3, band * 3 + 1, band * 3 + 2]);
+          }
+        }
+        for (const rows of rowSets) {
+          const pairs = rows.map((r) => [
+            [r, c1],
+            [r, c2],
+          ]);
+          techniques._checkAndAddER(pairs, pencils, rectangles, true, found);
         }
       }
     }
@@ -4259,52 +4164,46 @@ const techniques = {
 
         if (type === 6) {
           const u = extraData.restrictedDigit;
-          const rows = [...new Set(cells.map((c) => c[0]))].sort(
-            (a, b) => a - b,
-          );
-          const cols = [...new Set(cells.map((c) => c[1]))].sort(
-            (a, b) => a - b,
-          );
-          if (extraData.is_3x2) {
-            // 3x2: bilocated in cols
+          const [e1r, e1c] = extraData.e1;
+          const [e2r, e2c] = extraData.e2;
+          if (extraData.is_nx2) {
             drawnLines.push({
-              r1: rows[0],
-              c1: cols[0],
+              r1: e1r,
+              c1: e1c,
               n1: u,
-              r2: rows[2],
-              c2: cols[0],
+              r2: e2r,
+              c2: e1c,
               n2: u,
               color: lineColorPalette[0],
               style: "solid",
             });
             drawnLines.push({
-              r1: rows[0],
-              c1: cols[1],
+              r1: e1r,
+              c1: e2c,
               n1: u,
-              r2: rows[2],
-              c2: cols[1],
+              r2: e2r,
+              c2: e2c,
               n2: u,
               color: lineColorPalette[0],
               style: "solid",
             });
           } else {
-            // 2x3: bilocated in rows
             drawnLines.push({
-              r1: rows[0],
-              c1: cols[0],
+              r1: e1r,
+              c1: e1c,
               n1: u,
-              r2: rows[0],
-              c2: cols[2],
+              r2: e1r,
+              c2: e2c,
               n2: u,
               color: lineColorPalette[0],
               style: "solid",
             });
             drawnLines.push({
-              r1: rows[1],
-              c1: cols[0],
+              r1: e2r,
+              c1: e1c,
               n1: u,
-              r2: rows[1],
-              c2: cols[2],
+              r2: e2r,
+              c2: e2c,
               n2: u,
               color: lineColorPalette[0],
               style: "solid",
@@ -4322,7 +4221,7 @@ const techniques = {
     };
 
     for (const er of ers) {
-      const { cells, digits, is_3x2 } = er;
+      const { cells, digits, is_nx2 } = er;
       const core_digits = new Set(digits);
       const removals = [];
 
@@ -4630,8 +4529,8 @@ const techniques = {
               continue;
 
             let is_restricted = false;
-            if (!is_3x2) {
-              // 2x3 ER, check rows for X-Wing
+            if (!is_nx2) {
+              // Row-pair ER, check rows for X-Wing
               const r1_locs = techniques
                 ._getUnitCells("row", e1r)
                 .filter(([_r, _c]) => pencils[_r][_c].has(d));
@@ -4649,7 +4548,7 @@ const techniques = {
                 is_restricted = true;
               }
             } else {
-              // 3x2 ER, check cols for X-Wing
+              // Column-pair ER, check cols for X-Wing
               const c1_locs = techniques
                 ._getUnitCells("col", e1c)
                 .filter(([_r, _c]) => pencils[_r][_c].has(d));
@@ -4688,7 +4587,12 @@ const techniques = {
                     cells,
                     digits,
                     _getUniqueRemovals(removals),
-                    { restrictedDigit: d, is_3x2 },
+                    {
+                      restrictedDigit: d,
+                      is_nx2,
+                      e1: [e1r, e1c],
+                      e2: [e2r, e2c],
+                    },
                   ),
                 };
                 if (!findAll) return resultObj;
@@ -4703,66 +4607,12 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
-  // Offsets relative to a 3x3 selection of rows/cols
-  // The inner arrays represent [row_index, col_index] into the selected 3 rows and 3 columns.
-  HEX_PATTERNS: [
-    [
-      [0, 0],
-      [0, 1],
-      [1, 0],
-      [1, 2],
-      [2, 1],
-      [2, 2],
-    ],
-    [
-      [0, 1],
-      [0, 2],
-      [1, 0],
-      [1, 1],
-      [2, 0],
-      [2, 2],
-    ],
-    [
-      [0, 0],
-      [0, 2],
-      [1, 1],
-      [1, 2],
-      [2, 0],
-      [2, 1],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [1, 1],
-      [1, 2],
-      [2, 0],
-      [2, 2],
-    ],
-    [
-      [0, 1],
-      [0, 2],
-      [1, 0],
-      [1, 2],
-      [2, 0],
-      [2, 1],
-    ],
-    [
-      [0, 0],
-      [0, 2],
-      [1, 0],
-      [1, 1],
-      [2, 1],
-      [2, 2],
-    ],
-  ],
-  _findUniqueHexagons: function (pencils) {
-    // 1. Do one pass to find all "pure" bivalue cells and group them by their pair.
+  _findUniqueLoops: function (pencils) {
     const bivalue_cells_by_pair = new Map();
 
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         const cands = pencils[r][c];
-        // We only care about pure bivalue cells for this map
         if (cands.size === 2) {
           const [d1, d2] = [...cands].sort((a, b) => a - b);
           const pair_key = `${d1},${d2}`;
@@ -4776,112 +4626,153 @@ const techniques = {
       }
     }
 
-    const hexagons = [];
+    const loops = [];
     const found = new Set();
+    const maxLoopLength = 18;
+    const maxResults = 1023;
 
-    if (typeof techniques.combinations !== "function") {
-      console.error("techniques.combinations helper function is missing.");
-      return [];
-    }
-
-    // 2. Iterate ONLY over pairs that have at least 2 bivalue cells
     for (const [
       pair_key,
       bivalue_set_for_pair,
     ] of bivalue_cells_by_pair.entries()) {
-      // This is the optimization: We skip any pair that doesn't have at least 2
-      // pure bivalue cells, before doing any more work.
       if (bivalue_set_for_pair.size < 2) continue;
 
       const [d1, d2] = pair_key.split(",").map(Number);
-      const cell_list = []; // Cells containing d1 OR d2
+      const cell_list = [];
+      const guardian_set_for_pair = new Set();
 
-      // 3. Now, for this "promising" pair, find all cells
-      //    that contain at least one of the core digits.
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           const cands = pencils[r][c];
-          if (cands.size < 1) continue;
+          const hasD1 = cands.has(d1);
+          const hasD2 = cands.has(d2);
+          if (!hasD1 && !hasD2) continue;
 
-          if (cands.has(d1) || cands.has(d2)) {
-            cell_list.push(r * 9 + c);
+          const hasExtra = [...cands].some(
+            (digit) => digit !== d1 && digit !== d2,
+          );
+          if (!hasD1 || !hasD2) {
+            if (!hasExtra) continue;
+            guardian_set_for_pair.add(r * 9 + c);
+          } else if (hasExtra) {
+            guardian_set_for_pair.add(r * 9 + c);
           }
+          cell_list.push(r * 9 + c);
         }
       }
-
-      // 4. The rest of the logic is the same as before
       if (cell_list.length < 6) continue;
 
-      const cellset = new Set(cell_list);
-      const row_cnt = Array(9).fill(0),
-        col_cnt = Array(9).fill(0);
-      cell_list.forEach((id) => {
-        row_cnt[Math.floor(id / 9)]++;
-        col_cnt[id % 9]++;
-      });
-
-      const rows = [],
-        cols = [];
-      for (let i = 0; i < 9; ++i) {
-        if (row_cnt[i] >= 2) rows.push(i);
-        if (col_cnt[i] >= 2) cols.push(i);
+      const neighbors = new Map();
+      for (const id of cell_list) {
+        const cell = [Math.floor(id / 9), id % 9];
+        neighbors.set(
+          id,
+          cell_list.filter(
+            (other) =>
+              other !== id &&
+              techniques._sees(cell, [Math.floor(other / 9), other % 9]),
+          ),
+        );
       }
 
-      if (rows.length < 3 || cols.length < 3) continue;
-
-      for (const rr of techniques.combinations(rows, 3)) {
-        for (const cc of techniques.combinations(cols, 3)) {
-          for (const pattern of techniques.HEX_PATTERNS) {
-            const hex_cells = [];
-            let isValid = true;
-            for (const [r_idx, c_idx] of pattern) {
-              const r = rr[r_idx],
-                c = cc[c_idx];
-
-              if (!cellset.has(r * 9 + c)) {
-                isValid = false;
-                break;
-              }
-              hex_cells.push([r, c]);
-            }
-            if (!isValid) continue;
-
-            const sorted_ids = hex_cells
-              .map(([r, c]) => r * 9 + c)
-              .sort((a, b) => a - b);
-            // The same six cells can support more than one base pair when
-            // extra cells contain only a partial base pair.  Keep each
-            // cell/pair interpretation so an earlier, non-productive
-            // interpretation cannot hide a valid Unique Loop.
-            const hex_key = `${pair_key}:${sorted_ids.join(",")}`;
-            if (found.has(hex_key)) continue;
-
-            // Check that the found hexagon contains at least 2 pure bivalue cells
-            const biv_count = hex_cells.filter(([r, c]) =>
-              bivalue_set_for_pair.has(r * 9 + c),
-            ).length;
-            if (biv_count < 2) continue;
-
-            const blocks = new Set(
-              hex_cells.map(([r, c]) => techniques._getBoxIndex(r, c)),
-            );
-            if (blocks.size !== 3) continue;
-
-            hexagons.push({
-              cells: hex_cells,
-              digits: [d1, d2], // Already have them as numbers
-            });
-            found.add(hex_key);
-          }
+      for (const start of bivalue_set_for_pair) {
+        if (!neighbors.has(start)) continue;
+        const path = [start];
+        const used = new Set(path);
+        let guardianCount = 0;
+        const houseCounts = new Uint8Array(27);
+        const houseParityMasks = new Uint8Array(27);
+        const getHouses = (id) => {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          return [r, 9 + c, 18 + techniques._getBoxIndex(r, c)];
+        };
+        for (const house of getHouses(start)) {
+          houseCounts[house] = 1;
+          houseParityMasks[house] = 1;
         }
+
+        const search = (current) => {
+          for (const next of neighbors.get(current)) {
+            if (next === start) continue;
+            if (used.has(next) || path.length >= maxLoopLength) continue;
+            if (bivalue_set_for_pair.has(next) && next < start) continue;
+            const isGuardian = guardian_set_for_pair.has(next);
+            if (isGuardian && guardianCount >= 4) continue;
+            const parity = path.length & 1;
+            const parityBit = 1 << parity;
+            const nextHouses = getHouses(next);
+            if (
+              nextHouses.some(
+                (house) =>
+                  houseCounts[house] >= 2 ||
+                  (houseParityMasks[house] & parityBit) !== 0,
+              )
+            )
+              continue;
+
+            path.push(next);
+            used.add(next);
+            if (isGuardian) guardianCount++;
+            for (const house of nextHouses) {
+              houseCounts[house]++;
+              houseParityMasks[house] |= parityBit;
+            }
+
+            let stop = false;
+            const isDeadlyBody = houseCounts.every(
+              (count) => count === 0 || count === 2,
+            );
+            if (
+              path.length >= 6 &&
+              path.length % 2 === 0 &&
+              isDeadlyBody &&
+              techniques._sees(
+                [Math.floor(next / 9), next % 9],
+                [Math.floor(start / 9), start % 9],
+              )
+            ) {
+              const key = `${pair_key}:${[...path]
+                .sort((a, b) => a - b)
+                .join(",")}`;
+              if (!found.has(key)) {
+                const bivalueCount = path.filter((id) =>
+                  bivalue_set_for_pair.has(id),
+                ).length;
+                if (bivalueCount >= 2) {
+                  found.add(key);
+                  loops.push({
+                    cells: path.map((id) => [Math.floor(id / 9), id % 9]),
+                    digits: [d1, d2],
+                  });
+                  stop = loops.length >= maxResults;
+                }
+              }
+            }
+
+            if (!stop && path.length < maxLoopLength) stop = search(next);
+            for (const house of nextHouses) {
+              houseCounts[house]--;
+              houseParityMasks[house] &= ~parityBit;
+            }
+            used.delete(next);
+            path.pop();
+            if (isGuardian) guardianCount--;
+            if (stop) return true;
+          }
+          return false;
+        };
+
+        if (search(start) || loops.length >= maxResults) break;
       }
+      if (loops.length >= maxResults) break;
     }
-    return hexagons;
+    return loops;
   },
   uniqueLoop: (board, pencils, findAll = false) => {
     const results = [];
-    const hexagons = techniques._findUniqueHexagons(pencils);
-    if (hexagons.length === 0) return { change: false };
+    const loops = techniques._findUniqueLoops(pencils);
+    if (loops.length === 0) return { change: false };
 
     const formatRC = (cells) => {
       if (!cells || cells.length === 0) return "";
@@ -5021,8 +4912,8 @@ const techniques = {
       };
     };
 
-    for (const hex of hexagons) {
-      const { cells, digits } = hex;
+    for (const ul of loops) {
+      const { cells, digits } = ul;
       const [d1, d2] = digits;
       const d_set = new Set(digits);
       let removals = [];
@@ -5129,7 +5020,7 @@ const techniques = {
         const [e1r, e1c] = extra_cells[0];
         const [e2r, e2c] = extra_cells[1];
 
-        // --- Type 3 (Hexagon + Naked Subset) ---
+        // --- Type 3 (Loop + Naked Subset) ---
         const sharedUnits = [];
         if (e1r === e2r)
           sharedUnits.push({
@@ -5160,10 +5051,10 @@ const techniques = {
           });
 
           const processUnit = (unitCellsRaw) => {
-            const hexCellsSet = new Set(cells.map(JSON.stringify));
+            const ulCellsSet = new Set(cells.map(JSON.stringify));
             const unitCells = unitCellsRaw.filter(
               ([r, c]) =>
-                !hexCellsSet.has(JSON.stringify([r, c])) && board[r][c] === 0,
+                !ulCellsSet.has(JSON.stringify([r, c])) && board[r][c] === 0,
             );
             if (unitCells.length < 1) return null;
 
@@ -5325,27 +5216,26 @@ const techniques = {
         }
 
         if (!seeing_pair_exists) {
-          let common_peer_in_hex_exists = false;
+          let common_peer_in_ul_exists = false;
           if (extra_cells.length === 2) {
-            for (const hex_cell of cells) {
+            for (const ul_cell of cells) {
               const is_extra = extra_cells.some(
-                (ec) => ec[0] === hex_cell[0] && ec[1] === hex_cell[1],
+                (ec) => ec[0] === ul_cell[0] && ec[1] === ul_cell[1],
               );
               if (is_extra) continue;
               if (
-                techniques._sees(hex_cell, extra_cells[0]) &&
-                techniques._sees(hex_cell, extra_cells[1])
+                techniques._sees(ul_cell, extra_cells[0]) &&
+                techniques._sees(ul_cell, extra_cells[1])
               ) {
-                common_peer_in_hex_exists = true;
+                common_peer_in_ul_exists = true;
                 break;
               }
             }
           } else {
-            // Size 3 and no seeing pairs is geometrically rare/impossible, but follow cpp
-            common_peer_in_hex_exists = true;
+            common_peer_in_ul_exists = true;
           }
 
-          if (common_peer_in_hex_exists) {
+          if (common_peer_in_ul_exists) {
             const rows = [...new Set(cells.map((c) => c[0]))];
             for (const u of digits) {
               let u_is_bilocated_in_all_rows = true;
@@ -7380,6 +7270,7 @@ const techniques = {
 
   // --- Global Cache for AIC Graph ---
   _aicCache: {
+    signature: null,
     AllNodes: [],
     NodeCache: new Map(),
     BivalueOrMap: new Map(),
