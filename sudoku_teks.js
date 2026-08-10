@@ -3961,20 +3961,24 @@ const techniques = {
     };
 
     for (const [[r1, c1], [r2, c2]] of pairs) {
+      // Prevent using solved cells (naked singles) which can cause false positives with union
+      if (pencils[r1][c1].size < 2 || pencils[r2][c2].size < 2) return;
+
       let mask = 0;
-      for (const digit of pencils[r1][c1]) {
-        if (pencils[r2][c2].has(digit)) mask |= 1 << digit;
-      }
+
+      // FIX: Use UNION instead of INTERSECTION to allow incomplete EUR base cells
+      for (const digit of pencils[r1][c1]) mask |= 1 << digit;
+      for (const digit of pencils[r2][c2]) mask |= 1 << digit;
+
       if (bitCount(mask) < 2) return;
       pairMasks.push(mask);
+
       for (let digit = 1; digit <= 9; digit++) {
         if (mask & (1 << digit)) digitFrequency[digit]++;
       }
     }
 
     // A deadly digit must be supported by at least two corresponding pairs.
-    // The same cells may support more than one N-digit interpretation, so
-    // evaluate every N-digit subset independently instead of merging them.
     const eligibleDigits = [];
     for (let digit = 1; digit <= 9; digit++) {
       if (digitFrequency[digit] >= 2) eligibleDigits.push(digit);
@@ -3988,6 +3992,8 @@ const techniques = {
     )) {
       let coreMask = 0;
       for (const digit of digits) coreMask |= 1 << digit;
+
+      // The union of each pair must contain at least 2 core digits
       if (pairMasks.some((mask) => bitCount(mask & coreMask) < 2)) continue;
 
       const key = `${digits.join("")}:${cells
