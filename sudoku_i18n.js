@@ -535,6 +535,7 @@ const TRANSLATIONS = {
     ui_msg_337: "Almost Locked Set W-Wing",
     ui_msg_338: "Bivalue Oddagon",
     ui_msg_339: "Broken Wing",
+    ui_msg_440: "Avoidable Rectangle",
     teks_msg_1: "Eliminate Candidates",
     teks_msg_2: "at r{0}c{1}",
     teks_msg_3: "Concrete number ({0})r{1}c{2}",
@@ -738,6 +739,21 @@ const TRANSLATIONS = {
     teks_msg_190: "Broken Wing",
     teks_msg_191: "Digit ({0})",
     teks_msg_192: "({0}){1}, Guardians {2}",
+    teks_msg_293: "Avoidable Rectangle Type 1",
+    teks_msg_294: "Avoidable Rectangle Type 2",
+    teks_msg_295: "Avoidable Rectangle Type 3",
+    teks_msg_296: "Avoidable Rectangle Type 5",
+    teks_msg_297: "Hidden Avoidable Rectangle",
+
+    teks_msg_298: "using Digits ({0}{1})",
+
+    teks_msg_299: "Base ({0}{1}) in {2}, Filled cells {3}, Unfilled cells {4}",
+
+    teks_msg_300:
+      "Base ({0}{1}) in {2}, Filled cells {3}, Unfilled cells {4}, Virtual naked subset {5}",
+
+    teks_msg_301:
+      "Base ({0}{1}) in {2}, Filled cell {3}, Unfilled cells {4}, Conjugate pairs {5}",
   },
 
   ko: {
@@ -1267,6 +1283,7 @@ const TRANSLATIONS = {
     ui_msg_337: "거의 드러난 집합 W-윙",
     ui_msg_338: "이중값 홀수각형",
     ui_msg_339: "꺾인 날개",
+    ui_msg_440: "회피 가능한 직사각형",
     teks_msg_1: "후보수 제거",
     teks_msg_2: "r{0}c{1}에서",
     teks_msg_3: "확정된 숫자 ({0}) r{1}c{2}에 의해",
@@ -1472,6 +1489,21 @@ const TRANSLATIONS = {
     teks_msg_190: "꺾인 날개",
     teks_msg_191: "숫자 ({0}) 사용",
     teks_msg_192: "({0}){1}, 수호자 {2}",
+    teks_msg_293: "회피 가능한 직사각형 유형 ①",
+    teks_msg_294: "회피 가능한 직사각형 유형 ②",
+    teks_msg_295: "회피 가능한 직사각형 유형 ③",
+    teks_msg_296: "회피 가능한 직사각형 유형 ⑤",
+    teks_msg_297: "숨은 회피 가능한 직사각형",
+
+    teks_msg_298: "숫자 ({0}{1}) 사용",
+
+    teks_msg_299: "({2})의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}",
+
+    teks_msg_300:
+      "({2})의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 가상의 드러난 부분집합 {5}",
+
+    teks_msg_301:
+      "({2})의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 이중 위치 {5}",
   },
 };
 

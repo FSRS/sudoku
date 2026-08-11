@@ -7000,6 +7000,7 @@ const getUniquenessTechniques = () => [
   t("ui_msg_206"),
   t("ui_msg_207"),
   t("ui_msg_208"),
+  t("ui_msg_440"),
 ];
 const getMandatoryTechniques = () => [t("ui_msg_195"), t("ui_msg_210")];
 const getTechniqueHierarchies = () => [
@@ -7238,6 +7239,12 @@ function getDefaultTechniques() {
       func: techniques.hiddenRectangle,
       level: 5,
       score: 110,
+    },
+    {
+      name: t("ui_msg_440"),
+      func: techniques.avoidableRectangle,
+      level: 5,
+      score: 120,
     },
     {
       name: t("ui_msg_286"),

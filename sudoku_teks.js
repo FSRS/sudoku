@@ -3545,251 +3545,162 @@ const techniques = {
 
       const extraCells = [];
       const bivalueCells = [];
+
       for (const [r, c] of cells) {
         const cands = pencils[r][c];
         const hasExtra = [...cands].some((cand) => cand !== d1 && cand !== d2);
-        if (hasExtra) extraCells.push([r, c]);
-        else bivalueCells.push([r, c]);
+
+        if (hasExtra) {
+          extraCells.push([r, c]);
+        } else {
+          bivalueCells.push([r, c]);
+        }
       }
 
-      let removals = [];
-      let caseInfo = "";
-      const strongLinks = [];
-      const visualLinks = []; // Track strong lines
+      // Hidden Rectangle elimination is checked ONLY
+      // for the 2-extra-cell and 3-extra-cell cases.
+      if (extraCells.length !== 2 && extraCells.length !== 3) continue;
+      if (bivalueCells.length === 0) continue;
 
-      const checkStrong = (d, type, idx, p1, p2) => {
-        const isStrong = techniques._isStrongLink(
-          pencils,
-          d,
-          type,
-          idx,
-          p1,
-          p2,
-        );
-        if (isStrong) {
-          if (type === "row")
-            visualLinks.push({
-              r1: idx,
-              c1: p1,
-              n1: d,
-              r2: idx,
-              c2: p2,
-              n2: d,
-              color: lineColorPalette[0],
-              style: "solid",
-            });
-          else
-            visualLinks.push({
-              r1: p1,
-              c1: idx,
-              n1: d,
-              r2: p2,
-              c2: idx,
-              n2: d,
-              color: lineColorPalette[0],
-              style: "solid",
-            });
-        }
-        return isStrong;
-      };
+      const removals = [];
+      const strongLinks = [];
+      const visualLinks = [];
+      const visualLinkKeys = new Set();
 
       const addRemoval = (r, c, num) => {
-        if (pencils[r][c] && pencils[r][c].has(num)) {
+        if (
+          pencils[r][c] &&
+          pencils[r][c].has(num) &&
+          !removals.some((el) => el.r === r && el.c === c && el.num === num)
+        ) {
           removals.push({ r, c, num });
         }
       };
 
-      if (extraCells.length === 2) {
-        const [e1r, e1c] = extraCells[0];
-        const [e2r, e2c] = extraCells[1];
-        const [f1r, f1c] = bivalueCells[0];
-        const [f2r, f2c] = bivalueCells[1];
-        const row_aligned = e1r === e2r;
-        const col_aligned = e1c === e2c;
+      const addVisualLink = (d, type, idx, p1, p2) => {
+        const a = Math.min(p1, p2);
+        const b = Math.max(p1, p2);
+        const key = `${d}:${type}:${idx}:${a}:${b}`;
 
-        if (row_aligned) {
-          caseInfo = "Case 2: Row-Aligned";
-          if (checkStrong(d1, "row", e1r, e1c, e2c)) {
-            addRemoval(e1r, e1c, d2);
-            addRemoval(e2r, e2c, d2);
-            strongLinks.push(`(${d1})r${e1r + 1}`);
-          } else if (checkStrong(d2, "row", e1r, e1c, e2c)) {
-            addRemoval(e1r, e1c, d1);
-            addRemoval(e2r, e2c, d1);
-            strongLinks.push(`(${d2})r${e1r + 1}`);
-          }
-          if (checkStrong(d1, "col", f1c, f1r, e1r)) {
-            addRemoval(e2r, f2c, d2);
-            strongLinks.push(`(${d1})c${f1c + 1}`);
-          }
-          if (checkStrong(d2, "col", f1c, f1r, e1r)) {
-            addRemoval(e2r, f2c, d1);
-            strongLinks.push(`(${d2})c${f1c + 1}`);
-          }
-          if (checkStrong(d1, "col", f2c, f2r, e2r)) {
-            addRemoval(e2r, f1c, d2);
-            strongLinks.push(`(${d1})c${f2c + 1}`);
-          }
-          if (checkStrong(d2, "col", f2c, f2r, e2r)) {
-            addRemoval(e2r, f1c, d1);
-            strongLinks.push(`(${d2})c${f2c + 1}`);
-          }
-        } else if (col_aligned) {
-          caseInfo = "Case 2: Col-Aligned";
-          if (checkStrong(d1, "col", e1c, e1r, e2r)) {
-            addRemoval(e1r, e1c, d2);
-            addRemoval(e2r, e2c, d2);
-            strongLinks.push(`(${d1})c${e1c + 1}`);
-          } else if (checkStrong(d2, "col", e1c, e1r, e2r)) {
-            addRemoval(e1r, e1c, d1);
-            addRemoval(e2r, e2c, d1);
-            strongLinks.push(`(${d2})c${e1c + 1}`);
-          }
-          if (checkStrong(d1, "row", f1r, f1c, e1c)) {
-            addRemoval(f2r, e1c, d2);
-            strongLinks.push(`(${d1})r${f1r + 1}`);
-          }
-          if (checkStrong(d2, "row", f1r, f1c, e1c)) {
-            addRemoval(f2r, e1c, d1);
-            strongLinks.push(`(${d2})r${f1r + 1}`);
-          }
-          if (checkStrong(d1, "row", f2r, f2c, e2c)) {
-            addRemoval(f1r, e1c, d2);
-            strongLinks.push(`(${d1})r${f2r + 1}`);
-          }
-          if (checkStrong(d2, "row", f2r, f2c, e2c)) {
-            addRemoval(f1r, e1c, d1);
-            strongLinks.push(`(${d2})r${f2r + 1}`);
-          }
+        if (visualLinkKeys.has(key)) return;
+        visualLinkKeys.add(key);
+
+        if (type === "row") {
+          visualLinks.push({
+            r1: idx,
+            c1: p1,
+            n1: d,
+            r2: idx,
+            c2: p2,
+            n2: d,
+            color: lineColorPalette[0],
+            style: "solid",
+          });
         } else {
-          // Diagonal
-          caseInfo = "Case 2: Diagonal";
-          const floor1 = [e1r, e2c],
-            floor2 = [e2r, e1c];
-
-          const r_f1_bi_d1 = checkStrong(d1, "row", floor1[0], floor1[1], e1c);
-          const c_f1_bi_d1 = checkStrong(d1, "col", floor1[1], floor1[0], e2r);
-          const r_f2_bi_d1 = checkStrong(d1, "row", floor2[0], floor2[1], e2c);
-          const c_f2_bi_d1 = checkStrong(d1, "col", floor2[1], floor2[0], e1r);
-
-          const r_f1_bi_d2 = checkStrong(d2, "row", floor1[0], floor1[1], e1c);
-          const c_f1_bi_d2 = checkStrong(d2, "col", floor1[1], floor1[0], e2r);
-          const r_f2_bi_d2 = checkStrong(d2, "row", floor2[0], floor2[1], e2c);
-          const c_f2_bi_d2 = checkStrong(d2, "col", floor2[1], floor2[0], e1r);
-
-          if (r_f1_bi_d1) {
-            addRemoval(floor2[0], floor1[1], d1);
-            strongLinks.push(`(${d1})r${floor1[0] + 1}`);
-          }
-          if (c_f2_bi_d1) {
-            addRemoval(floor2[0], floor1[1], d1);
-            strongLinks.push(`(${d1})c${floor2[1] + 1}`);
-          }
-          if (r_f1_bi_d2) {
-            addRemoval(floor2[0], floor1[1], d2);
-            strongLinks.push(`(${d2})r${floor1[0] + 1}`);
-          }
-          if (c_f2_bi_d2) {
-            addRemoval(floor2[0], floor1[1], d2);
-            strongLinks.push(`(${d2})c${floor2[1] + 1}`);
-          }
-
-          if (r_f2_bi_d1) {
-            addRemoval(floor1[0], floor2[1], d1);
-            strongLinks.push(`(${d1})r${floor2[0] + 1}`);
-          }
-          if (c_f1_bi_d1) {
-            addRemoval(floor1[0], floor2[1], d1);
-            strongLinks.push(`(${d1})c${floor1[1] + 1}`);
-          }
-          if (r_f2_bi_d2) {
-            addRemoval(floor1[0], floor2[1], d2);
-            strongLinks.push(`(${d2})r${floor2[0] + 1}`);
-          }
-          if (c_f1_bi_d2) {
-            addRemoval(floor1[0], floor2[1], d2);
-            strongLinks.push(`(${d2})c${floor1[1] + 1}`);
-          }
-
-          if (r_f1_bi_d2 && c_f1_bi_d2) addRemoval(floor1[0], floor1[1], d1);
-          if (r_f1_bi_d1 && c_f1_bi_d1) addRemoval(floor1[0], floor1[1], d2);
-          if (r_f2_bi_d2 && c_f2_bi_d2) addRemoval(floor2[0], floor2[1], d1);
-          if (r_f2_bi_d1 && c_f2_bi_d1) addRemoval(floor2[0], floor2[1], d2);
+          visualLinks.push({
+            r1: p1,
+            c1: idx,
+            n1: d,
+            r2: p2,
+            c2: idx,
+            n2: d,
+            color: lineColorPalette[0],
+            style: "solid",
+          });
         }
-      } else if (extraCells.length === 3) {
-        caseInfo = "Case 3: 3 Extra Cells";
-        const [fr, fc] = bivalueCells[0];
-        const diagCell = extraCells.find(([r, c]) => r !== fr && c !== fc);
-        if (diagCell) {
-          const [other_r, other_c] = diagCell;
+      };
 
-          const r_floor_bi_d1 = checkStrong(d1, "row", fr, fc, other_c);
-          const c_floor_bi_d1 = checkStrong(d1, "col", fc, fr, other_r);
-          const r_other_bi_d1 = checkStrong(d1, "row", other_r, fc, other_c);
-          const c_other_bi_d1 = checkStrong(d1, "col", other_c, fr, other_r);
+      /*
+       * Take each UR cell without additional candidates.
+       *
+       *       floor -------- colMate
+       *         |               |
+       *         |               |
+       *       rowMate ------ opposite
+       *
+       * For the corner opposite the floor:
+       *
+       *   - check its ROW;
+       *   - check its COLUMN.
+       *
+       * If one UR digit occurs nowhere outside the two UR cells
+       * in BOTH houses, that digit is bilocated in both houses.
+       *
+       * Therefore the OTHER UR digit can be eliminated
+       * from the opposite corner.
+       */
+      for (const [fr, fc] of bivalueCells) {
+        // Unique diagonally opposite corner of this rectangle
+        const opposite = cells.find(([r, c]) => r !== fr && c !== fc);
 
-          const r_floor_bi_d2 = checkStrong(d2, "row", fr, fc, other_c);
-          const c_floor_bi_d2 = checkStrong(d2, "col", fc, fr, other_r);
-          const r_other_bi_d2 = checkStrong(d2, "row", other_r, fc, other_c);
-          const c_other_bi_d2 = checkStrong(d2, "col", other_c, fr, other_r);
+        if (!opposite) continue;
 
-          if (r_other_bi_d1 && (r_floor_bi_d1 || c_other_bi_d1)) {
-            addRemoval(other_r, other_c, d2);
-            strongLinks.push(`(${d1})r${other_r + 1}`);
-          }
-          if (r_other_bi_d2 && (r_floor_bi_d2 || c_other_bi_d2)) {
-            addRemoval(other_r, other_c, d1);
-            strongLinks.push(`(${d2})r${other_r + 1}`);
-          }
-          if (r_other_bi_d1 && c_other_bi_d2) {
-            addRemoval(other_r, fc, d2);
-            addRemoval(fr, other_c, d1);
-            strongLinks.push(
-              `(${d1})r${other_r + 1}`,
-              `(${d2})c${other_c + 1}`,
-            );
-          }
-          if (r_other_bi_d2 && c_other_bi_d1) {
-            addRemoval(other_r, fc, d1);
-            addRemoval(fr, other_c, d2);
-            strongLinks.push(
-              `(${d2})r${other_r + 1}`,
-              `(${d1})c${other_c + 1}`,
-            );
-          }
-          if (
-            (r_floor_bi_d1 && r_other_bi_d2) ||
-            (r_floor_bi_d1 && c_other_bi_d2)
-          ) {
-            addRemoval(other_r, fc, d1);
-            strongLinks.push(`(${d1})r${fr + 1}`);
-          }
-          if (
-            (r_floor_bi_d2 && r_other_bi_d1) ||
-            (r_floor_bi_d2 && c_other_bi_d1)
-          ) {
-            addRemoval(other_r, fc, d2);
-            strongLinks.push(`(${d2})r${fr + 1}`);
-          }
-          if (
-            (c_floor_bi_d1 && c_other_bi_d2) ||
-            (r_other_bi_d2 && c_floor_bi_d1)
-          ) {
-            addRemoval(fr, other_c, d1);
-            strongLinks.push(`(${d1})c${fc + 1}`);
-          }
-          if (
-            (c_floor_bi_d2 && c_other_bi_d1) ||
-            (r_other_bi_d1 && c_floor_bi_d2)
-          ) {
-            addRemoval(fr, other_c, d2);
-            strongLinks.push(`(${d2})c${fc + 1}`);
-          }
+        const [or, oc] = opposite;
+
+        // Test each UR digit as the bilocated digit.
+        for (const linkDigit of [d1, d2]) {
+          const elimDigit = linkDigit === d1 ? d2 : d1;
+
+          // The opposite corner must actually contain the candidate
+          // that would be eliminated.
+          if (!pencils[or][oc].has(elimDigit)) continue;
+
+          /*
+           * Row through opposite corner:
+           *
+           *   [or, fc] ---- [or, oc]
+           *
+           * linkDigit must occur exactly at these two UR positions.
+           */
+          const rowBilocation = techniques._isStrongLink(
+            pencils,
+            linkDigit,
+            "row",
+            or,
+            fc,
+            oc,
+          );
+
+          if (!rowBilocation) continue;
+
+          /*
+           * Column through opposite corner:
+           *
+           *   [fr, oc]
+           *       |
+           *       |
+           *   [or, oc]
+           *
+           * linkDigit must occur exactly at these two UR positions.
+           */
+          const colBilocation = techniques._isStrongLink(
+            pencils,
+            linkDigit,
+            "col",
+            oc,
+            fr,
+            or,
+          );
+
+          if (!colBilocation) continue;
+
+          // That's the entire Hidden Rectangle elimination.
+          addRemoval(or, oc, elimDigit);
+
+          strongLinks.push(
+            `(${linkDigit})r${or + 1}`,
+            `(${linkDigit})c${oc + 1}`,
+          );
+
+          // Preserve the existing visual strong-link structure.
+          addVisualLink(linkDigit, "row", or, fc, oc);
+          addVisualLink(linkDigit, "col", oc, fr, or);
         }
       }
 
       if (removals.length > 0) {
         const uniqueRemovals = _getUniqueRemovals(removals);
+
         if (uniqueRemovals.length > 0) {
           const basePosStr = getBasePosStr(cells);
           const guardiansStr = getGuardiansStr(extraCells, d1, d2, pencils);
@@ -3800,6 +3711,8 @@ const techniques = {
             change: true,
             type: "remove",
             cells: uniqueRemovals,
+
+            // Existing hint structure preserved
             hint: {
               name: t("teks_msg_94"),
               mainInfo: t("teks_msg_77", d1, d2),
@@ -3813,30 +3726,41 @@ const techniques = {
                 uniqueLinks,
               ),
             },
+
+            // Existing applyVisuals structure preserved
             applyVisuals: () => {
               highlightState = 0;
               highlightedDigit = null;
+
               cells.forEach(([cr, cc]) => {
                 boardState[cr][cc].cellColor = cellColorPalette[7];
-                if (boardState[cr][cc].pencils.has(d1))
+
+                if (boardState[cr][cc].pencils.has(d1)) {
                   boardState[cr][cc].pencilColors.set(
                     d1,
                     candidateColorPalette[7],
                   );
-                if (boardState[cr][cc].pencils.has(d2))
+                }
+
+                if (boardState[cr][cc].pencils.has(d2)) {
                   boardState[cr][cc].pencilColors.set(
                     d2,
                     candidateColorPalette[7],
                   );
+                }
+
                 boardState[cr][cc].pencils.forEach((cand) => {
-                  if (cand !== d1 && cand !== d2)
+                  if (cand !== d1 && cand !== d2) {
                     boardState[cr][cc].pencilColors.set(
                       cand,
                       candidateColorPalette[3],
                     );
+                  }
                 });
               });
+
               visualLinks.forEach((link) => drawnLines.push(link));
+
               uniqueRemovals.forEach((el) =>
                 boardState[el.r][el.c].pencilColors.set(
                   el.num,
@@ -3845,12 +3769,14 @@ const techniques = {
               );
             },
           };
+
           if (!findAll) return resultObj;
           results.push(resultObj);
         }
       }
     }
-    return findAll ? results : { change: false }; // ← was just `return { change: false }`
+
+    return findAll ? results : { change: false };
   },
 
   _findHiddenRectangles: (pencils) => {
@@ -3931,6 +3857,1169 @@ const techniques = {
       }
     }
     return rects;
+  },
+
+  avoidableRectangle: (board, pencils, findAll = false) => {
+    const results = [];
+    const seenResults = new Set();
+
+    /*
+     * Prefer initialPuzzleString because it remains correct while the
+     * solver is working on a virtual board several steps ahead of boardState.
+     *
+     * boardState.isGiven is retained as a fallback.
+     */
+    const hasInitialString =
+      typeof initialPuzzleString === "string" &&
+      initialPuzzleString.length >= 81;
+
+    const hasGivenGrid =
+      typeof boardState !== "undefined" &&
+      Array.isArray(boardState) &&
+      boardState.length === 9;
+
+    if (!hasInitialString && !hasGivenGrid) {
+      return findAll ? [] : { change: false };
+    }
+
+    const isInitialGiven = (r, c) => {
+      if (hasInitialString) {
+        const ch = initialPuzzleString[r * 9 + c];
+        return ch >= "1" && ch <= "9";
+      }
+
+      return !!(boardState[r] && boardState[r][c] && boardState[r][c].isGiven);
+    };
+
+    const isUserFilled = (r, c) => board[r][c] !== 0 && !isInitialGiven(r, c);
+
+    const isUnfilled = (r, c) => board[r][c] === 0 && !isInitialGiven(r, c);
+
+    const sameCell = (a, b) => a[0] === b[0] && a[1] === b[1];
+
+    const cellKey = ([r, c]) => `${r},${c}`;
+
+    // ============================================================
+    // Formatting helpers
+    // ============================================================
+
+    const formatRC = (cells) => {
+      if (!cells || cells.length === 0) return "";
+
+      const norm = cells.map((c) => [
+        c.r !== undefined ? c.r : c[0],
+        c.c !== undefined ? c.c : c[1],
+      ]);
+
+      if (norm.length === 1) {
+        return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
+      }
+
+      if (norm.every((c) => c[0] === norm[0][0])) {
+        return `r${norm[0][0] + 1}c${norm
+          .map((c) => c[1] + 1)
+          .sort((a, b) => a - b)
+          .join("")}`;
+      }
+
+      if (norm.every((c) => c[1] === norm[0][1])) {
+        return `r${norm
+          .map((c) => c[0] + 1)
+          .sort((a, b) => a - b)
+          .join("")}c${norm[0][1] + 1}`;
+      }
+
+      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
+    };
+
+    const formatBP = (cells, boxIdx) => {
+      if (!cells || cells.length === 0) return "";
+
+      const points = cells
+        .map(([r, c]) => (r % 3) * 3 + (c % 3) + 1)
+        .sort((a, b) => a - b)
+        .join("");
+
+      return `b${boxIdx + 1}p${points}`;
+    };
+
+    const getBasePosStr = (cells) => {
+      const rows = [...new Set(cells.map(([r]) => r + 1))]
+        .sort((a, b) => a - b)
+        .join("");
+
+      const cols = [...new Set(cells.map(([, c]) => c + 1))]
+        .sort((a, b) => a - b)
+        .join("");
+
+      return `r${rows}c${cols}`;
+    };
+
+    /*
+     * Filled cell detail:
+     *   (4)r2c3,(7)r2c8
+     *
+     * This is the addition you requested compared with the HR hint.
+     */
+    const getFilledStr = (filledCells) =>
+      filledCells
+        .map(([r, c]) => `(${board[r][c]})r${r + 1}c${c + 1}`)
+        .join(",");
+
+    /*
+     * Unfilled AR cells with current candidates:
+     *   (27)r5c3,(47)r5c8
+     */
+    const getUnfilledStr = (rectCells) =>
+      rectCells
+        .filter(([r, c]) => board[r][c] === 0)
+        .map(([r, c]) => {
+          const cands = [...pencils[r][c]].sort((a, b) => a - b).join("");
+
+          return `(${cands})r${r + 1}c${c + 1}`;
+        })
+        .join(",");
+
+    // ============================================================
+    // Candidate / geometry helpers
+    // ============================================================
+
+    const setEquals = (r, c, digits) => {
+      const want = [...new Set(digits)];
+
+      if (board[r][c] !== 0) return false;
+      if (want.length !== digits.length) return false;
+      if (pencils[r][c].size !== want.length) return false;
+
+      return want.every((d) => pencils[r][c].has(d));
+    };
+
+    /*
+     * Both cells must contain exactly the same bivalue pair.
+     */
+    const getSameBivaluePair = (a, b) => {
+      const [ar, ac] = a;
+      const [br, bc] = b;
+
+      if (
+        board[ar][ac] !== 0 ||
+        board[br][bc] !== 0 ||
+        pencils[ar][ac].size !== 2 ||
+        pencils[br][bc].size !== 2
+      ) {
+        return null;
+      }
+
+      const p1 = [...pencils[ar][ac]].sort((x, y) => x - y);
+
+      const p2 = [...pencils[br][bc]].sort((x, y) => x - y);
+
+      if (p1[0] === p2[0] && p1[1] === p2[1]) {
+        return p1;
+      }
+
+      return null;
+    };
+
+    /*
+     * Diagonal opposite corner.
+     */
+    const getOppositeCorner = (cells, cell) =>
+      cells.find(([r, c]) => r !== cell[0] && c !== cell[1]);
+
+    /*
+     * For aligned filled cells:
+     *
+     *   d1 d2
+     *   u1 u2
+     *
+     * or
+     *
+     *   d1 u1
+     *   d2 u2
+     *
+     * u1 is the cell across the line from d1.
+     * u2 is the cell across the line from d2.
+     */
+    const getOppositeLineMates = (cells, f1, f2) => {
+      if (f1[0] === f2[0]) {
+        const otherRowCell = cells.find(([r]) => r !== f1[0]);
+
+        if (!otherRowCell) return null;
+
+        const otherRow = otherRowCell[0];
+
+        return [
+          [otherRow, f1[1]],
+          [otherRow, f2[1]],
+        ];
+      }
+
+      if (f1[1] === f2[1]) {
+        const otherColCell = cells.find(([, c]) => c !== f1[1]);
+
+        if (!otherColCell) return null;
+
+        const otherCol = otherColCell[1];
+
+        return [
+          [f1[0], otherCol],
+          [f2[0], otherCol],
+        ];
+      }
+
+      return null;
+    };
+
+    /*
+     * All houses containing BOTH cells.
+     *
+     * For AR Type 3 this may be:
+     *   row
+     *   column
+     *   box
+     */
+    const getSharedUnits = (a, b) => {
+      const units = [];
+
+      if (a[0] === b[0]) {
+        units.push({
+          type: "row",
+          idx: a[0],
+          cells: techniques._getUnitCells("row", a[0]),
+        });
+      }
+
+      if (a[1] === b[1]) {
+        units.push({
+          type: "col",
+          idx: a[1],
+          cells: techniques._getUnitCells("col", a[1]),
+        });
+      }
+
+      const boxA = techniques._getBoxIndex(a[0], a[1]);
+
+      const boxB = techniques._getBoxIndex(b[0], b[1]);
+
+      if (boxA === boxB) {
+        units.push({
+          type: "box",
+          idx: boxA,
+          cells: techniques._getUnitCells("box", boxA),
+        });
+      }
+
+      return units;
+    };
+
+    /*
+     * Remove digit from cells seeing all patternCells.
+     * Rectangle cells themselves are excluded by _findCommonPeers.
+     */
+    const getCommonPeerRemovals = (patternCells, rectCells, digit) => {
+      const removals = [];
+
+      const peers = techniques._findCommonPeers(
+        patternCells,
+        rectCells,
+        board,
+        pencils,
+      );
+
+      for (const [r, c] of peers) {
+        if (pencils[r][c].has(digit)) {
+          removals.push({
+            r,
+            c,
+            num: digit,
+          });
+        }
+      }
+
+      return _getUniqueRemovals(removals);
+    };
+
+    // ============================================================
+    // Result / hint / visuals
+    // ============================================================
+
+    const makeResult = (
+      nameKey,
+      d1,
+      d2,
+      rectCells,
+      filledCells,
+      removals,
+      extraData = {},
+    ) => {
+      const uniqueRemovals = _getUniqueRemovals(removals);
+
+      const basePosStr = getBasePosStr(rectCells);
+
+      const filledStr = getFilledStr(filledCells);
+
+      const unfilledStr = getUnfilledStr(rectCells);
+
+      let detail;
+
+      if (extraData.subsetCells && extraData.subsetCands) {
+        const subsetStr =
+          extraData.unitType === "box"
+            ? formatBP(extraData.subsetCells, extraData.unitIdx)
+            : formatRC(extraData.subsetCells);
+
+        detail = t(
+          "teks_msg_300",
+          d1,
+          d2,
+          basePosStr,
+          filledStr,
+          unfilledStr,
+          subsetStr,
+        );
+      } else if (extraData.strongLinks) {
+        detail = t(
+          "teks_msg_301",
+          d1,
+          d2,
+          basePosStr,
+          filledStr,
+          unfilledStr,
+          extraData.strongLinks.join(","),
+        );
+      } else {
+        detail = t("teks_msg_299", d1, d2, basePosStr, filledStr, unfilledStr);
+      }
+
+      return {
+        change: true,
+        type: "remove",
+        cells: uniqueRemovals,
+
+        hint: {
+          name: t(nameKey),
+          mainInfo: t("teks_msg_298", d1, d2),
+          detail,
+        },
+
+        applyVisuals: () => {
+          highlightState = 0;
+          highlightedDigit = null;
+
+          /*
+           * AR cells:
+           * cell color 8.
+           *
+           * AR digits:
+           * candidate color 8.
+           *
+           * Other candidates in AR:
+           * candidate color 4.
+           */
+          rectCells.forEach(([cr, cc]) => {
+            boardState[cr][cc].cellColor = cellColorPalette[7];
+
+            if (boardState[cr][cc].value === 0) {
+              boardState[cr][cc].pencils.forEach((cand) => {
+                boardState[cr][cc].pencilColors.set(
+                  cand,
+                  cand === d1 || cand === d2
+                    ? candidateColorPalette[7]
+                    : candidateColorPalette[3],
+                );
+              });
+            }
+          });
+
+          /*
+           * Filled, originally non-given cells:
+           * distinguish them using cell color 7.
+           */
+          filledCells.forEach(([cr, cc]) => {
+            boardState[cr][cc].cellColor = cellColorPalette[6];
+          });
+
+          /*
+           * Type 3 virtual naked subset cells.
+           */
+          if (extraData.subsetCells && extraData.subsetCands) {
+            extraData.subsetCells.forEach(([cr, cc]) => {
+              boardState[cr][cc].cellColor = cellColorPalette[6];
+
+              boardState[cr][cc].pencils.forEach((cand) => {
+                if (extraData.subsetCands.has(cand)) {
+                  boardState[cr][cc].pencilColors.set(
+                    cand,
+                    candidateColorPalette[4],
+                  );
+                }
+              });
+            });
+          }
+
+          /*
+           * Hidden AR strong links.
+           */
+          if (extraData.visualLinks) {
+            extraData.visualLinks.forEach((link) => drawnLines.push(link));
+          }
+
+          /*
+           * Eliminations last so red overrides
+           * any pattern/subset coloring.
+           */
+          uniqueRemovals.forEach((el) => {
+            boardState[el.r][el.c].pencilColors.set(
+              el.num,
+              candidateColorPalette[0],
+            );
+          });
+        },
+      };
+    };
+
+    /*
+     * Avoid duplicate findAll entries representing
+     * exactly the same type/eliminations.
+     */
+    const addResult = (resultObj, nameKey) => {
+      const removalKey = resultObj.cells
+        .map((el) => `${el.r},${el.c},${el.num}`)
+        .sort()
+        .join(";");
+
+      const key = `${nameKey}|${removalKey}`;
+
+      if (seenResults.has(key)) {
+        return null;
+      }
+
+      seenResults.add(key);
+
+      if (findAll) {
+        results.push(resultObj);
+        return null;
+      }
+
+      return resultObj;
+    };
+
+    // ============================================================
+    // Type 3 virtual naked subset helper
+    // ============================================================
+
+    const processVirtualSubset = (unit, rectCells, virtualCands) => {
+      const rectSet = new Set(rectCells.map(cellKey));
+
+      /*
+       * Only unsolved cells outside the AR.
+       */
+      const outsideCells = unit.cells.filter(
+        ([r, c]) => board[r][c] === 0 && !rectSet.has(`${r},${c}`),
+      );
+
+      /*
+       * Need:
+       *   at least one subset partner,
+       *   at least one non-subset target.
+       */
+      if (outsideCells.length < 2) {
+        return null;
+      }
+
+      for (let k = 1; k < outsideCells.length; k++) {
+        for (const chosen of techniques.combinations(outsideCells, k)) {
+          /*
+           * The two AR cells act together as
+           * ONE virtual subset cell.
+           */
+          const union = new Set(virtualCands);
+
+          chosen.forEach(([r, c]) => {
+            pencils[r][c].forEach((cand) => union.add(cand));
+          });
+
+          /*
+           * virtual cell + k real cells
+           * must contain exactly k+1 digits.
+           */
+          if (union.size !== k + 1) {
+            continue;
+          }
+
+          const chosenSet = new Set(chosen.map(cellKey));
+
+          const removals = [];
+
+          for (const [r, c] of outsideCells) {
+            if (chosenSet.has(`${r},${c}`)) {
+              continue;
+            }
+
+            for (const d of union) {
+              if (pencils[r][c].has(d)) {
+                removals.push({
+                  r,
+                  c,
+                  num: d,
+                });
+              }
+            }
+          }
+
+          if (removals.length > 0) {
+            return {
+              removals: _getUniqueRemovals(removals),
+              chosen,
+              union,
+            };
+          }
+        }
+      }
+
+      return null;
+    };
+
+    // ============================================================
+    // Search all geometric 2-box rectangles
+    // ============================================================
+
+    const rectangles = techniques._findAvoidableRectangles();
+
+    for (const rect of rectangles) {
+      const cells = rect.cells;
+
+      /*
+       * CRITICAL AR restriction:
+       * none of the four rectangle cells may
+       * have been an initial clue.
+       */
+      if (cells.some(([r, c]) => isInitialGiven(r, c))) {
+        continue;
+      }
+
+      const filledCells = cells.filter(([r, c]) => isUserFilled(r, c));
+
+      const unfilledCells = cells.filter(([r, c]) => isUnfilled(r, c));
+
+      // ==========================================================
+      // TYPE 1
+      //
+      // Three user-filled cells:
+      //
+      //     d2    d1
+      //     ?     d2
+      //
+      // or rotations/reflections.
+      //
+      // Opposite ? is d1.
+      // Other two filled cells are d2.
+      // Remove d1 from ?.
+      // ==========================================================
+
+      if (filledCells.length === 3 && unfilledCells.length === 1) {
+        const target = unfilledCells[0];
+
+        const opposite = getOppositeCorner(cells, target);
+
+        if (opposite) {
+          const sideFilled = filledCells.filter(
+            (cell) => !sameCell(cell, opposite),
+          );
+
+          if (sideFilled.length === 2) {
+            const d1 = board[opposite[0]][opposite[1]];
+
+            const d2 = board[sideFilled[0][0]][sideFilled[0][1]];
+
+            if (
+              d1 !== 0 &&
+              d2 !== 0 &&
+              d1 !== d2 &&
+              board[sideFilled[1][0]][sideFilled[1][1]] === d2 &&
+              pencils[target[0]][target[1]].has(d1)
+            ) {
+              const resultObj = makeResult(
+                "teks_msg_293",
+                d1,
+                d2,
+                cells,
+                filledCells,
+                [
+                  {
+                    r: target[0],
+                    c: target[1],
+                    num: d1,
+                  },
+                ],
+              );
+
+              const immediate = addResult(resultObj, "teks_msg_293");
+
+              if (immediate) {
+                return immediate;
+              }
+            }
+          }
+        }
+      }
+
+      // ==========================================================
+      // TYPES 2 & 3
+      //
+      // Two user-filled, non-diagonal cells.
+      //
+      // Example:
+      //
+      //    d1        d2
+      // {d2,...}  {d1,...}
+      // ==========================================================
+
+      if (filledCells.length === 2 && unfilledCells.length === 2) {
+        const f1 = filledCells[0];
+        const f2 = filledCells[1];
+
+        const aligned = f1[0] === f2[0] || f1[1] === f2[1];
+
+        if (aligned) {
+          const mates = getOppositeLineMates(cells, f1, f2);
+
+          if (mates) {
+            const [u1, u2] = mates;
+
+            /*
+             * Ensure those calculated mates
+             * really are the two empties.
+             */
+            if (
+              unfilledCells.some((c) => sameCell(c, u1)) &&
+              unfilledCells.some((c) => sameCell(c, u2))
+            ) {
+              const d1 = board[f1[0]][f1[1]];
+
+              const d2 = board[f2[0]][f2[1]];
+
+              if (d1 !== 0 && d2 !== 0 && d1 !== d2) {
+                /*
+                 * u1 lies across from d1,
+                 * so its AR candidate is d2.
+                 *
+                 * u2 lies across from d2,
+                 * so its AR candidate is d1.
+                 */
+
+                // ================================================
+                // TYPE 2
+                //
+                // u1 = {d2,g}
+                // u2 = {d1,g}
+                //
+                // Remove g from common peers.
+                // ================================================
+
+                if (
+                  pencils[u1[0]][u1[1]].size === 2 &&
+                  pencils[u2[0]][u2[1]].size === 2 &&
+                  pencils[u1[0]][u1[1]].has(d2) &&
+                  pencils[u2[0]][u2[1]].has(d1)
+                ) {
+                  const extra1 = [...pencils[u1[0]][u1[1]]].filter(
+                    (d) => d !== d2,
+                  );
+
+                  const extra2 = [...pencils[u2[0]][u2[1]]].filter(
+                    (d) => d !== d1,
+                  );
+
+                  if (
+                    extra1.length === 1 &&
+                    extra2.length === 1 &&
+                    extra1[0] === extra2[0]
+                  ) {
+                    const g = extra1[0];
+
+                    if (g !== d1 && g !== d2) {
+                      const removals = getCommonPeerRemovals(
+                        [u1, u2],
+                        cells,
+                        g,
+                      );
+
+                      if (removals.length > 0) {
+                        const resultObj = makeResult(
+                          "teks_msg_294",
+                          d1,
+                          d2,
+                          cells,
+                          filledCells,
+                          removals,
+                        );
+
+                        const immediate = addResult(resultObj, "teks_msg_294");
+
+                        if (immediate) {
+                          return immediate;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // ================================================
+                // TYPE 3
+                //
+                // u1 = {d2, extras...}
+                // u2 = {d1, extras...}
+                //
+                // Combine their extras into one virtual cell.
+                // Use the same k+1 naked subset rule as UR Type 3.
+                // ================================================
+
+                if (
+                  pencils[u1[0]][u1[1]].has(d2) &&
+                  pencils[u2[0]][u2[1]].has(d1)
+                ) {
+                  const extras1 = [...pencils[u1[0]][u1[1]]].filter(
+                    (d) => d !== d2,
+                  );
+
+                  const extras2 = [...pencils[u2[0]][u2[1]]].filter(
+                    (d) => d !== d1,
+                  );
+
+                  /*
+                   * Per your description:
+                   * both opposite-line cells
+                   * have additional candidates.
+                   */
+                  if (extras1.length > 0 && extras2.length > 0) {
+                    const virtualCands = new Set([...extras1, ...extras2]);
+
+                    for (const unit of getSharedUnits(u1, u2)) {
+                      const subsetRes = processVirtualSubset(
+                        unit,
+                        cells,
+                        virtualCands,
+                      );
+
+                      if (!subsetRes) {
+                        continue;
+                      }
+
+                      const resultObj = makeResult(
+                        "teks_msg_295",
+                        d1,
+                        d2,
+                        cells,
+                        filledCells,
+                        subsetRes.removals,
+                        {
+                          subsetCells: subsetRes.chosen,
+                          subsetCands: subsetRes.union,
+                          unitType: unit.type,
+                          unitIdx: unit.idx,
+                        },
+                      );
+
+                      const immediate = addResult(resultObj, "teks_msg_295");
+
+                      if (immediate) {
+                        return immediate;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ==========================================================
+      // TYPE 5-A
+      //
+      // Two diagonal filled cells:
+      //
+      //      d1      {d2,g}
+      //   {d2,g}       d1
+      //
+      // Filled cells are both d1.
+      // Other diagonal are both exact {d2,g}.
+      //
+      // Remove g from common peers of those two cells.
+      // ==========================================================
+
+      if (filledCells.length === 2 && unfilledCells.length === 2) {
+        const f1 = filledCells[0];
+        const f2 = filledCells[1];
+
+        const diagonal = f1[0] !== f2[0] && f1[1] !== f2[1];
+
+        if (diagonal && board[f1[0]][f1[1]] === board[f2[0]][f2[1]]) {
+          const d1 = board[f1[0]][f1[1]];
+
+          const pair = getSameBivaluePair(unfilledCells[0], unfilledCells[1]);
+
+          if (d1 !== 0 && pair) {
+            /*
+             * d2 and g are mutable.
+             *
+             * With no third cell distinguishing them,
+             * test both assignments.
+             */
+            for (let i = 0; i < 2; i++) {
+              const d2 = pair[i];
+              const g = pair[1 - i];
+
+              if (d2 === d1 || g === d1 || d2 === g) {
+                continue;
+              }
+
+              const removals = getCommonPeerRemovals(unfilledCells, cells, g);
+
+              if (removals.length > 0) {
+                const resultObj = makeResult(
+                  "teks_msg_296",
+                  d1,
+                  d2,
+                  cells,
+                  filledCells,
+                  removals,
+                );
+
+                const immediate = addResult(resultObj, "teks_msg_296");
+
+                if (immediate) {
+                  return immediate;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ==========================================================
+      // TYPE 5-B
+      //
+      // One filled cell:
+      //
+      //       d1       {d2,g}
+      //    {d2,g}        O
+      //
+      // If O = {d1,d2}:
+      //   g is true in at least one side cell.
+      //   Remove g from common peers of the two side cells.
+      //
+      // If O = {d1,d2,g} or {d1,g}:
+      //   remove g from common peers of all three unfilled cells.
+      // ==========================================================
+
+      if (filledCells.length === 1 && unfilledCells.length === 3) {
+        const filled = filledCells[0];
+
+        const opposite = getOppositeCorner(cells, filled);
+
+        if (opposite && board[opposite[0]][opposite[1]] === 0) {
+          const sideCells = unfilledCells.filter(
+            (cell) => !sameCell(cell, opposite),
+          );
+
+          if (sideCells.length === 2) {
+            const d1 = board[filled[0]][filled[1]];
+
+            const pair = getSameBivaluePair(sideCells[0], sideCells[1]);
+
+            if (d1 !== 0 && pair) {
+              /*
+               * Again d2/g are mutable.
+               * The opposite cell usually
+               * determines which assignment applies.
+               */
+              for (let i = 0; i < 2; i++) {
+                const d2 = pair[i];
+                const g = pair[1 - i];
+
+                if (d2 === d1 || g === d1 || d2 === g) {
+                  continue;
+                }
+
+                let peerBasis = null;
+
+                /*
+                 * Opposite = exactly {d1,d2}
+                 */
+                if (setEquals(opposite[0], opposite[1], [d1, d2])) {
+                  peerBasis = sideCells;
+                } else if (
+                  /*
+                   * Opposite =
+                   *   exactly {d1,d2,g}
+                   * OR
+                   *   exactly {d1,g}
+                   */
+                  setEquals(opposite[0], opposite[1], [d1, d2, g]) ||
+                  setEquals(opposite[0], opposite[1], [d1, g])
+                ) {
+                  peerBasis = unfilledCells;
+                }
+
+                if (!peerBasis) {
+                  continue;
+                }
+
+                const removals = getCommonPeerRemovals(peerBasis, cells, g);
+
+                if (removals.length > 0) {
+                  const resultObj = makeResult(
+                    "teks_msg_296",
+                    d1,
+                    d2,
+                    cells,
+                    filledCells,
+                    removals,
+                  );
+
+                  const immediate = addResult(resultObj, "teks_msg_296");
+
+                  if (immediate) {
+                    return immediate;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ==========================================================
+      // HIDDEN AVOIDABLE RECTANGLE
+      //
+      // One filled corner F.
+      //
+      // F = d1
+      //
+      // Take opposite corner O.
+      //
+      // For every possible second AR digit d2 that occurs in
+      // both side cells and O:
+      //
+      // check O's row and O's column.
+      //
+      // If one AR digit is bilocated exactly at the two AR cells
+      // in BOTH houses, eliminate the other AR digit from O.
+      // ==========================================================
+
+      if (filledCells.length === 1 && unfilledCells.length === 3) {
+        const filled = filledCells[0];
+
+        const opposite = getOppositeCorner(cells, filled);
+
+        if (opposite && board[opposite[0]][opposite[1]] === 0) {
+          const [fr, fc] = filled;
+          const [or, oc] = opposite;
+
+          /*
+           * Cells beside O in its row/column.
+           *
+           *       F ------- colMate
+           *       |            |
+           *       |            |
+           *    rowMate ------- O
+           */
+          const rowMate = [or, fc];
+          const colMate = [fr, oc];
+
+          if (
+            board[rowMate[0]][rowMate[1]] === 0 &&
+            board[colMate[0]][colMate[1]] === 0
+          ) {
+            const d1 = board[fr][fc];
+
+            /*
+             * d2 must be available in:
+             *   rowMate
+             *   colMate
+             *   opposite
+             */
+            const possibleD2 = [...pencils[rowMate[0]][rowMate[1]]].filter(
+              (d) =>
+                d !== d1 &&
+                pencils[colMate[0]][colMate[1]].has(d) &&
+                pencils[or][oc].has(d),
+            );
+
+            /*
+             * O must contain the filled-cell digit too,
+             * otherwise it is not the AR pair {d1,d2}.
+             */
+            if (pencils[or][oc].has(d1)) {
+              for (const d2 of possibleD2) {
+                /*
+                 * d1/d2 are treated mutably:
+                 * either can be the bilocated digit.
+                 */
+                for (const linkDigit of [d1, d2]) {
+                  const elimDigit = linkDigit === d1 ? d2 : d1;
+
+                  if (!pencils[or][oc].has(elimDigit)) {
+                    continue;
+                  }
+
+                  /*
+                   * Row through opposite:
+                   *
+                   * rowMate ----- O
+                   */
+                  const rowBilocation = techniques._isStrongLink(
+                    pencils,
+                    linkDigit,
+                    "row",
+                    or,
+                    fc,
+                    oc,
+                  );
+
+                  if (!rowBilocation) {
+                    continue;
+                  }
+
+                  /*
+                   * Column through opposite:
+                   *
+                   * colMate
+                   *    |
+                   *    |
+                   *    O
+                   */
+                  const colBilocation = techniques._isStrongLink(
+                    pencils,
+                    linkDigit,
+                    "col",
+                    oc,
+                    fr,
+                    or,
+                  );
+
+                  if (!colBilocation) {
+                    continue;
+                  }
+
+                  const strongLinks = [
+                    `(${linkDigit})r${or + 1}`,
+                    `(${linkDigit})c${oc + 1}`,
+                  ];
+
+                  const visualLinks = [
+                    {
+                      r1: or,
+                      c1: fc,
+                      n1: linkDigit,
+                      r2: or,
+                      c2: oc,
+                      n2: linkDigit,
+                      color: lineColorPalette[0],
+                      style: "solid",
+                    },
+                    {
+                      r1: fr,
+                      c1: oc,
+                      n1: linkDigit,
+                      r2: or,
+                      c2: oc,
+                      n2: linkDigit,
+                      color: lineColorPalette[0],
+                      style: "solid",
+                    },
+                  ];
+
+                  const resultObj = makeResult(
+                    "teks_msg_297",
+                    d1,
+                    d2,
+                    cells,
+                    filledCells,
+                    [
+                      {
+                        r: or,
+                        c: oc,
+                        num: elimDigit,
+                      },
+                    ],
+                    {
+                      strongLinks,
+                      visualLinks,
+                    },
+                  );
+
+                  const immediate = addResult(resultObj, "teks_msg_297");
+
+                  if (immediate) {
+                    return immediate;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return findAll ? results : { change: false };
+  },
+
+  /*
+   * Geometric Avoidable Rectangle finder.
+   *
+   * Search every pair of rows and pair of columns.
+   *
+   * Valid rectangle must occupy exactly TWO boxes:
+   *
+   *   same band + different stacks
+   * OR
+   *   different bands + same stack
+   *
+   * which is:
+   *
+   *   rowsSameBand XOR colsSameStack
+   */
+  _findAvoidableRectangles: () => {
+    const rectangles = [];
+
+    for (let r1 = 0; r1 < 8; r1++) {
+      for (let r2 = r1 + 1; r2 < 9; r2++) {
+        for (let c1 = 0; c1 < 8; c1++) {
+          for (let c2 = c1 + 1; c2 < 9; c2++) {
+            const rowsSameBand = Math.floor(r1 / 3) === Math.floor(r2 / 3);
+
+            const colsSameStack = Math.floor(c1 / 3) === Math.floor(c2 / 3);
+
+            /*
+             * XOR.
+             *
+             * false,false = 4 boxes -> reject
+             * true,true   = 1 box   -> reject
+             * true,false  = 2 boxes -> accept
+             * false,true  = 2 boxes -> accept
+             */
+            if (rowsSameBand === colsSameStack) {
+              continue;
+            }
+
+            rectangles.push({
+              cells: [
+                [r1, c1],
+                [r1, c2],
+                [r2, c1],
+                [r2, c2],
+              ],
+            });
+          }
+        }
+      }
+    }
+
+    return rectangles;
   },
 
   _isStrongLink: (pencils, num, unitType, unitIndex, loc1, loc2) => {
