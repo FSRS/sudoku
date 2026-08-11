@@ -5210,88 +5210,83 @@ const techniques = {
 
       // --- Type 6 ---
       if (extra_cells.length === 2 || extra_cells.length === 3) {
-        let seeing_pair_exists = false;
-        for (let i = 0; i < extra_cells.length; ++i) {
-          for (let j = i + 1; j < extra_cells.length; ++j) {
-            if (techniques._sees(extra_cells[i], extra_cells[j])) {
-              seeing_pair_exists = true;
-              break;
-            }
+        // A restricted base digit can occupy either parity of the loop, but
+        // not a mixture of both.  Therefore Type 6 only applies when every
+        // guardian belongs to the same parity of the loop order.  Whether
+        // guardians see one another is unrelated to this deduction.
+        const guardianIds = new Set(
+          extra_cells.map(([r, c]) => techniques._cellToId(r, c)),
+        );
+        const guardianParities = new Set();
+        cells.forEach(([r, c], index) => {
+          if (guardianIds.has(techniques._cellToId(r, c))) {
+            guardianParities.add(index & 1);
           }
-          if (seeing_pair_exists) break;
-        }
+        });
 
-        if (!seeing_pair_exists) {
-          let common_peer_in_ul_exists = false;
-          if (extra_cells.length === 2) {
-            for (const ul_cell of cells) {
-              const is_extra = extra_cells.some(
-                (ec) => ec[0] === ul_cell[0] && ec[1] === ul_cell[1],
-              );
-              if (is_extra) continue;
-              if (
-                techniques._sees(ul_cell, extra_cells[0]) &&
-                techniques._sees(ul_cell, extra_cells[1])
-              ) {
-                common_peer_in_ul_exists = true;
-                break;
-              }
+        if (guardianParities.size === 1) {
+          // Group the loop cells by every house they occupy.  The loop
+          // finder guarantees two loop cells per occupied house; checking
+          // that explicitly here keeps the restriction test self-contained.
+          const loopHouses = new Map();
+          const addToHouse = (type, index, cell) => {
+            const key = `${type}:${index}`;
+            if (!loopHouses.has(key)) {
+              loopHouses.set(key, { type, index, cellIds: new Set() });
             }
-          } else {
-            common_peer_in_ul_exists = true;
-          }
+            loopHouses
+              .get(key)
+              .cellIds.add(techniques._cellToId(cell[0], cell[1]));
+          };
+          cells.forEach((cell) => {
+            const [r, c] = cell;
+            addToHouse("row", r, cell);
+            addToHouse("col", c, cell);
+            addToHouse("box", techniques._getBoxIndex(r, c), cell);
+          });
 
-          if (common_peer_in_ul_exists) {
-            const rows = [...new Set(cells.map((c) => c[0]))];
-            for (const u of digits) {
-              let u_is_bilocated_in_all_rows = true;
-              for (const r of rows) {
-                const req_locs = cells
-                  .filter((cell) => cell[0] === r)
-                  .map((cell) => cell[1]);
-                if (
-                  req_locs.length !== 2 ||
-                  !techniques._isStrongLink(
-                    pencils,
-                    u,
-                    "row",
-                    r,
-                    req_locs[0],
-                    req_locs[1],
-                  )
-                ) {
-                  u_is_bilocated_in_all_rows = false;
-                  break;
-                }
-              }
-              if (u_is_bilocated_in_all_rows) {
-                extra_cells.forEach(([r, c]) => {
-                  if (pencils[r][c].has(u)) removals.push({ r, c, num: u });
-                });
-                if (removals.length > 0) {
-                  const resultObj = {
-                    change: true,
-                    type: "remove",
-                    cells: _getUniqueRemovals(removals),
-                    hint: {
-                      name: t("teks_msg_121"),
-                      mainInfo: t("teks_msg_113", baseDigitsStr),
-                      detail: t("teks_msg_122", detailPrefix, u),
-                    },
-                    applyVisuals: getULVisuals(
-                      6,
-                      cells,
-                      digits,
-                      _getUniqueRemovals(removals),
-                      { restrictedDigit: u },
-                    ),
-                  };
-                  if (!findAll) return resultObj;
-                  results.push(resultObj);
-                  continue;
-                }
-              }
-            }
+          for (const u of digits) {
+            // The base digit must be restricted to the two loop cells in
+            // every row, column, and box used by the loop.  This establishes
+            // the two alternating placements of that digit around the loop.
+            const isRestrictedInAllLoopHouses = [...loopHouses.values()].every(
+              ({ type, index, cellIds }) => {
+                if (cellIds.size !== 2) return false;
+                const candidateIds = new Set(
+                  techniques
+                    ._getUnitCells(type, index)
+                    .filter(([r, c]) => pencils[r][c].has(u))
+                    .map(([r, c]) => techniques._cellToId(r, c)),
+                );
+                return (
+                  candidateIds.size === cellIds.size &&
+                  [...cellIds].every((id) => candidateIds.has(id))
+                );
+              },
+            );
+            if (!isRestrictedInAllLoopHouses) continue;
+
+            const type6Removals = extra_cells
+              .filter(([r, c]) => pencils[r][c].has(u))
+              .map(([r, c]) => ({ r, c, num: u }));
+            if (type6Removals.length === 0) continue;
+
+            const uniqueRemovals = _getUniqueRemovals(type6Removals);
+            const resultObj = {
+              change: true,
+              type: "remove",
+              cells: uniqueRemovals,
+              hint: {
+                name: t("teks_msg_121"),
+                mainInfo: t("teks_msg_113", baseDigitsStr),
+                detail: t("teks_msg_122", detailPrefix, u),
+              },
+              applyVisuals: getULVisuals(6, cells, digits, uniqueRemovals, {
+                restrictedDigit: u,
+              }),
+            };
+            if (!findAll) return resultObj;
+            results.push(resultObj);
           }
         }
       }
