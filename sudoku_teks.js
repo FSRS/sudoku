@@ -5209,7 +5209,7 @@ const techniques = {
       }
 
       // --- Type 6 ---
-      if (extra_cells.length === 2 || extra_cells.length === 3) {
+      if (extra_cells.length > 1) {
         // A restricted base digit can occupy either parity of the loop, but
         // not a mixture of both.  Therefore Type 6 only applies when every
         // guardian belongs to the same parity of the loop order.  Whether
