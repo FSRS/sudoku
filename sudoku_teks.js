@@ -12455,6 +12455,28 @@ const techniques = {
         .join(",");
     };
 
+    // The odd-length loop itself may use at most two cells from each house.
+    // Guardians are deliberately excluded: they are tracked separately and can
+    // share houses with the loop (or with other guardians).
+    const canExtendOddLoop = (path, id) => {
+      const row = Math.floor(id / 9);
+      const col = id % 9;
+      const box = techniques._getBoxIndex(row, col);
+      let rowCount = 0;
+      let colCount = 0;
+      let boxCount = 0;
+
+      for (const pathId of path) {
+        const pathRow = Math.floor(pathId / 9);
+        const pathCol = pathId % 9;
+        if (pathRow === row) rowCount++;
+        if (pathCol === col) colCount++;
+        if (techniques._getBoxIndex(pathRow, pathCol) === box) boxCount++;
+      }
+
+      return rowCount < 2 && colCount < 2 && boxCount < 2;
+    };
+
     // Check all candidates at the shortest valid odd loop length before
     // considering loops that are two cells longer.
     const maxLen = 11;
@@ -12602,7 +12624,8 @@ const techniques = {
               } else if (
                 path.length < pathLength &&
                 !path.includes(edge.to) &&
-                edge.to > start
+                edge.to > start &&
+                canExtendOddLoop(path, edge.to)
               ) {
                 const newGuards = new Set(guards);
                 edge.guardians.forEach((g) => newGuards.add(g));
