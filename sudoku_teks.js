@@ -3183,7 +3183,9 @@ const techniques = {
         }
       }
 
-      // --- Types 2 & 5: Two or three extra cells with a common extra digit ---
+      // --- Types 2 & 5: Common guardian digit ---
+      // Type 2 requires every guardian of that digit to be in one house.
+      // The same common-guardian deduction without that shared house is Type 5.
       if (extraCells.length === 2 || extraCells.length === 3) {
         const extrasMasks = extraCells.map(([r, c]) =>
           Array.from(pencils[r][c]).filter((x) => x !== d1 && x !== d2),
@@ -3195,6 +3197,15 @@ const techniques = {
             (arr) => arr[0] === commonExtraDigit,
           );
           if (allAreSame) {
+            const [firstR, firstC] = extraCells[0];
+            const guardiansShareHouse =
+              extraCells.every(([r]) => r === firstR) ||
+              extraCells.every(([, c]) => c === firstC) ||
+              extraCells.every(
+                ([r, c]) =>
+                  techniques._getBoxIndex(r, c) ===
+                  techniques._getBoxIndex(firstR, firstC),
+              );
             const peers = techniques._findCommonPeers(
               extraCells,
               cells,
@@ -3213,10 +3224,7 @@ const techniques = {
                 type: "remove",
                 cells: _getUniqueRemovals(removals),
                 hint: {
-                  name:
-                    extraCells.length === 2
-                      ? t("teks_msg_79")
-                      : t("teks_msg_80"),
+                  name: guardiansShareHouse ? t("teks_msg_79") : t("teks_msg_80"),
                   mainInfo: t("teks_msg_77", d1, d2),
                   detail: t(
                     "teks_msg_78",
@@ -3227,7 +3235,7 @@ const techniques = {
                   ),
                 },
                 applyVisuals: getURVisuals(
-                  extraCells.length === 2 ? 2 : 5,
+                  guardiansShareHouse ? 2 : 5,
                   cells,
                   d1,
                   d2,
@@ -5361,25 +5369,36 @@ const techniques = {
         }
       }
 
-      // --- Type 2 ---
+      // --- Types 2 & 5: Common guardian digit ---
+      // Type 2 requires every guardian of that digit to be in one house.
+      // The same common-guardian deduction without that shared house is Type 5.
       if (extra_cells.length >= 2) {
         let common_extra_cand = -1;
-        let is_type2 = true;
+        let isCommonGuardian = true;
         for (const [r, c] of extra_cells) {
           const extras = [...pencils[r][c]].filter(
             (cand) => !core_digits.has(cand),
           );
           if (extras.length !== 1) {
-            is_type2 = false;
+            isCommonGuardian = false;
             break;
           }
           if (common_extra_cand === -1) common_extra_cand = extras[0];
           else if (common_extra_cand !== extras[0]) {
-            is_type2 = false;
+            isCommonGuardian = false;
             break;
           }
         }
-        if (is_type2) {
+        if (isCommonGuardian) {
+          const [firstR, firstC] = extra_cells[0];
+          const guardiansShareHouse =
+            extra_cells.every(([r]) => r === firstR) ||
+            extra_cells.every(([, c]) => c === firstC) ||
+            extra_cells.every(
+              ([r, c]) =>
+                techniques._getBoxIndex(r, c) ===
+                techniques._getBoxIndex(firstR, firstC),
+            );
           const peers = techniques._findCommonPeers(
             extra_cells,
             cells,
@@ -5397,12 +5416,14 @@ const techniques = {
               type: "remove",
               cells: _getUniqueRemovals(removals),
               hint: {
-                name: t("teks_msg_100"),
+                name: guardiansShareHouse
+                  ? t("teks_msg_100")
+                  : t("teks_msg_101"),
                 mainInfo: t("teks_msg_99", baseDigitsStr),
                 detail: detailPrefix,
               },
               applyVisuals: getEURVisuals(
-                2,
+                guardiansShareHouse ? 2 : 5,
                 cells,
                 digits,
                 _getUniqueRemovals(removals),
@@ -6055,23 +6076,34 @@ const techniques = {
         }
       }
 
-      // --- Type 2 ---
+      // --- Types 2 & 5: Common guardian digit ---
+      // Type 2 requires every guardian of that digit to be in one house.
+      // The same common-guardian deduction without that shared house is Type 5.
       if (extra_cells.length >= 2 && extra_cells.length <= 4) {
         let common_extra_cand = -1;
-        let is_type2 = true;
+        let isCommonGuardian = true;
         for (const [r, c] of extra_cells) {
           const extras = [...pencils[r][c]].filter((cand) => !d_set.has(cand));
           if (extras.length !== 1) {
-            is_type2 = false;
+            isCommonGuardian = false;
             break;
           }
           if (common_extra_cand === -1) common_extra_cand = extras[0];
           else if (common_extra_cand !== extras[0]) {
-            is_type2 = false;
+            isCommonGuardian = false;
             break;
           }
         }
-        if (is_type2) {
+        if (isCommonGuardian) {
+          const [firstR, firstC] = extra_cells[0];
+          const guardiansShareHouse =
+            extra_cells.every(([r]) => r === firstR) ||
+            extra_cells.every(([, c]) => c === firstC) ||
+            extra_cells.every(
+              ([r, c]) =>
+                techniques._getBoxIndex(r, c) ===
+                techniques._getBoxIndex(firstR, firstC),
+            );
           const peers = techniques._findCommonPeers(
             extra_cells,
             cells,
@@ -6089,15 +6121,12 @@ const techniques = {
               type: "remove",
               cells: _getUniqueRemovals(removals),
               hint: {
-                name:
-                  extra_cells.length === 2
-                    ? t("teks_msg_114")
-                    : t("teks_msg_115"),
+                name: guardiansShareHouse ? t("teks_msg_114") : t("teks_msg_115"),
                 mainInfo: t("teks_msg_113", baseDigitsStr),
                 detail: detailPrefix,
               },
               applyVisuals: getULVisuals(
-                extra_cells.length === 2 ? 2 : 5,
+                guardiansShareHouse ? 2 : 5,
                 cells,
                 digits,
                 _getUniqueRemovals(removals),
