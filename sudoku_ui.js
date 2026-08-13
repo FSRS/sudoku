@@ -7028,6 +7028,8 @@ const getTechniqueHierarchies = () => [
   [t("ui_msg_271"), t("ui_msg_250")],
   [t("ui_msg_245"), t("ui_msg_250")],
   [t("ui_msg_250"), t("ui_msg_251")],
+  [t("ui_msg_336"), t("ui_msg_251")],
+  [t("ui_msg_337"), t("ui_msg_251")],
 ];
 
 function getDefaultTechniques() {
