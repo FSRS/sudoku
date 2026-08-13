@@ -7366,7 +7366,19 @@ function getDefaultTechniques() {
       name: t("ui_msg_298"),
       func: techniques.finnedMutantSwordfish,
       level: 10,
+      score: 420,
+    },
+    {
+      name: t("ui_msg_346"),
+      func: techniques.finnedFrankenJellyfish,
+      level: 10,
       score: 430,
+    },
+    {
+      name: t("ui_msg_347"),
+      func: techniques.finnedMutantJellyfish,
+      level: 10,
+      score: 440,
     },
     {
       name: t("ui_msg_299"),

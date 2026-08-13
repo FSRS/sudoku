@@ -3224,7 +3224,9 @@ const techniques = {
                 type: "remove",
                 cells: _getUniqueRemovals(removals),
                 hint: {
-                  name: guardiansShareHouse ? t("teks_msg_79") : t("teks_msg_80"),
+                  name: guardiansShareHouse
+                    ? t("teks_msg_79")
+                    : t("teks_msg_80"),
                   mainInfo: t("teks_msg_77", d1, d2),
                   detail: t(
                     "teks_msg_78",
@@ -6121,7 +6123,9 @@ const techniques = {
               type: "remove",
               cells: _getUniqueRemovals(removals),
               hint: {
-                name: guardiansShareHouse ? t("teks_msg_114") : t("teks_msg_115"),
+                name: guardiansShareHouse
+                  ? t("teks_msg_114")
+                  : t("teks_msg_115"),
                 mainInfo: t("teks_msg_113", baseDigitsStr),
                 detail: detailPrefix,
               },
@@ -10579,7 +10583,7 @@ const techniques = {
   },
 
   _complexFishCore: (board, pencils, fishSize, isMutant, findAll = false) => {
-    let results = [];
+    const results = [];
     const U_ROW = 0,
       U_COL = 1,
       U_BOX = 2;
@@ -10588,11 +10592,6 @@ const techniques = {
     const isZero = (a) => a[0] === 0 && a[1] === 0 && a[2] === 0;
     const bitAnd = (a, b) => [a[0] & b[0], a[1] & b[1], a[2] & b[2]];
     const bitOr = (a, b) => [a[0] | b[0], a[1] | b[1], a[2] | b[2]];
-    const bitNot = (a) => [
-      ~a[0] & 0x7ffffff,
-      ~a[1] & 0x7ffffff,
-      ~a[2] & 0x7ffffff,
-    ];
     const bitAndNot = (a, b) => [a[0] & ~b[0], a[1] & ~b[1], a[2] & ~b[2]];
     const bitPopcount = (a) =>
       techniques._bits.popcount(a[0]) +
@@ -10617,22 +10616,6 @@ const techniques = {
       return res;
     };
 
-    // Helper: Unsolved unit count (heuristic pruning)
-    const getUnsolvedUnitCount = (d) => {
-      let needed = 0;
-      for (let r = 0; r < 9; r++) {
-        let solvedOrGiven = false;
-        for (let c = 0; c < 9; c++) {
-          if (board[r][c] === d) {
-            solvedOrGiven = true;
-            break;
-          }
-        }
-        if (!solvedOrGiven) needed++;
-      }
-      return needed;
-    };
-
     const toCheck = isMutant
       ? [{ base: [U_ROW, U_COL, U_BOX], cover: [U_ROW, U_COL, U_BOX] }]
       : [
@@ -10645,10 +10628,9 @@ const techniques = {
       const { cb, cellsWithNum, units } = templating;
 
       if (cellsWithNum.length === 0) continue;
-      if (getUnsolvedUnitCount(num) < fishSize * 2) continue;
 
       // Memoization check using string representation of the bitset arrays
-      const memoKey = `${num}:${cb[0]}-${cb[1]}-${cb[2]}`;
+      const memoKey = `${fishSize}:${num}:${cb[0]}-${cb[1]}-${cb[2]}`;
       const memoSet = isMutant
         ? _memoComplexFish.mutant
         : _memoComplexFish.franken;
@@ -10731,7 +10713,7 @@ const techniques = {
       const targetElims = getBits(impossibleCells);
 
       // Gather all valid units for this digit
-      let allUnits = [];
+      const allUnits = [];
       for (let u = 0; u < 27; u++) {
         const type = u < 9 ? U_ROW : u < 18 ? U_COL : U_BOX;
         const index = u < 9 ? u : u < 18 ? u - 9 : u - 18;
@@ -10748,8 +10730,178 @@ const techniques = {
       }
 
       let changed = false;
-      let eliminatedTargets = new Set(); // Track globally eliminated cells across fishes found
+      const eliminatedTargets = new Set(); // Track globally eliminated cells across fishes found
       const seenElimSignatures = findAll ? new Set() : null;
+
+      const baseCombinationCache = new Map();
+      const getBaseCombinations = (baseTypes) => {
+        const typeKey = baseTypes.reduce((mask, type) => mask | (1 << type), 0);
+        if (baseCombinationCache.has(typeKey)) {
+          return baseCombinationCache.get(typeKey);
+        }
+
+        const candidateUnits = allUnits.filter((unit) =>
+          baseTypes.includes(unit.type),
+        );
+        const combinations = [];
+        const selected = [];
+
+        const visit = (start, mask, endoMask, typeMask) => {
+          if (selected.length === fishSize) {
+            combinations.push({
+              units: selected.slice(),
+              mask,
+              endoMask,
+              typeMask,
+            });
+            return;
+          }
+
+          const remaining = fishSize - selected.length;
+          for (let i = start; i <= candidateUnits.length - remaining; i++) {
+            const unit = candidateUnits[i];
+            const nextEndoMask = bitOr(endoMask, bitAnd(mask, unit.mask));
+            if (bitPopcount(nextEndoMask) > 2) continue;
+
+            selected.push(unit);
+            visit(
+              i + 1,
+              bitOr(mask, unit.mask),
+              nextEndoMask,
+              typeMask | (1 << unit.type),
+            );
+            selected.pop();
+          }
+        };
+
+        visit(0, [0, 0, 0], [0, 0, 0], 0);
+        baseCombinationCache.set(typeKey, combinations);
+        return combinations;
+      };
+
+      const isExcludedGeometry = (baseTypeMask, coverTypeMask) => {
+        const hasType = (mask, type) => (mask & (1 << type)) !== 0;
+        if (baseTypeMask === 1 << U_ROW && coverTypeMask === 1 << U_COL)
+          return true;
+        if (baseTypeMask === 1 << U_COL && coverTypeMask === 1 << U_ROW)
+          return true;
+        if (!isMutant) {
+          const hasBox =
+            hasType(baseTypeMask, U_BOX) || hasType(coverTypeMask, U_BOX);
+          const hasLine =
+            hasType(baseTypeMask, U_ROW) ||
+            hasType(baseTypeMask, U_COL) ||
+            hasType(coverTypeMask, U_ROW) ||
+            hasType(coverTypeMask, U_COL);
+          return !hasBox || !hasLine;
+        }
+
+        return !(
+          (hasType(baseTypeMask, U_ROW) && hasType(baseTypeMask, U_COL)) ||
+          (hasType(coverTypeMask, U_ROW) && hasType(coverTypeMask, U_COL))
+        );
+      };
+
+      const formatUnits = (selectedUnits) => {
+        const r = [],
+          c = [],
+          b = [];
+        selectedUnits.forEach((unit) => {
+          if (unit.type === U_ROW) r.push(unit.index + 1);
+          else if (unit.type === U_COL) c.push(unit.index + 1);
+          else if (unit.type === U_BOX) b.push(unit.index + 1);
+        });
+        let str = "";
+        if (r.length > 0) str += "r" + r.sort((x, y) => x - y).join("");
+        if (c.length > 0) str += "c" + c.sort((x, y) => x - y).join("");
+        if (b.length > 0) str += "b" + b.sort((x, y) => x - y).join("");
+        return str;
+      };
+
+      const formatFins = (mask) =>
+        getBits(mask)
+          .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+          .join(",");
+
+      const makeResult = (baseUnits, coverUnits, allFinsMask, elims) => {
+        const isFinned = !isZero(allFinsMask);
+        let fishName =
+          fishSize === 4
+            ? isMutant
+              ? t("teks_msg_309")
+              : t("teks_msg_310")
+            : isMutant
+              ? t("teks_msg_159")
+              : t("teks_msg_160");
+        if (isFinned) fishName = t("teks_msg_161") + fishName;
+
+        const baseStr = formatUnits(baseUnits);
+        const coverStr = formatUnits(coverUnits);
+        let detailStr = t("teks_msg_162", num, baseStr, coverStr);
+        if (isFinned) {
+          detailStr += t("teks_msg_163", formatFins(allFinsMask));
+        }
+
+        const resultBaseUnits = baseUnits.slice();
+        const resultCoverUnits = coverUnits.slice();
+        const resultFinsMask = allFinsMask;
+        const resultElims = elims;
+        const resultNum = num;
+
+        return {
+          change: true,
+          type: "remove",
+          cells: resultElims,
+          hint: {
+            name: fishName,
+            mainInfo: t("teks_msg_48", resultNum),
+            detail: detailStr,
+          },
+          applyVisuals: () => {
+            highlightedDigit = resultNum;
+            highlightState = 1;
+            const uTypeToName = (type) =>
+              type === U_ROW ? "row" : type === U_COL ? "col" : "box";
+
+            resultBaseUnits.forEach((unit) => {
+              techniques
+                ._getUnitCells(uTypeToName(unit.type), unit.index)
+                .forEach(([r, c]) => {
+                  window.addCellColor(r, c, cellColorPalette[6]);
+                  if (boardState[r][c].pencils.has(resultNum)) {
+                    boardState[r][c].pencilColors.set(
+                      resultNum,
+                      candidateColorPalette[6],
+                    );
+                  }
+                });
+            });
+
+            resultCoverUnits.forEach((unit) => {
+              techniques
+                ._getUnitCells(uTypeToName(unit.type), unit.index)
+                .forEach(([r, c]) => {
+                  window.addCellColor(r, c, cellColorPalette[7]);
+                });
+            });
+
+            getBits(resultFinsMask).forEach((id) => {
+              window.addCellColor(
+                Math.floor(id / 9),
+                id % 9,
+                cellColorPalette[5],
+              );
+            });
+
+            resultElims.forEach((el) =>
+              boardState[el.r][el.c].pencilColors.set(
+                el.num,
+                candidateColorPalette[0],
+              ),
+            );
+          },
+        };
+      };
 
       // Loop over each impossible candidate cell one by one
       for (const targetId of targetElims) {
@@ -10768,278 +10920,202 @@ const techniques = {
             coverTypes.includes(u.type),
           );
 
-          const B = validBaseUnits.length;
-          const C = validCoverUnits.length;
-          if (B < fishSize || C < fishSize) continue;
+          if (
+            validBaseUnits.length < fishSize ||
+            validCoverUnits.length < fishSize
+          )
+            continue;
 
-          // Triple loops (fishSize === 3, hardcoded for Swordfish performance)
-          for (let ia = 0; ia < B - 2 && !foundFishForTarget; ia++) {
-            for (let ib = ia + 1; ib < B - 1 && !foundFishForTarget; ib++) {
-              for (let ic = ib + 1; ic < B && !foundFishForTarget; ic++) {
-                const buA = validBaseUnits[ia];
-                const buB = validBaseUnits[ib];
-                const buC = validBaseUnits[ic];
+          const coverByCell = Array.from({ length: 81 }, () => []);
+          validCoverUnits.forEach((unit, index) => {
+            getBits(unit.mask).forEach((id) => coverByCell[id].push(index));
+          });
 
-                const baseMask = bitOr(buA.mask, bitOr(buB.mask, buC.mask));
+          const evaluateCover = (baseCombination, coverUnits, coverMask) => {
+            if (
+              coverUnits.some((cover) =>
+                baseCombination.units.some(
+                  (base) => base.uIndex === cover.uIndex,
+                ),
+              )
+            )
+              return null;
 
-                for (let ca = 0; ca < C - 2 && !foundFishForTarget; ca++) {
-                  for (
-                    let cbx = ca + 1;
-                    cbx < C - 1 && !foundFishForTarget;
-                    cbx++
-                  ) {
-                    for (
-                      let cc = cbx + 1;
-                      cc < C && !foundFishForTarget;
-                      cc++
-                    ) {
-                      const cuA = validCoverUnits[ca];
-                      const cuB = validCoverUnits[cbx];
-                      const cuC = validCoverUnits[cc];
+            const coverTypeMask = coverUnits.reduce(
+              (mask, unit) => mask | (1 << unit.type),
+              0,
+            );
+            if (isExcludedGeometry(baseCombination.typeMask, coverTypeMask))
+              return null;
 
-                      // Target MUST be completely enveloped in the Cover combinations
-                      if (
-                        !testBit(cuA.mask, targetId) &&
-                        !testBit(cuB.mask, targetId) &&
-                        !testBit(cuC.mask, targetId)
-                      )
-                        continue;
+            const exoFinsMask = bitAndNot(baseCombination.mask, coverMask);
+            if (bitPopcount(exoFinsMask) > 4) return null;
 
-                      const coverMask = bitOr(
-                        cuA.mask,
-                        bitOr(cuB.mask, cuC.mask),
-                      );
+            const allFinsMask = bitOr(exoFinsMask, baseCombination.endoMask);
+            if (bitPopcount(allFinsMask) > 5) return null;
+            if (
+              !isZero(allFinsMask) &&
+              !isZero(bitAndNot(allFinsMask, PEER_BITSETS[targetId]))
+            )
+              return null;
 
-                      // Base vs Cover Logic Filters
-                      let baseTypeMask =
-                        (1 << buA.type) | (1 << buB.type) | (1 << buC.type);
-                      let coverTypeMask =
-                        (1 << cuA.type) | (1 << cuB.type) | (1 << cuC.type);
-                      if (
-                        baseTypeMask === 1 << U_ROW &&
-                        coverTypeMask === 1 << U_COL
-                      )
-                        continue;
-                      if (
-                        baseTypeMask === 1 << U_COL &&
-                        coverTypeMask === 1 << U_ROW
-                      )
-                        continue;
-                      if (isMutant) {
-                        if (
-                          baseTypeMask === ((1 << U_ROW) | (1 << U_BOX)) &&
-                          coverTypeMask === ((1 << U_COL) | (1 << U_BOX))
-                        )
-                          continue;
-                        if (
-                          baseTypeMask === ((1 << U_COL) | (1 << U_BOX)) &&
-                          coverTypeMask === ((1 << U_ROW) | (1 << U_BOX))
-                        )
-                          continue;
-                      }
+            const possibleElimsMask = bitAndNot(
+              coverMask,
+              baseCombination.mask,
+            );
+            let toEliminateMask = possibleElimsMask;
+            if (!isZero(allFinsMask)) {
+              let commonVis = [0x7ffffff, 0x7ffffff, 0x7ffffff];
+              for (const finId of getBits(allFinsMask)) {
+                commonVis = bitAnd(commonVis, PEER_BITSETS[finId]);
+              }
+              toEliminateMask = bitAnd(possibleElimsMask, commonVis);
+            }
+            if (!testBit(toEliminateMask, targetId)) return null;
 
-                      // Fish Fins logic
-                      let exoFinsMask = bitAndNot(baseMask, coverMask);
-                      if (bitPopcount(exoFinsMask) > 4) continue;
+            const elims = getBits(toEliminateMask).map((id) => ({
+              r: Math.floor(id / 9),
+              c: id % 9,
+              num,
+            }));
+            if (elims.length === 0) return null;
 
-                      let endoMask = bitOr(
-                        bitAnd(buA.mask, buB.mask),
-                        bitOr(
-                          bitAnd(buA.mask, buC.mask),
-                          bitAnd(buB.mask, buC.mask),
-                        ),
-                      );
-                      let countedEndo = bitAnd(endoMask, baseMask);
-                      if (bitPopcount(countedEndo) > 2) continue;
+            if (findAll) {
+              const elimSig = elims
+                .map((el) => `${el.r},${el.c}:${el.num}`)
+                .sort()
+                .join("|");
+              if (seenElimSignatures.has(elimSig)) return null;
+              seenElimSignatures.add(elimSig);
+            }
 
-                      const allFinsMask = bitOr(exoFinsMask, countedEndo);
-                      if (bitPopcount(allFinsMask) > 5) continue;
+            elims.forEach((el) => eliminatedTargets.add(el.r * 9 + el.c));
+            return makeResult(
+              baseCombination.units,
+              coverUnits,
+              allFinsMask,
+              elims,
+            );
+          };
 
-                      // Finned logic: ensure target sees all fins
-                      if (!isZero(allFinsMask)) {
-                        if (
-                          !isZero(
-                            bitAndNot(allFinsMask, PEER_BITSETS[targetId]),
-                          )
-                        )
-                          continue; // Target misses a fin
-                      }
+          const searchCovers = (baseCombination) => {
+            const requiredMask = bitAndNot(
+              baseCombination.mask,
+              PEER_BITSETS[targetId],
+            );
+            const selected = [];
+            const selectedFlags = new Uint8Array(validCoverUnits.length);
+            const seenStates = new Set();
+            const seenCoverSets = new Set();
 
-                      // Gather ALL eliminations this specific setup brings (Cover AND Digit NOT in Base)
-                      let possibleElimsMask = bitAndNot(
-                        bitAnd(coverMask, cb),
-                        baseMask,
-                      );
-                      let toEliminateMask = possibleElimsMask;
+            const evaluateSelected = (coverMask) => {
+              const sortedIndexes = selected.slice().sort((a, b) => a - b);
+              const signature = sortedIndexes.join(",");
+              if (seenCoverSets.has(signature)) return null;
+              seenCoverSets.add(signature);
+              return evaluateCover(
+                baseCombination,
+                sortedIndexes.map((index) => validCoverUnits[index]),
+                coverMask,
+              );
+            };
 
-                      if (!isZero(allFinsMask)) {
-                        let commonVis = [0x7ffffff, 0x7ffffff, 0x7ffffff];
-                        const finBits = getBits(allFinsMask);
-                        for (const f of finBits) {
-                          commonVis = bitAnd(commonVis, PEER_BITSETS[f]);
-                        }
-                        toEliminateMask = bitAnd(possibleElimsMask, commonVis);
-                      }
+            const fillRemaining = (start, coverMask) => {
+              if (selected.length === fishSize) {
+                return evaluateSelected(coverMask);
+              }
+              const needed = fishSize - selected.length;
+              for (
+                let index = start;
+                index <= validCoverUnits.length - needed;
+                index++
+              ) {
+                if (selectedFlags[index]) continue;
+                selectedFlags[index] = 1;
+                selected.push(index);
+                const result = fillRemaining(
+                  index + 1,
+                  bitOr(coverMask, validCoverUnits[index].mask),
+                );
+                selected.pop();
+                selectedFlags[index] = 0;
+                if (result) return result;
+              }
+              return null;
+            };
 
-                      // Sanity Check: Ensure target itself is actually eliminated
-                      if (!testBit(toEliminateMask, targetId)) continue;
+            const visit = (coverMask) => {
+              if (selected.length === fishSize) {
+                if (
+                  !isZero(bitAndNot(requiredMask, coverMask)) ||
+                  !testBit(coverMask, targetId)
+                )
+                  return null;
+                return evaluateSelected(coverMask);
+              }
 
-                      const elims = [];
-                      const elimBits = getBits(toEliminateMask);
-                      for (const id of elimBits) {
-                        elims.push({
-                          r: Math.floor(id / 9),
-                          c: id % 9,
-                          num: num,
-                        });
-                        eliminatedTargets.add(id); // Record globally so we don't repeat logic for this cell later
-                      }
+              const stateKey = selected
+                .slice()
+                .sort((a, b) => a - b)
+                .join(",");
+              if (seenStates.has(stateKey)) return null;
+              seenStates.add(stateKey);
 
-                      if (elims.length > 0) {
-                        if (findAll) {
-                          const elimSig = elims
-                            .map((e) => `${e.r},${e.c}:${e.num}`)
-                            .sort()
-                            .join("|");
-                          if (seenElimSignatures.has(elimSig)) continue;
-                          seenElimSignatures.add(elimSig);
-                        }
-
-                        changed = true;
-                        foundFishForTarget = true; // STOP SIGN: Stop checking Base & Cover for this target candidate!
-
-                        const isFinned = !isZero(allFinsMask);
-                        let fishName = isMutant
-                          ? t("teks_msg_159")
-                          : t("teks_msg_160");
-                        if (isFinned) fishName = t("teks_msg_161") + fishName;
-
-                        // Formatting strings
-                        const formatUnits = (units) => {
-                          let r = [],
-                            c = [],
-                            b = [];
-                          units.forEach((u) => {
-                            if (u.type === U_ROW) r.push(u.index + 1);
-                            else if (u.type === U_COL) c.push(u.index + 1);
-                            else if (u.type === U_BOX) b.push(u.index + 1);
-                          });
-                          let str = "";
-                          if (r.length > 0)
-                            str += "r" + r.sort((x, y) => x - y).join("");
-                          if (c.length > 0)
-                            str += "c" + c.sort((x, y) => x - y).join("");
-                          if (b.length > 0)
-                            str += "b" + b.sort((x, y) => x - y).join("");
-                          return str;
-                        };
-
-                        const formatFins = (mask) => {
-                          return getBits(mask)
-                            .map(
-                              (i) => `r${Math.floor(i / 9) + 1}c${(i % 9) + 1}`,
-                            )
-                            .join(",");
-                        };
-
-                        const baseStr = formatUnits([buA, buB, buC]);
-                        const coverStr = formatUnits([cuA, cuB, cuC]);
-                        let detailStr = t(
-                          "teks_msg_162",
-                          num,
-                          baseStr,
-                          coverStr,
-                        );
-                        if (isFinned)
-                          detailStr += t(
-                            "teks_msg_163",
-                            formatFins(allFinsMask),
-                          );
-
-                        // Scope extraction for visuals
-                        const _buA = buA,
-                          _buB = buB,
-                          _buC = buC;
-                        const _cuA = cuA,
-                          _cuB = cuB,
-                          _cuC = cuC;
-                        const _allFinsMask = allFinsMask;
-                        const _num = num;
-                        const _elims = elims;
-
-                        const resultObj = {
-                          change: true,
-                          type: "remove",
-                          cells: _elims,
-                          hint: {
-                            name: fishName,
-                            mainInfo: t("teks_msg_48", _num),
-                            detail: detailStr,
-                          },
-                          applyVisuals: () => {
-                            highlightedDigit = _num;
-                            highlightState = 1;
-                            const uTypeToName = (t) =>
-                              t === U_ROW ? "row" : t === U_COL ? "col" : "box";
-
-                            // Color Base
-                            [_buA, _buB, _buC].forEach((u) => {
-                              techniques
-                                ._getUnitCells(uTypeToName(u.type), u.index)
-                                .forEach(([cr, cc]) => {
-                                  window.addCellColor(
-                                    cr,
-                                    cc,
-                                    cellColorPalette[6],
-                                  );
-                                  if (boardState[cr][cc].pencils.has(_num)) {
-                                    boardState[cr][cc].pencilColors.set(
-                                      _num,
-                                      candidateColorPalette[6],
-                                    );
-                                  }
-                                });
-                            });
-
-                            // Color Cover
-                            [_cuA, _cuB, _cuC].forEach((u) => {
-                              techniques
-                                ._getUnitCells(uTypeToName(u.type), u.index)
-                                .forEach(([cr, cc]) => {
-                                  window.addCellColor(
-                                    cr,
-                                    cc,
-                                    cellColorPalette[7],
-                                  );
-                                });
-                            });
-
-                            // Color Fins
-                            getBits(_allFinsMask).forEach((idxF) => {
-                              window.addCellColor(
-                                Math.floor(idxF / 9),
-                                idxF % 9,
-                                cellColorPalette[5],
-                              );
-                            });
-
-                            _elims.forEach((el) =>
-                              boardState[el.r][el.c].pencilColors.set(
-                                el.num,
-                                candidateColorPalette[0],
-                              ),
-                            );
-                          },
-                        };
-
-                        if (!findAll) return resultObj;
-                        results.push(resultObj);
-                      }
-                    }
+              const uncovered = bitAndNot(requiredMask, coverMask);
+              let choices = null;
+              if (!isZero(uncovered)) {
+                for (const id of getBits(uncovered)) {
+                  const available = coverByCell[id].filter(
+                    (index) => !selectedFlags[index],
+                  );
+                  if (available.length === 0) return null;
+                  if (!choices || available.length < choices.length) {
+                    choices = available;
+                    if (choices.length === 1) break;
                   }
                 }
+              } else if (!testBit(coverMask, targetId)) {
+                choices = coverByCell[targetId].filter(
+                  (index) => !selectedFlags[index],
+                );
+                if (choices.length === 0) return null;
+              } else {
+                return fillRemaining(0, coverMask);
               }
-            }
+
+              for (const index of choices) {
+                selectedFlags[index] = 1;
+                selected.push(index);
+                const result = visit(
+                  bitOr(coverMask, validCoverUnits[index].mask),
+                );
+                selected.pop();
+                selectedFlags[index] = 0;
+                if (result) return result;
+              }
+              return null;
+            };
+
+            return visit([0, 0, 0]);
+          };
+
+          for (const baseCombination of getBaseCombinations(baseTypes)) {
+            if (testBit(baseCombination.mask, targetId)) continue;
+            if (
+              !isZero(
+                bitAndNot(baseCombination.endoMask, PEER_BITSETS[targetId]),
+              )
+            )
+              continue;
+
+            const resultObj = searchCovers(baseCombination);
+            if (!resultObj) continue;
+
+            changed = true;
+            foundFishForTarget = true;
+            if (!findAll) return resultObj;
+            results.push(resultObj);
+            break;
           }
         }
       }
@@ -11057,6 +11133,14 @@ const techniques = {
 
   finnedMutantSwordfish: (board, pencils, findAll = false) => {
     return techniques._complexFishCore(board, pencils, 3, true, findAll);
+  },
+
+  finnedFrankenJellyfish: (board, pencils, findAll = false) => {
+    return techniques._complexFishCore(board, pencils, 4, false, findAll);
+  },
+
+  finnedMutantJellyfish: (board, pencils, findAll = false) => {
+    return techniques._complexFishCore(board, pencils, 4, true, findAll);
   },
 
   // --- Unified Coloring / Medusa Helper ---

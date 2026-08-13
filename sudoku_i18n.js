@@ -536,6 +536,8 @@ const TRANSLATIONS = {
     ui_msg_338: "Bivalue Oddagon",
     ui_msg_339: "Broken Wing",
     ui_msg_440: "Avoidable Rectangle",
+    ui_msg_346: "Finned Franken Jellyfish",
+    ui_msg_347: "Finned Mutant Jellyfish",
     teks_msg_1: "Eliminate Candidates",
     teks_msg_2: "at r{0}c{1}",
     teks_msg_3: "Concrete number ({0})r{1}c{2}",
@@ -755,6 +757,8 @@ const TRANSLATIONS = {
 
     teks_msg_301:
       "Base ({0}{1}) in {2}, Filled cell {3}, Unfilled cells {4}, Conjugate pairs {5}",
+    teks_msg_309: "Mutant Jellyfish",
+    teks_msg_310: "Franken Jellyfish",
   },
 
   ko: {
@@ -1285,6 +1289,8 @@ const TRANSLATIONS = {
     ui_msg_338: "이중값 홀수각형",
     ui_msg_339: "꺾인 날개",
     ui_msg_440: "회피 가능한 직사각형",
+    ui_msg_346: "지느러미 달린 조작된 해파리",
+    ui_msg_347: "지느러미 달린 변이된 해파리",
     teks_msg_1: "후보수 제거",
     teks_msg_2: "r{0}c{1}에서",
     teks_msg_3: "확정된 숫자 ({0}) r{1}c{2}에 의해",
@@ -1506,6 +1512,8 @@ const TRANSLATIONS = {
 
     teks_msg_301:
       "({2})의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 이중 위치 {5}",
+    teks_msg_309: "변이된 해파리",
+    teks_msg_310: "조작된 해파리",
   },
 };
 
