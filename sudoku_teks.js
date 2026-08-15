@@ -11851,6 +11851,7 @@ const techniques = {
 
         const comparer = (1 << (d1 - 1)) | (1 << (d2 - 1));
         const resultLoops = [];
+        const seenLoopKeys = new Set();
         let loopsCount = 0;
 
         const dfs = (
@@ -11862,7 +11863,7 @@ const techniques = {
           extraCells,
           extraDigitsMask,
         ) => {
-          if (loopsCount > MAX_LOOPS) return;
+          if (loopsCount >= MAX_LOOPS) return;
 
           for (let houseType = 0; houseType < 3; houseType++) {
             const nextHouse = getHouse(previousCell, houseType);
@@ -11912,15 +11913,16 @@ const techniques = {
 
               if (startCell === cell) {
                 if (loopArr.length % 2 !== 0 && loopArr.length > 4) {
-                  if (++loopsCount <= MAX_LOOPS) {
-                    const sortedLoop = [...loopArr]
-                      .sort((a, b) => a - b)
-                      .join(",");
+                  const sortedLoop = [...loopArr]
+                    .sort((a, b) => a - b)
+                    .join(",");
+                  if (!seenLoopKeys.has(sortedLoop)) {
+                    seenLoopKeys.add(sortedLoop);
+                    loopsCount++;
                     resultLoops.push({
                       loop: [...loopArr],
                       extraCells: [...extraCells],
                       comparer,
-                      key: sortedLoop,
                     });
                   }
                   return;
@@ -11983,16 +11985,7 @@ const techniques = {
           dfs(cell, cell, -1, new Set([cell]), [cell], extra, 0);
         }
 
-        const uniqueLoops = [];
-        const seenLoops = new Set();
-        for (const r of resultLoops) {
-          if (!seenLoops.has(r.key)) {
-            seenLoops.add(r.key);
-            uniqueLoops.push(r);
-          }
-        }
-
-        for (const oddagon of uniqueLoops) {
+        for (const oddagon of resultLoops) {
           const { loop, extraCells } = oddagon;
           const pathStr =
             loop
@@ -12084,6 +12077,7 @@ const techniques = {
           };
 
           const checkType3 = () => {
+            const type3Results = [];
             // ------------------------------------------------------------
             // 1. Validate Oddagon extra cells
             // ------------------------------------------------------------
@@ -12237,7 +12231,7 @@ const techniques = {
                     const subsetStr = combo
                       .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
                       .join("-");
-                    return {
+                    const result = {
                       change: true,
                       type: "remove",
                       cells: elimMap,
@@ -12321,12 +12315,14 @@ const techniques = {
                         });
                       },
                     };
+                    if (!findAll) return result;
+                    type3Results.push(result);
                   }
                 }
               }
             }
 
-            return null;
+            return findAll ? type3Results : null;
           };
 
           const checkType4 = () => {
@@ -12488,22 +12484,23 @@ const techniques = {
             return null;
           };
 
-          let res2 = checkType2();
+          const res2 = checkType2();
           if (res2) {
             if (!findAll) return res2;
             results.push(res2);
-          } else {
-            let res3 = checkType3();
-            if (res3) {
-              if (!findAll) return res3;
-              results.push(res3);
-            } else {
-              let res4 = checkType4();
-              if (res4) {
-                if (!findAll) return res4;
-                results.push(res4);
-              }
-            }
+          }
+
+          const res3 = checkType3();
+          if (findAll) {
+            if (res3) results.push(...res3);
+          } else if (res3) {
+            return res3;
+          }
+
+          const res4 = checkType4();
+          if (res4) {
+            if (!findAll) return res4;
+            results.push(res4);
           }
         }
       }
@@ -12680,7 +12677,7 @@ const techniques = {
                       cells: removals,
                       hint: {
                         name: t("teks_msg_190"),
-                        mainInfo: t("teks_msg_191"),
+                        mainInfo: t("teks_msg_191", num),
                         detail: t("teks_msg_192", num, pathStr, guardStr),
                       },
                       applyVisuals: () => {
@@ -12718,13 +12715,13 @@ const techniques = {
                     };
 
                     const removalKey = removals
-                      .map((r) => `${r.r},${r.c}`)
+                      .map((r) => `${r.r},${r.c},${r.num}`)
                       .sort()
                       .join(";");
                     const exists = results.some(
                       (r) =>
                         r.cells
-                          .map((x) => `${x.r},${x.c}`)
+                          .map((x) => `${x.r},${x.c},${x.num}`)
                           .sort()
                           .join(";") === removalKey,
                     );
