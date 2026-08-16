@@ -421,6 +421,9 @@
   .hidden {
     display: none;
   }
+  .inline {
+    display: inline;
+  }
   .inline-flex {
     display: inline-flex;
   }
@@ -1099,62 +1102,60 @@
       word-spacing: 100vw;
     }
   }
-  @media (prefers-color-scheme: dark) {
-    .dark\:border-black {
-      border-color: var(--color-black);
+  .dark\:border-black:where(.dark, .dark *) {
+    border-color: var(--color-black);
+  }
+  .dark\:border-gray-500:where(.dark, .dark *) {
+    border-color: var(--color-gray-500);
+  }
+  .dark\:border-gray-600:where(.dark, .dark *) {
+    border-color: var(--color-gray-600);
+  }
+  .dark\:border-gray-700:where(.dark, .dark *) {
+    border-color: var(--color-gray-700);
+  }
+  .dark\:bg-gray-800:where(.dark, .dark *) {
+    background-color: var(--color-gray-800);
+  }
+  .dark\:bg-gray-900:where(.dark, .dark *) {
+    background-color: var(--color-gray-900);
+  }
+  .dark\:bg-slate-700:where(.dark, .dark *) {
+    background-color: var(--color-slate-700);
+  }
+  .dark\:text-blue-300:where(.dark, .dark *) {
+    color: var(--color-blue-300);
+  }
+  .dark\:text-blue-400:where(.dark, .dark *) {
+    color: var(--color-blue-400);
+  }
+  .dark\:text-gray-100:where(.dark, .dark *) {
+    color: var(--color-gray-100);
+  }
+  .dark\:text-gray-200:where(.dark, .dark *) {
+    color: var(--color-gray-200);
+  }
+  .dark\:text-gray-300:where(.dark, .dark *) {
+    color: var(--color-gray-300);
+  }
+  .dark\:text-orange-400:where(.dark, .dark *) {
+    color: var(--color-orange-400);
+  }
+  .dark\:text-white:where(.dark, .dark *) {
+    color: var(--color-white);
+  }
+  @media (hover: hover) {
+    .dark\:hover\:bg-gray-600:where(.dark, .dark *):hover {
+      background-color: var(--color-gray-600);
     }
-    .dark\:border-gray-500 {
-      border-color: var(--color-gray-500);
+    .dark\:hover\:bg-gray-700:where(.dark, .dark *):hover {
+      background-color: var(--color-gray-700);
     }
-    .dark\:border-gray-600 {
-      border-color: var(--color-gray-600);
+    .dark\:hover\:bg-slate-600:where(.dark, .dark *):hover {
+      background-color: var(--color-slate-600);
     }
-    .dark\:border-gray-700 {
-      border-color: var(--color-gray-700);
-    }
-    .dark\:bg-gray-800 {
-      background-color: var(--color-gray-800);
-    }
-    .dark\:bg-gray-900 {
-      background-color: var(--color-gray-900);
-    }
-    .dark\:bg-slate-700 {
-      background-color: var(--color-slate-700);
-    }
-    .dark\:text-blue-300 {
-      color: var(--color-blue-300);
-    }
-    .dark\:text-blue-400 {
-      color: var(--color-blue-400);
-    }
-    .dark\:text-gray-100 {
-      color: var(--color-gray-100);
-    }
-    .dark\:text-gray-200 {
-      color: var(--color-gray-200);
-    }
-    .dark\:text-gray-300 {
+    .dark\:hover\:text-gray-300:where(.dark, .dark *):hover {
       color: var(--color-gray-300);
-    }
-    .dark\:text-orange-400 {
-      color: var(--color-orange-400);
-    }
-    .dark\:text-white {
-      color: var(--color-white);
-    }
-    @media (hover: hover) {
-      .dark\:hover\:bg-gray-600:hover {
-        background-color: var(--color-gray-600);
-      }
-      .dark\:hover\:bg-gray-700:hover {
-        background-color: var(--color-gray-700);
-      }
-      .dark\:hover\:bg-slate-600:hover {
-        background-color: var(--color-slate-600);
-      }
-      .dark\:hover\:text-gray-300:hover {
-        color: var(--color-gray-300);
-      }
     }
   }
 }
