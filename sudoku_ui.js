@@ -80,6 +80,10 @@ let drawSubMode = "solid"; // "solid" or "dash"
 let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
 let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
 let lineColorPalette = []; // Specific palette for lines
+let historyCurrentSnapshot = null;
+let puzzleProgressSaveTimeout = null;
+const HISTORY_CHECKPOINT_INTERVAL = 50;
+const PUZZLE_PROGRESS_SAVE_DELAY_MS = 300;
 let hadUsedHint = false;
 let hadUsedSolver = false;
 let hadUsedFormatToggle = false;
@@ -412,30 +416,51 @@ function swapThemeColors() {
     line.color = mapColor(line.color, oldLinePalette, newLinePalette);
   }
 
-  // 6. Map Undo/Redo History (prevents old theme colors from reviving on Undo)
-  for (let entry of history) {
+  const mapCellColors = (cell) => {
+    cell.cellColor = mapColor(
+      cell.cellColor,
+      oldCellPalette,
+      newCellPalette,
+    );
+    for (let [digit, color] of cell.pencilColors.entries()) {
+      cell.pencilColors.set(
+        digit,
+        mapColor(color, oldCandPalette, newCandPalette),
+      );
+    }
+  };
+
+  const mapBoardColors = (state) => {
+    if (!state) return;
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
-        const cell = entry.boardState[r][c];
-        cell.cellColor = mapColor(
-          cell.cellColor,
-          oldCellPalette,
-          newCellPalette,
-        );
-        for (let [digit, color] of cell.pencilColors.entries()) {
-          cell.pencilColors.set(
-            digit,
-            mapColor(color, oldCandPalette, newCandPalette),
-          );
-        }
+        mapCellColors(state[r][c]);
       }
     }
-    if (entry.drawnLines) {
-      for (let line of entry.drawnLines) {
-        line.color = mapColor(line.color, oldLinePalette, newLinePalette);
-      }
+  };
+
+  const mapLineColors = (lines) => {
+    if (!lines) return;
+    for (let line of lines) {
+      line.color = mapColor(line.color, oldLinePalette, newLinePalette);
     }
+  };
+
+  // 6. Map Undo/Redo History (prevents old theme colors from reviving on Undo)
+  for (let entry of history) {
+    for (const change of entry.boardChanges || []) {
+      mapCellColors(change.before);
+      mapCellColors(change.after);
+    }
+    if (entry.linePatch) {
+      mapLineColors(entry.linePatch.removed);
+      mapLineColors(entry.linePatch.added);
+    }
+    mapBoardColors(entry.checkpoint?.boardState);
+    mapLineColors(entry.checkpoint?.drawnLines);
   }
+  mapBoardColors(historyCurrentSnapshot?.boardState);
+  mapLineColors(historyCurrentSnapshot?.drawnLines);
 
   // 7. Map Currently Selected Color & Control Pad History
   if (selectedColor) {
@@ -1658,6 +1683,13 @@ function setupEventListeners() {
   gridContainer.addEventListener("dragstart", (e) => e.preventDefault());
 
   loadExperimentalModePreference();
+
+  window.addEventListener("pagehide", flushScheduledPuzzleProgress);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      flushScheduledPuzzleProgress();
+    }
+  });
 
   // ========================================================================
   // EVENT DELEGATION FOR SUDOKU GRID (Click, Right-Click, Hover)
@@ -4184,6 +4216,7 @@ function autoPencil(skipConfirm = false) {
 }
 
 async function loadPuzzle(puzzleString, puzzleData = null) {
+  flushScheduledPuzzleProgress();
   puzzleString = puzzleString.replace(/0/g, ".");
 
   const rawInput = puzzleString.replace(/\s/g, "");
@@ -4379,6 +4412,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   selectedCell = { row: null, col: null };
   history = [];
   historyIndex = -1;
+  historyCurrentSnapshot = null;
   if (!wasSaveLoaded) hasUsedAutoPencil = false;
   isAutoPencilPending = false;
   isSolvePending = false;
@@ -4539,7 +4573,31 @@ function serializeProgress() {
   return progress;
 }
 
+function schedulePuzzleProgressSave() {
+  if (puzzleProgressSaveTimeout) {
+    clearTimeout(puzzleProgressSaveTimeout);
+  }
+
+  puzzleProgressSaveTimeout = setTimeout(() => {
+    puzzleProgressSaveTimeout = null;
+    savePuzzleProgress();
+  }, PUZZLE_PROGRESS_SAVE_DELAY_MS);
+}
+
+function flushScheduledPuzzleProgress() {
+  if (!puzzleProgressSaveTimeout) return;
+
+  clearTimeout(puzzleProgressSaveTimeout);
+  puzzleProgressSaveTimeout = null;
+  savePuzzleProgress();
+}
+
 function savePuzzleProgress() {
+  if (puzzleProgressSaveTimeout) {
+    clearTimeout(puzzleProgressSaveTimeout);
+    puzzleProgressSaveTimeout = null;
+  }
+
   if (isSolverMode) return;
 
   // Allow saving if it's a standard daily puzzle OR an Unlimited puzzle
@@ -6434,6 +6492,191 @@ function cloneBoardState(state) {
   );
 }
 
+function cloneDrawnLines(lines) {
+  return lines.map((line) => ({ ...line }));
+}
+
+function cloneHistoryCell(cell) {
+  const pencilColors = new Map();
+  cell.pencilColors.forEach((color, digit) => {
+    pencilColors.set(digit, Array.isArray(color) ? [...color] : color);
+  });
+
+  return {
+    value: cell.value,
+    isGiven: cell.isGiven,
+    pencils: new Set(cell.pencils),
+    cellColor: Array.isArray(cell.cellColor)
+      ? [...cell.cellColor]
+      : cell.cellColor,
+    pencilColors,
+  };
+}
+
+function areHistoryColorsEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+    return false;
+  }
+  return a.every((color, index) => color === b[index]);
+}
+
+function areHistoryCellsEqual(a, b) {
+  if (a.value !== b.value || a.isGiven !== b.isGiven) return false;
+  if (!areHistoryColorsEqual(a.cellColor, b.cellColor)) return false;
+  if (a.pencils.size !== b.pencils.size) return false;
+  for (const pencil of a.pencils) {
+    if (!b.pencils.has(pencil)) return false;
+  }
+  if (a.pencilColors.size !== b.pencilColors.size) return false;
+  for (const [digit, color] of a.pencilColors) {
+    if (!areHistoryColorsEqual(color, b.pencilColors.get(digit))) return false;
+  }
+  return true;
+}
+
+function areHistoryLinesEqual(a, b) {
+  return (
+    a.r1 === b.r1 &&
+    a.c1 === b.c1 &&
+    a.n1 === b.n1 &&
+    a.r2 === b.r2 &&
+    a.c2 === b.c2 &&
+    a.n2 === b.n2 &&
+    a.color === b.color &&
+    a.style === b.style
+  );
+}
+
+function createHistorySnapshot() {
+  return {
+    boardState: cloneBoardState(boardState),
+    drawnLines: cloneDrawnLines(drawnLines),
+  };
+}
+
+function cloneHistorySnapshot(snapshot) {
+  return {
+    boardState: cloneBoardState(snapshot.boardState),
+    drawnLines: cloneDrawnLines(snapshot.drawnLines),
+  };
+}
+
+function createBoardChanges(before, after) {
+  const changes = [];
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      if (!areHistoryCellsEqual(before[r][c], after[r][c])) {
+        changes.push({
+          r,
+          c,
+          before: cloneHistoryCell(before[r][c]),
+          after: cloneHistoryCell(after[r][c]),
+        });
+      }
+    }
+  }
+  return changes;
+}
+
+function createLinePatch(before, after) {
+  const sharedLength = Math.min(before.length, after.length);
+  let prefixLength = 0;
+  while (
+    prefixLength < sharedLength &&
+    areHistoryLinesEqual(before[prefixLength], after[prefixLength])
+  ) {
+    prefixLength++;
+  }
+
+  let suffixLength = 0;
+  while (
+    suffixLength < sharedLength - prefixLength &&
+    areHistoryLinesEqual(
+      before[before.length - 1 - suffixLength],
+      after[after.length - 1 - suffixLength],
+    )
+  ) {
+    suffixLength++;
+  }
+
+  const removed = before.slice(prefixLength, before.length - suffixLength);
+  const added = after.slice(prefixLength, after.length - suffixLength);
+  if (removed.length === 0 && added.length === 0) return null;
+
+  return {
+    index: prefixLength,
+    removed: cloneDrawnLines(removed),
+    added: cloneDrawnLines(added),
+  };
+}
+
+function applyHistoryEntryToState(state, entry, direction) {
+  const useBefore = direction === "undo";
+  for (const change of entry.boardChanges || []) {
+    state.boardState[change.r][change.c] = cloneHistoryCell(
+      useBefore ? change.before : change.after,
+    );
+  }
+
+  if (entry.linePatch) {
+    const removed = useBefore
+      ? entry.linePatch.added
+      : entry.linePatch.removed;
+    const added = useBefore
+      ? entry.linePatch.removed
+      : entry.linePatch.added;
+    state.drawnLines.splice(
+      entry.linePatch.index,
+      removed.length,
+      ...cloneDrawnLines(added),
+    );
+  }
+}
+
+function rebuildHistorySnapshot(targetIndex) {
+  let checkpointIndex = targetIndex;
+  while (checkpointIndex >= 0 && !history[checkpointIndex]?.checkpoint) {
+    checkpointIndex--;
+  }
+  if (checkpointIndex < 0) return createHistorySnapshot();
+
+  const snapshot = cloneHistorySnapshot(history[checkpointIndex].checkpoint);
+  for (let i = checkpointIndex + 1; i <= targetIndex; i++) {
+    applyHistoryEntryToState(snapshot, history[i], "redo");
+  }
+  return snapshot;
+}
+
+function getHistoryEntryDescription(entry) {
+  let actionDesc = t("ui_msg_191");
+  if (entry.boardChanges?.length) {
+    const createEmptyBoard = () =>
+      Array.from({ length: 9 }, () =>
+        Array.from({ length: 9 }, () => ({
+          value: 0,
+          isGiven: false,
+          pencils: new Set(),
+          cellColor: null,
+          pencilColors: new Map(),
+        })),
+      );
+    const before = createEmptyBoard();
+    const after = createEmptyBoard();
+    for (const change of entry.boardChanges) {
+      before[change.r][change.c] = change.before;
+      after[change.r][change.c] = change.after;
+    }
+    actionDesc = getDiffDescription(before, after);
+  }
+
+  const lineDesc = entry.linePatch
+    ? getLineDiffDescription(entry.linePatch.removed, entry.linePatch.added)
+    : null;
+  if (actionDesc === t("ui_msg_191") && lineDesc) return lineDesc;
+  return lineDesc ? `${actionDesc}, ${lineDesc}` : actionDesc;
+}
+
 function captureHistoryEvaluationState() {
   return {
     lampColor: currentLampColor,
@@ -6450,17 +6693,45 @@ function captureHistoryEvaluationState() {
 }
 
 function saveState() {
-  history = history.slice(0, historyIndex + 1);
+  // Keep line removals caused by number/candidate changes in the same history step.
+  pruneInvalidLines();
 
-  history.push({
-    boardState: cloneBoardState(boardState),
-    drawnLines: JSON.parse(JSON.stringify(drawnLines)),
+  if (historyIndex < history.length - 1) {
+    history.length = historyIndex + 1;
+  }
+
+  const nextIndex = historyIndex + 1;
+  const boardChanges = historyCurrentSnapshot
+    ? createBoardChanges(historyCurrentSnapshot.boardState, boardState)
+    : [];
+  const linePatch = historyCurrentSnapshot
+    ? createLinePatch(historyCurrentSnapshot.drawnLines, drawnLines)
+    : null;
+  const nextSnapshot = historyCurrentSnapshot || createHistorySnapshot();
+
+  if (historyCurrentSnapshot) {
+    applyHistoryEntryToState(
+      nextSnapshot,
+      { boardChanges, linePatch },
+      "redo",
+    );
+  }
+
+  const entry = {
+    boardChanges,
+    linePatch,
+    checkpoint:
+      !historyCurrentSnapshot || nextIndex % HISTORY_CHECKPOINT_INTERVAL === 0
+        ? cloneHistorySnapshot(nextSnapshot)
+        : null,
     ...captureHistoryEvaluationState(),
-  });
+  };
 
-  historyIndex++;
+  history.push(entry);
+  historyIndex = nextIndex;
+  historyCurrentSnapshot = nextSnapshot;
   updateUndoRedoButtons();
-  savePuzzleProgress();
+  schedulePuzzleProgressSave();
 }
 
 function onBoardUpdated(skipEvaluation = false) {
@@ -6595,7 +6866,10 @@ function syncCurrentHistoryEvaluationState(
   if (!entry) return;
 
   // Prevent temporary solver boards from modifying playing-mode history.
-  if (hasLogicChanged(entry.boardState, boardState)) return;
+  if (!historyCurrentSnapshot) {
+    historyCurrentSnapshot = rebuildHistorySnapshot(historyIndex);
+  }
+  if (hasLogicChanged(historyCurrentSnapshot.boardState, boardState)) return;
 
   Object.assign(entry, captureHistoryEvaluationState());
 }
@@ -6646,35 +6920,19 @@ function undo() {
   if (historyIndex <= 0) return;
 
   const currentEntry = history[historyIndex];
-  const prevEntry = history[historyIndex - 1];
+  const finalDesc = getHistoryEntryDescription(currentEntry);
 
-  // Describe the action being undone.
-  const actionDesc = getDiffDescription(
-    prevEntry.boardState,
-    currentEntry.boardState,
-  );
-
-  const lineDesc = getLineDiffDescription(
-    prevEntry.drawnLines,
-    currentEntry.drawnLines,
-  );
-
-  let finalDesc = actionDesc;
-
-  if (finalDesc === t("ui_msg_191") && lineDesc) {
-    finalDesc = lineDesc;
-  } else if (lineDesc) {
-    finalDesc += `, ${lineDesc}`;
+  if (!historyCurrentSnapshot) {
+    historyCurrentSnapshot = rebuildHistorySnapshot(historyIndex);
   }
+
+  applyHistoryEntryToState({ boardState, drawnLines }, currentEntry, "undo");
+  applyHistoryEntryToState(historyCurrentSnapshot, currentEntry, "undo");
 
   // Move backward in history.
   historyIndex--;
 
   const historyEntry = history[historyIndex];
-
-  // Restore board and drawing state.
-  boardState = cloneBoardState(historyEntry.boardState);
-  drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || []));
 
   // Restore the score, lamp, hint, and evaluation metadata
   // stored in this history entry.
@@ -6685,7 +6943,7 @@ function undo() {
   onBoardUpdated(true);
 
   updateUndoRedoButtons();
-  savePuzzleProgress();
+  schedulePuzzleProgressSave();
 
   showMessage(t("ui_msg_192", finalDesc), "gray");
 }
@@ -6693,36 +6951,20 @@ function undo() {
 function redo() {
   if (historyIndex >= history.length - 1) return;
 
-  const currentEntry = history[historyIndex];
   const nextEntry = history[historyIndex + 1];
+  const finalDesc = getHistoryEntryDescription(nextEntry);
 
-  // Describe the action being redone.
-  const actionDesc = getDiffDescription(
-    currentEntry.boardState,
-    nextEntry.boardState,
-  );
-
-  const lineDesc = getLineDiffDescription(
-    currentEntry.drawnLines,
-    nextEntry.drawnLines,
-  );
-
-  let finalDesc = actionDesc;
-
-  if (finalDesc === t("ui_msg_191") && lineDesc) {
-    finalDesc = lineDesc;
-  } else if (lineDesc) {
-    finalDesc += `, ${lineDesc}`;
+  if (!historyCurrentSnapshot) {
+    historyCurrentSnapshot = rebuildHistorySnapshot(historyIndex);
   }
+
+  applyHistoryEntryToState({ boardState, drawnLines }, nextEntry, "redo");
+  applyHistoryEntryToState(historyCurrentSnapshot, nextEntry, "redo");
 
   // Move forward in history.
   historyIndex++;
 
   const historyEntry = history[historyIndex];
-
-  // Restore board and drawing state.
-  boardState = cloneBoardState(historyEntry.boardState);
-  drawnLines = JSON.parse(JSON.stringify(historyEntry.drawnLines || []));
 
   // Restore the score, lamp, hint, and evaluation metadata
   // stored in this history entry.
@@ -6733,7 +6975,7 @@ function redo() {
   onBoardUpdated(true);
 
   updateUndoRedoButtons();
-  savePuzzleProgress();
+  schedulePuzzleProgressSave();
 
   showMessage(t("ui_msg_194", finalDesc), "gray");
 }
