@@ -2,6 +2,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
 
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      navigator.serviceWorker.controller?.postMessage({
+        type: "refresh-puzzle-data",
+      });
+    });
+
     navigator.serviceWorker
       .register("./service-worker.js")
       .then(() => navigator.serviceWorker.ready)
