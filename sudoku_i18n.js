@@ -127,6 +127,7 @@ const TRANSLATIONS = {
 
     // === Preferences modal ===
     modal_pref_title: "Preferences",
+    pref_theme: "Toggle Theme",
     pref_uniqueness: "Enable Uniqueness Techniques",
     pref_drag_hint: "Drag & drop to reorder solver priority.",
     btn_pref_reset: "Reset",
@@ -894,6 +895,7 @@ const TRANSLATIONS = {
 
     // === Preferences modal ===
     modal_pref_title: "환경설정",
+    pref_theme: "테마 변경",
     pref_uniqueness: "유일성 논법 활성화",
     pref_drag_hint:
       "드래그 & 드롭으로 솔버의 우선순위를 재정렬 할 수 있습니다.",
