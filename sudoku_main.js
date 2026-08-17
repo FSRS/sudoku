@@ -2,17 +2,31 @@ document.addEventListener("DOMContentLoaded", () => {
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
 
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      navigator.serviceWorker.controller?.postMessage({
-        type: "refresh-puzzle-data",
-      });
+    const offlineStatus = document.getElementById("offline-cache-status");
+    let registration = null;
+
+    const requestPuzzleDataRefresh = () => {
+      const worker = navigator.serviceWorker.controller || registration?.active;
+      worker?.postMessage({ type: "refresh-puzzle-data" });
+    };
+
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type !== "puzzle-data-cache-status") return;
+      if (offlineStatus) offlineStatus.hidden = event.data.ready !== true;
     });
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      requestPuzzleDataRefresh();
+    });
+
+    window.addEventListener("online", requestPuzzleDataRefresh);
 
     navigator.serviceWorker
       .register("./service-worker.js")
       .then(() => navigator.serviceWorker.ready)
-      .then((registration) => {
-        registration.active?.postMessage({ type: "refresh-puzzle-data" });
+      .then((readyRegistration) => {
+        registration = readyRegistration;
+        requestPuzzleDataRefresh();
       })
       .catch((error) => {
         console.warn("Service worker registration failed:", error);

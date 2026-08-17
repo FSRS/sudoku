@@ -235,7 +235,8 @@ button:disabled:hover {
   display: none !important;
 }
 
-#theme-toggle,
+#install-app-btn,
+#offline-cache-status,
 #share-btn,
 #pref-btn {
   top: 0.75rem !important;
@@ -247,17 +248,68 @@ button:disabled:hover {
   filter: brightness(0.5) saturate(0.6);
 }
 
-#theme-toggle:hover,
+#install-app-btn:hover,
+#offline-cache-status:hover,
 #share-btn:hover,
 #pref-btn:hover {
   opacity: 1 !important;
 }
 
-#theme-toggle {
+#install-app-btn {
   position: absolute;
   top: 0.75rem;
-  left: 0.75rem;
+  left: 2.5rem;
   right: auto;
+}
+
+#offline-cache-status {
+  position: absolute;
+  top: 0.75rem;
+  left: 4.75rem;
+  right: auto;
+}
+
+#install-app-btn[hidden] + #offline-cache-status {
+  left: 3rem;
+}
+
+html[lang="ko"] #install-app-btn {
+  left: 2.75rem;
+}
+
+html[lang="ko"] #offline-cache-status {
+  left: 5rem;
+}
+
+html[lang="ko"] #install-app-btn[hidden] + #offline-cache-status {
+  left: 3.25rem;
+}
+
+.offline-cache-dot {
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1px solid white;
+  border-radius: 9999px;
+  background: #22c55e;
+}
+
+html.dark .offline-cache-dot {
+  border-color: #111827;
+}
+
+.theme-toggle-icon {
+  opacity: 0.55;
+  transition:
+    opacity 0.15s ease,
+    filter 0.15s ease;
+}
+
+#theme-toggle:hover .theme-toggle-icon {
+  opacity: 1;
+  filter: drop-shadow(0 0 2px currentColor);
 }
 
 #share-btn {
@@ -562,6 +614,7 @@ button:disabled:hover {
 #share-modal,
 #reset-confirm-modal,
 #preferences-modal,
+#install-help-modal,
 #autopencil-confirm-modal {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 100; /* Beats pencil marks (z-index: 30) */
@@ -888,6 +941,7 @@ html.dark {
   #share-modal > div,
   #reset-confirm-modal > div,
   #preferences-modal > div,
+  #install-help-modal > div,
   #autopencil-confirm-modal > div {
     background-color: #1f2937 !important; /* gray-800 */
     color: #f3f4f6 !important; /* gray-100 */
