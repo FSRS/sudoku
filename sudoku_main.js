@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!("serviceWorker" in navigator)) return;
 
     const offlineStatus = document.getElementById("offline-cache-status");
+    const installCacheDot = document.querySelector(".install-cache-dot");
     let registration = null;
 
     const requestPuzzleDataRefresh = () => {
@@ -12,7 +13,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     navigator.serviceWorker.addEventListener("message", (event) => {
       if (event.data?.type !== "puzzle-data-cache-status") return;
-      if (offlineStatus) offlineStatus.hidden = event.data.ready !== true;
+      const ready = event.data.ready === true;
+      if (offlineStatus) offlineStatus.hidden = !ready;
+      if (installCacheDot) installCacheDot.hidden = !ready;
     });
 
     navigator.serviceWorker.addEventListener("controllerchange", () => {

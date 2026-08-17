@@ -300,6 +300,10 @@ html.dark .offline-cache-dot {
   border-color: #111827;
 }
 
+.install-cache-dot {
+  display: none;
+}
+
 .theme-toggle-icon {
   opacity: 0.55;
   transition:
@@ -1157,6 +1161,14 @@ html.dark {
 ================================================================================
 */
 @media (max-width: 550px) {
+  #install-app-btn:not([hidden]) + #offline-cache-status {
+    display: none;
+  }
+
+  #install-app-btn:not([hidden]) .install-cache-dot:not([hidden]) {
+    display: block;
+  }
+
   /* Adjust main padding for small screens */
   body.p-4 {
     padding-left: 0.25rem;
