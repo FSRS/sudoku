@@ -265,7 +265,7 @@ button:disabled:hover {
 #offline-cache-status {
   position: absolute;
   top: 0.75rem;
-  left: 4.75rem;
+  left: 4.25rem;
   right: auto;
 }
 
@@ -278,7 +278,7 @@ html[lang="ko"] #install-app-btn {
 }
 
 html[lang="ko"] #offline-cache-status {
-  left: 5rem;
+  left: 4.4rem;
 }
 
 html[lang="ko"] #install-app-btn[hidden] + #offline-cache-status {

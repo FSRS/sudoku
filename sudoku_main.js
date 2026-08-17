@@ -94,10 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       console.error("Error loading puzzles:", error);
       // Display a user-friendly error message on the page
-      showMessage(
-        t("error_load_puzzle"),
-        "red",
-      );
+      showMessage(t("error_load_puzzle"), "red");
     }
   }
 
