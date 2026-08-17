@@ -345,6 +345,7 @@ const TRANSLATIONS = {
       "Tip: To highlight bivalue cells, click one when highlighting is off or press '0'.",
     ui_msg_155: "Error: Invalid puzzle string.",
     ui_msg_156: "Resumed saved game.",
+    ui_msg_156_offline: "Offline: resumed the saved daily puzzle.",
     ui_msg_157: "Custom puzzle loaded!",
     ui_msg_158: "Loaded puzzle for {0}, Level {1}",
     ui_msg_159: "Tip: Touch 'Auto-Pencil' to fill in all possible candidates.",
@@ -1099,6 +1100,8 @@ const TRANSLATIONS = {
       "팁: 이중값 셀을 강조 표시하려면 강조 표시가 꺼져 있을 때 셀 중 하나를 클릭하거나 '0'을 누르세요.",
     ui_msg_155: "오류: 유효하지 않은 퍼즐 문자열입니다.",
     ui_msg_156: "저장된 게임을 이어서 시작합니다.",
+    ui_msg_156_offline:
+      "오프라인 상태에서 저장된 일일 퍼즐을 이어서 시작합니다.",
     ui_msg_157: "사용자 지정 퍼즐을 불러왔습니다!",
     ui_msg_158: "{0}의 레벨 {1} 퍼즐을 불러왔습니다.",
     ui_msg_159:

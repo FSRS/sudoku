@@ -1,4 +1,18 @@
 document.addEventListener("DOMContentLoaded", () => {
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+
+    navigator.serviceWorker
+      .register("./service-worker.js")
+      .then(() => navigator.serviceWorker.ready)
+      .then((registration) => {
+        registration.active?.postMessage({ type: "refresh-puzzle-data" });
+      })
+      .catch((error) => {
+        console.warn("Service worker registration failed:", error);
+      });
+  }
+
   function applyTheme() {
     const savedTheme = localStorage.getItem("theme");
     const systemDark = window.matchMedia(
@@ -17,6 +31,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function initialize() {
+    registerServiceWorker();
+
     // Initialize language
     currentLang = detectLanguage();
     applyTranslations();

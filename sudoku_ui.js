@@ -115,6 +115,78 @@ async function updateVatSearchingButton(button, techniqueName, runId) {
   return runId === vatSearchRunId && isViewAllTechniquesMode;
 }
 
+function getBlossomWorkerKind(func) {
+  if (func === techniques.cellBlossomLoop) return "cell";
+  if (func === techniques.regionBlossomLoop) return "region";
+  if (func === techniques.aalsBlossomLoop) return "aals";
+  return null;
+}
+
+function hydrateBlossomWorkerResult(result) {
+  const kind = result.blossom.kind;
+  result.hint.name =
+    kind === "cell"
+      ? t("teks_msg_193")
+      : kind === "region"
+        ? t("teks_msg_194")
+        : t("teks_msg_196");
+  result.hint.mainInfo = t("teks_msg_195", result.blossom.burrText);
+  result.applyVisuals = () =>
+    techniques._applyBlossomVisuals(result.blossom, result.cells);
+  return result;
+}
+
+function runBlossomTechniqueInWorker(func, board, pencils, findAll = false) {
+  const kind = getBlossomWorkerKind(func);
+  if (!kind || typeof Worker === "undefined") {
+    return Promise.resolve(func(board, pencils, findAll));
+  }
+
+  return new Promise((resolve) => {
+    let worker;
+    try {
+      worker = new Worker("sudoku/sudoku_blossom_worker.js");
+    } catch (error) {
+      console.warn(
+        "Blossom worker could not start; using the main thread.",
+        error,
+      );
+      resolve(func(board, pencils, findAll));
+      return;
+    }
+    let settled = false;
+    const finish = () => worker.terminate();
+    const runFallback = (error) => {
+      if (settled) return;
+      settled = true;
+      console.warn("Blossom worker failed; using the main thread.", error);
+      finish();
+      resolve(func(board, pencils, findAll));
+    };
+    worker.onmessage = ({ data }) => {
+      if (settled) return;
+      if (data.error) {
+        runFallback(new Error(data.error));
+        return;
+      }
+      settled = true;
+      finish();
+      const results = data.results.map(hydrateBlossomWorkerResult);
+      resolve(findAll ? results : results[0] || { change: false });
+    };
+    worker.onerror = (event) => {
+      runFallback(event.error || new Error(event.message));
+    };
+    worker.postMessage({
+      id: 1,
+      kind,
+      board,
+      candidateLists: pencils.map((row) => row.map((digits) => [...digits])),
+      findAll,
+    });
+  });
+}
+
 const lastUsedColors = {
   draw: { solid: null, dash: null },
   color: { cell: null, candidate: null },
@@ -195,6 +267,85 @@ function initTheme() {
       savePuzzleProgress();
     });
   }
+}
+
+function initInstallPrompt() {
+  const installButton = document.getElementById("install-app-btn");
+  const helpModal = document.getElementById("install-help-modal");
+  const helpMessage = document.getElementById("install-help-message");
+  const closeButton = document.getElementById("install-help-close-btn");
+
+  if (!installButton || !helpModal || !helpMessage || !closeButton) return;
+
+  const userAgent = navigator.userAgent;
+  const isIOS =
+    /iPad|iPhone|iPod/i.test(userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isSafari =
+    /Safari/i.test(userAgent) &&
+    !/Chrome|Chromium|CriOS|Edg|OPR|FxiOS/i.test(userAgent);
+  const isMacSafari =
+    !isIOS && isSafari && /Macintosh|Mac OS X/i.test(userAgent);
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    navigator.standalone === true;
+
+  let deferredPrompt = null;
+
+  const closeHelpModal = () => {
+    helpModal.classList.add("hidden");
+    helpModal.classList.remove("flex");
+    installButton.focus();
+  };
+
+  const openHelpModal = (messageKey) => {
+    helpMessage.dataset.i18n = messageKey;
+    helpMessage.textContent = t(messageKey);
+    helpModal.classList.remove("hidden");
+    helpModal.classList.add("flex");
+    closeButton.focus();
+  };
+
+  if (!isStandalone && (isIOS || isMacSafari)) {
+    installButton.hidden = false;
+  }
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+    installButton.hidden = false;
+  });
+
+  installButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    hideTooltip(installButton);
+    if (activeTooltipElement === installButton) activeTooltipElement = null;
+
+    if (deferredPrompt) {
+      await deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installButton.hidden = true;
+      return;
+    }
+
+    if (isIOS) {
+      openHelpModal("install_ios_instructions");
+    } else if (isMacSafari) {
+      openHelpModal("install_macos_instructions");
+    }
+  });
+
+  closeButton.addEventListener("click", closeHelpModal);
+
+  helpModal.addEventListener("click", (event) => {
+    if (event.target === helpModal) closeHelpModal();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    installButton.hidden = true;
+  });
 }
 
 function updateColorPalettes() {
@@ -1500,6 +1651,7 @@ function isBoardIdenticalToSolution() {
 
 function setupEventListeners() {
   initTheme();
+  initInstallPrompt();
   updateColorPalettes();
 
   gridContainer.style.userSelect = "none";
@@ -2677,6 +2829,7 @@ function handleKeyDown(e) {
   const compShareMod = document.getElementById("completion-share-modal");
   const resetMod = document.getElementById("reset-confirm-modal");
   const prefMod = document.getElementById("preferences-modal");
+  const installHelpMod = document.getElementById("install-help-modal");
   const autoPencilMod = document.getElementById("autopencil-confirm-modal");
 
   const isHintOpen = hintModal && !hintModal.classList.contains("hidden");
@@ -2691,6 +2844,8 @@ function handleKeyDown(e) {
     compShareMod && !compShareMod.classList.contains("hidden");
   const isResetOpen = resetMod && !resetMod.classList.contains("hidden");
   const isPrefOpen = prefMod && !prefMod.classList.contains("hidden");
+  const isInstallHelpOpen =
+    installHelpMod && !installHelpMod.classList.contains("hidden");
   const isAutoPencilOpen =
     autoPencilMod && !autoPencilMod.classList.contains("hidden");
 
@@ -2811,6 +2966,7 @@ function handleKeyDown(e) {
       isCompShareOpen ||
       isResetOpen ||
       isPrefOpen ||
+      isInstallHelpOpen ||
       isAutoPencilOpen
     )
   ) {
@@ -2908,6 +3064,7 @@ function handleKeyDown(e) {
     isShareOpen ||
     isResetOpen ||
     isPrefOpen ||
+    isInstallHelpOpen ||
     isAutoPencilOpen
   ) {
     // 0. "Esc" to Escape/Cancel
@@ -2925,6 +3082,8 @@ function handleKeyDown(e) {
         document.getElementById("completion-cancel-btn").click();
       if (isResetOpen) document.getElementById("reset-cancel-btn").click();
       if (isPrefOpen) document.getElementById("pref-cancel-btn").click();
+      if (isInstallHelpOpen)
+        document.getElementById("install-help-close-btn").click();
       if (isAutoPencilOpen)
         document.getElementById("autopencil-cancel-btn").click();
       return;
@@ -3625,6 +3784,34 @@ function decompressPuzzleString(str) {
   });
 }
 
+async function loadSavedDailyPuzzle(date, level) {
+  let allSaves = [];
+  try {
+    const savedData = localStorage.getItem("sudokuSaves");
+    if (savedData) allSaves = JSON.parse(savedData);
+  } catch {
+    return false;
+  }
+  if (!Array.isArray(allSaves)) return false;
+
+  const savedGame = allSaves.find(
+    (save) => save.date === date && save.level === level && save.puzzle,
+  );
+  if (!savedGame) return false;
+
+  const puzzleData = {
+    date,
+    level,
+    score: savedGame.difficultyScore || 0,
+    puzzle: savedGame.puzzle,
+  };
+
+  puzzleStringInput.value = savedGame.puzzle;
+  await loadPuzzle(savedGame.puzzle, puzzleData);
+  showMessage(t("ui_msg_156_offline"), "orange");
+  return true;
+}
+
 async function findAndLoadSelectedPuzzle() {
   if (!levelSelect.value) {
     levelSelect.value = "0";
@@ -3769,6 +3956,8 @@ async function findAndLoadSelectedPuzzle() {
     }
   } catch (err) {
     console.error(err);
+    if (await loadSavedDailyPuzzle(selectedDateInt, selectedLevel)) return;
+
     initBoardState();
     onBoardUpdated();
     showMessage(t("ui_msg_142"), "red");
