@@ -8,6 +8,7 @@ const TRANSLATIONS = {
 
     // === Header ===
     tooltip_theme: "Toggle theme",
+    tooltip_install: "Install app",
     switch_language: "언어 변경하기",
     tooltip_pref: "Preferences",
     tooltip_share: "Share puzzle link",
@@ -129,6 +130,13 @@ const TRANSLATIONS = {
     pref_drag_hint: "Drag & drop to reorder solver priority.",
     btn_pref_reset: "Reset",
     btn_pref_save: "Save",
+
+    // === Install modal ===
+    modal_install_title: "Install App",
+    install_ios_instructions:
+      "Open the browser's Share menu, choose Add to Home Screen, turn on Open as Web App, and then tap Add.",
+    install_macos_instructions:
+      "In Safari, choose File > Add to Dock to install this site as an app.",
 
     // === Level tips (sudoku_constants.js) ===
     level_tip_0: "Lv. 0: Singles",
@@ -768,6 +776,7 @@ const TRANSLATIONS = {
 
     // === Header ===
     tooltip_theme: "테마 변경하기",
+    tooltip_install: "앱 설치하기",
     switch_language: "Switch Language",
     tooltip_pref: "환경설정",
     tooltip_share: "퍼즐 공유하기",
@@ -888,6 +897,13 @@ const TRANSLATIONS = {
       "드래그 & 드롭으로 솔버의 우선순위를 재정렬 할 수 있습니다.",
     btn_pref_reset: "초기화",
     btn_pref_save: "저장하기",
+
+    // === Install modal ===
+    modal_install_title: "앱 설치",
+    install_ios_instructions:
+      "브라우저의 공유 메뉴에서 ‘홈 화면에 추가’를 선택하고 ‘웹 앱으로 열기’를 켠 다음 추가를 누르세요.",
+    install_macos_instructions:
+      "Safari의 파일 메뉴에서 ‘Dock에 추가’를 선택해 이 사이트를 앱으로 설치하세요.",
 
     // === Level tips (sudoku_constants.js) ===
     level_tip_0: "Lv. 0: 드러난/숨은 하나, 가득찬 집",
