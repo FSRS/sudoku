@@ -234,56 +234,6 @@ button:disabled:hover {
   display: none !important;
 }
 
-#install-app-btn,
-#offline-cache-status,
-#share-btn,
-#pref-btn {
-  top: 0.75rem !important;
-  opacity: 0.65 !important;
-}
-
-#share-btn,
-#pref-btn {
-  filter: brightness(0.5) saturate(0.6);
-}
-
-#install-app-btn:hover,
-#offline-cache-status:hover,
-#share-btn:hover,
-#pref-btn:hover {
-  opacity: 1 !important;
-}
-
-#install-app-btn {
-  position: absolute;
-  top: 0.75rem;
-  left: 2.5rem;
-  right: auto;
-}
-
-#offline-cache-status {
-  position: absolute;
-  top: 0.75rem;
-  left: 4.25rem;
-  right: auto;
-}
-
-#install-app-btn[hidden] + #offline-cache-status {
-  left: 3rem;
-}
-
-html[lang="ko"] #install-app-btn {
-  left: 2.75rem;
-}
-
-html[lang="ko"] #offline-cache-status {
-  left: 4.4rem;
-}
-
-html[lang="ko"] #install-app-btn[hidden] + #offline-cache-status {
-  left: 3.25rem;
-}
-
 .offline-cache-dot {
   position: absolute;
   right: 0.3rem;
@@ -304,6 +254,10 @@ html.dark .offline-cache-dot {
 }
 
 .theme-toggle-icon {
+  display: block;
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
   opacity: 0.55;
   transition:
     opacity 0.15s ease,
@@ -313,26 +267,6 @@ html.dark .offline-cache-dot {
 #theme-toggle:hover .theme-toggle-icon {
   opacity: 1;
   filter: drop-shadow(0 0 2px currentColor);
-}
-
-#share-btn {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  left: auto;
-}
-
-/* Add the new button positioning */
-#pref-btn {
-  position: absolute;
-  top: 0.75rem;
-  right: 2.75rem; /* Placed directly to the left of the share button */
-  left: auto;
-  font-size: 1.25rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 /*
@@ -999,11 +933,6 @@ html.dark {
 
   #copy-image-btn:hover {
     background-color: #c084fc !important;
-  }
-
-  #share-btn,
-  #pref-btn {
-    filter: brightness(1.2) saturate(0.8);
   }
 
   #autopencil-confirm-btn {
