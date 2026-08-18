@@ -9,7 +9,7 @@ const TRANSLATIONS = {
     // === Header ===
     tooltip_theme: "Toggle theme",
     tooltip_install: "Install app",
-    tooltip_offline_ready: "Offline resources are ready.",
+    tooltip_offline_ready: "Available offline",
     switch_language: "언어 변경하기",
     tooltip_pref: "Preferences",
     tooltip_share: "Share puzzle link",
@@ -779,7 +779,7 @@ const TRANSLATIONS = {
     // === Header ===
     tooltip_theme: "테마 변경하기",
     tooltip_install: "앱 설치하기",
-    tooltip_offline_ready: "오프라인 콘텐츠 저장이 완료되었습니다.",
+    tooltip_offline_ready: "오프라인 사용 가능",
     switch_language: "Switch Language",
     tooltip_pref: "환경설정",
     tooltip_share: "퍼즐 공유하기",
