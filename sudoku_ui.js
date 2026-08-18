@@ -100,6 +100,7 @@ let vatActiveTechniques = [];
 let vatSelectedHint = null;
 
 let vatSearchRunId = 0;
+let isSolverLanguageRefreshInProgress = false;
 
 function waitForBrowserPaint() {
   return new Promise((resolve) => {
@@ -2907,6 +2908,11 @@ function handleKeyDown(e) {
   const key_lower = e.key.toLowerCase();
   const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
+  if (isSolverLanguageRefreshInProgress && isSolverMode) {
+    e.preventDefault();
+    return;
+  }
+
   // --- NEW: MODAL KEYBOARD SHORTCUTS ---
   const hintModal = document.getElementById("hint-confirm-modal");
   const solverFirstModal = document.getElementById("solver-first-time-modal");
@@ -5121,18 +5127,18 @@ function exitSolverMode() {
   }
 }
 
-function enterViewAllTechniquesMode() {
-  if (!isSolverMode) return;
+async function enterViewAllTechniquesMode({ preserveList = false } = {}) {
+  if (!isSolverMode) return false;
   if (
     solverSteps.length === 0 ||
     currentSolverStep === 0 ||
     currentSolverStep === solverSteps.length - 1
   ) {
-    return;
+    return false;
   }
 
   const step = solverSteps[currentSolverStep];
-  if (!step) return;
+  if (!step) return false;
 
   isViewAllTechniquesMode = true;
   vatSelectedHint = null;
@@ -5149,9 +5155,9 @@ function enterViewAllTechniquesMode() {
     .getElementById("solver-back-from-all-btn")
     .classList.remove("hidden");
 
-  // Clear current summary list
-  const list = document.getElementById("solver-summary-list");
-  list.innerHTML = "";
+  const visibleList = document.getElementById("solver-summary-list");
+  const renderList = preserveList ? document.createElement("div") : visibleList;
+  if (!preserveList) visibleList.innerHTML = "";
 
   // Initialize VAT state tracking
   vatCurrentBoard = step.board;
@@ -5160,7 +5166,9 @@ function enterViewAllTechniquesMode() {
   vatMaxLevel = Math.max(...vatActiveTechniques.map((t) => t.level || 0));
 
   // Determine the level of the currently viewed technique
-  const currentTech = vatActiveTechniques.find((t) => t.name === step.techName);
+  const currentTech = vatActiveTechniques.find(
+    (t) => t.id === step.techId || (!step.techId && t.name === step.techName),
+  );
   const currentLevel = currentTech ? currentTech.level || 0 : 0;
 
   // Calculate occurrences for the title (e.g., Grouped AIC (13/100))
@@ -5188,8 +5196,15 @@ function enterViewAllTechniquesMode() {
     window.resetComplexFishMemo();
   }
 
-  // Execute the initial search (Current Level + Eliminate Candidates)
-  void searchAndAppendVatLevel(currentLevel, true);
+  // Execute the initial search (Current Level + Eliminate Candidates).
+  // During a language refresh, build offscreen and swap only when complete.
+  const completed = await searchAndAppendVatLevel(currentLevel, true, {
+    list: renderList,
+  });
+  if (preserveList && completed) {
+    visibleList.replaceChildren(...renderList.childNodes);
+  }
+  return completed;
 }
 
 function exitViewAllTechniquesMode(skipRender = false) {
@@ -5217,6 +5232,66 @@ function exitViewAllTechniquesMode(skipRender = false) {
   if (!skipRender) {
     buildSolverSummary();
     renderSolverStep(currentSolverStep);
+  }
+}
+
+async function refreshSolverAfterLanguageChange() {
+  if (!isSolverMode || solverSteps.length === 0) return;
+
+  const wasViewAllTechniquesMode = isViewAllTechniquesMode;
+  const previousStepIndex = currentSolverStep;
+  const baseStep = solverSteps[0];
+  const solverBar = document.getElementById("solver-bar-container");
+  const solverToggleBtn = document.getElementById("toggle-solver-mode-btn");
+  const previousPointerEvents = solverBar?.style.pointerEvents || "";
+
+  isSolverLanguageRefreshInProgress = true;
+  if (solverBar) solverBar.style.pointerEvents = "none";
+  if (solverToggleBtn) solverToggleBtn.disabled = true;
+
+  if (wasViewAllTechniquesMode) {
+    // Invalidate the old search without exposing the intermediate Solver UI.
+    vatSearchRunId++;
+    vatSelectedHint = null;
+
+    const searchBtn = document.getElementById("vat-search-next-btn");
+    if (searchBtn) {
+      searchBtn.textContent = t("ui_msg_179");
+      searchBtn.disabled = true;
+      searchBtn.classList.remove("hidden");
+      searchBtn.classList.add("opacity-50", "cursor-wait");
+    }
+  }
+
+  try {
+    const refreshId = ++currentEvaluationId;
+    techniqueResultCache.clear();
+    boardState = cloneToBoardState(baseStep.board, baseStep.pencils);
+
+    await evaluateBoardDifficulty({ waitForFrame: false, force: true });
+    if (refreshId !== currentEvaluationId) return;
+
+    buildSolverTimeline();
+
+    const targetStepIndex = Math.min(
+      previousStepIndex,
+      solverSteps.length - 1,
+    );
+
+    if (wasViewAllTechniquesMode) {
+      // Render and re-enter VAT in the same task, so the normal Solver list
+      // is never painted between the old and newly localized VAT views.
+      isViewAllTechniquesMode = false;
+      renderSolverStep(targetStepIndex);
+      await enterViewAllTechniquesMode({ preserveList: true });
+    } else {
+      buildSolverSummary();
+      renderSolverStep(targetStepIndex);
+    }
+  } finally {
+    isSolverLanguageRefreshInProgress = false;
+    if (solverBar) solverBar.style.pointerEvents = previousPointerEvents;
+    if (solverToggleBtn) solverToggleBtn.disabled = false;
   }
 }
 
@@ -5352,7 +5427,7 @@ function buildViewAllTechniquesList(step) {
       actionStr = groups.join(" | ");
     }
 
-    const groupKey = `${item.tech.name}::${actionStr}`;
+    const groupKey = `${item.tech.id || item.tech.name}::${actionStr}`;
 
     if (!groupedHints.has(groupKey)) {
       groupedHints.set(groupKey, {
@@ -5524,12 +5599,13 @@ function buildViewAllTechniquesList(step) {
 async function searchAndAppendVatLevel(
   levelToSearch,
   includeEliminate = false,
+  { list = document.getElementById("solver-summary-list") } = {},
 ) {
   const runId = ++vatSearchRunId;
   // 1. MOVE CALCULATION TO THE TOP
   const step = solverSteps[currentSolverStep];
   const currentTechIndex = vatActiveTechniques.findIndex(
-    (t) => t.name === step.techName,
+    (t) => t.id === step.techId || (!step.techId && t.name === step.techName),
   );
   const currentLevel =
     currentTechIndex !== -1
@@ -5569,7 +5645,6 @@ async function searchAndAppendVatLevel(
     vatTextEl.textContent = "";
   }
 
-  const list = document.getElementById("solver-summary-list");
   const isDark = document.documentElement.classList.contains("dark");
 
   let newHints = [];
@@ -5584,7 +5659,7 @@ async function searchAndAppendVatLevel(
 
     // The user left VAT mode or another search replaced this one.
     if (!shouldContinue) {
-      return;
+      return false;
     }
 
     if (typeof tech.func !== "function") {
@@ -5615,7 +5690,7 @@ async function searchAndAppendVatLevel(
 
   // Do not render stale results from an older search.
   if (runId !== vatSearchRunId || !isViewAllTechniquesMode) {
-    return;
+    return false;
   }
 
   // Render results
@@ -5626,7 +5701,7 @@ async function searchAndAppendVatLevel(
     msg.textContent = t("ui_msg_180");
     list.appendChild(msg);
   } else if (newHints.length > 0) {
-    const noMsg = document.getElementById("vat-no-tech-msg");
+    const noMsg = list.querySelector("#vat-no-tech-msg");
     if (noMsg) noMsg.remove();
 
     // --- 1. First Level Grouping: Group by Technique Name + Action String ---
@@ -5659,7 +5734,7 @@ async function searchAndAppendVatLevel(
         actionStr = groups.join(" | ");
       }
 
-      const groupKey = `${item.tech.name}::${actionStr}`;
+      const groupKey = `${item.tech.id || item.tech.name}::${actionStr}`;
 
       if (!groupedHints.has(groupKey)) {
         groupedHints.set(groupKey, {
@@ -5758,10 +5833,13 @@ async function searchAndAppendVatLevel(
             subItem.result.applyVisuals();
           }
 
-          Array.from(list.querySelectorAll(".active-sub-row")).forEach((c) => {
-            c.classList.remove("active-sub-row");
-            c.style.backgroundColor = "transparent";
-          });
+          const activeList = document.getElementById("solver-summary-list");
+          Array.from(activeList.querySelectorAll(".active-sub-row")).forEach(
+            (c) => {
+              c.classList.remove("active-sub-row");
+              c.style.backgroundColor = "transparent";
+            },
+          );
 
           childRow.classList.add("active-sub-row");
           childRow.style.backgroundColor = isDark
@@ -5843,6 +5921,7 @@ async function searchAndAppendVatLevel(
       searchBtn.classList.add("hidden");
     }
   }
+  return true;
 }
 
 // Helper function using your existing preference logic
@@ -5859,7 +5938,11 @@ function getActiveTechniqueOrder() {
 
   // Filter out disabled techniques and return an array of just the string IDs
   // e.g., ["eliminateCandidates", "fullHouse", "nakedSingle", ...]
-  return prefs.filter((pref) => pref.enabled !== false).map((pref) => pref.id);
+  const defaults = getDefaultTechniques();
+  return prefs
+    .filter((pref) => pref.enabled !== false)
+    .map((pref) => findTechniqueForPreference(pref, defaults)?.id)
+    .filter(Boolean);
 }
 
 function buildSolverTimeline() {
@@ -5940,7 +6023,9 @@ function renderSolverStep(index) {
 
   const list = document.getElementById("solver-summary-list");
   Array.from(list.children).forEach((row) => {
-    if (row.dataset.tech === step.techName) {
+    const rowTechId = row.dataset.techId || row.dataset.tech;
+    const stepTechId = step.techId || step.techName;
+    if (rowTechId === stepTechId) {
       const isDark = document.documentElement.classList.contains("dark");
 
       // Apply highlight
@@ -6128,15 +6213,17 @@ function buildSolverSummary() {
   const counts = {};
   solverSteps.forEach((step) => {
     if (step.type === "step") {
-      if (!counts[step.techName]) {
-        counts[step.techName] = {
+      const techId = step.techId || step.techName;
+      if (!counts[techId]) {
+        counts[techId] = {
           count: 0,
+          name: step.techName,
           level: step.level,
           baseScore: step.score,
           rank: step.rank,
         };
       }
-      counts[step.techName].count++;
+      counts[techId].count++;
     }
   });
 
@@ -6145,15 +6232,16 @@ function buildSolverSummary() {
   );
   let maxLevel = 0; // Fallback tracker
 
-  sortedTechs.forEach((tech) => {
-    const data = counts[tech];
+  sortedTechs.forEach((techId) => {
+    const data = counts[techId];
+    const tech = data.name;
     const totalScore = data.count * data.baseScore;
     if (data.level > maxLevel) maxLevel = data.level;
     const color = getThemeColor(data.level);
 
     // Main Container
     const row = document.createElement("div");
-    row.dataset.tech = tech; // Tag for highlighting
+    row.dataset.techId = techId; // Stable tag for highlighting
     row.className =
       "flex items-center gap-2 py-0.5 px-1 rounded transition-[background-color,filter] duration-200 duration-200 font-bold cursor-pointer";
 
@@ -6161,7 +6249,10 @@ function buildSolverSummary() {
       // 1. Find all indices where this technique was used
       const occurrences = [];
       solverSteps.forEach((step, index) => {
-        if (step.type === "step" && step.techName === tech) {
+        if (
+          step.type === "step" &&
+          (step.techId || step.techName) === techId
+        ) {
           occurrences.push(index);
         }
       });
@@ -6175,7 +6266,7 @@ function buildSolverSummary() {
       if (
         currentStepObj &&
         currentStepObj.type === "step" &&
-        currentStepObj.techName === tech
+        (currentStepObj.techId || currentStepObj.techName) === techId
       ) {
         const currentIndexInList = occurrences.indexOf(currentSolverStep);
         if (currentIndexInList !== -1) {
@@ -6243,7 +6334,7 @@ function buildSolverSummary() {
     const isDarkMode = document.documentElement.classList.contains("dark");
 
     const row = document.createElement("div");
-    row.dataset.tech = "bruteforce"; // Matches the techName we added in evaluateBoardDifficulty
+    row.dataset.techId = "bruteforce";
     row.className =
       "flex items-center gap-2 py-0.5 px-1 rounded transition-[background-color,filter] duration-200 font-bold cursor-pointer";
 
@@ -7275,7 +7366,7 @@ async function evaluateBoardDifficulty(opts = {}) {
           ? getBoardStateHash(virtualBoard, startingPencils)
           : null;
       // console.log(currentHash);
-      const cacheKey = currentHash ? `${currentHash}_${tech.name}` : null;
+      const cacheKey = currentHash ? `${currentHash}_${tech.id}` : null;
 
       let result;
 
@@ -7293,6 +7384,7 @@ async function evaluateBoardDifficulty(opts = {}) {
         // NEW: CAPTURE STEP STATE BEFORE APPLYING TO BOARD
         solverSteps.push({
           type: "step",
+          techId: tech.id,
           techName: tech.name,
           level: tech.level,
           score: tech.score,
@@ -7523,358 +7615,378 @@ function getDefaultTechniques() {
   // If we didn't specify it, it defaults to true.
   return [
     {
-      name: t("ui_msg_210"),
+      nameKey: "ui_msg_210",
       func: techniques.eliminateCandidates,
       level: 0,
       score: 0,
     },
     {
-      name: t("ui_msg_209"),
+      nameKey: "ui_msg_209",
       func: techniques.fullHouse,
       level: 0,
       score: 4,
     },
     {
-      name: t("ui_msg_254"),
+      nameKey: "ui_msg_254",
       func: techniques.nakedSingle,
       level: 0,
       score: 4,
     },
     {
-      name: t("ui_msg_255"),
+      nameKey: "ui_msg_255",
       func: techniques.hiddenSingle,
       level: 0,
       score: 14,
     },
     {
-      name: t("ui_msg_228"),
+      nameKey: "ui_msg_228",
       func: (b, p, findAll) => techniques.lockedSubset(b, p, 2, findAll),
       level: 1,
       score: 40,
     },
     {
-      name: t("ui_msg_231"),
+      nameKey: "ui_msg_231",
       func: (b, p, findAll) => techniques.lockedSubset(b, p, 3, findAll),
       level: 1,
       score: 60,
     },
     {
-      name: t("ui_msg_234"),
+      nameKey: "ui_msg_234",
       func: (b, p, findAll) => techniques.intersection(b, p, findAll),
       level: 2,
       score: 50,
     },
     {
-      name: t("ui_msg_229"),
+      nameKey: "ui_msg_229",
       func: (b, p, findAll) => techniques.nakedSubset(b, p, 2, findAll),
       level: 2,
       score: 60,
     },
     {
-      name: t("ui_msg_237"),
+      nameKey: "ui_msg_237",
       func: (b, p, findAll) => techniques.hiddenSubset(b, p, 2, findAll),
       level: 2,
       score: 70,
     },
     {
-      name: t("ui_msg_232"),
+      nameKey: "ui_msg_232",
       func: (b, p, findAll) => techniques.nakedSubset(b, p, 3, findAll),
       level: 2,
       score: 80,
     },
     {
-      name: t("ui_msg_262"),
+      nameKey: "ui_msg_262",
       func: (b, p, findAll) => techniques.hiddenSubset(b, p, 3, findAll),
       level: 2,
       score: 100,
     },
     {
-      name: t("ui_msg_263"),
+      nameKey: "ui_msg_263",
       func: (b, p, findAll) => techniques.nakedSubset(b, p, 4, findAll),
       level: 3,
       score: 120,
     },
     {
-      name: t("ui_msg_264"),
+      nameKey: "ui_msg_264",
       func: (b, p, findAll) => techniques.hiddenSubset(b, p, 4, findAll),
       level: 3,
       score: 150,
     },
     {
-      name: t("ui_msg_226"),
+      nameKey: "ui_msg_226",
       func: (b, p, findAll) => techniques.fish(b, p, 2, findAll),
       level: 3,
       score: 100,
     },
     {
-      name: t("ui_msg_266"),
+      nameKey: "ui_msg_266",
       func: (b, p, findAll) => techniques.fish(b, p, 3, findAll),
       level: 3,
       score: 130,
     },
     {
-      name: t("ui_msg_242"),
+      nameKey: "ui_msg_242",
       func: (b, p, findAll) => techniques.xyWing(b, p, findAll),
       level: 3,
       score: 120,
     },
     {
-      name: t("ui_msg_222"),
+      nameKey: "ui_msg_222",
       func: (b, p, findAll) => techniques.remotePair(b, p, findAll),
       level: 3,
       score: 110,
     },
     {
-      name: t("ui_msg_204"),
+      nameKey: "ui_msg_204",
       func: (b, p, findAll) => techniques.bugPlusOne(b, p, findAll),
       level: 4,
       score: 100,
     },
     {
-      name: t("ui_msg_270"),
+      nameKey: "ui_msg_270",
       func: (b, p, findAll) => techniques.fish(b, p, 4, findAll),
       level: 4,
       score: 160,
     },
     {
-      name: t("ui_msg_271"),
+      nameKey: "ui_msg_271",
       func: (b, p, findAll) => techniques.xyzWing(b, p, findAll),
       level: 4,
       score: 140,
     },
     {
-      name: t("ui_msg_220"),
+      nameKey: "ui_msg_220",
       func: (b, p, findAll) => techniques.wWing(b, p, findAll),
       level: 4,
       score: 160,
     },
     {
-      name: t("ui_msg_273"),
+      nameKey: "ui_msg_273",
       func: techniques.skyscraper,
       level: 4,
       score: 110,
     },
     {
-      name: t("ui_msg_274"),
+      nameKey: "ui_msg_274",
       func: techniques.twoStringKite,
       level: 4,
       score: 120,
     },
-    { name: t("ui_msg_275"), func: techniques.crane, level: 4, score: 130 },
+    { nameKey: "ui_msg_275", func: techniques.crane, level: 4, score: 130 },
     {
-      name: t("ui_msg_205"),
+      nameKey: "ui_msg_205",
       func: (b, p, findAll) => techniques.uniqueRectangle(b, p, findAll),
       level: 4,
       score: 100,
     },
     {
-      name: t("ui_msg_206"),
+      nameKey: "ui_msg_206",
       func: techniques.uniqueLoop,
       level: 5,
       score: 120,
     },
     {
-      name: t("ui_msg_207"),
+      nameKey: "ui_msg_207",
       func: techniques.extendedRectangle,
       level: 5,
       score: 140,
     },
     {
-      name: t("ui_msg_221"),
+      nameKey: "ui_msg_221",
       func: techniques.groupedWWing,
       level: 5,
       score: 170,
     },
     {
-      name: t("ui_msg_215"),
+      nameKey: "ui_msg_215",
       func: techniques.finnedXWing,
       level: 5,
       score: 140,
     },
     {
-      name: t("ui_msg_218"),
+      nameKey: "ui_msg_218",
       func: techniques.groupedKite,
       level: 5,
       score: 150,
     },
     {
-      name: t("ui_msg_212"),
+      nameKey: "ui_msg_212",
       func: techniques.emptyRectangle,
       level: 5,
       score: 150,
     },
     {
-      name: t("ui_msg_334"),
+      nameKey: "ui_msg_334",
       func: (b, p, findAll) => techniques.simpleColoring(b, p, findAll),
       level: 5,
       score: 150,
       defaultEnabled: false,
     },
     {
-      name: t("ui_msg_283"),
+      nameKey: "ui_msg_283",
       func: techniques.almostLockedPair,
       level: 5,
       score: 180,
     },
     {
-      name: t("ui_msg_284"),
+      nameKey: "ui_msg_284",
       func: techniques.almostLockedTriple,
       level: 5,
       score: 200,
     },
     {
-      name: t("ui_msg_285"),
+      nameKey: "ui_msg_285",
       func: techniques.hiddenRectangle,
       level: 5,
       score: 110,
     },
     {
-      name: t("ui_msg_440"),
+      nameKey: "ui_msg_440",
       func: techniques.avoidableRectangle,
       level: 5,
       score: 120,
     },
     {
-      name: t("ui_msg_286"),
+      nameKey: "ui_msg_286",
       func: techniques.finnedSwordfish,
       level: 6,
       score: 200,
     },
     {
-      name: t("ui_msg_287"),
+      nameKey: "ui_msg_287",
       func: techniques.finnedJellyfish,
       level: 6,
       score: 260,
     },
-    { name: t("ui_msg_288"), func: techniques.xChain, level: 6, score: 200 },
+    { nameKey: "ui_msg_288", func: techniques.xChain, level: 6, score: 200 },
     {
-      name: t("ui_msg_289"),
+      nameKey: "ui_msg_289",
       func: techniques.xyChain,
       level: 6,
       score: 240,
     },
     {
-      name: t("ui_msg_335"),
+      nameKey: "ui_msg_335",
       func: (b, p, findAll) => techniques.medusa3D(b, p, findAll),
       level: 6,
       score: 200,
       defaultEnabled: false,
     },
     {
-      name: t("ui_msg_339"),
+      nameKey: "ui_msg_339",
       func: techniques.brokenWing,
       level: 6,
       score: 210,
     },
     {
-      name: t("ui_msg_338"),
+      nameKey: "ui_msg_338",
       func: techniques.bivalueOddagon,
       level: 6,
       score: 220,
     },
     {
-      name: t("ui_msg_224"),
+      nameKey: "ui_msg_224",
       func: techniques.firework,
       level: 6,
       score: 240,
     },
     {
-      name: t("ui_msg_245"),
+      nameKey: "ui_msg_245",
       func: techniques.wxyzWing,
       level: 6,
       score: 200,
     },
     {
-      name: t("ui_msg_249"),
+      nameKey: "ui_msg_249",
       func: techniques.sueDeCoq,
       level: 6,
       score: 240,
     },
     {
-      name: t("ui_msg_240"),
+      nameKey: "ui_msg_240",
       func: techniques.groupedXChain,
       level: 7,
       score: 240,
     },
     {
-      name: t("ui_msg_238"),
+      nameKey: "ui_msg_238",
       func: techniques.alternatingInferenceChain,
       level: 7,
       score: 280,
     },
     {
-      name: t("ui_msg_241"),
+      nameKey: "ui_msg_241",
       func: techniques.groupedAIC,
       level: 8,
       score: 300,
     },
     {
-      name: t("ui_msg_250"),
+      nameKey: "ui_msg_250",
       func: techniques.alsXZ,
       level: 8,
       score: 300,
     },
     {
-      name: t("ui_msg_336"),
+      nameKey: "ui_msg_336",
       func: techniques.alsXYWing,
       level: 9,
       score: 320,
     },
     {
-      name: t("ui_msg_337"),
+      nameKey: "ui_msg_337",
       func: techniques.alsWWing,
       level: 9,
       score: 330,
     },
     {
-      name: t("ui_msg_251"),
+      nameKey: "ui_msg_251",
       func: techniques.alsAic,
       level: 9,
       score: 340,
     },
     {
-      name: t("ui_msg_295"),
+      nameKey: "ui_msg_295",
       func: techniques.cellDeathBlossom,
       level: 10,
       score: 380,
     },
     {
-      name: t("ui_msg_296"),
+      nameKey: "ui_msg_296",
       func: techniques.regionDeathBlossom,
       level: 10,
       score: 400,
     },
     {
-      name: t("ui_msg_297"),
+      nameKey: "ui_msg_297",
       func: techniques.finnedFrankenSwordfish,
       level: 10,
       score: 410,
     },
     {
-      name: t("ui_msg_298"),
+      nameKey: "ui_msg_298",
       func: techniques.finnedMutantSwordfish,
       level: 10,
       score: 420,
     },
     {
-      name: t("ui_msg_346"),
+      nameKey: "ui_msg_346",
       func: techniques.finnedFrankenJellyfish,
       level: 10,
       score: 430,
     },
     {
-      name: t("ui_msg_347"),
+      nameKey: "ui_msg_347",
       func: techniques.finnedMutantJellyfish,
       level: 10,
       score: 440,
     },
     {
-      name: t("ui_msg_299"),
+      nameKey: "ui_msg_299",
       func: techniques.complexAic,
       level: 10,
       score: 450,
     },
-  ].map((t) => ({ ...t, defaultEnabled: t.defaultEnabled !== false }));
+  ].map((tech) => ({
+    ...tech,
+    id: tech.nameKey,
+    name: t(tech.nameKey),
+    defaultEnabled: tech.defaultEnabled !== false,
+  }));
+}
+
+function findTechniqueForPreference(pref, defaults) {
+  if (pref.id) {
+    const matchedById = defaults.find((tech) => tech.id === pref.id);
+    if (matchedById) return matchedById;
+  }
+
+  return defaults.find(
+    (tech) =>
+      tech.name === pref.name ||
+      Object.values(TRANSLATIONS).some(
+        (translations) => translations[tech.nameKey] === pref.name,
+      ),
+  );
 }
 
 function hasCustomPreferences() {
@@ -7891,9 +8003,9 @@ function hasCustomPreferences() {
 
     // 2. Check if the order or difficulty levels changed
     for (let i = 0; i < active.length; i++) {
-      if (active[i].name !== defaultActive[i].name) return true;
+      if (active[i].id !== defaultActive[i].id) return true;
 
-      const orig = defaults.find((t) => t.name === active[i].name);
+      const orig = defaults.find((t) => t.id === active[i].id);
       if (orig && orig.level !== active[i].level) return true;
       if (orig && orig.score !== active[i].score) return true;
     }
@@ -7912,9 +8024,11 @@ function getActiveTechniques() {
   }
 
   const active = [];
+  const savedTechniqueIds = new Set();
   savedPrefs.forEach((p) => {
-    const tech = defaults.find((t) => t.name === p.name);
-    if (tech && (p.enabled || getMandatoryTechniques().includes(p.name))) {
+    const tech = findTechniqueForPreference(p, defaults);
+    if (tech) savedTechniqueIds.add(tech.id);
+    if (tech && (p.enabled || getMandatoryTechniques().includes(tech.name))) {
       // Overwrite the level property if the user dragged it elsewhere
       if (p.level !== undefined) tech.level = p.level;
       // Overwrite score if user customized it
@@ -7925,7 +8039,7 @@ function getActiveTechniques() {
 
   // Catch any new features pushed in a codebase update
   defaults.forEach((t) => {
-    if (!savedPrefs.some((p) => p.name === t.name)) {
+    if (!savedTechniqueIds.has(t.id)) {
       if (t.defaultEnabled) active.push(t);
     }
   });
@@ -8096,7 +8210,7 @@ function openPreferencesModal() {
   let currentOrder = [];
   if (savedPrefs) {
     savedPrefs.forEach((p) => {
-      const tech = defaultTechs.find((t) => t.name === p.name);
+      const tech = findTechniqueForPreference(p, defaultTechs);
       if (tech) {
         currentOrder.push({
           ...tech,
@@ -8109,7 +8223,7 @@ function openPreferencesModal() {
       }
     });
     defaultTechs.forEach((t) => {
-      if (!currentOrder.find((c) => c.name === t.name)) {
+      if (!currentOrder.find((c) => c.id === t.id)) {
         currentOrder.push({
           ...t,
           enabled: t.defaultEnabled,
@@ -8160,6 +8274,7 @@ function openPreferencesModal() {
 
     item.className = `sortable-item bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded py-1 px-2 flex justify-between items-center shadow-sm mt-1 ${isMandatory ? "locked-item" : ""}`;
     item.draggable = !isMandatory;
+    item.dataset.techId = tech.id;
     item.dataset.name = tech.name;
     item.dataset.origLevel = tech.origLevel;
     item.dataset.currentLevel = tech.level;
@@ -8311,6 +8426,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ? parsedScore
             : defaultScore;
         return {
+          id: item.dataset.techId,
           name: item.dataset.name,
           enabled: item.querySelector("input[type='checkbox']").checked,
           level: parseInt(item.dataset.currentLevel, 10),

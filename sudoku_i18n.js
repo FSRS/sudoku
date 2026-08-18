@@ -1612,27 +1612,37 @@ function applyTranslations() {
 function setupLanguageSwitcher() {
   const btn = document.getElementById("lang-toggle");
   if (!btn) return;
-  btn.addEventListener("click", () => {
-    const newLang = currentLang === "en" ? "ko" : "en";
-    setLanguage(newLang);
-    // Refresh dynamically generated UI
-    if (typeof updateButtonLabels === "function") updateButtonLabels();
-    if (typeof updateSolverToggleButton === "function")
-      updateSolverToggleButton();
-    if (typeof updateControls === "function") updateControls();
-    if (typeof onBoardUpdated === "function") onBoardUpdated();
-    if (typeof populateSelectors === "function") {
-      const ds = document.getElementById("date-select");
-      const ls = document.getElementById("level-select");
-      const oldDateVal = ds ? ds.value : null;
-      const oldLevelVal = ls ? ls.value : null;
-      populateSelectors();
-      if (ds && oldDateVal) ds.value = oldDateVal;
-      if (ls && oldLevelVal) ls.value = oldLevelVal;
-    }
-    if (typeof isSolverMode !== "undefined" && isSolverMode) {
-      if (typeof buildSolverTimeline === "function") buildSolverTimeline();
-      if (typeof buildSolverSummary === "function") buildSolverSummary();
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      const newLang = currentLang === "en" ? "ko" : "en";
+      setLanguage(newLang);
+      // Refresh dynamically generated UI
+      if (typeof updateButtonLabels === "function") updateButtonLabels();
+      if (typeof updateSolverToggleButton === "function")
+        updateSolverToggleButton();
+      if (typeof updateControls === "function") updateControls();
+      if (typeof populateSelectors === "function") {
+        const ds = document.getElementById("date-select");
+        const ls = document.getElementById("level-select");
+        const oldDateVal = ds ? ds.value : null;
+        const oldLevelVal = ls ? ls.value : null;
+        populateSelectors();
+        if (ds && oldDateVal) ds.value = oldDateVal;
+        if (ls && oldLevelVal) ls.value = oldLevelVal;
+      }
+
+      if (
+        typeof isSolverMode !== "undefined" &&
+        isSolverMode &&
+        typeof refreshSolverAfterLanguageChange === "function"
+      ) {
+        await refreshSolverAfterLanguageChange();
+      } else if (typeof onBoardUpdated === "function") {
+        onBoardUpdated();
+      }
+    } finally {
+      btn.disabled = false;
     }
   });
 }
