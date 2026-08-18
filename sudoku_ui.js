@@ -79,6 +79,10 @@ let viewAllTechniquesResults = []; // Array of { tech, result, actionStr }
 let drawSubMode = "solid"; // "solid" or "dash"
 let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
 let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
+let previewAnimationFrameId = null;
+let resizeLineRenderFrameId = null;
+const candidateCenterCache = new Map();
+let renderedLineSignatures = [];
 let lineColorPalette = []; // Specific palette for lines
 let historyCurrentSnapshot = null;
 let puzzleProgressSaveTimeout = null;
@@ -794,8 +798,16 @@ function updateControls() {
   }
 }
 
-/* REPLACE getCandidateCenter function in sudoku_ui.js */
+function invalidateCandidateGeometry() {
+  candidateCenterCache.clear();
+  renderedLineSignatures = [];
+}
+
 function getCandidateCenter(r, c, n) {
+  const cacheKey = `${candidatePopupFormat}:${r}:${c}:${n}`;
+  const cachedCenter = candidateCenterCache.get(cacheKey);
+  if (cachedCenter) return cachedCenter;
+
   // Try DOM-based positioning first for perfect visual alignment
   const cell = gridContainer.querySelector(
     `.sudoku-cell[data-row="${r}"][data-col="${c}"]`,
@@ -830,7 +842,9 @@ function getCandidateCenter(r, c, n) {
         const x = (markCenterX / innerWidth) * 100;
         const y = (markCenterY / innerHeight) * 100;
 
-        return { x, y };
+        const center = { x, y };
+        candidateCenterCache.set(cacheKey, center);
+        return center;
       }
     }
   }
@@ -852,7 +866,9 @@ function getCandidateCenter(r, c, n) {
   const x = c * cellWidth + subCol * subCellWidth + centerOffset;
   const y = r * cellWidth + subRow * subCellWidth + centerOffset;
 
-  return { x, y };
+  const center = { x, y };
+  candidateCenterCache.set(cacheKey, center);
+  return center;
 }
 
 function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
@@ -1203,97 +1219,123 @@ function pruneInvalidLines() {
   });
 }
 
+function getLineSignature(line) {
+  return [
+    line.r1,
+    line.c1,
+    line.n1,
+    line.r2,
+    line.c2,
+    line.n2,
+    line.color,
+    line.style,
+  ].join("|");
+}
+
+function ensureDrawingGroups(svg) {
+  let staticGroup = document.getElementById("static-lines-group");
+  let previewGroup = document.getElementById("preview-lines-group");
+
+  if (!staticGroup) {
+    staticGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    staticGroup.id = "static-lines-group";
+    svg.insertBefore(staticGroup, previewGroup || null);
+  }
+
+  if (!previewGroup) {
+    previewGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    previewGroup.id = "preview-lines-group";
+    svg.appendChild(previewGroup);
+  }
+
+  return { staticGroup, previewGroup };
+}
+
+function createLineElement(line) {
+  const { r1, c1, n1, r2, c2, n2, color, style } = line;
+  const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  group.classList.add("draw-line-entry");
+  const start = getCandidateCenter(r1, c1, n1);
+  const end = getCandidateCenter(r2, c2, n2);
+
+  const radiusVal = style === "solid" ? 1.6 : 1.2;
+  let x1 = start.x;
+  let y1 = start.y;
+  let x2 = end.x;
+  let y2 = end.y;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+
+  if (len > radiusVal * 2) {
+    const offX = (dx / len) * radiusVal;
+    const offY = (dy / len) * radiusVal;
+    x1 += offX;
+    y1 += offY;
+    x2 -= offX;
+    y2 -= offY;
+  }
+
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  path.setAttribute("x1", `${x1}%`);
+  path.setAttribute("y1", `${y1}%`);
+  path.setAttribute("x2", `${x2}%`);
+  path.setAttribute("y2", `${y2}%`);
+  path.setAttribute("stroke", color);
+  path.classList.add("draw-line", style);
+  group.appendChild(path);
+
+  const drawEndpoint = (cx, cy) => {
+    const circle = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "circle",
+    );
+    circle.setAttribute("cx", `${cx}%`);
+    circle.setAttribute("cy", `${cy}%`);
+    circle.setAttribute("r", `${radiusVal}%`);
+    circle.setAttribute("fill", color);
+    circle.setAttribute("class", "draw-endpoint");
+    group.appendChild(circle);
+  };
+
+  drawEndpoint(start.x, start.y);
+  drawEndpoint(end.x, end.y);
+  return group;
+}
+
 function renderLines() {
   const svg = document.getElementById("drawing-layer");
   if (!svg) return;
+  const { staticGroup } = ensureDrawingGroups(svg);
+  const nextSignatures = drawnLines.map(getLineSignature);
 
-  // Clear everything
-  svg.innerHTML = "";
+  // Resolve changed endpoints before mutating the SVG so layout reads and
+  // DOM writes are not interleaved.
+  drawnLines.forEach((line, index) => {
+    if (nextSignatures[index] === renderedLineSignatures[index]) return;
+    getCandidateCenter(line.r1, line.c1, line.n1);
+    getCandidateCenter(line.r2, line.c2, line.n2);
+  });
 
-  // Create a group for static lines
-  const staticGroup = document.createElementNS(
-    "http://www.w3.org/2000/svg",
-    "g",
-  );
-  staticGroup.id = "static-lines-group";
-  svg.appendChild(staticGroup);
-
-  // Create a group for the preview
-  const previewGroup = document.createElementNS(
-    "http://www.w3.org/2000/svg",
-    "g",
-  );
-  previewGroup.id = "preview-lines-group";
-  svg.appendChild(previewGroup);
-
-  // Helper to draw a single line entry
-  const drawLineEntry = (r1, c1, n1, r2, c2, n2, color, style) => {
-    const start = getCandidateCenter(r1, c1, n1);
-    const end = getCandidateCenter(r2, c2, n2);
-
-    // Define radius (numeric for calculation)
-    const radiusVal = style === "solid" ? 1.6 : 1.2;
-
-    // --- Calculate Shortened Coordinates ---
-    let x1 = start.x,
-      y1 = start.y;
-    let x2 = end.x,
-      y2 = end.y;
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const len = Math.sqrt(dx * dx + dy * dy);
-
-    // Only offset if the line is longer than 2x radius (to prevent inversion)
-    if (len > radiusVal * 2) {
-      const offX = (dx / len) * radiusVal;
-      const offY = (dy / len) * radiusVal;
-      x1 += offX;
-      y1 += offY;
-      x2 -= offX;
-      y2 -= offY;
+  drawnLines.forEach((line, index) => {
+    if (
+      nextSignatures[index] === renderedLineSignatures[index] &&
+      staticGroup.children[index]
+    ) {
+      return;
     }
 
-    // 1. Connection Line (Shortened)
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    path.setAttribute("x1", `${x1}%`);
-    path.setAttribute("y1", `${y1}%`);
-    path.setAttribute("x2", `${x2}%`);
-    path.setAttribute("y2", `${y2}%`);
-    path.setAttribute("stroke", color);
-    path.classList.add("draw-line", style);
-    staticGroup.appendChild(path);
-
-    // 2. Endpoints (Drawn at original centers)
-    const drawEndpoint = (cx, cy) => {
-      const circle = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "circle",
-      );
-      circle.setAttribute("cx", `${cx}%`);
-      circle.setAttribute("cy", `${cy}%`);
-      circle.setAttribute("r", `${radiusVal}%`);
-      circle.setAttribute("fill", color);
-      circle.setAttribute("class", "draw-endpoint");
-      staticGroup.appendChild(circle);
-    };
-
-    drawEndpoint(start.x, start.y);
-    drawEndpoint(end.x, end.y);
-  };
-
-  // Render ONLY stored lines
-  drawnLines.forEach((line) => {
-    drawLineEntry(
-      line.r1,
-      line.c1,
-      line.n1,
-      line.r2,
-      line.c2,
-      line.n2,
-      line.color,
-      line.style,
-    );
+    const lineElement = createLineElement(line);
+    const currentElement = staticGroup.children[index];
+    if (currentElement) currentElement.replaceWith(lineElement);
+    else staticGroup.appendChild(lineElement);
   });
+
+  while (staticGroup.children.length > drawnLines.length) {
+    staticGroup.lastElementChild.remove();
+  }
+
+  renderedLineSignatures = nextSignatures;
 }
 
 // Replace these specific lines inside the updatePreview() function
@@ -2133,6 +2175,13 @@ function setupEventListeners() {
   window.addEventListener("resize", () => {
     updateButtonLabels();
     updateControls(); // Re-render numpad in case the window crosses the 880px boundary
+    invalidateCandidateGeometry();
+    if (resizeLineRenderFrameId === null) {
+      resizeLineRenderFrameId = requestAnimationFrame(() => {
+        resizeLineRenderFrameId = null;
+        renderLines();
+      });
+    }
   });
   // 1. Define the actual toggle logic
   const executeFormatToggle = () => {
@@ -2145,6 +2194,8 @@ function setupEventListeners() {
 
     updateControls();
     renderBoard();
+    invalidateCandidateGeometry();
+    renderLines();
 
     if (
       !candidateModal.classList.contains("hidden") &&
@@ -2657,7 +2708,12 @@ function setupEventListeners() {
       const xPct = (relativeX / innerWidth) * 100;
       const yPct = (relativeY / innerHeight) * 100;
       drawingState.currentPos = { x: xPct, y: yPct };
-      requestAnimationFrame(updatePreview);
+      if (previewAnimationFrameId === null) {
+        previewAnimationFrameId = requestAnimationFrame(() => {
+          previewAnimationFrameId = null;
+          updatePreview();
+        });
+      }
     }
   });
 
@@ -3583,7 +3639,6 @@ function handleModeChange(e) {
   }
 
   renderBoard();
-  renderLines();
   updateButtonLabels();
 
   // Handle Mobile Tooltips
