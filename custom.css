@@ -93,7 +93,7 @@ button:disabled:hover {
   font-weight: bold;
 
   transform: rotate(-12deg) translateY(-2px);
-  margin-left: -0.4rem;
+  margin-left: 0.75rem;
   padding: 0.2rem 0.5rem;
   border-radius: 2px;
 
@@ -106,7 +106,6 @@ button:disabled:hover {
     max-height 0.8s ease,
     margin-left 0.8s ease,
     padding 0.8s ease,
-    border-width 0.8s ease,
     color 0.8s ease;
 
   cursor: help;
@@ -168,7 +167,7 @@ button:disabled:hover {
   max-height: 0;
   margin-left: 0;
   padding: 0;
-  border-width: 0;
+  border: none !important;
   color: transparent;
   box-shadow: none;
   overflow: hidden;
