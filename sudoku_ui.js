@@ -40,7 +40,16 @@ const shareSolverBtn = document.getElementById("share-solver-btn");
 const shareCancelBtn = document.getElementById("share-cancel-btn");
 const prefBtn = document.getElementById("pref-btn");
 const techniqueResultCache = new Map();
+const difficultyRatingCache = new Map();
 const minDateNum = 20260301;
+const difficultyEngineStorageKey = "sudokuDifficultyEngine";
+const difficultyEngines = new Set(["skfr", "se", "old-se"]);
+// Display names only; the stored engine ids above must stay unchanged.
+const difficultyEngineLabels = {
+  skfr: "skfr",
+  se: "SE",
+  "old-se": "SE 1.2.1",
+};
 
 let vagueHintMessage = "";
 let currentPuzzleScore = 0;
@@ -101,6 +110,156 @@ let vatSelectedHint = null;
 
 let vatSearchRunId = 0;
 let isSolverLanguageRefreshInProgress = false;
+
+function getDifficultyEngine() {
+  const saved = localStorage.getItem(difficultyEngineStorageKey);
+  return difficultyEngines.has(saved) ? saved : "skfr";
+}
+
+function formatDifficultyRating(engine, rating10) {
+  return ` (${difficultyEngineLabels[engine]} ${(rating10 / 10).toFixed(1)})`;
+}
+
+/**
+ * Compresses a cell list into the shortest readable notation by repeatedly
+ * merging the cells that share a row (r6c45) or a column (r89c1), whichever
+ * covers more cells. Ties keep the row form.
+ * e.g. r6c4,r6c5,r8c1,r9c1,r9c3,r9c5 -> r6c45,r8c1,r9c135
+ */
+function formatCellList(cells) {
+  const remaining = new Map();
+  for (const cell of cells) {
+    remaining.set(cell.r * 9 + cell.c, { r: cell.r, c: cell.c });
+  }
+
+  const tokens = [];
+  while (remaining.size > 0) {
+    const byRow = new Map();
+    const byCol = new Map();
+    for (const { r, c } of remaining.values()) {
+      if (!byRow.has(r)) byRow.set(r, []);
+      byRow.get(r).push(c);
+      if (!byCol.has(c)) byCol.set(c, []);
+      byCol.get(c).push(r);
+    }
+
+    let best = null;
+    for (const [r, cols] of byRow) {
+      if (!best || cols.length > best.members.length) {
+        best = { isRow: true, line: r, members: cols };
+      }
+    }
+    for (const [c, rows] of byCol) {
+      // Strict > so an equally large column group never displaces the row form.
+      if (rows.length > best.members.length) {
+        best = { isRow: false, line: c, members: rows };
+      }
+    }
+
+    const members = best.members.sort((a, b) => a - b);
+    const digits = members.map((n) => n + 1).join("");
+    if (best.isRow) {
+      tokens.push({
+        r: best.line,
+        c: members[0],
+        text: `r${best.line + 1}c${digits}`,
+      });
+      for (const c of members) remaining.delete(best.line * 9 + c);
+    } else {
+      tokens.push({
+        r: members[0],
+        c: best.line,
+        text: `r${digits}c${best.line + 1}`,
+      });
+      for (const r of members) remaining.delete(r * 9 + best.line);
+    }
+  }
+
+  tokens.sort((a, b) => a.r - b.r || a.c - b.c);
+  return tokens.map((token) => token.text).join(",");
+}
+
+function getDifficultyRatingText(puzzle, onReady) {
+  const engine = getDifficultyEngine();
+  if (engine === "skfr") {
+    if (!window.getSkfrRating) return "";
+    const rating = window.getSkfrRating(puzzle);
+    return rating === null ? "" : ` (skfr ${rating})`;
+  }
+
+  if (!window.SeFast?.rate) return "";
+  const key = `${engine}:${puzzle}`;
+  const cached = difficultyRatingCache.get(key);
+  if (cached?.status === "resolved") return cached.text;
+  if (cached?.status === "rejected") return "";
+  // Rating runs async, so show the engine as pending until onReady re-renders.
+  const pendingText = ` (${difficultyEngineLabels[engine]} ${t("ui_rating_pending")})`;
+  if (!cached) {
+    difficultyRatingCache.set(key, { status: "pending" });
+    const mode = engine === "se" ? "current" : "se121";
+    window.SeFast.rate(puzzle, mode).then(
+      ({ er }) => {
+        const text = Number.isFinite(er)
+          ? formatDifficultyRating(engine, er)
+          : "";
+        difficultyRatingCache.set(key, { status: "resolved", text });
+        onReady();
+      },
+      (error) => {
+        difficultyRatingCache.set(key, { status: "rejected" });
+        console.warn(`${engine} difficulty rating failed.`, error);
+        // Re-render too, otherwise the pending text would never clear.
+        onReady();
+      },
+    );
+  }
+  return pendingText;
+}
+
+function ensureDifficultyEnginePreference() {
+  const modal = document.getElementById("preferences-modal");
+  if (!modal) return;
+
+  let select = modal.querySelector("#difficulty-engine-select");
+  if (!select) {
+    const row = document.createElement("div");
+    row.id = "difficulty-engine-preference";
+    row.className =
+      "flex items-center justify-between gap-3 py-2 text-sm text-gray-800 dark:text-gray-200";
+
+    const label = document.createElement("label");
+    label.htmlFor = "difficulty-engine-select";
+    label.className = "font-medium";
+    label.textContent = t("pref_difficulty_engine");
+
+    select = document.createElement("select");
+    select.id = "difficulty-engine-select";
+    select.className =
+      "rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm";
+    for (const [value, text] of [
+      ["skfr", "skfr"],
+      ["se", "SE"],
+      ["old-se", difficultyEngineLabels["old-se"]],
+    ]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = text;
+      select.appendChild(option);
+    }
+    row.append(label, select);
+
+    const themeLabel = modal.querySelector('[data-i18n="pref_theme"]');
+    const themeControl = modal.querySelector("#theme-toggle");
+    const themeRow = (themeControl || themeLabel)?.closest("div");
+    if (themeRow?.parentElement) {
+      themeRow.insertAdjacentElement("afterend", row);
+    } else {
+      const listContainer = document.getElementById("technique-list-container");
+      listContainer?.parentElement?.insertBefore(row, listContainer);
+    }
+  }
+  select.value = getDifficultyEngine();
+}
 
 function waitForBrowserPaint() {
   return new Promise((resolve) => {
@@ -2449,32 +2608,7 @@ function setupEventListeners() {
               (a, b) => a - b,
             );
             for (const d of sortedDigits) {
-              const cellGroup = removalsByDigit.get(d);
-              cellGroup.sort((a, b) => a.r - b.r || a.c - b.c);
-              let locStr = "";
-              const firstR = cellGroup[0].r;
-              const isSameRow = cellGroup.every((c) => c.r === firstR);
-              const firstC = cellGroup[0].c;
-              const isSameCol = cellGroup.every((c) => c.c === firstC);
-              if (isSameRow) {
-                const cols = cellGroup.map((c) => c.c + 1).join("");
-                locStr = `r${firstR + 1}c${cols}`;
-              } else if (isSameCol) {
-                const rows = cellGroup.map((c) => c.r + 1).join("");
-                locStr = `r${rows}c${firstC + 1}`;
-              } else {
-                const rowMap = new Map();
-                for (const c of cellGroup) {
-                  if (!rowMap.has(c.r)) rowMap.set(c.r, []);
-                  rowMap.get(c.r).push(c.c);
-                }
-                const parts = [];
-                for (const [r, cols] of rowMap) {
-                  const colStr = cols.map((c) => c + 1).join("");
-                  parts.push(`r${r + 1}c${colStr}`);
-                }
-                locStr = parts.join(",");
-              }
+              const locStr = formatCellList(removalsByDigit.get(d));
               groups.push(`${locStr}<>${d}`);
             }
             actionStr = groups.join(", ");
@@ -5417,11 +5551,7 @@ function buildViewAllTechniquesList(step) {
         (a, b) => a - b,
       );
       for (const d of sortedDigits) {
-        const cg = removalsByDigit
-          .get(d)
-          .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.c - b.c))
-          .map((c) => `r${c.r + 1}c${c.c + 1}`)
-          .join(",");
+        const cg = formatCellList(removalsByDigit.get(d));
         groups.push(`${cg}<>${d}`);
       }
       actionStr = groups.join(" | ");
@@ -5724,11 +5854,7 @@ async function searchAndAppendVatLevel(
           (a, b) => a - b,
         );
         for (const d of sortedDigits) {
-          const cg = removalsByDigit
-            .get(d)
-            .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.c - b.c))
-            .map((c) => `r${c.r + 1}c${c.c + 1}`)
-            .join(",");
+          const cg = formatCellList(removalsByDigit.get(d));
           groups.push(`${cg}<>${d}`);
         }
         actionStr = groups.join(" | ");
@@ -6076,22 +6202,33 @@ function renderSolverStep(index) {
     const isBruteForce =
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
-    let skfrText = "";
-    if (
-      window.getSkfrRating &&
-      typeof initialPuzzleString !== "undefined" &&
-      initialPuzzleString
-    ) {
-      const skfr = window.getSkfrRating(initialPuzzleString);
-      if (skfr !== null) {
-        skfrText = ` (skfr ${skfr})`;
-      }
+    let difficultyRatingText = "";
+    if (typeof initialPuzzleString !== "undefined" && initialPuzzleString) {
+      difficultyRatingText = getDifficultyRatingText(
+        initialPuzzleString,
+        () => {
+          if (
+            isSolverMode &&
+            currentSolverStep === index &&
+            solverSteps[index]?.type === "summary"
+          ) {
+            renderSolverStep(index);
+          }
+        },
+      );
     }
 
     if (isBruteForce) {
-      msg = t("ui_msg_183", star, skfrText, star);
+      msg = t("ui_msg_183", star, difficultyRatingText, star);
     } else {
-      msg = t("ui_msg_184", step.level, star, skfrText, step.score, star);
+      msg = t(
+        "ui_msg_184",
+        step.level,
+        star,
+        difficultyRatingText,
+        step.score,
+        star,
+      );
     }
     msgColor = "green";
 
@@ -6143,27 +6280,7 @@ function renderSolverStep(index) {
         (a, b) => a - b,
       );
       for (const d of sortedDigits) {
-        const cellGroup = removalsByDigit.get(d);
-        cellGroup.sort((a, b) => a.r - b.r || a.c - b.c);
-        let locStr = "";
-        const firstR = cellGroup[0].r;
-        const firstC = cellGroup[0].c;
-        if (cellGroup.every((c) => c.r === firstR)) {
-          locStr = `r${firstR + 1}c${cellGroup.map((c) => c.c + 1).join("")}`;
-        } else if (cellGroup.every((c) => c.c === firstC)) {
-          locStr = `r${cellGroup.map((c) => c.r + 1).join("")}c${firstC + 1}`;
-        } else {
-          const rowMap = new Map();
-          for (const cell of cellGroup) {
-            if (!rowMap.has(cell.r)) rowMap.set(cell.r, []);
-            rowMap.get(cell.r).push(cell.c);
-          }
-          const parts = [];
-          for (const [r, cols] of rowMap) {
-            parts.push(`r${r + 1}c${cols.map((c) => c + 1).join("")}`);
-          }
-          locStr = parts.join(",");
-        }
+        const locStr = formatCellList(removalsByDigit.get(d));
         groups.push(`${locStr}<>${d}`);
       }
       actionStr = groups.join(", ");
@@ -8147,6 +8264,7 @@ function openPreferencesModal() {
   const modal = document.getElementById("preferences-modal");
   const listContainer = document.getElementById("technique-list-container");
   listContainer.innerHTML = "";
+  ensureDifficultyEnginePreference();
 
   // Native overscroll handles bounce and momentum perfectly
   listContainer.style.overscrollBehavior = "contain";
@@ -8436,6 +8554,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // 1. Save the exact dragged order and toggle states to local cache
       localStorage.setItem("sudokuTechniquePrefs", JSON.stringify(prefs));
+      const difficultyEngine = document.getElementById(
+        "difficulty-engine-select",
+      )?.value;
+      if (difficultyEngines.has(difficultyEngine)) {
+        localStorage.setItem(difficultyEngineStorageKey, difficultyEngine);
+      }
 
       // 2. Close the modal
       document.getElementById("preferences-modal").classList.add("hidden");
@@ -8473,6 +8597,7 @@ document.addEventListener("DOMContentLoaded", () => {
     .addEventListener("click", async () => {
       // 1. Wipe the local cache
       localStorage.removeItem("sudokuTechniquePrefs");
+      localStorage.removeItem(difficultyEngineStorageKey);
 
       // 3. Reset Candidate Display layout to t("ui_msg_74")
       candidatePopupFormat = "A";

@@ -4,7 +4,7 @@ daily minimal minigame
 
 ## Acknowledgements and Third-Party Libraries
 
-This project uses the skfr engine to evaluate auxiliary puzzle difficulty.
+This project uses the skfr and SEROB engine to evaluate auxiliary puzzle difficulty.
 
 ### skfr License
 
@@ -31,3 +31,14 @@ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+### SEROB license and source
+
+SEROB is a rating-only WebAssembly adaptation derived from SukakuExplainer,
+which is based on Sudoku Explainer by Nicolas Juillerat and the `serate`
+modifications by gsf.
+
+The SE-derived engine and its corresponding source are distributed under the
+GNU Lesser General Public License version 2.1 only.
+The original copyright notices and the complete license text are preserved in
+[SEROB](https://github.com/PARK-SU/SEROB).
