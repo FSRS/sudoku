@@ -48,7 +48,7 @@ const difficultyEngines = new Set(["skfr", "se", "old-se"]);
 const difficultyEngineLabels = {
   skfr: "skfr",
   se: "SE",
-  "old-se": "SE 1.2.1",
+  "old-se": "SE",
 };
 
 let vagueHintMessage = "";
@@ -581,11 +581,7 @@ function swapThemeColors() {
   }
 
   const mapCellColors = (cell) => {
-    cell.cellColor = mapColor(
-      cell.cellColor,
-      oldCellPalette,
-      newCellPalette,
-    );
+    cell.cellColor = mapColor(cell.cellColor, oldCellPalette, newCellPalette);
     for (let [digit, color] of cell.pencilColors.entries()) {
       cell.pencilColors.set(
         digit,
@@ -5407,10 +5403,7 @@ async function refreshSolverAfterLanguageChange() {
 
     buildSolverTimeline();
 
-    const targetStepIndex = Math.min(
-      previousStepIndex,
-      solverSteps.length - 1,
-    );
+    const targetStepIndex = Math.min(previousStepIndex, solverSteps.length - 1);
 
     if (wasViewAllTechniquesMode) {
       // Render and re-enter VAT in the same task, so the normal Solver list
@@ -6366,10 +6359,7 @@ function buildSolverSummary() {
       // 1. Find all indices where this technique was used
       const occurrences = [];
       solverSteps.forEach((step, index) => {
-        if (
-          step.type === "step" &&
-          (step.techId || step.techName) === techId
-        ) {
+        if (step.type === "step" && (step.techId || step.techName) === techId) {
           occurrences.push(index);
         }
       });
@@ -6883,12 +6873,8 @@ function applyHistoryEntryToState(state, entry, direction) {
   }
 
   if (entry.linePatch) {
-    const removed = useBefore
-      ? entry.linePatch.added
-      : entry.linePatch.removed;
-    const added = useBefore
-      ? entry.linePatch.removed
-      : entry.linePatch.added;
+    const removed = useBefore ? entry.linePatch.added : entry.linePatch.removed;
+    const added = useBefore ? entry.linePatch.removed : entry.linePatch.added;
     state.drawnLines.splice(
       entry.linePatch.index,
       removed.length,
@@ -6973,11 +6959,7 @@ function saveState() {
   const nextSnapshot = historyCurrentSnapshot || createHistorySnapshot();
 
   if (historyCurrentSnapshot) {
-    applyHistoryEntryToState(
-      nextSnapshot,
-      { boardChanges, linePatch },
-      "redo",
-    );
+    applyHistoryEntryToState(nextSnapshot, { boardChanges, linePatch }, "redo");
   }
 
   const entry = {
