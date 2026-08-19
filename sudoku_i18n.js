@@ -898,7 +898,7 @@ const TRANSLATIONS = {
     // === Preferences modal ===
     modal_pref_title: "환경설정",
     pref_theme: "테마 변경",
-    pref_difficulty_engine: "난이도 측정기",
+    pref_difficulty_engine: "난이도 측정 시스템",
     ui_rating_pending: "측정 중...",
     pref_uniqueness: "유일성 논법 활성화",
     pref_drag_hint:
