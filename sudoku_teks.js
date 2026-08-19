@@ -9809,6 +9809,7 @@ const techniques = {
         useGrouped: false,
         useAls: true,
         useAlsOnly: true,
+        endSameDigits: true,
         maxCycle: 2,
         nameOverride: t("teks_msg_181"),
         allowedOrLinkTypes: ["als", "bivalue"],
