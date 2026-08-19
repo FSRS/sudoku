@@ -9083,7 +9083,13 @@ const techniques = {
       return str;
     };
 
-    const buildResult = (removals, name, path, isRing = false) => {
+    const buildResult = (
+      removals,
+      name,
+      path,
+      isRing = false,
+      placement = null,
+    ) => {
       const eurekaStr = buildCompactEureka(path, isRing);
 
       const usedAlses = [];
@@ -9114,6 +9120,11 @@ const techniques = {
         change: true,
         type: "remove",
         cells: removals,
+        // Display only. A DN Loop that proves a basic node true is really a
+        // placement, so messages can say "rXcY = n" instead of listing every
+        // candidate it wipes out. The solver still applies `cells`, so the
+        // solve path, scoring and applyVisuals are untouched.
+        placement,
         hint: {
           name: name,
           mainInfo: t("teks_msg_138", eurekaStr.split("-")[0]),
@@ -9544,8 +9555,20 @@ const techniques = {
             if (!isEqual && !aSubsetOfD && !dSubsetOfA) continue;
 
             // Choose which end's NandBitset to eliminate from:
-            const removalBitset = aSubsetOfD ? D.NandBitset : A.NandBitset;
+            const trueNode = aSubsetOfD ? D : A;
+            const removalBitset = trueNode.NandBitset;
             let dnRemovals = extractRemovals(removalBitset);
+
+            // A basic node proven true is a placement. In the subset cases the
+            // proven node is always the superset, so it is never basic there.
+            const dnPlacement =
+              isEqual && trueNode.isSingleCell && trueNode.isSingleDigit
+                ? {
+                    r: Math.floor(trueNode.cells[0] / 9),
+                    c: trueNode.cells[0] % 9,
+                    num: trueNode.digits[0],
+                  }
+                : null;
 
             if (dnRemovals.length > 0) {
               const removalsKey = JSON.stringify(
@@ -9575,7 +9598,13 @@ const techniques = {
                           )
                         : techniqueName;
 
-                const res = buildResult(dnRemovals, DNLName, path, false);
+                const res = buildResult(
+                  dnRemovals,
+                  DNLName,
+                  path,
+                  false,
+                  dnPlacement,
+                );
 
                 if (!findAll) return res;
                 results.push(res);

@@ -179,6 +179,37 @@ function formatCellList(cells) {
   return tokens.map((token) => token.text).join(",");
 }
 
+/**
+ * Renders what a technique result does, for the hint / solver / VAT messages.
+ * A chain that confirms a candidate (result.placement) reads as "r4c8=7"
+ * rather than listing every candidate that confirmation wipes out.
+ */
+function formatResultAction(result, separator = ", ") {
+  if (!result) return "";
+
+  if (result.type === "place") {
+    return `r${result.r + 1}c${result.c + 1} = ${result.num}`;
+  }
+
+  if (result.placement) {
+    const p = result.placement;
+    return `r${p.r + 1}c${p.c + 1} = ${p.num}`;
+  }
+
+  const removalsByDigit = new Map();
+  for (const cell of result.cells || []) {
+    if (!removalsByDigit.has(cell.num)) removalsByDigit.set(cell.num, []);
+    removalsByDigit.get(cell.num).push({ r: cell.r, c: cell.c });
+  }
+
+  const groups = [];
+  for (const d of Array.from(removalsByDigit.keys()).sort((a, b) => a - b)) {
+    groups.push(`${formatCellList(removalsByDigit.get(d))}<>${d}`);
+  }
+
+  return groups.join(separator);
+}
+
 function getDifficultyRatingText(puzzle, onReady) {
   const engine = getDifficultyEngine();
   if (engine === "skfr") {
@@ -2571,7 +2602,6 @@ function setupEventListeners() {
         message = t("ui_msg_85", vagueHintMessage);
       } else {
         const h = currentHintData.hint;
-        const { r, c, num, type } = currentHintData;
 
         if (hintClickCount === 1) {
           message = t("ui_msg_85", h.name);
@@ -2587,28 +2617,7 @@ function setupEventListeners() {
           }
           // --- END VISUAL HINT LOGIC ---
 
-          let actionStr = "";
-          if (type === "place") {
-            actionStr = `r${r + 1}c${c + 1} = ${num}`;
-          } else {
-            const cells = currentHintData.cells || [];
-            const removalsByDigit = new Map();
-            cells.forEach((cell) => {
-              if (!removalsByDigit.has(cell.num)) {
-                removalsByDigit.set(cell.num, []);
-              }
-              removalsByDigit.get(cell.num).push({ r: cell.r, c: cell.c });
-            });
-            const groups = [];
-            const sortedDigits = Array.from(removalsByDigit.keys()).sort(
-              (a, b) => a - b,
-            );
-            for (const d of sortedDigits) {
-              const locStr = formatCellList(removalsByDigit.get(d));
-              groups.push(`${locStr}<>${d}`);
-            }
-            actionStr = groups.join(", ");
-          }
+          const actionStr = formatResultAction(currentHintData);
           message = `${h.name}: ${h.detail || ""} => ${actionStr}`;
           color = "blue";
           hintClickCount = 0;
@@ -5527,28 +5536,8 @@ function buildViewAllTechniquesList(step) {
   const groupedHints = new Map();
 
   allHints.forEach((item) => {
-    let actionStr = "";
-
     // Format the action string to serve as part of the group key
-    if (item.result.type === "place") {
-      actionStr = `r${item.result.r + 1}c${item.result.c + 1} = ${item.result.num}`;
-    } else if (item.result.cells) {
-      const cells = item.result.cells || [];
-      const removalsByDigit = new Map();
-      cells.forEach((c) => {
-        if (!removalsByDigit.has(c.num)) removalsByDigit.set(c.num, []);
-        removalsByDigit.get(c.num).push({ r: c.r, c: c.c });
-      });
-      const groups = [];
-      const sortedDigits = Array.from(removalsByDigit.keys()).sort(
-        (a, b) => a - b,
-      );
-      for (const d of sortedDigits) {
-        const cg = formatCellList(removalsByDigit.get(d));
-        groups.push(`${cg}<>${d}`);
-      }
-      actionStr = groups.join(" | ");
-    }
+    const actionStr = formatResultAction(item.result, " | ");
 
     const groupKey = `${item.tech.id || item.tech.name}::${actionStr}`;
 
@@ -5831,27 +5820,7 @@ async function searchAndAppendVatLevel(
     const groupedHints = new Map();
 
     newHints.forEach((item) => {
-      let actionStr = "";
-
-      if (item.result.type === "place") {
-        actionStr = `r${item.result.r + 1}c${item.result.c + 1} = ${item.result.num}`;
-      } else if (item.result.cells) {
-        const cells = item.result.cells || [];
-        const removalsByDigit = new Map();
-        cells.forEach((c) => {
-          if (!removalsByDigit.has(c.num)) removalsByDigit.set(c.num, []);
-          removalsByDigit.get(c.num).push({ r: c.r, c: c.c });
-        });
-        const groups = [];
-        const sortedDigits = Array.from(removalsByDigit.keys()).sort(
-          (a, b) => a - b,
-        );
-        for (const d of sortedDigits) {
-          const cg = formatCellList(removalsByDigit.get(d));
-          groups.push(`${cg}<>${d}`);
-        }
-        actionStr = groups.join(" | ");
-      }
+      const actionStr = formatResultAction(item.result, " | ");
 
       const groupKey = `${item.tech.id || item.tech.name}::${actionStr}`;
 
@@ -6247,7 +6216,6 @@ function renderSolverStep(index) {
     msgColor = "red";
   } else if (step.type === "step") {
     const h = step.result.hint;
-    const { r, c, num, type } = step.result;
 
     const displayScore = step.cumulativeScore ?? lastValidScore;
     if (currentPuzzleScore > 0) {
@@ -6258,26 +6226,7 @@ function renderSolverStep(index) {
       puzzleScoreEl.textContent = `${star}`;
     }
 
-    let actionStr = "";
-    if (type === "place") {
-      actionStr = `r${r + 1}c${c + 1} = ${num}`;
-    } else {
-      const cells = step.result.cells || [];
-      const removalsByDigit = new Map();
-      cells.forEach((cell) => {
-        if (!removalsByDigit.has(cell.num)) removalsByDigit.set(cell.num, []);
-        removalsByDigit.get(cell.num).push({ r: cell.r, c: cell.c });
-      });
-      const groups = [];
-      const sortedDigits = Array.from(removalsByDigit.keys()).sort(
-        (a, b) => a - b,
-      );
-      for (const d of sortedDigits) {
-        const locStr = formatCellList(removalsByDigit.get(d));
-        groups.push(`${locStr}<>${d}`);
-      }
-      actionStr = groups.join(", ");
-    }
+    const actionStr = formatResultAction(step.result);
     msg = `${h.name}: ${h.detail || ""} => ${actionStr}`;
     if (step.result.applyVisuals) step.result.applyVisuals();
   }
