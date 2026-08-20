@@ -10365,49 +10365,88 @@ const techniques = {
       }
 
       // 6. Extract eliminations
-      const elims = [];
-      for (let d = 0; d < 9; d++) {
-        for (let p = 0; p < 3; p++) {
-          let m = commonMask[d][p];
-          let bitPos = 0;
-          while (m > 0) {
-            if (m & 1) {
-              const id = p * 27 + bitPos;
-              const er = Math.floor(id / 9);
-              const ec = id % 9;
-              const num = d + 1;
+      const maskToElims = (mask) => {
+        const found = [];
+        for (let d = 0; d < 9; d++) {
+          for (let p = 0; p < 3; p++) {
+            let m = mask[d][p];
+            let bitPos = 0;
+            while (m > 0) {
+              if (m & 1) {
+                const id = p * 27 + bitPos;
+                const er = Math.floor(id / 9);
+                const ec = id % 9;
+                const num = d + 1;
 
-              // Ensure it's not the stem itself
-              let isStemCandidate = false;
-              if (!isRegion) {
-                if (er === stem.r && ec === stem.c) isStemCandidate = true;
-              } else {
-                if (num === stem.digit && stem.cells.includes(id))
-                  isStemCandidate = true;
-              }
+                // Ensure it's not the stem itself
+                let isStemCandidate = false;
+                if (!isRegion) {
+                  if (er === stem.r && ec === stem.c) isStemCandidate = true;
+                } else {
+                  if (num === stem.digit && stem.cells.includes(id))
+                    isStemCandidate = true;
+                }
 
-              if (
-                pencils[er][ec] &&
-                pencils[er][ec].has(num) &&
-                !isStemCandidate
-              ) {
-                elims.push({ r: er, c: ec, num });
+                if (
+                  pencils[er][ec] &&
+                  pencils[er][ec].has(num) &&
+                  !isStemCandidate
+                ) {
+                  found.push({ r: er, c: ec, num });
+                }
               }
+              m >>>= 1;
+              bitPos++;
             }
-            m >>>= 1;
-            bitPos++;
           }
         }
-      }
+        return found;
+      };
 
-      if (elims.length > 0) {
-        const target = elims[0];
+      const reachableElims = maskToElims(commonMask);
+
+      // A branch concludes with the last node of its chain, so the chains
+      // prove exactly the candidates those conclusions all see.
+      const provenElims = (paths) => {
+        const last = paths.map((path) => path[path.length - 1]);
+        const mask = Array.from({ length: 9 }, () => [0, 0, 0]);
+
+        for (let d = 0; d < 9; d++) {
+          for (let p = 0; p < 3; p++) {
+            let bits = last[0].NandBitset[d][p];
+            for (let i = 1; i < last.length; i++) {
+              bits &= last[i].NandBitset[d][p];
+            }
+            mask[d][p] = bits;
+          }
+        }
+
+        // A branch that asserts a candidate cannot also be shown removing
+        // it, so those candidates are left to another blossom.
+        const asserted = new Set();
+        for (const path of paths) {
+          for (let i = 0; i < path.length; i += 2) {
+            for (const id of path[i].cells) {
+              asserted.add(`${id}:${path[i].digits[0]}`);
+            }
+          }
+        }
+
+        return maskToElims(mask).filter(
+          (el) => !asserted.has(`${el.r * 9 + el.c}:${el.num}`),
+        );
+      };
+
+      let chosenPaths = null;
+      let elims = null;
+
+      for (const target of reachableElims) {
         const targetDigit = target.num;
         const targetId = target.r * 9 + target.c;
         const targetPart = Math.floor(targetId / 27);
         const targetBit = targetId % 27;
 
-        const chosenPaths = [];
+        const paths = [];
         for (const s of startNodes) {
           const reachList = reachMap.get(s);
           const validReach = reachList.find((rObj) => {
@@ -10417,9 +10456,21 @@ const techniques = {
               0
             );
           });
-          if (validReach) chosenPaths.push(validReach.path);
+          if (validReach) paths.push(validReach.path);
         }
 
+        // Every stem candidate has to contribute a branch.
+        if (paths.length !== startNodes.length) continue;
+
+        const proven = provenElims(paths);
+        if (proven.length === 0) continue;
+
+        chosenPaths = paths;
+        elims = proven;
+        break;
+      }
+
+      if (chosenPaths) {
         const chainStrs = chosenPaths.map((path) => {
           const startNode = path[0];
           let str = `(${startNode.digits[0]})r${Math.floor(startNode.cells[0] / 9) + 1}c${(startNode.cells[0] % 9) + 1}`;
