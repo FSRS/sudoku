@@ -41,6 +41,7 @@ const shareCancelBtn = document.getElementById("share-cancel-btn");
 const prefBtn = document.getElementById("pref-btn");
 const techniqueResultCache = new Map();
 const difficultyRatingCache = new Map();
+const puzzleValidityCache = new Map();
 const minDateNum = 20260301;
 const difficultyEngineStorageKey = "sudokuDifficultyEngine";
 const difficultyEngines = new Set(["skfr", "se", "old-se"]);
@@ -203,7 +204,37 @@ function formatResultAction(result, separator = ", ") {
   return groups.join(separator);
 }
 
+/**
+ * Rating an unsupported puzzle is meaningless, and a multi-solution grid can
+ * keep the single SE worker busy indefinitely with no way to cancel it, which
+ * would stall every later rating too. Memoized because the solver summary is
+ * re-rendered on every language change and step navigation.
+ * @param {string} puzzle - The 81-character puzzle string.
+ * @returns {boolean} Whether the puzzle is safe to hand to a rating engine.
+ */
+function isRatablePuzzle(puzzle) {
+  if (typeof puzzle !== "string" || !/^[.0-9]{81}$/.test(puzzle)) return false;
+  const cached = puzzleValidityCache.get(puzzle);
+  if (cached !== undefined) return cached;
+
+  const board = Array(9)
+    .fill(null)
+    .map(() => Array(9).fill(0));
+  for (let i = 0; i < 81; i++) {
+    const char = puzzle[i];
+    if (char !== "." && char !== "0") {
+      board[Math.floor(i / 9)][i % 9] = parseInt(char);
+    }
+  }
+  const result = checkPuzzleUniqueness(board).isValid;
+  puzzleValidityCache.set(puzzle, result);
+  return result;
+}
+
 function getDifficultyRatingText(puzzle, onReady) {
+  // Puzzles this project does not support never reach an engine.
+  if (!isRatablePuzzle(puzzle)) return "";
+
   const engine = getDifficultyEngine();
   if (engine === "skfr") {
     if (!window.getSkfrRating) return "";
@@ -305,78 +336,6 @@ async function updateVatSearchingButton(button, techniqueName, runId) {
   await waitForBrowserPaint();
 
   return runId === vatSearchRunId && isViewAllTechniquesMode;
-}
-
-function getBlossomWorkerKind(func) {
-  if (func === techniques.cellBlossomLoop) return "cell";
-  if (func === techniques.regionBlossomLoop) return "region";
-  if (func === techniques.aalsBlossomLoop) return "aals";
-  return null;
-}
-
-function hydrateBlossomWorkerResult(result) {
-  const kind = result.blossom.kind;
-  result.hint.name =
-    kind === "cell"
-      ? t("teks_msg_193")
-      : kind === "region"
-        ? t("teks_msg_194")
-        : t("teks_msg_196");
-  result.hint.mainInfo = t("teks_msg_195", result.blossom.burrText);
-  result.applyVisuals = () =>
-    techniques._applyBlossomVisuals(result.blossom, result.cells);
-  return result;
-}
-
-function runBlossomTechniqueInWorker(func, board, pencils, findAll = false) {
-  const kind = getBlossomWorkerKind(func);
-  if (!kind || typeof Worker === "undefined") {
-    return Promise.resolve(func(board, pencils, findAll));
-  }
-
-  return new Promise((resolve) => {
-    let worker;
-    try {
-      worker = new Worker("sudoku/sudoku_blossom_worker.js");
-    } catch (error) {
-      console.warn(
-        "Blossom worker could not start; using the main thread.",
-        error,
-      );
-      resolve(func(board, pencils, findAll));
-      return;
-    }
-    let settled = false;
-    const finish = () => worker.terminate();
-    const runFallback = (error) => {
-      if (settled) return;
-      settled = true;
-      console.warn("Blossom worker failed; using the main thread.", error);
-      finish();
-      resolve(func(board, pencils, findAll));
-    };
-    worker.onmessage = ({ data }) => {
-      if (settled) return;
-      if (data.error) {
-        runFallback(new Error(data.error));
-        return;
-      }
-      settled = true;
-      finish();
-      const results = data.results.map(hydrateBlossomWorkerResult);
-      resolve(findAll ? results : results[0] || { change: false });
-    };
-    worker.onerror = (event) => {
-      runFallback(event.error || new Error(event.message));
-    };
-    worker.postMessage({
-      id: 1,
-      kind,
-      board,
-      candidateLists: pencils.map((row) => row.map((digits) => [...digits])),
-      findAll,
-    });
-  });
 }
 
 const lastUsedColors = {

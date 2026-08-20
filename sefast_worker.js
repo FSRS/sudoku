@@ -1,4 +1,3 @@
-/* SukakuExplainer rating worker: mode 0=current SE, mode 1=Explainer 1.2.1. */
 importScripts("sefast_runtime.js", "sefast_native.js");
 
 let enginePromise;
@@ -37,22 +36,47 @@ async function loadEngine() {
       }
       return result;
     };
-    self.sefastParallelChoose = (state, cells, multiple, dynamic, nishio,
-      level, nestingLimit) => {
+    self.sefastParallelChoose = (
+      state,
+      cells,
+      multiple,
+      dynamic,
+      nishio,
+      level,
+      nestingLimit,
+    ) => {
       const hex = toStateHex(state);
       let result;
       if (dynamic === 0 && multiple === 0 && nishio === 0 && level === 0) {
         result = native.ccall(
-          "sefast_best_static", "string", ["string"], [hex],
+          "sefast_best_static",
+          "string",
+          ["string"],
+          [hex],
         );
       } else if (dynamic !== 0) {
         result = native.ccall(
           "sefast_best_chain_cells",
           "string",
-          ["string", "string", "number", "number", "number", "number", "number"],
+          [
+            "string",
+            "string",
+            "number",
+            "number",
+            "number",
+            "number",
+            "number",
+          ],
           [hex, cells, multiple, dynamic, nishio, level, nestingLimit],
         );
       } else {
+        return "-1";
+      }
+      if (result.startsWith("ERROR,")) {
+        console.warn(
+          "sefast: native chooser failed, using the Java path.",
+          result,
+        );
         return "-1";
       }
       return result === "" ? "-2" : result;
@@ -73,7 +97,10 @@ async function loadEngine() {
       }
     }
     return exports;
-  })();
+  })().catch((error) => {
+    enginePromise = null;
+    throw error;
+  });
   return enginePromise;
 }
 

@@ -30,14 +30,20 @@
 
     rate(puzzle, mode = "current") {
       if (typeof puzzle !== "string" || !/^[.1-9]{81}$/.test(puzzle)) {
-        return Promise.reject(new TypeError(
-          "puzzle must contain 81 characters from . and 1-9",
-        ));
+        return Promise.reject(
+          new TypeError("puzzle must contain 81 characters from . and 1-9"),
+        );
+      }
+      let modeValue;
+      try {
+        modeValue = modeNumber(mode);
+      } catch (error) {
+        return Promise.reject(error);
       }
       const id = this.nextId++;
       return new Promise((resolve, reject) => {
         this.pending.set(id, { resolve, reject });
-        this.worker.postMessage({ id, puzzle, mode: modeNumber(mode) });
+        this.worker.postMessage({ id, puzzle, mode: modeValue });
       });
     }
 
@@ -52,20 +58,28 @@
   const defaultClient = new SeFastClient();
 
   async function ratePuzzles(puzzles, mode = "current", options = {}) {
-    const concurrency = Math.max(1, Math.min(
-      puzzles.length,
-      options.concurrency || navigator.hardwareConcurrency || 4,
-    ));
-    const clients = Array.from({ length: concurrency }, () => new SeFastClient());
+    const concurrency = Math.max(
+      1,
+      Math.min(
+        puzzles.length,
+        options.concurrency || navigator.hardwareConcurrency || 4,
+      ),
+    );
+    const clients = Array.from(
+      { length: concurrency },
+      () => new SeFastClient(),
+    );
     const results = new Array(puzzles.length);
     let next = 0;
     try {
-      await Promise.all(clients.map(async (client) => {
-        while (next < puzzles.length) {
-          const index = next++;
-          results[index] = await client.rate(puzzles[index], mode);
-        }
-      }));
+      await Promise.all(
+        clients.map(async (client) => {
+          while (next < puzzles.length) {
+            const index = next++;
+            results[index] = await client.rate(puzzles[index], mode);
+          }
+        }),
+      );
       return results;
     } finally {
       for (const client of clients) client.terminate();
@@ -79,4 +93,3 @@
   };
   global.getSeFastRating = global.SeFast.rate;
 })(window);
-
