@@ -9120,10 +9120,6 @@ const techniques = {
         change: true,
         type: "remove",
         cells: removals,
-        // Display only. A DN Loop that proves a basic node true is really a
-        // placement, so messages can say "rXcY = n" instead of listing every
-        // candidate it wipes out. The solver still applies `cells`, so the
-        // solve path, scoring and applyVisuals are untouched.
         placement,
         hint: {
           name: name,

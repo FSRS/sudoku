@@ -181,19 +181,12 @@ function formatCellList(cells) {
 
 /**
  * Renders what a technique result does, for the hint / solver / VAT messages.
- * A chain that confirms a candidate (result.placement) reads as "r4c8=7"
- * rather than listing every candidate that confirmation wipes out.
  */
 function formatResultAction(result, separator = ", ") {
   if (!result) return "";
 
   if (result.type === "place") {
     return `r${result.r + 1}c${result.c + 1} = ${result.num}`;
-  }
-
-  if (result.placement) {
-    const p = result.placement;
-    return `r${p.r + 1}c${p.c + 1} = ${p.num}`;
   }
 
   const removalsByDigit = new Map();
