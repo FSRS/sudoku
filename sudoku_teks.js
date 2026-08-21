@@ -302,10 +302,7 @@ const techniques = {
 
           boardState[newr][newc].cellColor = cellColorPalette[7]; // Color 8
           uniqueRemovals.forEach((el) =>
-            boardState[el.r][el.c].candSlashes.set(
-              el.num,
-              markColorPalette[0],
-            ),
+            boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
           ); // Color 1
         },
       };
@@ -2599,10 +2596,7 @@ const techniques = {
                       );
                     });
                   });
-                  boardState[r2][c2].candSlashes.set(
-                    num,
-                    markColorPalette[0],
-                  ); // Removal
+                  boardState[r2][c2].candSlashes.set(num, markColorPalette[0]); // Removal
 
                   const drawGroup = (node, idx) => {
                     if (node.cells.length > 1) {
@@ -3135,10 +3129,7 @@ const techniques = {
         }
 
         removals.forEach((el) =>
-          boardState[el.r][el.c].candSlashes.set(
-            el.num,
-            markColorPalette[0],
-          ),
+          boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
         );
       };
     };
@@ -4284,10 +4275,7 @@ const techniques = {
            * any pattern/subset coloring.
            */
           uniqueRemovals.forEach((el) => {
-            boardState[el.r][el.c].candSlashes.set(
-              el.num,
-              markColorPalette[0],
-            );
+            boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
           });
         },
       };
@@ -5321,10 +5309,7 @@ const techniques = {
         }
 
         removals.forEach((el) =>
-          boardState[el.r][el.c].candSlashes.set(
-            el.num,
-            markColorPalette[0],
-          ),
+          boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
         );
       };
     };
@@ -6026,10 +6011,7 @@ const techniques = {
         }
 
         removals.forEach((el) =>
-          boardState[el.r][el.c].candSlashes.set(
-            el.num,
-            markColorPalette[0],
-          ),
+          boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
         );
       };
     };
@@ -9675,10 +9657,7 @@ const techniques = {
           });
 
           removals.forEach((el) => {
-            boardState[el.r][el.c].candSlashes.set(
-              el.num,
-              markColorPalette[0],
-            );
+            boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
           });
 
           let colorCodes = [6, 7, 2, 3, 4, 1, 8];
@@ -11304,11 +11283,6 @@ const techniques = {
   },
 
   // --- Almost AIC ---
-  // Death Blossom logic driven by the full AIC inference graph. A stem still
-  // supplies an OR gate whose candidates each grow one branch, but a branch is
-  // an ordinary alternating chain: it may use every strong link the AIC core
-  // builds (bilocation, bivalue, grouped, intra-ALS and finned fish) and may
-  // run for two extra propagation cycles (16 nodes instead of 4).
 
   _almostAicMaxBranchNodes: 16,
 
@@ -11612,8 +11586,12 @@ const techniques = {
     isRegion,
     findAll = false,
     focusKind = null,
+    seenEliminations = null,
   ) => {
     const results = [];
+    const recordedEliminations = findAll
+      ? (seenEliminations ?? new Set())
+      : null;
     const isAals = focusKind === "aals";
     const isCell = !isRegion && !isAals;
 
@@ -12109,6 +12087,16 @@ const techniques = {
 
       if (!chosenPaths) continue;
 
+      if (findAll) {
+        elims = elims.filter((el) => {
+          const key = `${el.r}:${el.c}:${el.num}`;
+          if (recordedEliminations.has(key)) return false;
+          recordedEliminations.add(key);
+          return true;
+        });
+        if (elims.length === 0) continue;
+      }
+
       // 4. Eureka notation: one single chain built out of two almost AICs
       // (three branches leave the last one as a plain AIC tail).
       const stemDigitsUnique =
@@ -12350,7 +12338,10 @@ const techniques = {
 
             for (let i = 0; i + 1 < path.length; i++) {
               // Fish OR links sit on the odd steps; the circles already show them.
-              if (i % 2 === 1 && fishLinkRegistry.get(path[i])?.get(path[i + 1]))
+              if (
+                i % 2 === 1 &&
+                fishLinkRegistry.get(path[i])?.get(path[i + 1])
+              )
                 continue;
               const [from, to] = getClosestCells(path[i], path[i + 1]);
               drawnLines.push({
@@ -12386,10 +12377,7 @@ const techniques = {
           }
 
           elims.forEach((el) => {
-            boardState[el.r][el.c].candSlashes.set(
-              el.num,
-              markColorPalette[0],
-            );
+            boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
           });
         },
       };
@@ -12403,10 +12391,11 @@ const techniques = {
 
   almostAic: (board, pencils, findAll = false) => {
     if (findAll) {
+      const seenEliminations = new Set();
       return [
-        ...techniques.cellAlmostAic(board, pencils, true),
-        ...techniques.regionAlmostAic(board, pencils, true),
-        ...techniques.aalsAlmostAic(board, pencils, true),
+        ...techniques.cellAlmostAic(board, pencils, true, seenEliminations),
+        ...techniques.regionAlmostAic(board, pencils, true, seenEliminations),
+        ...techniques.aalsAlmostAic(board, pencils, true, seenEliminations),
       ];
     }
     const cell = techniques.cellAlmostAic(board, pencils, false);
@@ -12416,16 +12405,42 @@ const techniques = {
     return techniques.aalsAlmostAic(board, pencils, false);
   },
 
-  cellAlmostAic: (board, pencils, findAll = false) => {
-    return techniques._almostAicCore(board, pencils, false, findAll);
+  cellAlmostAic: (board, pencils, findAll = false, seenEliminations = null) => {
+    return techniques._almostAicCore(
+      board,
+      pencils,
+      false,
+      findAll,
+      null,
+      seenEliminations,
+    );
   },
 
-  regionAlmostAic: (board, pencils, findAll = false) => {
-    return techniques._almostAicCore(board, pencils, true, findAll);
+  regionAlmostAic: (
+    board,
+    pencils,
+    findAll = false,
+    seenEliminations = null,
+  ) => {
+    return techniques._almostAicCore(
+      board,
+      pencils,
+      true,
+      findAll,
+      null,
+      seenEliminations,
+    );
   },
 
-  aalsAlmostAic: (board, pencils, findAll = false) => {
-    return techniques._almostAicCore(board, pencils, false, findAll, "aals");
+  aalsAlmostAic: (board, pencils, findAll = false, seenEliminations = null) => {
+    return techniques._almostAicCore(
+      board,
+      pencils,
+      false,
+      findAll,
+      "aals",
+      seenEliminations,
+    );
   },
 
   _complexFishCore: (board, pencils, fishSize, isMutant, findAll = false) => {
