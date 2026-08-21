@@ -94,6 +94,7 @@ let resizeLineRenderFrameId = null;
 const candidateCenterCache = new Map();
 let renderedLineSignatures = [];
 let lineColorPalette = []; // Specific palette for lines
+let markColorPalette = []; // Specific palette for candidate circle/slash markers
 let historyCurrentSnapshot = null;
 let puzzleProgressSaveTimeout = null;
 const HISTORY_CHECKPOINT_INTERVAL = 50;
@@ -340,7 +341,7 @@ async function updateVatSearchingButton(button, techniqueName, runId) {
 
 const lastUsedColors = {
   draw: { solid: null, dash: null },
-  color: { cell: null, candidate: null },
+  color: { cell: null, candidate: null, circle: null, slash: null },
 };
 
 // --- UI Update Functions ---
@@ -501,6 +502,8 @@ function initInstallPrompt() {
 
 function updateColorPalettes() {
   const isDark = document.documentElement.classList.contains("dark");
+  // Markers keep the same ramp in both themes, so they never need remapping.
+  markColorPalette = colorPalette500;
   if (isDark) {
     cellColorPalette = colorPalette800;
     candidateColorPalette = colorPalette400;
@@ -689,9 +692,19 @@ function updateButtonLabels() {
     if (coloringSubMode === "cell") {
       colorButton.textContent = isMobile ? t("ui_msg_25") : t("ui_msg_26");
       colorButton.dataset.tooltip = t("ui_msg_27");
-    } else {
+    } else if (coloringSubMode === "candidate") {
       colorButton.textContent = isMobile ? t("ui_msg_28") : t("ui_msg_29");
       colorButton.dataset.tooltip = t("ui_msg_30");
+    } else if (coloringSubMode === "circle") {
+      colorButton.textContent = isMobile
+        ? t("ui_msg_circle_short")
+        : t("ui_msg_circle_long");
+      colorButton.dataset.tooltip = t("ui_msg_circle_tooltip");
+    } else {
+      colorButton.textContent = isMobile
+        ? t("ui_msg_slash_short")
+        : t("ui_msg_slash_long");
+      colorButton.dataset.tooltip = t("ui_msg_slash_tooltip");
     }
   } else {
     colorButton.textContent = isMobile ? t("ui_msg_31") : t("ui_msg_32");
@@ -816,6 +829,8 @@ function initBoardState() {
           pencils: new Set(),
           cellColor: null,
           pencilColors: new Map(),
+          candCircles: new Map(),
+          candSlashes: new Map(),
         })),
     );
 }
@@ -884,6 +899,8 @@ function updateControls() {
 
     if (currentMode === "draw") {
       activePalette = lineColorPalette;
+    } else if (isMarkSubMode(coloringSubMode)) {
+      activePalette = markColorPalette;
     } else {
       activePalette =
         coloringSubMode === "candidate"
@@ -906,7 +923,7 @@ function updateControls() {
 
       if (currentMode === "draw" && drawSubMode === "dash")
         labelColor = isDarkMode ? "#1f2937" : "#e5e7eb";
-      else if (currentMode === "color" && coloringSubMode === "candidate")
+      else if (currentMode === "color" && coloringSubMode !== "cell")
         labelColor = isDarkMode ? "#1f2937" : "#e5e7eb";
 
       btn.className =
@@ -1237,7 +1254,7 @@ function renderBoard() {
     if (row === selectedCell.row && col === selectedCell.col) {
       const useGreenHighlight =
         currentMode === "pencil" ||
-        (currentMode === "color" && coloringSubMode === "candidate") ||
+        (currentMode === "color" && coloringSubMode !== "cell") ||
         (currentMode === "draw" && drawSubMode === "dash");
       cell.classList.add(useGreenHighlight ? "selected-green" : "selected");
     }
@@ -1281,6 +1298,7 @@ function renderBoard() {
           if (state.pencils.has(digit)) {
             mark.textContent = digit;
             mark.style.visibility = "visible";
+            applyCandidateMarks(mark, state, digit);
 
             // 3. UPDATED: Candidate Colors (Support for Multiple Colors via CSS text clip)
             const pColor = state.pencilColors.get(digit);
@@ -1328,6 +1346,7 @@ function renderBoard() {
           } else {
             mark.style.visibility = "hidden";
             mark.textContent = "";
+            applyCandidateMarks(mark, state, digit);
             mark.style.color = "";
             mark.style.backgroundImage = "none";
             mark.style.webkitBackgroundClip = "initial";
@@ -1341,6 +1360,25 @@ function renderBoard() {
   });
 
   validateBoard();
+}
+
+// Paints the circle / slash markers a candidate carries (nothing if it has none).
+function applyCandidateMarks(mark, state, digit) {
+  const circleColor = state.pencils.has(digit)
+    ? state.candCircles.get(digit)
+    : null;
+  const slashColor = state.pencils.has(digit)
+    ? state.candSlashes.get(digit)
+    : null;
+
+  mark.classList.toggle("cand-circle", !!circleColor);
+  mark.classList.toggle("cand-slash", !!slashColor);
+
+  if (circleColor) mark.style.setProperty("--cand-circle-color", circleColor);
+  else mark.style.removeProperty("--cand-circle-color");
+
+  if (slashColor) mark.style.setProperty("--cand-slash-color", slashColor);
+  else mark.style.removeProperty("--cand-slash-color");
 }
 
 function pruneInvalidLines() {
@@ -1710,6 +1748,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     "orange",
     "red",
     "violet",
+    "blue",
     "gray",
     "black",
     "magenta",
@@ -1736,7 +1775,8 @@ function updateLamp(color, { record = true, level = null } = {}) {
     yellow: t("ui_msg_50"),
     orange: t("ui_msg_51"),
     red: t("ui_msg_52"),
-    violet: t("ui_msg_53"),
+    violet: t("ui_msg_52_2"),
+    blue: t("ui_msg_53"),
     magenta: t("ui_msg_54"),
     gray: t("ui_msg_55"),
   };
@@ -1748,7 +1788,8 @@ function updateLamp(color, { record = true, level = null } = {}) {
     orange: t("ui_msg_59"),
     red: t("ui_msg_60"),
     violet: t("ui_msg_61"),
-    magenta: t("ui_msg_62"),
+    blue: t("ui_msg_62"),
+    magenta: t("ui_msg_62_2"),
     gray: t("ui_msg_63"),
   };
 
@@ -1790,6 +1831,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     gray: 9,
     magenta: 8,
     violet: 7,
+    blue: 7.5,
     red: 6,
     orange: 5,
     yellow: 4,
@@ -1998,7 +2040,10 @@ function setupEventListeners() {
           (isExperimentalMode ||
             currentMode === "draw" ||
             currentMode === "color")) ||
-        (isCurrentlyMobile && (isExperimentalMode || currentMode === "draw"));
+        (isCurrentlyMobile &&
+          (isExperimentalMode ||
+            currentMode === "draw" ||
+            (currentMode === "color" && isMarkSubMode(coloringSubMode))));
 
       if (!canInteractDirectly) {
         handleCellClick({ target: cell }); // Fallback to cell click
@@ -2009,6 +2054,8 @@ function setupEventListeners() {
 
       if (currentMode === "draw") {
         handleDrawClick(row, col, i);
+      } else if (currentMode === "color" && isMarkSubMode(coloringSubMode)) {
+        toggleCandidateMark(row, col, i);
       } else if (
         currentMode === "color" &&
         coloringSubMode === "candidate" &&
@@ -2435,11 +2482,7 @@ function setupEventListeners() {
 
     colorButton.addEventListener("mouseenter", () => {
       if (currentMode === "color") {
-        if (coloringSubMode === "cell") {
-          colorButton.textContent = t("ui_msg_80");
-        } else {
-          colorButton.textContent = t("ui_msg_81");
-        }
+        colorButton.textContent = t(NEXT_COLOR_SUBMODE_LABEL[coloringSubMode]);
       }
     });
     colorButton.addEventListener("mouseleave", () => {
@@ -3202,7 +3245,7 @@ function handleKeyDown(e) {
         message += t("ui_msg_114");
       }
       // Force-switch from candidate to cell coloring if active
-      if (currentMode === "color" && coloringSubMode === "candidate") {
+      if (currentMode === "color" && coloringSubMode !== "cell") {
         coloringSubMode = "cell";
         message += t("ui_msg_115");
       }
@@ -3482,6 +3525,22 @@ function handleKeyDown(e) {
   }
 }
 
+function toggleCandidateMark(row, col, num) {
+  if (!selectedColor) return;
+  const cellState = boardState[row][col];
+  if (cellState.value !== 0 || !cellState.pencils.has(num)) return;
+
+  const marks =
+    coloringSubMode === "circle"
+      ? cellState.candCircles
+      : cellState.candSlashes;
+  if (marks.get(num) === selectedColor) marks.delete(num);
+  else marks.set(num, selectedColor);
+
+  saveState();
+  renderBoard();
+}
+
 function handleCellClick(e) {
   if (isSolverMode) return;
   const cell = e.target.closest(".sudoku-cell");
@@ -3496,7 +3555,7 @@ function handleCellClick(e) {
       cellState.cellColor = toggleColor(cellState.cellColor, selectedColor);
       saveState();
       needsRenderOnly = true;
-    } else if (coloringSubMode === "candidate") {
+    } else if (coloringSubMode !== "cell") {
       if (cellState.value !== 0) {
         // Cell is concrete (has a value), apply highlighting logic
         if (highlightedDigit !== cellState.value) {
@@ -3506,7 +3565,7 @@ function handleCellClick(e) {
           highlightedDigit = null;
           highlightState = 0;
         }
-      } else {
+      } else if (coloringSubMode === "candidate") {
         // Cell is empty, run original logic for candidate popups
         if (isMobile && !isExperimentalMode) {
           showCandidatePopup(selectedCell.row, selectedCell.col);
@@ -3562,8 +3621,8 @@ function handleModeChange(e) {
 
   if (clickedButton === colorButton) {
     if (currentMode === "color") {
-      const targetSubMode = coloringSubMode === "cell" ? "candidate" : "cell";
-      if (targetSubMode === "candidate" && arePencilsHidden) {
+      const targetSubMode = nextColorSubMode(coloringSubMode);
+      if (targetSubMode !== "cell" && arePencilsHidden) {
         showMessage(t("ui_msg_120"), "orange");
         return;
       }
@@ -3618,7 +3677,7 @@ function handleModeChange(e) {
       currentMode = "color";
       coloringSubMode = "cell";
     } else {
-      coloringSubMode = coloringSubMode === "cell" ? "candidate" : "cell";
+      coloringSubMode = nextColorSubMode(coloringSubMode);
     }
   }
 
@@ -3630,8 +3689,9 @@ function handleModeChange(e) {
       activePalette = lineColorPalette;
       savedColor = lastUsedColors.draw[drawSubMode];
     } else {
-      activePalette =
-        coloringSubMode === "candidate"
+      activePalette = isMarkSubMode(coloringSubMode)
+        ? markColorPalette
+        : coloringSubMode === "candidate"
           ? candidateColorPalette
           : cellColorPalette;
       savedColor = lastUsedColors.color[coloringSubMode];
@@ -3675,14 +3735,15 @@ function handleModeChange(e) {
   } else if (currentMode === "pencil") {
     tip = isMobile ? t("ui_msg_122") : t("ui_msg_123");
   } else if (currentMode === "color") {
-    tip =
-      coloringSubMode === "cell"
-        ? isMobile
-          ? t("ui_msg_124")
-          : t("ui_msg_124_desktop")
-        : isMobile
-          ? t("ui_msg_125")
-          : t("ui_msg_126");
+    if (coloringSubMode === "cell") {
+      tip = isMobile ? t("ui_msg_124") : t("ui_msg_124_desktop");
+    } else if (coloringSubMode === "candidate") {
+      tip = isMobile ? t("ui_msg_125") : t("ui_msg_126");
+    } else if (coloringSubMode === "circle") {
+      tip = isMobile ? t("ui_msg_circle_tip_mobile") : t("ui_msg_circle_tip");
+    } else {
+      tip = isMobile ? t("ui_msg_slash_tip_mobile") : t("ui_msg_slash_tip");
+    }
   } else if (currentMode === "draw") {
     tip = isMobile
       ? t("ui_msg_127", t(drawSubMode === "solid" ? "ui_msg_19" : "ui_msg_20"))
@@ -3716,7 +3777,12 @@ function handleModeChange(e) {
 
   // Reset Button Classes
   modeToggleButton.classList.remove("active", "active-green");
-  colorButton.classList.remove("active", "active-green");
+  colorButton.classList.remove(
+    "active",
+    "active-green",
+    "active-red",
+    "active-blue",
+  );
   drawButton.classList.remove("active", "active-green");
 
   // Apply Active Class
@@ -3726,6 +3792,10 @@ function handleModeChange(e) {
   else if (currentMode === "color") {
     if (coloringSubMode === "candidate")
       colorButton.classList.add("active-green");
+    else if (coloringSubMode === "circle")
+      colorButton.classList.add("active-red");
+    else if (coloringSubMode === "slash")
+      colorButton.classList.add("active-blue");
     else colorButton.classList.add("active");
   } else if (currentMode === "draw") {
     if (drawSubMode === "dash") {
@@ -3892,7 +3962,7 @@ async function populateSelectors() {
   blankOption.hidden = true;
   levelSelect.appendChild(blankOption);
 
-  for (let i = 0; i < 11; i++) {
+  for (let i = 0; i <= 10; i++) {
     const option = document.createElement("option");
     option.value = i;
     option.textContent = `${i} (${difficultyWords[i]})`;
@@ -4299,6 +4369,8 @@ function clearAllColors() {
     for (let c = 0; c < 9; c++) {
       boardState[r][c].cellColor = null;
       boardState[r][c].pencilColors.clear();
+      boardState[r][c].candCircles.clear();
+      boardState[r][c].candSlashes.clear();
     }
   }
   drawnLines = []; // Clear the lines array
@@ -4718,6 +4790,8 @@ function serializeProgress() {
           p: [...cell.pencils], // Convert Set to Array for JSON
           cc: cell.cellColor,
           pc: [...cell.pencilColors.entries()], // Convert Map to Array for JSON
+          cr: [...cell.candCircles.entries()],
+          sx: [...cell.candSlashes.entries()],
         });
       }
     }
@@ -4779,7 +4853,9 @@ function savePuzzleProgress() {
           cell.value !== 0 ||
           cell.pencils.size > 0 ||
           cell.cellColor !== null ||
-          cell.pencilColors.size > 0
+          cell.pencilColors.size > 0 ||
+          cell.candCircles.size > 0 ||
+          cell.candSlashes.size > 0
         ) {
           hasUserInput = true;
           break;
@@ -4943,6 +5019,7 @@ function applySavedProgress(puzzleData) {
         "lamp-orange",
         "lamp-red",
         "lamp-violet",
+        "lamp-blue",
         "lamp-gray",
         "lamp-black",
         "lamp-magenta",
@@ -4956,6 +5033,7 @@ function applySavedProgress(puzzleData) {
         orange: t("ui_msg_163"),
         red: t("ui_msg_164"),
         violet: t("ui_msg_165"),
+        blue: t("ui_msg_165_2"),
         magenta: t("ui_msg_166"),
       };
       let tooltipText = tooltips[last] || t("ui_msg_64");
@@ -4975,6 +5053,8 @@ function applySavedProgress(puzzleData) {
       currentCell.pencils = new Set(savedCell.p || []);
       currentCell.cellColor = savedCell.cc || null;
       currentCell.pencilColors = new Map(savedCell.pc || []);
+      currentCell.candCircles = new Map(savedCell.cr || []);
+      currentCell.candSlashes = new Map(savedCell.sx || []);
     }
   }
 
@@ -5132,7 +5212,9 @@ async function proceedToSolverMode() {
         (cell.value !== 0 ||
           cell.pencils.size > 0 ||
           cell.cellColor !== null ||
-          cell.pencilColors.size > 0)
+          cell.pencilColors.size > 0 ||
+          cell.candCircles.size > 0 ||
+          cell.candSlashes.size > 0)
       ) {
         hasUserInput = true;
         break;
@@ -5424,6 +5506,8 @@ async function applyVatAndReevaluate() {
     for (let c = 0; c < 9; c++) {
       boardState[r][c].cellColor = null;
       boardState[r][c].pencilColors.clear();
+      boardState[r][c].candCircles.clear();
+      boardState[r][c].candSlashes.clear();
     }
   }
   drawnLines = [];
@@ -5449,7 +5533,7 @@ async function applyVatAndReevaluate() {
 
 // Inside sudoku_ui.js
 
-function buildViewAllTechniquesList(step) {
+async function buildViewAllTechniquesList(step) {
   const list = document.getElementById("solver-summary-list");
   list.innerHTML = ""; // Clear current summary
 
@@ -5733,6 +5817,8 @@ async function searchAndAppendVatLevel(
     try {
       // The button now visibly contains this exact technique name.
       const results = tech.func(vatCurrentBoard, vatCurrentPencils, true);
+
+      if (runId !== vatSearchRunId || !isViewAllTechniquesMode) return false;
 
       if (Array.isArray(results) && results.length > 0) {
         results.forEach((result) => {
@@ -6401,6 +6487,8 @@ function cloneToBoardState(vBoard, vPencils) {
           pencils: new Set(),
           cellColor: null,
           pencilColors: new Map(),
+          candCircles: new Map(),
+          candSlashes: new Map(),
         })),
     );
 
@@ -6521,9 +6609,11 @@ function generateCompletionText(format = "discord") {
     { emoji: isDiscord ? ":red_square:" : "🟥", color: "red" },
     { emoji: isDiscord ? ":purple_square:" : "🟪", color: "violet" },
     { emoji: isDiscord ? ":purple_square:" : "🟪", color: "violet" },
+    { emoji: isDiscord ? ":blue_square:" : "🟦", color: "blue" },
   ];
 
   const colorHierarchy = {
+    blue: 8,
     violet: 7,
     red: 6,
     orange: 5,
@@ -6641,6 +6731,8 @@ function cloneBoardState(state) {
         pencils: new Set(cell.pencils),
         cellColor: clonedCellColor,
         pencilColors: clonedPencilColors,
+        candCircles: new Map(cell.candCircles),
+        candSlashes: new Map(cell.candSlashes),
       };
     }),
   );
@@ -6664,7 +6756,17 @@ function cloneHistoryCell(cell) {
       ? [...cell.cellColor]
       : cell.cellColor,
     pencilColors,
+    candCircles: new Map(cell.candCircles),
+    candSlashes: new Map(cell.candSlashes),
   };
+}
+
+function areHistoryMarksEqual(a, b) {
+  if (a.size !== b.size) return false;
+  for (const [digit, color] of a) {
+    if (b.get(digit) !== color) return false;
+  }
+  return true;
 }
 
 function areHistoryColorsEqual(a, b) {
@@ -6686,6 +6788,8 @@ function areHistoryCellsEqual(a, b) {
   for (const [digit, color] of a.pencilColors) {
     if (!areHistoryColorsEqual(color, b.pencilColors.get(digit))) return false;
   }
+  if (!areHistoryMarksEqual(a.candCircles, b.candCircles)) return false;
+  if (!areHistoryMarksEqual(a.candSlashes, b.candSlashes)) return false;
   return true;
 }
 
@@ -6809,6 +6913,8 @@ function getHistoryEntryDescription(entry) {
           pencils: new Set(),
           cellColor: null,
           pencilColors: new Map(),
+          candCircles: new Map(),
+          candSlashes: new Map(),
         })),
       );
     const before = createEmptyBoard();
@@ -7377,6 +7483,7 @@ async function evaluateBoardDifficulty(opts = {}) {
       } else {
         // Run Technique
         result = tech.func(virtualBoard, startingPencils);
+        if (myEvaluationId !== currentEvaluationId) return;
         // Store in Cache (if safe)
         if (cacheKey) techniqueResultCache.set(cacheKey, result);
       }
@@ -7398,7 +7505,7 @@ async function evaluateBoardDifficulty(opts = {}) {
         if (IS_DEBUG_MODE) {
           const logColor = getThemeColor(tech.level);
           console.groupCollapsed(
-            `%c${tech.level.toString().padStart(2)} ${emojiScale[tech.level]} ${result.hint.name.padEnd(36)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
+            `%c${tech.level.toString().padStart(2)} ${result.hint.name.padEnd(36)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
             `color: ${logColor}; font-weight: bold;`,
           );
 
@@ -7500,6 +7607,7 @@ async function evaluateBoardDifficulty(opts = {}) {
     else if (maxDifficulty <= 8) updateLamp("red", { level: maxDifficulty });
     else if (maxDifficulty <= 10)
       updateLamp("violet", { level: maxDifficulty });
+    else if (maxDifficulty === 11) updateLamp("blue", { level: maxDifficulty });
   } else {
     evaluatedScore = -1;
 
@@ -7561,7 +7669,7 @@ async function evaluateBoardDifficulty(opts = {}) {
         puzzleScoreEl.textContent = scoreSuffix;
       }
     } else {
-      updateLamp("magenta");
+      updateLamp("magenta", { level: 12 });
     }
   }
   if (IS_DEBUG_MODE) {
@@ -7578,7 +7686,9 @@ const getUniquenessTechniques = () => [
   t("ui_msg_206"),
   t("ui_msg_207"),
   t("ui_msg_208"),
-  t("ui_msg_440"),
+  t("ui_msg_344"),
+  t("ui_msg_345"),
+  t("ui_msg_285"),
 ];
 const getMandatoryTechniques = () => [t("ui_msg_195"), t("ui_msg_210")];
 const getTechniqueHierarchies = () => [
@@ -7760,6 +7870,12 @@ function getDefaultTechniques() {
       score: 100,
     },
     {
+      nameKey: "ui_msg_345",
+      func: techniques.uniquenessExternalTest,
+      level: 5,
+      score: 130,
+    },
+    {
       nameKey: "ui_msg_206",
       func: techniques.uniqueLoop,
       level: 5,
@@ -7821,7 +7937,7 @@ function getDefaultTechniques() {
       score: 110,
     },
     {
-      nameKey: "ui_msg_440",
+      nameKey: "ui_msg_344",
       func: techniques.avoidableRectangle,
       level: 5,
       score: 120,
@@ -7925,14 +8041,9 @@ function getDefaultTechniques() {
       score: 340,
     },
     {
-      nameKey: "ui_msg_295",
-      func: techniques.cellDeathBlossom,
-      level: 10,
-      score: 380,
-    },
-    {
-      nameKey: "ui_msg_296",
-      func: techniques.regionDeathBlossom,
+      nameKey: "ui_msg_351",
+      aliases: ["ui_msg_295", "ui_msg_296", "ui_msg_343"],
+      func: techniques.deathBlossom,
       level: 10,
       score: 400,
     },
@@ -7966,6 +8077,13 @@ function getDefaultTechniques() {
       level: 10,
       score: 450,
     },
+    {
+      nameKey: "ui_msg_353",
+      aliases: ["ui_msg_348", "ui_msg_349", "ui_msg_350"],
+      func: techniques.almostAic,
+      level: 11,
+      score: 490,
+    },
   ].map((tech) => ({
     ...tech,
     id: tech.nameKey,
@@ -7978,6 +8096,11 @@ function findTechniqueForPreference(pref, defaults) {
   if (pref.id) {
     const matchedById = defaults.find((tech) => tech.id === pref.id);
     if (matchedById) return matchedById;
+
+    const matchedByAlias = defaults.find((tech) =>
+      tech.aliases?.includes(pref.id),
+    );
+    if (matchedByAlias) return matchedByAlias;
   }
 
   return defaults.find(
@@ -8028,6 +8151,7 @@ function getActiveTechniques() {
   savedPrefs.forEach((p) => {
     const tech = findTechniqueForPreference(p, defaults);
     if (tech) savedTechniqueIds.add(tech.id);
+    if (tech && active.includes(tech)) return;
     if (tech && (p.enabled || getMandatoryTechniques().includes(tech.name))) {
       // Overwrite the level property if the user dragged it elsewhere
       if (p.level !== undefined) tech.level = p.level;
@@ -8256,7 +8380,7 @@ function openPreferencesModal() {
 
   // 1. Build Static Level Headers
   const headers = [];
-  for (let i = 0; i <= 10; i++) {
+  for (let i = 0; i <= 11; i++) {
     const header = document.createElement("div");
     header.className =
       "sortable-level-header mt-3 mb-1 text-[11px] font-bold uppercase text-gray-500 border-b border-gray-300 dark:border-gray-600 pb-0.5";
@@ -8342,7 +8466,7 @@ function openPreferencesModal() {
     scoreInput.addEventListener("dragstart", (e) => e.stopPropagation());
     // Drop it in right before the *next* level header
     const targetLevel = parseInt(item.dataset.currentLevel, 10);
-    if (targetLevel < 10)
+    if (targetLevel < 11)
       listContainer.insertBefore(item, headers[targetLevel + 1]);
     else listContainer.appendChild(item);
 
@@ -8851,6 +8975,31 @@ function copyGridAsImage() {
             ctx.fillStyle = getLightColor(candColor, "candidate");
           }
           ctx.fillText(n, coords.x, coords.y + 2);
+
+          const circleColor = cell.candCircles.get(n);
+          const slashColor = cell.candSlashes.get(n);
+          if (circleColor || slashColor) {
+            const markR = (cellSize / 3) * 0.42;
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([]);
+            ctx.lineCap = "round";
+            if (circleColor) {
+              ctx.strokeStyle = circleColor;
+              ctx.beginPath();
+              ctx.arc(coords.x, coords.y, markR, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+            if (slashColor) {
+              ctx.strokeStyle = slashColor;
+              const d = markR * 0.72;
+              ctx.beginPath();
+              ctx.moveTo(coords.x - d, coords.y - d);
+              ctx.lineTo(coords.x + d, coords.y + d);
+              ctx.moveTo(coords.x - d, coords.y + d);
+              ctx.lineTo(coords.x + d, coords.y - d);
+              ctx.stroke();
+            }
+          }
         }
       }
     }
@@ -8890,7 +9039,7 @@ function getColorName(hex) {
   const palettes = [
     colorPalette300,
     colorPalette400,
-    // colorPalette500,
+    colorPalette500,
     colorPalette450,
     colorPalette600,
     // colorPalette700,
@@ -9059,6 +9208,32 @@ function getDiffDescription(before, after) {
                 }
                 break; // Stop after finding one change per cell
               }
+            }
+          }
+        }
+
+        // 4. Candidate Markers (Circle / X)
+        if (!isCellChanged) {
+          for (let n = 1; n <= 9; n++) {
+            let markKey = null;
+            let color;
+            if (b.candCircles.get(n) !== a.candCircles.get(n)) {
+              markKey = "ui_msg_circle_short";
+              color = a.candCircles.get(n);
+            } else if (b.candSlashes.get(n) !== a.candSlashes.get(n)) {
+              markKey = "ui_msg_slash_short";
+              color = a.candSlashes.get(n);
+            }
+            if (markKey) {
+              isCellChanged = true;
+              cellDesc = t(
+                color ? "ui_msg_mark_added" : "ui_msg_mark_removed",
+                t(markKey),
+                n,
+                r + 1,
+                c + 1,
+              );
+              break; // Stop after finding one change per cell
             }
           }
         }

@@ -13,6 +13,7 @@ const difficultyWords = [
   "EXPERT",
   "MASTER",
   "NEMESIS",
+  "ELITE",
   "DOMINATOR",
   "INVADER",
   "VANQUISHER",
@@ -54,17 +55,17 @@ const colorPalette450 = [
   "#f05da8", // pink-450
 ];
 
-// const colorPalette500 = [
-//   "#ef4444", // red-500
-//   "#f97316", // orange-500
-//   "#eab308", // yellow-500
-//   "#84cc16", // lime-500
-//   "#22c55e", // green-500
-//   "#06b6d4", // cyan-500
-//   "#3b82f6", // blue-500
-//   "#8b5cf6", // violet-500
-//   "#ec4899", // pink-500
-// ];
+const colorPalette500 = [
+  "#ef4444", // red-500
+  "#f97316", // orange-500
+  "#eab308", // yellow-500
+  "#84cc16", // lime-500
+  "#22c55e", // green-500
+  "#06b6d4", // cyan-500
+  "#3b82f6", // blue-500
+  "#8b5cf6", // violet-500
+  "#ec4899", // pink-500
+];
 
 const colorPalette600 = [
   "#dc2626", // red-600
@@ -102,6 +103,7 @@ const getLevelTips = () => [
   t("level_tip_8"),
   t("level_tip_9"),
   t("level_tip_10"),
+  t("level_tip_11"),
 ];
 
 const PALETTES = {
@@ -118,6 +120,7 @@ const PALETTES = {
     "#e57373", // 8: Soft Red
     "#ea80fc", // 9: Bright Lavender
     "#b388ff", // 10: Periwinkle
+    "#8c9eff", // 11: Pale Indigo
   ],
   // Optimized for Light Backgrounds (Darker, Saturated, High Contrast)
   light: [
@@ -132,22 +135,9 @@ const PALETTES = {
     "#880e4f", // 8: Pink 900 (Unchanged - Great contrast)
     "#aa00ff", // 9: Purple (Unchanged)
     "#6200ea", // 10: Deep Indigo (Unchanged)
+    "#1a237e", // 11: Midnight Indigo
   ],
 };
-
-const emojiScale = [
-  "🤩", // 0
-  "😁",
-  "😄",
-  "😊",
-  "🙂",
-  "😐",
-  "🤨",
-  "😟",
-  "😕",
-  "🙁",
-  "☹️", // 10
-];
 
 // live palette variables used by updateControls()
 let cellColorPalette;
@@ -161,6 +151,16 @@ let virtualCandidateBitsets = Array.from({ length: 9 }, () => [0, 0, 0]);
 let selectedCell = { row: null, col: null };
 let currentMode = "concrete";
 let coloringSubMode = "cell";
+// Color mode cycles through these sub-modes. "circle"/"slash" stamp a marker on
+// a candidate instead of painting it, and draw from their own palette.
+const COLOR_SUBMODE_CYCLE = ["cell", "candidate", "circle", "slash"];
+// Label shown on the Color button while hovering it (the sub-mode you'd get next).
+const NEXT_COLOR_SUBMODE_LABEL = {
+  cell: "ui_msg_80",
+  candidate: "ui_msg_circle_next",
+  circle: "ui_msg_slash_next",
+  slash: "ui_msg_81",
+};
 let candidatePopupFormat = "A"; // 'A' for numpad, 'B' for phone pad
 let selectedColor = null;
 let highlightedDigit = null;
@@ -180,6 +180,15 @@ let lampEvaluationTimeout = null;
 let copyTipTimer = null;
 let currentLampColor = "gray";
 let isExperimentalMode = false;
+
+function isMarkSubMode(subMode) {
+  return subMode === "circle" || subMode === "slash";
+}
+
+function nextColorSubMode(subMode) {
+  const idx = COLOR_SUBMODE_CYCLE.indexOf(subMode);
+  return COLOR_SUBMODE_CYCLE[(idx + 1) % COLOR_SUBMODE_CYCLE.length];
+}
 
 // --- Pre-calculated Sudoku Constants ---
 

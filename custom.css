@@ -331,6 +331,9 @@ html.dark .offline-cache-dot {
 .lamp-violet {
   background-color: #8b5cf6; /* violet-500 */
 }
+.lamp-blue {
+  background-color: #3b82f6; /* blue-500 */
+}
 .lamp-gray {
   background-color: #9ca3af;
 }
@@ -461,6 +464,49 @@ html.dark .offline-cache-dot {
   opacity: 1;
 }
 
+/* --- Component: Candidate Markers (Circle / Slash) --- */
+/* Colors come from markColorPalette as inline custom properties. */
+.cand-circle,
+.cand-slash {
+  position: relative;
+  opacity: 1;
+}
+
+.cand-circle::before,
+.cand-slash::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 88%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.cand-circle::before {
+  border: 2.5px solid var(--cand-circle-color, #ef4444);
+  border-radius: 50%;
+}
+
+.cand-slash::after {
+  background-image:
+    linear-gradient(
+      to bottom right,
+      transparent calc(50% - 0.9px),
+      var(--cand-slash-color, #ef4444) calc(50% - 1.2px),
+      var(--cand-slash-color, #ef4444) calc(50% + 1.2px),
+      transparent calc(50% + 0.9px)
+    ),
+    linear-gradient(
+      to bottom left,
+      transparent calc(50% - 0.9px),
+      var(--cand-slash-color, #ef4444) calc(50% - 1.2px),
+      var(--cand-slash-color, #ef4444) calc(50% + 1.2px),
+      transparent calc(50% + 0.9px)
+    );
+}
+
 /* --- Component: Controls & Buttons --- */
 .control-btn.active {
   background-color: var(--color-indigo-600) !important;
@@ -479,12 +525,25 @@ html.dark .offline-cache-dot {
   color: white;
   border-color: #c084fc;
 }
+
+.control-btn.active-red {
+  background-color: #e11d48 !important;
+  color: white;
+  border-color: #e11d48;
+}
+.control-btn.active-blue {
+  background-color: #2563eb !important;
+  color: white;
+  border-color: #2563eb;
+}
 .color-btn.selected {
   outline: 3px solid var(--nc-accent-color);
   outline-offset: 2px;
 }
 
-.control-btn:not(.active):not(.active-green):hover,
+.control-btn:not(.active):not(.active-green):not(.active-red):not(
+    .active-blue
+  ):hover,
 #undo-btn:hover,
 #redo-btn:hover,
 #clear-btn:hover,
@@ -826,6 +885,9 @@ html.dark {
   .lamp-violet {
     background-color: #a78bfa; /* violet-400, matches pattern of other dark mode colors */
   }
+  .lamp-blue {
+    background-color: #60a5fa; /* blue-400 */
+  }
   .lamp-gray {
     background-color: #6b7280;
   } /* gray-500 */
@@ -858,7 +920,9 @@ html.dark {
 
   /* Apply hover effect for inactive control buttons in dark mode */
   #mode-toggle-btn:not(.active):not(.active-green):hover,
-  [data-mode="color"]:not(.active):not(.active-green):hover,
+  [data-mode="color"]:not(.active):not(.active-green):not(.active-red):not(
+      .active-blue
+    ):hover,
   #format-toggle-btn:not(.active):hover,
   #expt-mode-btn:not(.active-green):hover,
   #vague-hint-btn:hover {

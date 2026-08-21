@@ -19,6 +19,10 @@ window.addCellColor = function (r, c, color) {
   }
 };
 
+window.addCandidateCircle = function (r, c, num, color) {
+  boardState[r][c].candCircles.set(num, color);
+};
+
 window.addCandidateColor = function (r, c, num, color) {
   const existing = boardState[r][c].pencilColors.get(num);
   if (!existing) {
@@ -298,9 +302,9 @@ const techniques = {
 
           boardState[newr][newc].cellColor = cellColorPalette[7]; // Color 8
           uniqueRemovals.forEach((el) =>
-            boardState[el.r][el.c].pencilColors.set(
+            boardState[el.r][el.c].candSlashes.set(
               el.num,
-              candidateColorPalette[0],
+              markColorPalette[0],
             ),
           ); // Color 1
         },
@@ -668,9 +672,9 @@ const techniques = {
                       });
                     });
                     removals.forEach((el) =>
-                      boardState[el.r][el.c].pencilColors.set(
+                      boardState[el.r][el.c].candSlashes.set(
                         el.num,
-                        candidateColorPalette[0],
+                        markColorPalette[0],
                       ),
                     ); // Color 1
                   },
@@ -856,9 +860,9 @@ const techniques = {
 
                 // Mark eliminations
                 _removals.forEach((el) =>
-                  boardState[el.r][el.c].pencilColors.set(
+                  boardState[el.r][el.c].candSlashes.set(
                     el.num,
-                    candidateColorPalette[0],
+                    markColorPalette[0],
                   ),
                 );
               },
@@ -993,9 +997,9 @@ const techniques = {
                     });
                   });
                   removals.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
+                    boardState[el.r][el.c].candSlashes.set(
                       el.num,
-                      candidateColorPalette[0],
+                      markColorPalette[0],
                     ),
                   ); // Color 1
                 },
@@ -1118,9 +1122,9 @@ const techniques = {
                     });
                   });
                   removals.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
+                    boardState[el.r][el.c].candSlashes.set(
                       el.num,
-                      candidateColorPalette[0],
+                      markColorPalette[0],
                     ),
                   ); // Color 1
                 },
@@ -1230,9 +1234,9 @@ const techniques = {
                   });
 
                   removals.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
+                    boardState[el.r][el.c].candSlashes.set(
                       el.num,
-                      candidateColorPalette[0],
+                      markColorPalette[0],
                     ),
                   ); // Color 1
                 },
@@ -1450,9 +1454,9 @@ const techniques = {
                   window.addCellColor(fr, fc, cellColorPalette[5]),
                 );
                 removals.forEach((el) =>
-                  boardState[el.r][el.c].pencilColors.set(
+                  boardState[el.r][el.c].candSlashes.set(
                     el.num,
-                    candidateColorPalette[0],
+                    markColorPalette[0],
                   ),
                 ); // Color 1
               },
@@ -1576,9 +1580,9 @@ const techniques = {
                   );
 
                   removals.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
+                    boardState[el.r][el.c].candSlashes.set(
                       el.num,
-                      candidateColorPalette[0],
+                      markColorPalette[0],
                     ),
                   );
                 },
@@ -1726,9 +1730,9 @@ const techniques = {
                 }
 
                 removals.forEach((el) =>
-                  boardState[el.r][el.c].pencilColors.set(
+                  boardState[el.r][el.c].candSlashes.set(
                     el.num,
-                    candidateColorPalette[0],
+                    markColorPalette[0],
                   ),
                 );
               },
@@ -1928,9 +1932,9 @@ const techniques = {
                 });
 
                 removals.forEach((el) =>
-                  boardState[el.r][el.c].pencilColors.set(
+                  boardState[el.r][el.c].candSlashes.set(
                     el.num,
-                    candidateColorPalette[0],
+                    markColorPalette[0],
                   ),
                 );
               },
@@ -2060,9 +2064,9 @@ const techniques = {
                     );
                   });
                   removals.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
+                    boardState[el.r][el.c].candSlashes.set(
                       el.num,
-                      candidateColorPalette[0],
+                      markColorPalette[0],
                     ),
                   );
                 },
@@ -2195,9 +2199,9 @@ const techniques = {
                   });
                 });
                 removals.forEach((el) =>
-                  boardState[el.r][el.c].pencilColors.set(
+                  boardState[el.r][el.c].candSlashes.set(
                     el.num,
-                    candidateColorPalette[0],
+                    markColorPalette[0],
                   ),
                 );
 
@@ -2336,9 +2340,9 @@ const techniques = {
                         });
                       });
                       removals.forEach((el) =>
-                        boardState[el.r][el.c].pencilColors.set(
+                        boardState[el.r][el.c].candSlashes.set(
                           el.num,
-                          candidateColorPalette[0],
+                          markColorPalette[0],
                         ),
                       );
 
@@ -2458,9 +2462,9 @@ const techniques = {
                           });
                         });
                         removals.forEach((el) =>
-                          boardState[el.r][el.c].pencilColors.set(
+                          boardState[el.r][el.c].candSlashes.set(
                             el.num,
-                            candidateColorPalette[0],
+                            markColorPalette[0],
                           ),
                         );
 
@@ -2595,9 +2599,9 @@ const techniques = {
                       );
                     });
                   });
-                  boardState[r2][c2].pencilColors.set(
+                  boardState[r2][c2].candSlashes.set(
                     num,
-                    candidateColorPalette[0],
+                    markColorPalette[0],
                   ); // Removal
 
                   const drawGroup = (node, idx) => {
@@ -2784,9 +2788,9 @@ const techniques = {
                             );
                           });
                         });
-                        boardState[elimR][elimC].pencilColors.set(
+                        boardState[elimR][elimC].candSlashes.set(
                           num,
-                          candidateColorPalette[0],
+                          markColorPalette[0],
                         ); // Removal
 
                         const drawGroup = (node, idx) => {
@@ -2950,9 +2954,9 @@ const techniques = {
 
               // Removable candidates in color 1
               removals.forEach((el) =>
-                boardState[el.r][el.c].pencilColors.set(
+                boardState[el.r][el.c].candSlashes.set(
                   el.num,
-                  candidateColorPalette[0],
+                  markColorPalette[0],
                 ),
               );
             },
@@ -3131,9 +3135,9 @@ const techniques = {
         }
 
         removals.forEach((el) =>
-          boardState[el.r][el.c].pencilColors.set(
+          boardState[el.r][el.c].candSlashes.set(
             el.num,
-            candidateColorPalette[0],
+            markColorPalette[0],
           ),
         );
       };
@@ -3772,9 +3776,9 @@ const techniques = {
               visualLinks.forEach((link) => drawnLines.push(link));
 
               uniqueRemovals.forEach((el) =>
-                boardState[el.r][el.c].pencilColors.set(
+                boardState[el.r][el.c].candSlashes.set(
                   el.num,
-                  candidateColorPalette[0],
+                  markColorPalette[0],
                 ),
               );
             },
@@ -4280,9 +4284,9 @@ const techniques = {
            * any pattern/subset coloring.
            */
           uniqueRemovals.forEach((el) => {
-            boardState[el.r][el.c].pencilColors.set(
+            boardState[el.r][el.c].candSlashes.set(
               el.num,
-              candidateColorPalette[0],
+              markColorPalette[0],
             );
           });
         },
@@ -5317,9 +5321,9 @@ const techniques = {
         }
 
         removals.forEach((el) =>
-          boardState[el.r][el.c].pencilColors.set(
+          boardState[el.r][el.c].candSlashes.set(
             el.num,
-            candidateColorPalette[0],
+            markColorPalette[0],
           ),
         );
       };
@@ -6022,9 +6026,9 @@ const techniques = {
         }
 
         removals.forEach((el) =>
-          boardState[el.r][el.c].pencilColors.set(
+          boardState[el.r][el.c].candSlashes.set(
             el.num,
-            candidateColorPalette[0],
+            markColorPalette[0],
           ),
         );
       };
@@ -6687,9 +6691,9 @@ const techniques = {
                       });
 
                       uniqueElims.forEach((el) =>
-                        boardState[el.r][el.c].pencilColors.set(
+                        boardState[el.r][el.c].candSlashes.set(
                           el.num,
-                          candidateColorPalette[0],
+                          markColorPalette[0],
                         ),
                       );
                     },
@@ -6715,6 +6719,473 @@ const techniques = {
     return techniques._almostLockedSets(board, pencils, 3, findAll); // pass findAll
   },
 
+  uniquenessExternalTest: (board, pencils, findAll = false) => {
+    const results = [];
+    const emitted = new Set();
+    const cellKey = (r, c) => r + "," + c;
+    const cellId = (r, c) => r * 9 + c;
+    const idToCell = (id) => [Math.floor(id / 9), id % 9];
+    const uniqueCells = (cells) =>
+      [...new Set(cells.map(([r, c]) => cellId(r, c)))]
+        .sort((a, b) => a - b)
+        .map(idToCell);
+    const formatBody = (cells) => {
+      const rows = [...new Set(cells.map(([r]) => r + 1))].sort(
+        (a, b) => a - b,
+      );
+      const cols = [...new Set(cells.map(([, c]) => c + 1))].sort(
+        (a, b) => a - b,
+      );
+      return "r" + rows.join("") + "c" + cols.join("");
+    };
+    const formatGuardians = (cells, d1, d2) => {
+      const byDigits = new Map();
+      uniqueCells(cells).forEach(([r, c]) => {
+        let digits = "";
+        if (pencils[r][c].has(d1)) digits += d1;
+        if (pencils[r][c].has(d2)) digits += d2;
+        if (!byDigits.has(digits)) byDigits.set(digits, new Map());
+        const byRow = byDigits.get(digits);
+        if (!byRow.has(r)) byRow.set(r, []);
+        byRow.get(r).push(c + 1);
+      });
+      return [...byDigits]
+        .map(
+          ([digits, byRow]) =>
+            "(" +
+            digits +
+            ")" +
+            [...byRow]
+              .map(([r, cols]) => "r" + (r + 1) + "c" + cols.join(""))
+              .join(","),
+        )
+        .join(",");
+    };
+
+    const makeVisuals =
+      (body, d1, d2, guardians, removals, extra = {}) =>
+      () => {
+        highlightedDigit = null;
+        highlightState = 0;
+        body.forEach(([r, c]) => {
+          boardState[r][c].cellColor = cellColorPalette[7];
+          [d1, d2].forEach((digit) => {
+            if (boardState[r][c].pencils.has(digit)) {
+              boardState[r][c].pencilColors.set(
+                digit,
+                candidateColorPalette[7],
+              );
+            }
+          });
+        });
+        uniqueCells(guardians).forEach(([r, c]) => {
+          boardState[r][c].cellColor = cellColorPalette[6];
+          [d1, d2].forEach((digit) => {
+            if (boardState[r][c].pencils.has(digit)) {
+              boardState[r][c].pencilColors.set(
+                digit,
+                candidateColorPalette[6],
+              );
+            }
+          });
+        });
+        (extra.subsetCells || []).forEach(([r, c]) => {
+          boardState[r][c].cellColor = cellColorPalette[5];
+          (extra.subsetDigits || []).forEach((digit) => {
+            if (boardState[r][c].pencils.has(digit)) {
+              boardState[r][c].pencilColors.set(
+                digit,
+                candidateColorPalette[5],
+              );
+            }
+          });
+        });
+        (extra.wings || []).forEach(([r, c]) => {
+          boardState[r][c].cellColor = cellColorPalette[4];
+          boardState[r][c].pencils.forEach((digit) =>
+            boardState[r][c].pencilColors.set(digit, candidateColorPalette[4]),
+          );
+        });
+        removals.forEach(({ r, c, num }) =>
+          boardState[r][c].candSlashes.set(num, markColorPalette[0]),
+        );
+      };
+
+    const publish = (
+      nameKey,
+      body,
+      d1,
+      d2,
+      guardians,
+      removals,
+      detail,
+      extra,
+    ) => {
+      const cells = _getUniqueRemovals(removals);
+      if (cells.length === 0) return null;
+      const removalKey = cells
+        .map(({ r, c, num }) => r + ":" + c + ":" + num)
+        .sort()
+        .join("|");
+      const key =
+        nameKey +
+        ":" +
+        d1 +
+        ":" +
+        d2 +
+        ":" +
+        body.map(([r, c]) => cellId(r, c)).join(",") +
+        ":" +
+        removalKey;
+      if (emitted.has(key)) return null;
+      emitted.add(key);
+      const result = {
+        change: true,
+        type: "remove",
+        cells,
+        hint: {
+          name: t(nameKey),
+          mainInfo: t("teks_msg_204", "" + d1 + d2),
+          detail,
+        },
+        applyVisuals: makeVisuals(body, d1, d2, guardians, cells, extra),
+      };
+      if (!findAll) return result;
+      results.push(result);
+      return null;
+    };
+
+    const bodies = [];
+    for (let d1 = 1; d1 <= 8; d1++) {
+      for (let d2 = d1 + 1; d2 <= 9; d2++) {
+        for (let r1 = 0; r1 < 8; r1++) {
+          for (let r2 = r1 + 1; r2 < 9; r2++) {
+            const cols = [];
+            for (let c = 0; c < 9; c++) {
+              if (
+                board[r1][c] === 0 &&
+                board[r2][c] === 0 &&
+                pencils[r1][c].has(d1) &&
+                pencils[r1][c].has(d2) &&
+                pencils[r2][c].has(d1) &&
+                pencils[r2][c].has(d2)
+              ) {
+                cols.push(c);
+              }
+            }
+            for (const [c1, c2] of techniques.combinations(cols, 2)) {
+              const sameBand = Math.floor(r1 / 3) === Math.floor(r2 / 3);
+              const sameStack = Math.floor(c1 / 3) === Math.floor(c2 / 3);
+              if (sameBand === sameStack) continue;
+              bodies.push({
+                d1,
+                d2,
+                cells: [
+                  [r1, c1],
+                  [r1, c2],
+                  [r2, c1],
+                  [r2, c2],
+                ],
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const unsolved = [];
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] === 0) unsolved.push([r, c]);
+      }
+    }
+    const seesEvery = (r, c, cells) =>
+      cells.every(([gr, gc]) => techniques._sees([r, c], [gr, gc]));
+
+    for (const { d1, d2, cells: body } of bodies) {
+      const bodySet = new Set(body.map(([r, c]) => cellKey(r, c)));
+      const families = [
+        {
+          type: "row",
+          indices: [...new Set(body.map(([r]) => r))].sort((a, b) => a - b),
+        },
+        {
+          type: "col",
+          indices: [...new Set(body.map(([, c]) => c))].sort((a, b) => a - b),
+        },
+        {
+          type: "box",
+          indices: [
+            ...new Set(body.map(([r, c]) => techniques._getBoxIndex(r, c))),
+          ].sort((a, b) => a - b),
+        },
+      ];
+
+      for (const family of families) {
+        const hasPlacedDeadlyDigit = family.indices.some((index) =>
+          techniques
+            ._getUnitCells(family.type, index)
+            .some(([r, c]) => board[r][c] === d1 || board[r][c] === d2),
+        );
+        if (hasPlacedDeadlyDigit) continue;
+
+        const allIds = new Set();
+        const byDigitIds = new Map([
+          [d1, new Set()],
+          [d2, new Set()],
+        ]);
+        const houses = [];
+        family.indices.forEach((index) => {
+          const local = [];
+          techniques._getUnitCells(family.type, index).forEach(([r, c]) => {
+            if (board[r][c] !== 0 || bodySet.has(cellKey(r, c))) return;
+            const hasD1 = pencils[r][c].has(d1);
+            const hasD2 = pencils[r][c].has(d2);
+            if (!hasD1 && !hasD2) return;
+            const id = cellId(r, c);
+            allIds.add(id);
+            local.push([r, c]);
+            if (hasD1) byDigitIds.get(d1).add(id);
+            if (hasD2) byDigitIds.get(d2).add(id);
+          });
+          houses.push({ index, cells: local });
+        });
+        if (allIds.size === 0) continue;
+
+        const guardians = [...allIds].sort((a, b) => a - b).map(idToCell);
+        const guardianByDigit = new Map(
+          [d1, d2].map((digit) => [
+            digit,
+            [...byDigitIds.get(digit)].sort((a, b) => a - b).map(idToCell),
+          ]),
+        );
+        const detail = t(
+          "teks_msg_205",
+          "" + d1 + d2,
+          formatBody(body),
+          formatGuardians(guardians, d1, d2),
+        );
+
+        // Type 1: the only external guardian cell must retain d1 or d2.
+        if (guardians.length === 1) {
+          const [r, c] = guardians[0];
+          const removals = [...pencils[r][c]]
+            .filter((digit) => digit !== d1 && digit !== d2)
+            .map((num) => ({ r, c, num }));
+          const result = publish(
+            "teks_msg_199",
+            body,
+            d1,
+            d2,
+            guardians,
+            removals,
+            detail,
+          );
+          if (result) return result;
+        }
+
+        // Type 2/4: one deadly digit has no guardians.  A candidate of the
+        // other digit that sees every guardian would make them all false.
+        for (const [targetDigit, absentDigit] of [
+          [d1, d2],
+          [d2, d1],
+        ]) {
+          const targetGuardians = guardianByDigit.get(targetDigit);
+          if (
+            targetGuardians.length === 0 ||
+            guardianByDigit.get(absentDigit).length !== 0
+          ) {
+            continue;
+          }
+          const guardianSet = new Set(
+            targetGuardians.map(([r, c]) => cellKey(r, c)),
+          );
+          const removals = [];
+          unsolved.forEach(([r, c]) => {
+            if (
+              !guardianSet.has(cellKey(r, c)) &&
+              pencils[r][c].has(targetDigit) &&
+              seesEvery(r, c, targetGuardians)
+            ) {
+              removals.push({ r, c, num: targetDigit });
+            }
+          });
+          const result = publish(
+            "teks_msg_200",
+            body,
+            d1,
+            d2,
+            targetGuardians,
+            removals,
+            detail,
+          );
+          if (result) return result;
+        }
+
+        // The cover must fit in one house for the Type 3/3H capacity proof.
+        if (guardians.length > 4) continue;
+        const carrier = houses.find(({ cells }) => {
+          const local = new Set(cells.map(([r, c]) => cellKey(r, c)));
+          return guardians.every(([r, c]) => local.has(cellKey(r, c)));
+        });
+        if (!carrier) continue;
+
+        const houseCells = techniques._getUnitCells(family.type, carrier.index);
+        const guardianSet = new Set(guardians.map(([r, c]) => cellKey(r, c)));
+        const available = houseCells.filter(
+          ([r, c]) =>
+            board[r][c] === 0 &&
+            !bodySet.has(cellKey(r, c)) &&
+            !guardianSet.has(cellKey(r, c)),
+        );
+
+        // Type 3: a real naked subset built from guardians and up to three
+        // additional cells.  Cardinality is checked directly before removal.
+        const maxSelected = Math.min(4 - guardians.length, available.length);
+        for (let count = 0; count <= maxSelected; count++) {
+          for (const selected of techniques.combinations(available, count)) {
+            const subsetCells = [...guardians, ...selected];
+            const subsetDigits = new Set();
+            subsetCells.forEach(([r, c]) =>
+              pencils[r][c].forEach((digit) => subsetDigits.add(digit)),
+            );
+            if (
+              subsetDigits.size < 2 ||
+              subsetDigits.size !== subsetCells.length
+            ) {
+              continue;
+            }
+            const subsetSet = new Set(
+              subsetCells.map(([r, c]) => cellKey(r, c)),
+            );
+            const removals = [];
+            houseCells.forEach(([r, c]) => {
+              if (bodySet.has(cellKey(r, c)) || subsetSet.has(cellKey(r, c)))
+                return;
+              subsetDigits.forEach((num) => {
+                if (pencils[r][c].has(num)) removals.push({ r, c, num });
+              });
+            });
+            const result = publish(
+              "teks_msg_201",
+              body,
+              d1,
+              d2,
+              guardians,
+              removals,
+              detail,
+              { subsetCells, subsetDigits },
+            );
+            if (result) return result;
+          }
+        }
+
+        // Type 3H: the dual hidden-subset capacity check.
+        for (let count = Math.max(2, guardians.length); count <= 4; count++) {
+          for (const digits of techniques.combinations(
+            [1, 2, 3, 4, 5, 6, 7, 8, 9],
+            count,
+          )) {
+            const subsetDigits = new Set(digits);
+            const positions = houseCells.filter(
+              ([r, c]) =>
+                board[r][c] === 0 &&
+                digits.some((digit) => pencils[r][c].has(digit)),
+            );
+            if (
+              !digits.every((digit) =>
+                houseCells.some(
+                  ([r, c]) => board[r][c] === 0 && pencils[r][c].has(digit),
+                ),
+              )
+            ) {
+              continue;
+            }
+            if (positions.length !== count) continue;
+            const positionSet = new Set(
+              positions.map(([r, c]) => cellKey(r, c)),
+            );
+            if (![...guardianSet].every((key) => positionSet.has(key)))
+              continue;
+            const removals = [];
+            positions.forEach(([r, c]) => {
+              pencils[r][c].forEach((num) => {
+                if (!subsetDigits.has(num)) removals.push({ r, c, num });
+              });
+            });
+            const result = publish(
+              "teks_msg_202",
+              body,
+              d1,
+              d2,
+              guardians,
+              removals,
+              detail,
+              { subsetCells: positions, subsetDigits },
+            );
+            if (result) return result;
+          }
+        }
+
+        // External XY-Wing: d1/z and d2/z bivalue wings see their guardian
+        // groups.  At least one guardian is true, so one wing must be z.
+        const guardians1 = guardianByDigit.get(d1);
+        const guardians2 = guardianByDigit.get(d2);
+        if (guardians1.length === 0 || guardians2.length === 0) continue;
+        const bivalue = unsolved.filter(
+          ([r, c]) => pencils[r][c].size === 2 && !bodySet.has(cellKey(r, c)),
+        );
+        for (const wingA of bivalue) {
+          const [ar, ac] = wingA;
+          if (!pencils[ar][ac].has(d1) || !seesEvery(ar, ac, guardians1))
+            continue;
+          const z = [...pencils[ar][ac]].find((digit) => digit !== d1);
+          if (z === d2) continue;
+          for (const wingB of bivalue) {
+            const [br, bc] = wingB;
+            if (
+              (ar === br && ac === bc) ||
+              !pencils[br][bc].has(d2) ||
+              !pencils[br][bc].has(z) ||
+              !seesEvery(br, bc, guardians2)
+            ) {
+              continue;
+            }
+            const removals = [];
+            unsolved.forEach(([r, c]) => {
+              if (
+                (r === ar && c === ac) ||
+                (r === br && c === bc) ||
+                !pencils[r][c].has(z)
+              ) {
+                return;
+              }
+              if (
+                techniques._sees([r, c], wingA) &&
+                techniques._sees([r, c], wingB)
+              ) {
+                removals.push({ r, c, num: z });
+              }
+            });
+            const result = publish(
+              "teks_msg_203",
+              body,
+              d1,
+              d2,
+              guardians,
+              removals,
+              detail,
+              { wings: [wingA, wingB] },
+            );
+            if (result) return result;
+          }
+        }
+      }
+    }
+    return findAll ? results : { change: false };
+  },
+
+  // --- Unified Helper for Almost Locked Pair & Triple ---
   sueDeCoq: (board, pencils, findAll = false) => {
     const results = [];
     const bitFor = (d) => 1 << (d - 1);
@@ -7057,9 +7528,9 @@ const techniques = {
 
                           // 4. Color Eliminations (Candidate Color 1)
                           eliminations.forEach((el) =>
-                            boardState[el.r][el.c].pencilColors.set(
+                            boardState[el.r][el.c].candSlashes.set(
                               el.num,
-                              candidateColorPalette[0],
+                              markColorPalette[0],
                             ),
                           );
                         },
@@ -7389,9 +7860,9 @@ const techniques = {
                         paintPairLines(pivot2, pair2Mask, 6);
 
                         res.cells.forEach((el) => {
-                          boardState[el.r][el.c].pencilColors.set(
+                          boardState[el.r][el.c].candSlashes.set(
                             el.num,
-                            candidateColorPalette[0],
+                            markColorPalette[0],
                           );
                         });
                       },
@@ -7686,9 +8157,9 @@ const techniques = {
 
                                       // Color Eliminations (Candidate Color 1)
                                       eliminations.forEach((el) => {
-                                        boardState[el.r][el.c].pencilColors.set(
+                                        boardState[el.r][el.c].candSlashes.set(
                                           el.num,
-                                          candidateColorPalette[0],
+                                          markColorPalette[0],
                                         );
                                       });
                                     },
@@ -8405,6 +8876,8 @@ const techniques = {
     GroupedLinkRegistry: new Map(),
     AlsLinkRegistry: new Map(),
     FishLinkRegistry: new Map(),
+    BlossomSearchCache: null,
+    AlmostAicGraph: null,
   },
 
   _getTemplating: (board, pencils, num) => {
@@ -8458,6 +8931,49 @@ const techniques = {
     return techniques._templatingCache[num];
   },
 
+  _sharedAICCache: { signature: null, cache: null },
+
+  /**
+   * Signature of the current position, covering placed digits and pencilmarks.
+   * Used to decide whether a cached node/link graph is still valid.
+   */
+  _positionSignature: (board, pencils) => {
+    let signature = "";
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] !== 0) {
+          signature += board[r][c];
+          continue;
+        }
+        let mask = 0;
+        for (const digit of pencils[r][c]) mask |= 1 << digit;
+        signature += "." + mask.toString(36);
+      }
+    }
+    return signature;
+  },
+
+  /**
+   * Restores the node/link graph built for this exact position, so that the
+   * three blossom variants (and any later call on the same position) share
+   * one build instead of repeating it.
+   */
+  _useSharedAICCache: (board, pencils) => {
+    const signature = techniques._positionSignature(board, pencils);
+    const shared = techniques._sharedAICCache;
+    if (shared.signature === signature && shared.cache) {
+      techniques._aicCache = shared.cache;
+      return;
+    }
+    shared.signature = signature;
+    shared.cache = techniques._aicCache;
+  },
+
+  /**
+   * Solves the given board with a bitmask solver and caches the result by
+   * board signature, so repeated technique calls on the same position solve
+   * only once.
+   */
   _resetAICCache: () => {
     techniques._templatingCache = null;
     techniques._aicCache = {
@@ -8474,6 +8990,8 @@ const techniques = {
       GroupedLinkRegistry: new Map(),
       AlsLinkRegistry: new Map(),
       FishLinkRegistry: new Map(),
+      BlossomSearchCache: null,
+      AlmostAicGraph: null,
     };
   },
 
@@ -9157,9 +9675,9 @@ const techniques = {
           });
 
           removals.forEach((el) => {
-            boardState[el.r][el.c].pencilColors.set(
+            boardState[el.r][el.c].candSlashes.set(
               el.num,
-              candidateColorPalette[0],
+              markColorPalette[0],
             );
           });
 
@@ -9179,69 +9697,29 @@ const techniques = {
           }
 
           if (useFish && usedFishes.length > 0) {
-            const getFlatIds = (cells) => {
-              if (!cells) return [];
-              return cells.map((cell) =>
-                Array.isArray(cell) ? cell[0] * 9 + cell[1] : cell,
-              );
-            };
-
-            const drawFishGroup = (cells, digit, colorIdx) => {
-              const flatIds = getFlatIds(cells);
-              if (flatIds.length > 1) {
-                for (let i = 0; i < flatIds.length - 1; i++) {
-                  const r1 = Math.floor(flatIds[i] / 9),
-                    c1 = flatIds[i] % 9;
-                  const r2 = Math.floor(flatIds[i + 1] / 9),
-                    c2 = flatIds[i + 1] % 9;
-                  drawnLines.push({
-                    r1,
-                    c1,
-                    n1: digit,
-                    r2,
-                    c2,
-                    n2: digit,
-                    color: lineColorPalette[colorIdx],
-                    style: "solid",
-                  });
-                }
-              }
-            };
-
+            // A fish only circles its own candidates: no cell tint and no
+            // internal lines, so the chain drawn on top stays readable.
             usedFishes.forEach((fish) => {
               colorCount++;
-              const fishColor = colorCodes[colorCount % 8];
+              const fishColor = colorCodes[colorCount % colorCodes.length];
 
-              const flatAllCells = getFlatIds(fish.allCells);
-              flatAllCells.forEach((id) => {
+              fish.allCells.forEach((id) => {
                 const r = Math.floor(id / 9);
                 const c = id % 9;
-                if (boardState[r][c].pencils.has(fish.d)) {
-                  if (window.addCellColor)
-                    window.addCellColor(r, c, cellColorPalette[fishColor]);
-                  else
-                    boardState[r][c].cellColor =
-                      candidateColorPalette[fishColor];
-
-                  if (window.addCandidateColor)
-                    window.addCandidateColor(
-                      r,
-                      c,
-                      fish.d,
-                      candidateColorPalette[fishColor],
-                    );
-                  else
-                    boardState[r][c].pencilColors.set(
-                      fish.d,
-                      candidateColorPalette[fishColor],
-                    );
-                }
+                if (!boardState[r][c].pencils.has(fish.d)) return;
+                if (window.addCandidateCircle)
+                  window.addCandidateCircle(
+                    r,
+                    c,
+                    fish.d,
+                    markColorPalette[fishColor],
+                  );
+                else
+                  boardState[r][c].candCircles.set(
+                    fish.d,
+                    markColorPalette[fishColor],
+                  );
               });
-
-              const finCells = fish.fins || fish.finCells;
-              if (finCells) {
-                drawFishGroup(finCells, fish.d, fishColor);
-              }
             });
           }
 
@@ -9270,6 +9748,7 @@ const techniques = {
           };
 
           const drawGroup = (node, idx) => {
+            if (fishNodes.has(node)) return; // Circled instead
             if (node.cells.length > 1) {
               const colorIdx = idx % 2 === 0 ? 5 : 4;
               for (let i = 0; i < node.cells.length - 1; i++) {
@@ -9299,6 +9778,9 @@ const techniques = {
             if (i < path.length) drawGroup(v, (i + 1) % path.length);
 
             let skipLine = false;
+            // Fish OR links sit on the even steps; the circles already show them.
+            if (useFish && i % 2 === 0 && activeFishLinkRegistry.get(u)?.get(v))
+              skipLine = true;
 
             if (!skipLine) {
               const [cA, cB] = getClosestCells(u, v);
@@ -10128,9 +10610,18 @@ const techniques = {
     return alses;
   },
 
-  _deathBlossomCore: (board, pencils, isRegion, findAll = false) => {
+  _deathBlossomCore: (
+    board,
+    pencils,
+    isRegion,
+    findAll = false,
+    focusKind = null,
+  ) => {
     const results = [];
+    techniques._useSharedAICCache(board, pencils);
     const cache = techniques._aicCache;
+    const isAals = focusKind === "aals";
+    const isCell = !isRegion && !isAals;
 
     // Ensure base nodes are generated
     if (cache.AllNodes.length === 0) {
@@ -10229,7 +10720,7 @@ const techniques = {
     // 2. Collect and sort potential stems (3 to 6 candidates)
     const potentialStems = [];
 
-    if (!isRegion) {
+    if (isCell) {
       // Cell Death Blossom
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
@@ -10245,7 +10736,7 @@ const techniques = {
           }
         }
       }
-    } else {
+    } else if (isRegion) {
       // Region Death Blossom
       for (let d = 1; d <= 9; d++) {
         // Rows
@@ -10293,6 +10784,103 @@ const techniques = {
             });
         }
       }
+    } else {
+      // AALS Death Blossom
+      const seenAals = new Set();
+      const unitLabel = (unit) =>
+        unit < 9
+          ? t("teks_msg_153", unit + 1)
+          : unit < 18
+            ? t("teks_msg_154", unit - 8)
+            : t("teks_msg_155", unit - 17);
+
+      for (let unit = 0; unit < 27; unit++) {
+        const eligibleCells = [];
+        for (let id = 0; id < 81; id++) {
+          const part = Math.floor(id / 27);
+          const bit = id % 27;
+          if ((UNIT_BITSETS[unit][part] & (1 << bit)) === 0) continue;
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (board[r][c] === 0 && pencils[r][c].size > 0) {
+            eligibleCells.push(id);
+          }
+        }
+
+        const addAalsStems = (cells) => {
+          let mask = 0;
+          const cellsByDigit = Array.from({ length: 10 }, () => []);
+          for (const id of cells) {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            for (const digit of pencils[r][c]) {
+              mask |= 1 << digit;
+              cellsByDigit[digit].push(id);
+            }
+          }
+          if (techniques._bits.popcount(mask) !== cells.length + 2) return;
+
+          const aalsKey = [...cells].sort((a, b) => a - b).join(",");
+          if (seenAals.has(aalsKey)) return;
+          seenAals.add(aalsKey);
+
+          const digits = [];
+          for (let digit = 1; digit <= 9; digit++) {
+            if (mask & (1 << digit)) digits.push(digit);
+          }
+          for (let first = 0; first < digits.length - 2; first++) {
+            for (let second = first + 1; second < digits.length - 1; second++) {
+              for (let third = second + 1; third < digits.length; third++) {
+                const startDigits = [
+                  digits[first],
+                  digits[second],
+                  digits[third],
+                ];
+                const startCandidates = startDigits.flatMap((digit) =>
+                  cellsByDigit[digit].map((id) => ({ id, digit })),
+                );
+                if (startCandidates.length < 3 || startCandidates.length > 5) {
+                  continue;
+                }
+
+                potentialStems.push({
+                  size: startCandidates.length,
+                  kind: "aals",
+                  unit,
+                  cells: [...cells],
+                  houseName: unitLabel(unit),
+                  startDigits,
+                  startCandidates,
+                  startCandidateKeys: new Set(
+                    startCandidates.map(({ id, digit }) => `${id}:${digit}`),
+                  ),
+                });
+              }
+            }
+          }
+        };
+
+        const chooseCells = (start, size, cells) => {
+          if (cells.length === size) {
+            addAalsStems(cells);
+            return;
+          }
+          const needed = size - cells.length;
+          for (
+            let index = start;
+            index <= eligibleCells.length - needed;
+            index++
+          ) {
+            cells.push(eligibleCells[index]);
+            chooseCells(index + 1, size, cells);
+            cells.pop();
+          }
+        };
+
+        for (let size = 2; size <= Math.min(7, eligibleCells.length); size++) {
+          chooseCells(0, size, []);
+        }
+      }
     }
 
     // Sort stems so cells/regions with fewer candidates are processed first
@@ -10300,9 +10888,11 @@ const techniques = {
 
     // 3. Iterate through sorted stem cells/regions
     for (const stem of potentialStems) {
-      const startNodes = !isRegion
+      const startNodes = isCell
         ? stem.startDigits.map((d) => getNode([stem.cellId], [d]))
-        : stem.cells.map((cId) => getNode([cId], [stem.digit]));
+        : isRegion
+          ? stem.cells.map((cId) => getNode([cId], [stem.digit]))
+          : stem.startCandidates.map(({ id, digit }) => getNode([id], [digit]));
 
       const reachMap = new Map();
 
@@ -10314,8 +10904,11 @@ const techniques = {
         const nandNodes = allNodes.filter((n) => {
           if (n === s) return false;
 
-          // Exclude different digit of its cell (Applies to both Cell and Region)
-          if (n.cells.length === 1 && n.cells[0] === s.cells[0]) return false;
+          // Preserve the existing Cell/Region exclusion for a different
+          // candidate in the same start cell.
+          if (!isAals && n.cells.length === 1 && n.cells[0] === s.cells[0]) {
+            return false;
+          }
 
           // Exclude the digit from the different cell of the stem house (Applies to Region only)
           if (
@@ -10326,6 +10919,16 @@ const techniques = {
             stem.cells.includes(n.cells[0])
           )
             return false;
+
+          // AALS start candidates belong to the same OR gate, so a branch
+          // cannot use another start candidate as its first NAND node.
+          if (
+            isAals &&
+            n.cells.length === 1 &&
+            stem.startCandidateKeys.has(`${n.cells[0]}:${n.digits[0]}`)
+          ) {
+            return false;
+          }
 
           return techniques.isBitsetSubset(n.NodeBitset, s.NandBitset);
         });
@@ -10380,11 +10983,13 @@ const techniques = {
 
                 // Ensure it's not the stem itself
                 let isStemCandidate = false;
-                if (!isRegion) {
+                if (isCell) {
                   if (er === stem.r && ec === stem.c) isStemCandidate = true;
-                } else {
+                } else if (isRegion) {
                   if (num === stem.digit && stem.cells.includes(id))
                     isStemCandidate = true;
+                } else if (stem.startCandidateKeys.has(`${id}:${num}`)) {
+                  isStemCandidate = true;
                 }
 
                 if (
@@ -10494,10 +11099,16 @@ const techniques = {
           return str;
         });
 
-        const blossomName = isRegion ? t("teks_msg_165") : t("teks_msg_164");
-        const mainInfoStr = isRegion
-          ? t("teks_msg_157", stem.digit, stem.houseName)
-          : t("teks_msg_158", stem.r + 1, stem.c + 1);
+        const blossomName = isAals
+          ? t("teks_msg_197")
+          : isRegion
+            ? t("teks_msg_165")
+            : t("teks_msg_164");
+        const mainInfoStr = isAals
+          ? t("teks_msg_198", stem.startDigits.join(""), stem.houseName)
+          : isRegion
+            ? t("teks_msg_157", stem.digit, stem.houseName)
+            : t("teks_msg_158", stem.r + 1, stem.c + 1);
 
         const resultObj = {
           change: true,
@@ -10512,6 +11123,20 @@ const techniques = {
             highlightedDigit = null;
             highlightState = 0;
 
+            // AALS gets a dedicated cyan cell color before branch colors are
+            // layered on top, keeping the stem visibly distinct from chains.
+            if (isAals) {
+              stem.cells.forEach((id) => {
+                const r = Math.floor(id / 9);
+                const c = id % 9;
+                if (window.addCellColor) {
+                  window.addCellColor(r, c, cellColorPalette[5]);
+                } else {
+                  boardState[r][c].cellColor = cellColorPalette[5];
+                }
+              });
+            }
+
             chosenPaths.forEach((path, branchIdx) => {
               const branchColor = [6, 7, 2, 3, 4, 8][branchIdx % 6]; // Unique color per stem candidate chain
 
@@ -10521,7 +11146,7 @@ const techniques = {
                 const w = path[2]; // OR node
 
                 // 1. Color stem cell candidate matching the branch color
-                if (!isRegion) {
+                if (isCell) {
                   boardState[stem.r][stem.c].pencilColors.set(
                     u.digits[0],
                     candidateColorPalette[branchColor],
@@ -10530,7 +11155,7 @@ const techniques = {
                   const ur = Math.floor(u.cells[0] / 9),
                     uc = u.cells[0] % 9;
                   boardState[ur][uc].pencilColors.set(
-                    stem.digit,
+                    isRegion ? stem.digit : u.digits[0],
                     candidateColorPalette[branchColor],
                   );
                 }
@@ -10635,9 +11260,9 @@ const techniques = {
 
             // Eliminations
             elims.forEach((el) => {
-              boardState[el.r][el.c].pencilColors.set(
+              boardState[el.r][el.c].candSlashes.set(
                 el.num,
-                candidateColorPalette[0],
+                markColorPalette[0],
               );
             });
           },
@@ -10651,12 +11276,1156 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
+  deathBlossom: (board, pencils, findAll = false) => {
+    if (findAll) {
+      return [
+        ...techniques.cellDeathBlossom(board, pencils, true),
+        ...techniques.regionDeathBlossom(board, pencils, true),
+        ...techniques.aalsDeathBlossom(board, pencils, true),
+      ];
+    }
+    const cell = techniques.cellDeathBlossom(board, pencils, false);
+    if (cell.change) return cell;
+    const region = techniques.regionDeathBlossom(board, pencils, false);
+    if (region.change) return region;
+    return techniques.aalsDeathBlossom(board, pencils, false);
+  },
+
   cellDeathBlossom: (board, pencils, findAll = false) => {
     return techniques._deathBlossomCore(board, pencils, false, findAll);
   },
 
   regionDeathBlossom: (board, pencils, findAll = false) => {
     return techniques._deathBlossomCore(board, pencils, true, findAll);
+  },
+
+  aalsDeathBlossom: (board, pencils, findAll = false) => {
+    return techniques._deathBlossomCore(board, pencils, false, findAll, "aals");
+  },
+
+  // --- Almost AIC ---
+  // Death Blossom logic driven by the full AIC inference graph. A stem still
+  // supplies an OR gate whose candidates each grow one branch, but a branch is
+  // an ordinary alternating chain: it may use every strong link the AIC core
+  // builds (bilocation, bivalue, grouped, intra-ALS and finned fish) and may
+  // run for two extra propagation cycles (16 nodes instead of 4).
+
+  _almostAicMaxBranchNodes: 16,
+
+  /**
+   * Builds (and caches per board state) the alternating-inference graph the
+   * Almost AIC branches walk on. All three stem kinds share one graph.
+   */
+  _buildAlmostAicGraph: (board, pencils) => {
+    techniques._useSharedAICCache(board, pencils);
+    const cache = techniques._aicCache;
+
+    if (cache.AllNodes.length === 0) {
+      const candidateBitsets = techniques.buildCandidateBitsets(board, pencils);
+      const baseNodes =
+        techniques.generateBasicNodesFromBitsets(candidateBitsets);
+      baseNodes.forEach((n) => {
+        const key = `${n.digits.join(",")}_${n.cells
+          .slice()
+          .sort((a, b) => a - b)
+          .join(",")}`;
+        cache.NodeCache.set(key, n);
+        cache.AllNodes.push(n);
+      });
+    }
+
+    const allNodes = cache.AllNodes;
+    const nodeCache = cache.NodeCache;
+
+    const getNode = (cells, digits) => {
+      const dArr = Array.isArray(digits) ? digits : [digits];
+      const key = `${dArr.join(",")}_${cells
+        .slice()
+        .sort((a, b) => a - b)
+        .join(",")}`;
+      if (nodeCache.has(key)) return nodeCache.get(key);
+      const newNode = new AICNode(cells, dArr);
+      nodeCache.set(key, newNode);
+      allNodes.push(newNode);
+      return newNode;
+    };
+
+    if (
+      cache.AlmostAicGraph &&
+      cache.AlmostAicGraph.nodeCount === allNodes.length
+    ) {
+      return cache.AlmostAicGraph;
+    }
+
+    // 1. Every OR gate the AIC core knows how to build.
+    let orMap = new Map();
+    allNodes.forEach((n) => orMap.set(n, new Set()));
+
+    if (cache.BilocationOrMap.size === 0) {
+      cache.BilocationOrMap = techniques.buildBilocationOrMap(allNodes);
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.BilocationOrMap);
+
+    if (cache.BivalueOrMap.size === 0) {
+      cache.BivalueOrMap = techniques.buildBivalueOrMap(allNodes);
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.BivalueOrMap);
+
+    if (cache.GroupedOrMap.size === 0) {
+      cache.GroupedOrMap = techniques.buildGroupedOrMap(
+        pencils,
+        (cells, d) => getNode(cells, [d]),
+        cache.GroupedLinkRegistry,
+      );
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.GroupedOrMap);
+
+    if (cache.AlsMap.size === 0) {
+      cache.AlsMap = techniques.buildAlsOrMap(
+        board,
+        pencils,
+        (cells, d) => getNode(cells, [d]),
+        cache.AlsLinkRegistry,
+      );
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.AlsMap);
+
+    if (cache.FishMap.size === 0) {
+      cache.FishMap = techniques.buildFishOrMap(
+        board,
+        pencils,
+        (cells, d) => getNode(cells, [d]),
+        cache.FishLinkRegistry,
+      );
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.FishMap);
+
+    // 2. Flatten to index based adjacency so a branch walk stays cheap.
+    // Basic nodes are always kept: a stem candidate has to be walkable even
+    // when it carries no OR gate of its own.
+    const nodes = [];
+    for (const node of allNodes) {
+      const neighbors = orMap.get(node);
+      if (
+        (neighbors && neighbors.size > 0) ||
+        (node.isSingleCell && node.isSingleDigit)
+      ) {
+        nodes.push(node);
+      }
+    }
+
+    const nodeIndex = new Map();
+    nodes.forEach((node, index) => nodeIndex.set(node, index));
+
+    const orAdj = nodes.map((node) => {
+      const list = [];
+      const neighbors = orMap.get(node);
+      if (neighbors) {
+        for (const neighbor of neighbors) {
+          const index = nodeIndex.get(neighbor);
+          if (index !== undefined) list.push(index);
+        }
+      }
+      return Int32Array.from(list);
+    });
+
+    const nodesByDigit = Array.from({ length: 10 }, () => []);
+    const singleCellNodes = Array.from({ length: 81 }, () => []);
+
+    for (const node of nodes) {
+      if (node.digits.length !== 1) continue;
+      nodesByDigit[node.digits[0]].push(node);
+      if (node.cells.length === 1) singleCellNodes[node.cells[0]].push(node);
+    }
+
+    // Weak links follow the generic AIC rules: same-digit visibility plus
+    // the other candidates of a single cell.
+    const nandAdj = nodes.map((node) => {
+      if (node.digits.length !== 1) return Int32Array.from([]);
+
+      const digit = node.digits[0];
+      const targets = new Set();
+
+      for (const other of nodesByDigit[digit]) {
+        if (
+          other !== node &&
+          techniques.isBitsetSubset(other.NodeBitset, node.NandBitset)
+        ) {
+          targets.add(nodeIndex.get(other));
+        }
+      }
+
+      if (node.cells.length === 1) {
+        for (const other of singleCellNodes[node.cells[0]]) {
+          if (other !== node && other.digits[0] !== digit) {
+            targets.add(nodeIndex.get(other));
+          }
+        }
+      }
+
+      return Int32Array.from(targets);
+    });
+
+    const graph = {
+      nodeCount: allNodes.length,
+      nodes,
+      nodeIndex,
+      orAdj,
+      nandAdj,
+      getNode,
+      alsLinkRegistry: cache.AlsLinkRegistry,
+      groupedLinkRegistry: cache.GroupedLinkRegistry,
+      fishLinkRegistry: cache.FishLinkRegistry,
+      walkCache: new Map(),
+      maskCache: new Map(),
+    };
+
+    cache.AlmostAicGraph = graph;
+    return graph;
+  },
+
+  /**
+   * Propagates one branch: the start node is assumed TRUE, so the walk leaves
+   * it through a weak link and then alternates. Nodes reached through an OR
+   * gate are TRUE and are the ones a branch may conclude with.
+   */
+  _almostAicWalk: (graph, startNode) => {
+    const cached = graph.walkCache.get(startNode);
+    if (cached) return cached;
+
+    const { nodes, nodeIndex, orAdj, nandAdj } = graph;
+    const startIndex = nodeIndex.get(startNode);
+    const size = nodes.length;
+    const maxNodes = techniques._almostAicMaxBranchNodes;
+
+    // parity 0: node is TRUE  (arrived through an OR gate, leaves weakly)
+    // parity 1: node is FALSE (arrived through a weak link, leaves strongly)
+    const capacity = 2 * size + 1;
+    const stateNode = new Int32Array(capacity);
+    const stateParent = new Int32Array(capacity);
+    const stateParity = new Uint8Array(capacity);
+    const stateDepth = new Int16Array(capacity);
+    const bestDepth = new Int16Array(2 * size);
+    const trueState = new Int32Array(size).fill(-1);
+    const reachOrder = [];
+
+    stateNode[0] = startIndex;
+    stateParent[0] = -1;
+    stateParity[0] = 0;
+    stateDepth[0] = 1;
+    bestDepth[startIndex * 2] = 1;
+    trueState[startIndex] = 0;
+    reachOrder.push(startIndex);
+
+    let count = 1;
+    let head = 0;
+
+    while (head < count) {
+      const current = head++;
+      const depth = stateDepth[current];
+      if (depth >= maxNodes) continue;
+
+      const parity = stateParity[current];
+      const source = stateNode[current];
+      const neighbors = parity === 0 ? nandAdj[source] : orAdj[source];
+      const nextParity = parity === 0 ? 1 : 0;
+      const nextDepth = depth + 1;
+
+      for (let i = 0; i < neighbors.length; i++) {
+        const next = neighbors[i];
+        const key = next * 2 + nextParity;
+        const previous = bestDepth[key];
+        if (previous !== 0 && previous <= nextDepth) continue;
+
+        // A chain may never reuse a node.
+        let ancestor = current;
+        let repeated = false;
+        while (ancestor !== -1) {
+          if (stateNode[ancestor] === next) {
+            repeated = true;
+            break;
+          }
+          ancestor = stateParent[ancestor];
+        }
+        if (repeated) continue;
+
+        bestDepth[key] = nextDepth;
+        const pushed = count++;
+        stateNode[pushed] = next;
+        stateParent[pushed] = current;
+        stateParity[pushed] = nextParity;
+        stateDepth[pushed] = nextDepth;
+
+        if (nextParity === 0 && trueState[next] === -1) {
+          trueState[next] = pushed;
+          reachOrder.push(next);
+        }
+      }
+    }
+
+    // Union of what every TRUE node of the branch removes.
+    const mask = Array.from({ length: 9 }, () => [0, 0, 0]);
+    for (const index of reachOrder) {
+      const nand = nodes[index].NandBitset;
+      for (let d = 0; d < 9; d++) {
+        mask[d][0] |= nand[d][0];
+        mask[d][1] |= nand[d][1];
+        mask[d][2] |= nand[d][2];
+      }
+    }
+
+    const walk = { stateNode, stateParent, trueState, reachOrder, mask };
+
+    if (graph.walkCache.size >= 96) {
+      const oldest = graph.walkCache.keys().next().value;
+      graph.walkCache.delete(oldest);
+    }
+    graph.walkCache.set(startNode, walk);
+    graph.maskCache.set(startNode, mask);
+
+    return walk;
+  },
+
+  _almostAicMask: (graph, startNode) => {
+    const cached = graph.maskCache.get(startNode);
+    if (cached) return cached;
+    return techniques._almostAicWalk(graph, startNode).mask;
+  },
+
+  _almostAicPath: (graph, walk, nodeIndex) => {
+    const state = walk.trueState[nodeIndex];
+    if (state === -1) return null;
+
+    const path = [];
+    let current = state;
+    while (current !== -1) {
+      path.push(graph.nodes[walk.stateNode[current]]);
+      current = walk.stateParent[current];
+    }
+    path.reverse();
+    return path;
+  },
+
+  _almostAicCore: (
+    board,
+    pencils,
+    isRegion,
+    findAll = false,
+    focusKind = null,
+  ) => {
+    const results = [];
+    const isAals = focusKind === "aals";
+    const isCell = !isRegion && !isAals;
+
+    const graph = techniques._buildAlmostAicGraph(board, pencils);
+    const getNode = graph.getNode;
+    const alsLinkRegistry = graph.alsLinkRegistry;
+    const groupedLinkRegistry = graph.groupedLinkRegistry;
+    const fishLinkRegistry = graph.fishLinkRegistry;
+
+    const getLoc = (cells, preferBox = false) => {
+      if (cells.length === 0) return "";
+      if (cells.length === 1) {
+        const r = Math.floor(cells[0] / 9);
+        const c = cells[0] % 9;
+        if (preferBox) {
+          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
+          const p = (r % 3) * 3 + (c % 3) + 1;
+          return `b${b}p${p}`;
+        }
+        return `r${r + 1}c${c + 1}`;
+      }
+      const boxes = [
+        ...new Set(
+          cells.map(
+            (id) =>
+              Math.floor(Math.floor(id / 9) / 3) * 3 +
+              Math.floor((id % 9) / 3) +
+              1,
+          ),
+        ),
+      ];
+      if (preferBox && boxes.length === 1) {
+        const points = cells
+          .map((id) => (Math.floor(id / 9) % 3) * 3 + ((id % 9) % 3) + 1)
+          .sort((a, b) => a - b);
+        return `b${boxes[0]}p${points.join("")}`;
+      }
+      const rows = [...new Set(cells.map((id) => Math.floor(id / 9) + 1))].sort(
+        (a, b) => a - b,
+      );
+      const cols = [...new Set(cells.map((id) => (id % 9) + 1))].sort(
+        (a, b) => a - b,
+      );
+      if (rows.length === 1) return `r${rows[0]}c${cols.join("")}`;
+      if (cols.length === 1) return `r${rows.join("")}c${cols[0]}`;
+      return [...cells]
+        .sort((a, b) => a - b)
+        .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+        .join("");
+    };
+
+    const getCompactFinLoc = (cells) => {
+      if (cells.length <= 1) return getLoc(cells);
+
+      const uniqueCells = [...new Set(cells)];
+      const rows = new Set(uniqueCells.map((id) => Math.floor(id / 9)));
+      const cols = new Set(uniqueCells.map((id) => id % 9));
+      if (rows.size === 1 || cols.size === 1) return getLoc(uniqueCells);
+
+      const groupByRow = rows.size <= cols.size;
+      const groups = new Map();
+      for (const id of uniqueCells) {
+        const key = groupByRow ? Math.floor(id / 9) : id % 9;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(groupByRow ? id % 9 : Math.floor(id / 9));
+      }
+
+      return Array.from(groups.entries())
+        .map(([key, values]) => {
+          const positions = values
+            .sort((a, b) => a - b)
+            .map((value) => value + 1)
+            .join("");
+          return groupByRow
+            ? `r${key + 1}c${positions}`
+            : `r${positions}c${key + 1}`;
+        })
+        .join(",");
+    };
+
+    // One Eureka term per strong link, following the AIC core formatting.
+    const strongTerm = (u, v, lastDigit) => {
+      const als = alsLinkRegistry.get(u)?.get(v);
+      if (als) {
+        const alsIds = als.cells.map((cell) => cell[0] * 9 + cell[1]);
+        const preferBox =
+          als.unitName && als.unitName.includes(t("teks_msg_7"));
+        return {
+          text: `(${u.digits[0]}=${v.digits[0]})${getLoc(alsIds, preferBox)}`,
+          digit: v.digits[0],
+        };
+      }
+
+      const fish = fishLinkRegistry.get(u)?.get(v);
+      if (fish) {
+        return {
+          text: `(${fish.d})(${getCompactFinLoc(u.cells)}=${getCompactFinLoc(
+            v.cells,
+          )})(${fish.basesStr}\\${fish.coversStr})`,
+          digit: fish.d,
+        };
+      }
+
+      if (
+        u.digits[0] !== v.digits[0] &&
+        u.cells.length === 1 &&
+        v.cells.length === 1 &&
+        u.cells[0] === v.cells[0]
+      ) {
+        return {
+          text: `(${u.digits[0]}=${v.digits[0]})${getLoc(u.cells)}`,
+          digit: v.digits[0],
+        };
+      }
+
+      const digit = u.digits[0];
+      const prefix = lastDigit === digit ? "" : `(${digit})`;
+      const preferBoxGate = groupedLinkRegistry.get(u)?.get(v) === "box";
+      return {
+        text: `${prefix}${getLoc(u.cells, preferBoxGate)}=${getLoc(
+          v.cells,
+          preferBoxGate,
+        )}`,
+        digit,
+      };
+    };
+
+    const getClosestCells = (nodeA, nodeB) => {
+      let minDistance = Infinity;
+      let bestA = nodeA.cells[0];
+      let bestB = nodeB.cells[0];
+      for (const a of nodeA.cells) {
+        for (const b of nodeB.cells) {
+          const distance =
+            Math.abs(Math.floor(a / 9) - Math.floor(b / 9)) +
+            Math.abs((a % 9) - (b % 9));
+          if (distance < minDistance) {
+            minDistance = distance;
+            bestA = a;
+            bestB = b;
+          }
+        }
+      }
+      return [
+        [Math.floor(bestA / 9), bestA % 9],
+        [Math.floor(bestB / 9), bestB % 9],
+      ];
+    };
+
+    // 1. Collect stems. Death Blossom allows up to six branches; Almost AIC
+    // stops at four because each branch reaches far further.
+    const potentialStems = [];
+
+    if (isCell) {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          const size = pencils[r][c].size;
+          if (size >= 3 && size <= 4) {
+            potentialStems.push({
+              size,
+              r,
+              c,
+              cellId: r * 9 + c,
+              startDigits: Array.from(pencils[r][c]).sort((a, b) => a - b),
+            });
+          }
+        }
+      }
+    } else if (isRegion) {
+      for (let d = 1; d <= 9; d++) {
+        for (let r = 0; r < 9; r++) {
+          const cells = [];
+          for (let c = 0; c < 9; c++)
+            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
+          if (cells.length >= 3 && cells.length <= 4)
+            potentialStems.push({
+              size: cells.length,
+              digit: d,
+              cells,
+              houseName: t("teks_msg_153", r + 1),
+            });
+        }
+        for (let c = 0; c < 9; c++) {
+          const cells = [];
+          for (let r = 0; r < 9; r++)
+            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
+          if (cells.length >= 3 && cells.length <= 4)
+            potentialStems.push({
+              size: cells.length,
+              digit: d,
+              cells,
+              houseName: t("teks_msg_154", c + 1),
+            });
+        }
+        for (let b = 0; b < 9; b++) {
+          const cells = [];
+          const br = Math.floor(b / 3) * 3;
+          const bc = (b % 3) * 3;
+          for (let i = 0; i < 9; i++) {
+            const r = br + Math.floor(i / 3);
+            const c = bc + (i % 3);
+            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
+          }
+          if (cells.length >= 3 && cells.length <= 4)
+            potentialStems.push({
+              size: cells.length,
+              digit: d,
+              cells,
+              houseName: t("teks_msg_155", b + 1),
+            });
+        }
+      }
+    } else {
+      const seenAals = new Set();
+      const unitLabel = (unit) =>
+        unit < 9
+          ? t("teks_msg_153", unit + 1)
+          : unit < 18
+            ? t("teks_msg_154", unit - 8)
+            : t("teks_msg_155", unit - 17);
+
+      for (let unit = 0; unit < 27; unit++) {
+        const eligibleCells = [];
+        for (let id = 0; id < 81; id++) {
+          const part = Math.floor(id / 27);
+          const bit = id % 27;
+          if ((UNIT_BITSETS[unit][part] & (1 << bit)) === 0) continue;
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (board[r][c] === 0 && pencils[r][c].size > 0) {
+            eligibleCells.push(id);
+          }
+        }
+
+        const addAalsStems = (cells) => {
+          let mask = 0;
+          const cellsByDigit = Array.from({ length: 10 }, () => []);
+          for (const id of cells) {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            for (const digit of pencils[r][c]) {
+              mask |= 1 << digit;
+              cellsByDigit[digit].push(id);
+            }
+          }
+          if (techniques._bits.popcount(mask) !== cells.length + 2) return;
+
+          const aalsKey = [...cells].sort((a, b) => a - b).join(",");
+          if (seenAals.has(aalsKey)) return;
+          seenAals.add(aalsKey);
+
+          const digits = [];
+          for (let digit = 1; digit <= 9; digit++) {
+            if (mask & (1 << digit)) digits.push(digit);
+          }
+          for (let first = 0; first < digits.length - 2; first++) {
+            for (let second = first + 1; second < digits.length - 1; second++) {
+              for (let third = second + 1; third < digits.length; third++) {
+                const startDigits = [
+                  digits[first],
+                  digits[second],
+                  digits[third],
+                ];
+                const startCandidates = startDigits.flatMap((digit) =>
+                  cellsByDigit[digit].map((id) => ({ id, digit })),
+                );
+                if (startCandidates.length < 3 || startCandidates.length > 4) {
+                  continue;
+                }
+
+                potentialStems.push({
+                  size: startCandidates.length,
+                  kind: "aals",
+                  unit,
+                  cells: [...cells],
+                  houseName: unitLabel(unit),
+                  startDigits,
+                  startCandidates,
+                  startCandidateKeys: new Set(
+                    startCandidates.map(({ id, digit }) => `${id}:${digit}`),
+                  ),
+                });
+              }
+            }
+          }
+        };
+
+        const chooseCells = (start, size, cells) => {
+          if (cells.length === size) {
+            addAalsStems(cells);
+            return;
+          }
+          const needed = size - cells.length;
+          for (
+            let index = start;
+            index <= eligibleCells.length - needed;
+            index++
+          ) {
+            cells.push(eligibleCells[index]);
+            chooseCells(index + 1, size, cells);
+            cells.pop();
+          }
+        };
+
+        for (let size = 2; size <= Math.min(7, eligibleCells.length); size++) {
+          chooseCells(0, size, []);
+        }
+      }
+    }
+
+    potentialStems.sort((a, b) => a.size - b.size);
+
+    // 2. Every stem candidate grows one branch; an elimination has to survive
+    // all of them, exactly as in Death Blossom.
+    for (const stem of potentialStems) {
+      const startNodes = isCell
+        ? stem.startDigits.map((d) => getNode([stem.cellId], [d]))
+        : isRegion
+          ? stem.cells.map((cId) => getNode([cId], [stem.digit]))
+          : stem.startCandidates.map(({ id, digit }) => getNode([id], [digit]));
+
+      if (startNodes.some((node) => !graph.nodeIndex.has(node))) continue;
+
+      const stemCellSet = isRegion ? new Set(stem.cells) : null;
+      const branchMasks = startNodes.map((node) =>
+        techniques._almostAicMask(graph, node),
+      );
+
+      const commonMask = Array.from({ length: 9 }, () => [0, 0, 0]);
+      let hasCommon = false;
+      for (let d = 0; d < 9; d++) {
+        for (let p = 0; p < 3; p++) {
+          let bits = branchMasks[0][d][p];
+          for (let i = 1; i < branchMasks.length; i++) {
+            bits &= branchMasks[i][d][p];
+          }
+          commonMask[d][p] = bits;
+          if (bits !== 0) hasCommon = true;
+        }
+      }
+      if (!hasCommon) continue;
+
+      const maskToElims = (mask) => {
+        const found = [];
+        for (let d = 0; d < 9; d++) {
+          for (let p = 0; p < 3; p++) {
+            let bits = mask[d][p];
+            let bitPos = 0;
+            while (bits > 0) {
+              if (bits & 1) {
+                const id = p * 27 + bitPos;
+                const er = Math.floor(id / 9);
+                const ec = id % 9;
+                const num = d + 1;
+
+                let isStemCandidate = false;
+                if (isCell) {
+                  if (er === stem.r && ec === stem.c) isStemCandidate = true;
+                } else if (isRegion) {
+                  if (num === stem.digit && stemCellSet.has(id))
+                    isStemCandidate = true;
+                } else if (stem.startCandidateKeys.has(`${id}:${num}`)) {
+                  isStemCandidate = true;
+                }
+
+                if (
+                  pencils[er][ec] &&
+                  pencils[er][ec].has(num) &&
+                  !isStemCandidate
+                ) {
+                  found.push({ r: er, c: ec, num });
+                }
+              }
+              bits >>>= 1;
+              bitPos++;
+            }
+          }
+        }
+        return found;
+      };
+
+      // Candidates the blossom as a whole can reach. They are only the pool
+      // of targets to try; what gets reported is what the written chain
+      // proves on its own.
+      const reachableElims = maskToElims(commonMask);
+
+      if (reachableElims.length === 0) continue;
+
+      // 3. Rebuild the branches as writable chains. A branch may not run
+      // through the stem itself, otherwise the single-chain notation would
+      // contradict its own OR gate.
+      const isStemNode = (node) => {
+        if (node.cells.length !== 1) return false;
+        if (isCell) return node.cells[0] === stem.cellId;
+        if (isRegion)
+          return (
+            node.digits[0] === stem.digit && stemCellSet.has(node.cells[0])
+          );
+        return stem.startCandidateKeys.has(
+          `${node.cells[0]}:${node.digits[0]}`,
+        );
+      };
+
+      const cleanPathsFor = (startNode, digit, part, bit) => {
+        const walk = techniques._almostAicWalk(graph, startNode);
+        const paths = [];
+        for (const index of walk.reachOrder) {
+          const node = graph.nodes[index];
+          if ((node.NandBitset[digit - 1][part] & (1 << bit)) === 0) continue;
+          const path = techniques._almostAicPath(graph, walk, index);
+          if (!path) continue;
+          if (path.some((entry, position) => position > 0 && isStemNode(entry)))
+            continue;
+          paths.push(path);
+          if (paths.length >= 6) break;
+        }
+        return paths;
+      };
+
+      const pickDisjoint = (listA, listB) => {
+        for (const a of listA) {
+          const usedA = new Set(a);
+          for (const b of listB) {
+            if (b.every((node) => !usedA.has(node))) return [a, b];
+          }
+        }
+        return null;
+      };
+
+      // The result reports exactly what the chosen branch endpoints see in
+      // common, so the written chain proves every candidate it removes.
+      const provenElims = (paths) => {
+        const mask = Array.from({ length: 9 }, () => [0, 0, 0]);
+        const last = paths.map((path) => path[path.length - 1]);
+
+        for (let d = 0; d < 9; d++) {
+          for (let p = 0; p < 3; p++) {
+            let bits = last[0].NandBitset[d][p];
+            for (let i = 1; i < last.length; i++) {
+              bits &= last[i].NandBitset[d][p];
+            }
+            mask[d][p] = bits;
+          }
+        }
+
+        // A branch that asserts a candidate cannot also be shown removing
+        // it, so those candidates are left to another chain.
+        const asserted = new Set();
+        for (const path of paths) {
+          for (let i = 0; i < path.length; i += 2) {
+            for (const id of path[i].cells) {
+              asserted.add(`${id}:${path[i].digits[0]}`);
+            }
+          }
+        }
+
+        return maskToElims(mask).filter(
+          (el) => !asserted.has(`${el.r * 9 + el.c}:${el.num}`),
+        );
+      };
+
+      let chosenPaths = null;
+      let elims = null;
+
+      for (const candidate of reachableElims) {
+        const id = candidate.r * 9 + candidate.c;
+        const part = Math.floor(id / 27);
+        const bit = id % 27;
+        const lists = startNodes.map((node) =>
+          cleanPathsFor(node, candidate.num, part, bit),
+        );
+        if (lists.some((list) => list.length === 0)) continue;
+
+        const firstPair = pickDisjoint(lists[0], lists[1]);
+        if (!firstPair) continue;
+
+        let paths;
+        if (startNodes.length === 3) {
+          paths = [firstPair[0], firstPair[1], lists[2][0]];
+        } else {
+          const secondPair = pickDisjoint(lists[2], lists[3]);
+          if (!secondPair) continue;
+          paths = [firstPair[0], firstPair[1], secondPair[0], secondPair[1]];
+        }
+
+        const proven = provenElims(paths);
+        if (proven.length === 0) continue;
+
+        chosenPaths = paths;
+        elims = proven;
+        break;
+      }
+
+      if (!chosenPaths) continue;
+
+      // 4. Eureka notation: one single chain built out of two almost AICs
+      // (three branches leave the last one as a plain AIC tail).
+      const stemDigitsUnique =
+        new Set(startNodes.map((node) => node.digits[0])).size ===
+        startNodes.length;
+
+      const stemGate = (left, right) => {
+        if (isCell) {
+          const leftDigits = left
+            .map((node) => node.digits[0])
+            .sort((a, b) => a - b)
+            .join("");
+          const rightDigits = right
+            .map((node) => node.digits[0])
+            .sort((a, b) => a - b)
+            .join("");
+          return `(${leftDigits}=${rightDigits})${getLoc([stem.cellId])}`;
+        }
+
+        if (isRegion) {
+          return `(${stem.digit})${getLoc(
+            left.flatMap((node) => node.cells),
+          )}=${getLoc(right.flatMap((node) => node.cells))}`;
+        }
+
+        const alsLoc = getLoc(stem.cells, stem.unit >= 18);
+        if (stemDigitsUnique) {
+          const leftDigits = left
+            .map((node) => node.digits[0])
+            .sort((a, b) => a - b)
+            .join("");
+          const rightDigits = right
+            .map((node) => node.digits[0])
+            .sort((a, b) => a - b)
+            .join("");
+          return `(${leftDigits}=${rightDigits})${alsLoc}`;
+        }
+
+        const describe = (list) =>
+          list
+            .map((node) => `${node.digits[0]}${getLoc(node.cells)}`)
+            .join(",");
+        return `(${describe(left)}=${describe(right)})${alsLoc}`;
+      };
+
+      const emit = (state, u, v) => {
+        const term = strongTerm(u, v, state.lastDigit);
+        state.lastDigit = term.digit;
+        return term.text;
+      };
+
+      const reverseTerms = (path, state) => {
+        const terms = [];
+        for (let i = path.length - 1; i >= 2; i -= 2) {
+          terms.push(emit(state, path[i], path[i - 1]));
+        }
+        return terms;
+      };
+
+      const forwardTerms = (path, state) => {
+        const terms = [];
+        for (let i = 1; i + 1 < path.length; i += 2) {
+          terms.push(emit(state, path[i], path[i + 1]));
+        }
+        return terms;
+      };
+
+      const almostBracket = (indexA, indexB) => {
+        const state = { lastDigit: null };
+        const terms = reverseTerms(chosenPaths[indexA], state);
+        terms.push(stemGate([startNodes[indexA]], [startNodes[indexB]]));
+        state.lastDigit = startNodes[indexB].digits[0];
+        terms.push(...forwardTerms(chosenPaths[indexB], state));
+        return `[${terms.join("-")}]`;
+      };
+
+      let eurekaStr;
+      if (startNodes.length === 3) {
+        const state = { lastDigit: startNodes[2].digits[0] };
+        const tail = [stemGate(startNodes.slice(0, 2), [startNodes[2]])];
+        tail.push(...forwardTerms(chosenPaths[2], state));
+        eurekaStr = `${almostBracket(0, 1)} + ${tail.join("-")}`;
+      } else {
+        eurekaStr = [
+          almostBracket(0, 1),
+          stemGate(startNodes.slice(0, 2), startNodes.slice(2)),
+          almostBracket(2, 3),
+        ].join(" + ");
+      }
+
+      // 5. Structures the chains leaned on, for the AIC style visuals.
+      const usedAlses = [];
+      const usedFishes = [];
+      const fishNodes = new Set();
+      const seenAlsKeys = new Set();
+      const seenFishKeys = new Set();
+
+      for (const path of chosenPaths) {
+        for (let i = 1; i + 1 < path.length; i += 2) {
+          const u = path[i];
+          const v = path[i + 1];
+
+          const als = alsLinkRegistry.get(u)?.get(v);
+          if (als) {
+            const key = als.cells
+              .map((cell) => cell[0] * 9 + cell[1])
+              .sort((a, b) => a - b)
+              .join(",");
+            if (!seenAlsKeys.has(key)) {
+              seenAlsKeys.add(key);
+              usedAlses.push(als.cells);
+            }
+            continue;
+          }
+
+          const fish = fishLinkRegistry.get(u)?.get(v);
+          if (fish) {
+            const key = `${fish.d}:${fish.basesStr}\\${fish.coversStr}`;
+            if (!seenFishKeys.has(key)) {
+              seenFishKeys.add(key);
+              usedFishes.push(fish);
+            }
+            fishNodes.add(u);
+            fishNodes.add(v);
+          }
+        }
+      }
+
+      const techniqueName = isAals
+        ? t("teks_msg_313")
+        : isRegion
+          ? t("teks_msg_312")
+          : t("teks_msg_311");
+      const mainInfoStr = isAals
+        ? t("teks_msg_198", stem.startDigits.join(""), stem.houseName)
+        : isRegion
+          ? t("teks_msg_157", stem.digit, stem.houseName)
+          : t("teks_msg_158", stem.r + 1, stem.c + 1);
+
+      const resultObj = {
+        change: true,
+        type: "remove",
+        cells: elims,
+        hint: {
+          name: techniqueName,
+          mainInfo: mainInfoStr,
+          detail: eurekaStr,
+        },
+        applyVisuals: () => {
+          highlightedDigit = null;
+          highlightState = 0;
+
+          if (isAals) {
+            stem.cells.forEach((id) => {
+              const r = Math.floor(id / 9);
+              const c = id % 9;
+              if (window.addCellColor) {
+                window.addCellColor(r, c, cellColorPalette[5]);
+              } else {
+                boardState[r][c].cellColor = cellColorPalette[5];
+              }
+            });
+          }
+
+          const colorCodes = [6, 7, 2, 3, 4, 1, 8];
+          let colorCount = -1;
+
+          usedAlses.forEach((cells) => {
+            colorCount++;
+            const colorCode = colorCodes[colorCount % colorCodes.length];
+            cells.forEach(([r, c]) => {
+              if (window.addCellColor) {
+                window.addCellColor(r, c, cellColorPalette[colorCode]);
+              } else {
+                boardState[r][c].cellColor = cellColorPalette[colorCode];
+              }
+            });
+          });
+
+          usedFishes.forEach((fish) => {
+            colorCount++;
+            const colorCode = colorCodes[colorCount % colorCodes.length];
+            fish.allCells.forEach((id) => {
+              const r = Math.floor(id / 9);
+              const c = id % 9;
+              if (!boardState[r][c].pencils.has(fish.d)) return;
+              if (window.addCandidateCircle) {
+                window.addCandidateCircle(
+                  r,
+                  c,
+                  fish.d,
+                  markColorPalette[colorCode],
+                );
+              } else {
+                boardState[r][c].candCircles.set(
+                  fish.d,
+                  markColorPalette[colorCode],
+                );
+              }
+            });
+          });
+
+          chosenPaths.forEach((path) => {
+            path.forEach((node, index) => {
+              if (fishNodes.has(node)) return;
+              // Even positions are the TRUE nodes of the branch.
+              const colorIdx = index % 2 === 0 ? 4 : 5;
+              node.cells.forEach((id) => {
+                const r = Math.floor(id / 9);
+                const c = id % 9;
+                node.digits.forEach((d) => {
+                  if (boardState[r][c].pencils.has(d)) {
+                    boardState[r][c].pencilColors.set(
+                      d,
+                      candidateColorPalette[colorIdx],
+                    );
+                  }
+                });
+              });
+            });
+
+            path.forEach((node, index) => {
+              if (fishNodes.has(node)) return; // Circled instead
+              if (node.cells.length < 2) return;
+              const colorIdx = index % 2 === 0 ? 4 : 5;
+              for (let i = 0; i + 1 < node.cells.length; i++) {
+                drawnLines.push({
+                  r1: Math.floor(node.cells[i] / 9),
+                  c1: node.cells[i] % 9,
+                  n1: node.digits[0],
+                  r2: Math.floor(node.cells[i + 1] / 9),
+                  c2: node.cells[i + 1] % 9,
+                  n2: node.digits[0],
+                  color: lineColorPalette[colorIdx],
+                  style: "solid",
+                });
+              }
+            });
+
+            for (let i = 0; i + 1 < path.length; i++) {
+              // Fish OR links sit on the odd steps; the circles already show them.
+              if (i % 2 === 1 && fishLinkRegistry.get(path[i])?.get(path[i + 1]))
+                continue;
+              const [from, to] = getClosestCells(path[i], path[i + 1]);
+              drawnLines.push({
+                r1: from[0],
+                c1: from[1],
+                n1: path[i].digits[0],
+                r2: to[0],
+                c2: to[1],
+                n2: path[i + 1].digits[0],
+                color: lineColorPalette[0],
+                // Branches leave a TRUE node weakly, so even links are dashed.
+                style: i % 2 === 0 ? "dash" : "solid",
+              });
+            }
+          });
+
+          // The stem OR gate holding every branch together.
+          for (let i = 0; i + 1 < startNodes.length; i++) {
+            const [from, to] = getClosestCells(
+              startNodes[i],
+              startNodes[i + 1],
+            );
+            drawnLines.push({
+              r1: from[0],
+              c1: from[1],
+              n1: startNodes[i].digits[0],
+              r2: to[0],
+              c2: to[1],
+              n2: startNodes[i + 1].digits[0],
+              color: lineColorPalette[1],
+              style: "solid",
+            });
+          }
+
+          elims.forEach((el) => {
+            boardState[el.r][el.c].candSlashes.set(
+              el.num,
+              markColorPalette[0],
+            );
+          });
+        },
+      };
+
+      if (!findAll) return resultObj;
+      results.push(resultObj);
+    }
+
+    return findAll ? results : { change: false };
+  },
+
+  almostAic: (board, pencils, findAll = false) => {
+    if (findAll) {
+      return [
+        ...techniques.cellAlmostAic(board, pencils, true),
+        ...techniques.regionAlmostAic(board, pencils, true),
+        ...techniques.aalsAlmostAic(board, pencils, true),
+      ];
+    }
+    const cell = techniques.cellAlmostAic(board, pencils, false);
+    if (cell.change) return cell;
+    const region = techniques.regionAlmostAic(board, pencils, false);
+    if (region.change) return region;
+    return techniques.aalsAlmostAic(board, pencils, false);
+  },
+
+  cellAlmostAic: (board, pencils, findAll = false) => {
+    return techniques._almostAicCore(board, pencils, false, findAll);
+  },
+
+  regionAlmostAic: (board, pencils, findAll = false) => {
+    return techniques._almostAicCore(board, pencils, true, findAll);
+  },
+
+  aalsAlmostAic: (board, pencils, findAll = false) => {
+    return techniques._almostAicCore(board, pencils, false, findAll, "aals");
   },
 
   _complexFishCore: (board, pencils, fishSize, isMutant, findAll = false) => {
@@ -10971,9 +12740,9 @@ const techniques = {
             });
 
             resultElims.forEach((el) =>
-              boardState[el.r][el.c].pencilColors.set(
+              boardState[el.r][el.c].candSlashes.set(
                 el.num,
-                candidateColorPalette[0],
+                markColorPalette[0],
               ),
             );
           },
@@ -11644,9 +13413,9 @@ const techniques = {
 
               // Highlight Removed Candidates in Color 1
               uniqueElims.forEach((el) => {
-                boardState[el.r][el.c].pencilColors.set(
+                boardState[el.r][el.c].candSlashes.set(
                   el.num,
-                  candidateColorPalette[0],
+                  markColorPalette[0],
                 );
               });
 
@@ -12142,9 +13911,9 @@ const techniques = {
                     );
                   });
                   elimMap.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
+                    boardState[el.r][el.c].candSlashes.set(
                       el.num,
-                      candidateColorPalette[0],
+                      markColorPalette[0],
                     ),
                   );
                 },
@@ -12385,9 +14154,9 @@ const techniques = {
 
                         // Eliminations
                         elimMap.forEach((el) => {
-                          boardState[el.r][el.c].pencilColors.set(
+                          boardState[el.r][el.c].candSlashes.set(
                             el.num,
-                            candidateColorPalette[0],
+                            markColorPalette[0],
                           );
                         });
                       },
@@ -12550,9 +14319,9 @@ const techniques = {
                     );
                   });
                   elims.forEach((el) =>
-                    boardState[el.r][el.c].pencilColors.set(
+                    boardState[el.r][el.c].candSlashes.set(
                       el.num,
-                      candidateColorPalette[0],
+                      markColorPalette[0],
                     ),
                   );
                 },
@@ -12783,9 +14552,9 @@ const techniques = {
                           );
                         });
                         removals.forEach((el) =>
-                          boardState[el.r][el.c].pencilColors.set(
+                          boardState[el.r][el.c].candSlashes.set(
                             num,
-                            candidateColorPalette[0],
+                            markColorPalette[0],
                           ),
                         );
                       },
