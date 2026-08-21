@@ -18,7 +18,6 @@ const TRANSLATIONS = {
     btn_number: "Number (Z)",
     btn_draw: "Draw (X)",
     btn_color: "Color (C)",
-    btn_display: "Display A (D)",
     btn_vague_hint: "? (V)",
     tooltip_difficulty: "Difficulty Indicator",
 
@@ -26,16 +25,18 @@ const TRANSLATIONS = {
     btn_undo: "Undo",
     btn_redo: "Redo",
     btn_auto_pencil: "Auto-Pencil",
-    btn_expt_off: "Expt. OFF",
     btn_solve: "Solve",
     btn_reset: "Quick Reset",
+    btn_wipe_draw: "Wipe Draw",
     btn_wipe_colors: "Wipe Colors",
     tooltip_undo: "Undo the last action (Ctrl+Z).",
     tooltip_redo: "Redo the last undone action (Ctrl+Y).",
     tooltip_auto_pencil: "Fill all empty cells with possible candidates (A).",
     tooltip_solve: "Open the GUI Solver Mode (S).",
     tooltip_reset: "Clear all user-entered numbers and pencil marks (Q).",
-    tooltip_wipe_colors: "Clear all cell and candidate colors (W).",
+    tooltip_wipe_draw: "Clear all drawn lines (W).",
+    tooltip_wipe_colors:
+      "Clear all cell and candidate colors, circles, and slashes (E).",
 
     // === Solver bar ===
     tooltip_prev_step: "Previous Step",
@@ -101,10 +102,6 @@ const TRANSLATIONS = {
     btn_copy_discord: "Copy Discord Format",
     btn_copy_plain: "Copy Plain Text",
 
-    // === Format confirm modal ===
-    modal_format_title: "Change Layout?",
-    modal_format_desc:
-      "This will toggle the layout of the candidate and the number pad.",
     btn_confirm: "Confirm",
 
     // === Reset confirm modal ===
@@ -129,6 +126,10 @@ const TRANSLATIONS = {
     modal_pref_title: "Preferences",
     pref_theme: "Toggle Theme",
     pref_difficulty_engine: "Difficulty rating",
+    pref_display_mode: "Display Mode",
+    pref_display_mode_a: "Phone",
+    pref_display_mode_b: "Numpad",
+    pref_experimental_mode: "Experimental Mode",
     ui_rating_pending: "rating...",
     pref_uniqueness: "Enable Uniqueness Techniques",
     pref_drag_hint: "Drag & drop to reorder solver priority.",
@@ -149,10 +150,9 @@ const TRANSLATIONS = {
     level_tip_3: "Lv. 3: Quads, X-Wing, Swordfish, XY-Wing, Remote Pair",
     level_tip_4:
       "Lv. 4: BUG+1, Jellyfish, XYZ-Wing, W-Wing, Turbot-Fishes, Unique Rectangles",
-    level_tip_5:
-      "Lv. 5: BUG Lite, Grouped Turbot-Fishes, Almost Locked Pair/Triple, Hidden Rectangles",
+    level_tip_5: "Lv. 5: Uniqueness, Grouped Turbot-Fishes, Almost Pair/Triple",
     level_tip_6:
-      "Lv. 6: Finned Fishes, X-Chain, XY-Chain, Firework, WXYZ-Wing, Sue de Coq",
+      "Lv. 6: Finned Fishes, X-Chain, XY-Chain, Oddagons, Firework, WXYZ-Wing, Sue de Coq",
     level_tip_7: "Lv. 7: Grouped X-Chain, Alternating Inference Chain",
     level_tip_8: "Lv. 8: Grouped Alternating Inference Chain, ALS-XZ",
     level_tip_9: "Lv. 9: ALS-AIC",
@@ -238,9 +238,9 @@ const TRANSLATIONS = {
     ui_msg_34: "Expt!",
     ui_msg_35: "Expt.",
     ui_msg_36: "Experimental Mode Enabled!",
-    ui_msg_37: "Disable Experimental Mode (E).",
+    ui_msg_37: "Disable Experimental Mode.",
     ui_msg_38: "Experimental Mode Disabled.",
-    ui_msg_39: "Enable Experimental Mode (E): Click candidates directly.",
+    ui_msg_39: "Enable Experimental Mode: Click candidates directly.",
     ui_msg_40: "View increasingly concrete hints for the next step.",
     ui_msg_41: "View increasingly concrete hints for the next step (V).",
     ui_msg_42: "Toggle GUI Solver Mode",
@@ -277,10 +277,6 @@ const TRANSLATIONS = {
     ui_msg_71: "Current board copied to clipboard!",
     ui_msg_72: "Failed to copy to clipboard.",
     ui_msg_73: "Board cleared.",
-    ui_msg_74: "Phone (A)",
-    ui_msg_75: "Numpad (B)",
-    ui_msg_candidate_format_tip:
-      "Candidate display set to {0} layout. (Press 'D' to toggle)",
     ui_msg_76: "Pen?",
     ui_msg_77: "Pen? (Z)",
     ui_msg_78: "Num?",
@@ -372,6 +368,7 @@ const TRANSLATIONS = {
     ui_msg_149: "Share",
     ui_msg_150: "You solved it!{0}",
     ui_msg_151: "All colors cleared.",
+    ui_msg_drawings_cleared: "All drawings cleared.",
     ui_msg_152: "Auto-Pencil complete!",
     ui_msg_153:
       "Tip: To highlight all bivalue cells, touch one when highlighting is off.",
@@ -831,7 +828,6 @@ const TRANSLATIONS = {
     btn_number: "숫자 (Z)",
     btn_draw: "그리기 (X)",
     btn_color: "색칠 (C)",
-    btn_display: "숫자패드↔전화기 (D)",
     btn_vague_hint: "? (V)",
     tooltip_difficulty: "난이도 표시기",
 
@@ -839,16 +835,18 @@ const TRANSLATIONS = {
     btn_undo: "되돌리기",
     btn_redo: "다시하기",
     btn_auto_pencil: "후보수 채우기",
-    btn_expt_off: "실험실 모드 끄기",
     btn_solve: "솔버",
     btn_reset: "초기화",
+    btn_wipe_draw: "선 초기화",
     btn_wipe_colors: "색 초기화",
     tooltip_undo: "이전 행동으로 되돌립니다 (Ctrl+Z).",
     tooltip_redo: "방금 행동을 다시합니다 (Ctrl+Y).",
     tooltip_auto_pencil: "가능한 후보숫자를 모두 채웁니다 (A).",
     tooltip_solve: "솔버 모드를 켭니다 (S).",
     tooltip_reset: "진행 중인 퍼즐을 초기화 합니다 (Q).",
-    tooltip_wipe_colors: "칠한 색과 선을 모두 지웁니다 (W).",
+    tooltip_wipe_draw: "그린 선을 모두 지웁니다 (W).",
+    tooltip_wipe_colors:
+      "셀과 후보수의 색, 동그라미, 가위표를 모두 지웁니다 (E).",
 
     // === Solver bar ===
     tooltip_prev_step: "이전 단계",
@@ -913,9 +911,6 @@ const TRANSLATIONS = {
     btn_copy_discord: "디스코드 포맷으로 복사",
     btn_copy_plain: "일반 텍스트로 복사",
 
-    // === Format confirm modal ===
-    modal_format_title: "레이아웃을 변경할까요?",
-    modal_format_desc: "후보숫자의 배열이 숫자패드의 형태로 바뀝니다.",
     btn_confirm: "바꾸기",
 
     // === Reset confirm modal ===
@@ -940,6 +935,10 @@ const TRANSLATIONS = {
     modal_pref_title: "환경설정",
     pref_theme: "테마 변경",
     pref_difficulty_engine: "난이도 측정 시스템",
+    pref_display_mode: "표시 모드",
+    pref_display_mode_a: "전화기",
+    pref_display_mode_b: "숫자패드",
+    pref_experimental_mode: "실험실 모드",
     ui_rating_pending: "측정 중...",
     pref_uniqueness: "유일성 논법 활성화",
     pref_drag_hint:
@@ -1030,15 +1029,15 @@ const TRANSLATIONS = {
     ui_msg_circle_long: "색상: 동그라미",
     ui_msg_circle_tooltip:
       "동그라미 모드: 색상을 선택한 후 후보수를 클릭하여 동그라미를 칩니다. (C로 전환)",
-    ui_msg_circle_next: "색상: 동그라미?",
+    ui_msg_circle_next: "색상: O?",
     ui_msg_circle_tip:
       "팁: 색상을 선택한 후 후보수를 클릭하여 동그라미를 치세요.",
     ui_msg_circle_tip_mobile:
       "팁: 색상을 선택한 후 후보수를 터치하여 동그라미를 치세요.",
-    ui_msg_slash_short: "X",
-    ui_msg_slash_long: "색상: X",
+    ui_msg_slash_short: "가위표",
+    ui_msg_slash_long: "색상: 가위표",
     ui_msg_slash_tooltip:
-      "X 모드: 색상을 선택한 후 후보수를 클릭하여 X를 표시합니다. (C로 전환)",
+      "가위표 모드: 색상을 선택한 후 후보수를 클릭하여 X를 표시합니다. (C로 전환)",
     ui_msg_slash_next: "색상: X?",
     ui_msg_slash_tip: "팁: 색상을 선택한 후 후보수를 클릭하여 X를 표시하세요.",
     ui_msg_slash_tip_mobile:
@@ -1048,9 +1047,9 @@ const TRANSLATIONS = {
     ui_msg_34: "실험실!",
     ui_msg_35: "실험실.",
     ui_msg_36: "실험실 모드 활성화됨!",
-    ui_msg_37: "실험실 모드 비활성화 (E).",
+    ui_msg_37: "실험실 모드 비활성화.",
     ui_msg_38: "실험실 모드 비활성화됨.",
-    ui_msg_39: "실험실 모드 활성화 (E): 후보수를 직접 클릭하세요.",
+    ui_msg_39: "실험실 모드 활성화: 후보수를 직접 클릭하세요.",
     ui_msg_40: "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다.",
     ui_msg_41: "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다 (V).",
     ui_msg_42: "솔버 모드를 켜거나 끕니다",
@@ -1087,10 +1086,6 @@ const TRANSLATIONS = {
     ui_msg_71: "현재 퍼즐이 클립보드에 복사되었습니다!",
     ui_msg_72: "클립보드 복사에 실패했습니다.",
     ui_msg_73: "퍼즐이 지워졌습니다.",
-    ui_msg_74: "전화기(A)",
-    ui_msg_75: "숫자패드(B)",
-    ui_msg_candidate_format_tip:
-      "후보수 표시가 {0} 레이아웃으로 설정되었습니다. ('D'를 눌러 전환)",
     ui_msg_76: "연필?",
     ui_msg_77: "연필? (Z)",
     ui_msg_78: "숫자?",
@@ -1179,6 +1174,7 @@ const TRANSLATIONS = {
     ui_msg_149: "공유하기",
     ui_msg_150: "퍼즐을 풀었습니다!{0}",
     ui_msg_151: "모든 색상이 지워졌습니다.",
+    ui_msg_drawings_cleared: "모든 선을 지웠습니다.",
     ui_msg_152: "후보 숫자 채우기 완료!",
     ui_msg_153:
       "팁: 강조 표시가 꺼져 있을 때 이중값 셀을 터치하면 모든 해당 셀이 강조됩니다.",

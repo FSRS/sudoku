@@ -4,6 +4,7 @@ const puzzleStringInput = document.getElementById("puzzle-string");
 const loadBtn = document.getElementById("load-btn");
 const solveBtn = document.getElementById("solve-btn");
 const clearBtn = document.getElementById("clear-btn");
+const clearDrawBtn = document.getElementById("clear-draw-btn");
 const clearColorsBtn = document.getElementById("clear-colors-btn");
 const autoPencilBtn = document.getElementById("auto-pencil-btn");
 const undoBtn = document.getElementById("undo-btn");
@@ -14,8 +15,6 @@ const numberPad = document.getElementById("number-pad");
 const candidateModal = document.getElementById("candidate-modal");
 const candidateGrid = document.getElementById("candidate-grid");
 const closeModalBtn = document.getElementById("close-modal-btn");
-const formatToggleBtn = document.getElementById("format-toggle-btn");
-const exptModeBtn = document.getElementById("expt-mode-btn");
 const dateSelect = document.getElementById("date-select");
 const levelSelect = document.getElementById("level-select");
 const puzzleInfoContainer = document.getElementById("puzzle-info");
@@ -101,7 +100,6 @@ const HISTORY_CHECKPOINT_INTERVAL = 50;
 const PUZZLE_PROGRESS_SAVE_DELAY_MS = 300;
 let hadUsedHint = false;
 let hadUsedSolver = false;
-let hadUsedFormatToggle = false;
 
 let vatNextLevel = 1;
 let vatMaxLevel = 6;
@@ -281,7 +279,7 @@ function ensureDifficultyEnginePreference() {
     const row = document.createElement("div");
     row.id = "difficulty-engine-preference";
     row.className =
-      "flex items-center justify-between gap-3 py-2 text-sm text-gray-800 dark:text-gray-200";
+      "h-8 flex items-center justify-between gap-3 text-sm text-gray-800 dark:text-gray-200";
 
     const label = document.createElement("label");
     label.htmlFor = "difficulty-engine-select";
@@ -642,10 +640,11 @@ function swapThemeColors() {
 
 function updateButtonLabels() {
   const isMobile = window.innerWidth <= 550;
+  const useShortTitle = window.innerWidth < 880;
   const titleText = document.getElementById("sudoku-title-text");
 
   if (titleText) {
-    if (isMobile) {
+    if (useShortTitle) {
       titleText.innerHTML = ` <a href="sudoku.html" class="hover:underline text-gray-800 dark:text-gray-100">D.S.</a>`;
     } else {
       titleText.innerHTML = ` <a href="sudoku.html" class="hover:underline text-gray-800 dark:text-gray-100">Daily Sudoku</a>`;
@@ -711,62 +710,7 @@ function updateButtonLabels() {
     colorButton.dataset.tooltip = t("ui_msg_33");
   }
 
-  formatToggleBtn.style.display = "none";
-  exptModeBtn.style.display = "inline-flex";
-
-  const exptShortcut = isMobile ? "" : " (E)";
-  exptModeBtn.textContent =
-    (isExperimentalMode ? t("ui_msg_34") : t("ui_msg_35")) + exptShortcut;
-
   updateSolverToggleButton();
-
-  // --- UPDATED LOGIC START ---
-  if (isExperimentalMode) {
-    // 1. Add active class
-    exptModeBtn.classList.add("active-green");
-
-    // 2. Remove default white background/text styling
-    exptModeBtn.classList.remove(
-      "bg-white",
-      "text-gray-700",
-      "hover:bg-gray-100",
-    );
-
-    // 3. Add explicit Green Active Styling (Background, Text, Border)
-    exptModeBtn.classList.add(
-      "bg-green-100",
-      "text-green-800",
-      "border-green-300",
-      "hover:bg-green-200",
-    );
-
-    if (isMobile) {
-      exptModeBtn.dataset.tooltip = t("ui_msg_36");
-    } else {
-      exptModeBtn.dataset.tooltip = t("ui_msg_37");
-    }
-  } else {
-    // 1. Remove active class
-    exptModeBtn.classList.remove("active-green");
-
-    // 2. Restore default white background/text styling
-    exptModeBtn.classList.add("bg-white", "text-gray-700", "hover:bg-gray-100");
-
-    // 3. Remove explicit Green Active Styling
-    exptModeBtn.classList.remove(
-      "bg-green-100",
-      "text-green-800",
-      "border-green-300",
-      "hover:bg-green-200",
-    );
-
-    if (isMobile) {
-      exptModeBtn.dataset.tooltip = t("ui_msg_38");
-    } else {
-      exptModeBtn.dataset.tooltip = t("ui_msg_39");
-    }
-  }
-  // --- UPDATED LOGIC END ---
 
   vagueHintBtn.textContent = isMobile ? "?" : "? (V)";
   if (isMobile) {
@@ -779,7 +723,6 @@ function updateButtonLabels() {
     attachTooltipEvents(modeToggleButton);
     attachTooltipEvents(drawButton);
     attachTooltipEvents(colorButton);
-    attachTooltipEvents(exptModeBtn);
     attachTooltipEvents(shareBtn);
   }
 }
@@ -1632,8 +1575,6 @@ function showTooltip(targetElement) {
   // Define which elements should have their tooltips appear below the button (on smaller screens)
   const elementsForBottomTooltip = [
     "mode-toggle-btn",
-    "format-toggle-btn",
-    "expt-mode-btn",
     "difficulty-lamp",
     "vague-hint-btn",
   ];
@@ -1905,6 +1846,7 @@ function setupEventListeners() {
   gridContainer.style.userSelect = "none";
   gridContainer.addEventListener("dragstart", (e) => e.preventDefault());
 
+  loadDisplayModePreference();
   loadExperimentalModePreference();
 
   window.addEventListener("pagehide", flushScheduledPuzzleProgress);
@@ -2351,6 +2293,7 @@ function setupEventListeners() {
     resetModal.classList.add("hidden");
     resetModal.classList.remove("flex");
   });
+  clearDrawBtn.addEventListener("click", clearAllDrawings);
   clearColorsBtn.addEventListener("click", clearAllColors);
   autoPencilBtn.addEventListener("click", autoPencil);
   undoBtn.addEventListener("click", undo);
@@ -2369,57 +2312,6 @@ function setupEventListeners() {
       });
     }
   });
-  // 1. Define the actual toggle logic
-  const executeFormatToggle = () => {
-    candidatePopupFormat = candidatePopupFormat === "A" ? "B" : "A";
-    const tip = t(
-      "ui_msg_candidate_format_tip",
-      candidatePopupFormat === "A" ? t("ui_msg_74") : t("ui_msg_75"),
-    );
-    showMessage(tip, "gray");
-
-    updateControls();
-    renderBoard();
-    invalidateCandidateGeometry();
-    renderLines();
-
-    if (
-      !candidateModal.classList.contains("hidden") &&
-      selectedCell.row !== null
-    ) {
-      showCandidatePopup(selectedCell.row, selectedCell.col);
-    }
-  };
-
-  // 2. The button listener now checks the "first time" flag
-  formatToggleBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (!hadUsedFormatToggle) {
-      const formatModal = document.getElementById("format-confirm-modal");
-      formatModal.classList.remove("hidden");
-      formatModal.classList.add("flex");
-    } else {
-      executeFormatToggle();
-    }
-  });
-
-  // 3. Modal Bindings
-  const formatConfirmBtn = document.getElementById("format-confirm-btn");
-  const formatCancelBtn = document.getElementById("format-cancel-btn");
-  const formatModal = document.getElementById("format-confirm-modal");
-
-  formatConfirmBtn.addEventListener("click", () => {
-    formatModal.classList.add("hidden");
-    formatModal.classList.remove("flex");
-    hadUsedFormatToggle = true;
-    executeFormatToggle();
-  });
-
-  formatCancelBtn.addEventListener("click", () => {
-    formatModal.classList.add("hidden");
-    formatModal.classList.remove("flex");
-  });
-
   // --- Preference Modal Binding ---
   prefBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -2604,7 +2496,10 @@ function setupEventListeners() {
           message = t("ui_msg_87", h.name, h.mainInfo || "");
         } else {
           // --- BEGIN VISUAL HINT LOGIC ---
+          drawnLines = [];
+          drawingState = null;
           clearAllColors();
+          renderLines();
           if (currentHintData.applyVisuals) {
             currentHintData.applyVisuals();
             renderBoard();
@@ -2679,35 +2574,6 @@ function setupEventListeners() {
     hintModal.classList.remove("flex");
     // Do nothing, hadUsedHint remains false
   });
-  exptModeBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (arePencilsHidden && !isExperimentalMode) {
-      showMessage(t("ui_msg_94"), "orange");
-      return;
-    }
-    isExperimentalMode = !isExperimentalMode;
-    saveExperimentalModePreference();
-    updateButtonLabels();
-    let tip = "";
-    if (isExperimentalMode) {
-      tip = isMobile ? t("ui_msg_95") : t("ui_msg_96");
-    } else {
-      tip = isMobile ? t("ui_msg_97") : t("ui_msg_98");
-    }
-    showMessage(tip, "gray");
-    if (isMobile) {
-      if (activeTooltipElement) {
-        hideTooltip(activeTooltipElement);
-      }
-      showTooltip(exptModeBtn);
-      activeTooltipElement = exptModeBtn;
-    } else {
-      if (exptModeBtn.tooltipInstance) {
-        hideTooltip(exptModeBtn);
-      }
-    }
-  });
-
   // --- Share Modal Bindings ---
   const shareStep1 = document.getElementById("share-step-1");
   const shareStep2 = document.getElementById("share-step-2");
@@ -3052,7 +2918,6 @@ function handleKeyDown(e) {
   const solverFirstModal = document.getElementById("solver-first-time-modal");
   const solverConfModal = document.getElementById("solver-confirm-modal");
   const copyMod = document.getElementById("copy-modal");
-  const formatMod = document.getElementById("format-confirm-modal");
   const shareMod = document.getElementById("share-modal");
   const compShareMod = document.getElementById("completion-share-modal");
   const resetMod = document.getElementById("reset-confirm-modal");
@@ -3066,7 +2931,6 @@ function handleKeyDown(e) {
   const isSolverConfOpen =
     solverConfModal && !solverConfModal.classList.contains("hidden");
   const isCopyOpen = copyMod && !copyMod.classList.contains("hidden");
-  const isFormatOpen = formatMod && !formatMod.classList.contains("hidden");
   const isShareOpen = shareMod && !shareMod.classList.contains("hidden");
   const isCompShareOpen =
     compShareMod && !compShareMod.classList.contains("hidden");
@@ -3131,10 +2995,6 @@ function handleKeyDown(e) {
       exitSolverMode();
       return;
     }
-    if (key_lower === "d" && !isCtrlOrCmd) {
-      formatToggleBtn.click();
-      return;
-    }
     if (key === "ArrowLeft") {
       e.preventDefault();
       if (currentSolverStep > 0) {
@@ -3189,7 +3049,6 @@ function handleKeyDown(e) {
       isSolverFirstOpen ||
       isSolverConfOpen ||
       isCopyOpen ||
-      isFormatOpen ||
       isShareOpen ||
       isCompShareOpen ||
       isResetOpen ||
@@ -3252,6 +3111,7 @@ function handleKeyDown(e) {
       // Force-disable experimental mode if active
       if (isExperimentalMode) {
         isExperimentalMode = false;
+        saveExperimentalModePreference();
         message += t("ui_msg_116");
       }
       showMessage(message, "gray");
@@ -3288,7 +3148,6 @@ function handleKeyDown(e) {
     isSolverFirstOpen ||
     isSolverConfOpen ||
     isCopyOpen ||
-    isFormatOpen ||
     isShareOpen ||
     isResetOpen ||
     isPrefOpen ||
@@ -3304,7 +3163,6 @@ function handleKeyDown(e) {
       if (isSolverConfOpen)
         document.getElementById("solver-cancel-btn").click();
       if (isCopyOpen) document.getElementById("copy-cancel-btn").click();
-      if (isFormatOpen) document.getElementById("format-cancel-btn").click();
       if (isShareOpen) document.getElementById("share-cancel-btn").click();
       if (isCompShareOpen)
         document.getElementById("completion-cancel-btn").click();
@@ -3349,12 +3207,6 @@ function handleKeyDown(e) {
         }
         return;
       }
-    }
-
-    if (key_lower === "d" && e.shiftKey && isFormatOpen) {
-      e.preventDefault();
-      document.getElementById("format-confirm-btn").click();
-      return;
     }
 
     if (key_lower === "q" && e.shiftKey && isResetOpen) {
@@ -3466,10 +3318,6 @@ function handleKeyDown(e) {
     vagueHintBtn.click();
     return;
   }
-  if (key_lower === "d") {
-    formatToggleBtn.click();
-    return;
-  }
   if (key_lower === "a" && !isCtrlOrCmd && !e.altKey) {
     autoPencilBtn.click();
     return;
@@ -3480,11 +3328,7 @@ function handleKeyDown(e) {
     return;
   }
   if (key_lower === "e" && !isCtrlOrCmd) {
-    if (arePencilsHidden) {
-      showMessage(t("ui_msg_118"), "orange");
-      return;
-    }
-    exptModeBtn.click();
+    clearColorsBtn.click();
     return;
   }
   if (key_lower === "q") {
@@ -3492,7 +3336,7 @@ function handleKeyDown(e) {
     return;
   }
   if (key_lower === "w" && !e.altKey) {
-    clearColorsBtn.click();
+    clearDrawBtn.click();
     return;
   }
   if (key === "0") {
@@ -3793,9 +3637,9 @@ function handleModeChange(e) {
     if (coloringSubMode === "candidate")
       colorButton.classList.add("active-green");
     else if (coloringSubMode === "circle")
-      colorButton.classList.add("active-red");
-    else if (coloringSubMode === "slash")
       colorButton.classList.add("active-blue");
+    else if (coloringSubMode === "slash")
+      colorButton.classList.add("active-red");
     else colorButton.classList.add("active");
   } else if (currentMode === "draw") {
     if (drawSubMode === "dash") {
@@ -4373,12 +4217,17 @@ function clearAllColors() {
       boardState[r][c].candSlashes.clear();
     }
   }
-  drawnLines = []; // Clear the lines array
-  drawingState = null; // Reset any active drawing state
-  renderLines(); // Update the SVG layer
   saveState();
   renderBoard();
   showMessage(t("ui_msg_151"), "gray");
+}
+
+function clearAllDrawings() {
+  drawnLines = [];
+  drawingState = null;
+  renderLines();
+  saveState();
+  showMessage(t("ui_msg_drawings_cleared"), "gray");
 }
 
 function autoPencil(skipConfirm = false) {
@@ -7252,6 +7101,13 @@ function saveExperimentalModePreference() {
   );
 }
 
+function loadDisplayModePreference() {
+  const savedPref = localStorage.getItem("sudokuDisplayFormat");
+  if (savedPref === "A" || savedPref === "B") {
+    candidatePopupFormat = savedPref;
+  }
+}
+
 /**
  * Loads the experimental mode preference from localStorage on startup.
  */
@@ -8276,6 +8132,9 @@ function openPreferencesModal() {
   const listContainer = document.getElementById("technique-list-container");
   listContainer.innerHTML = "";
   ensureDifficultyEnginePreference();
+  document.getElementById("display-mode-select").value = candidatePopupFormat;
+  document.getElementById("experimental-mode-toggle").checked =
+    isExperimentalMode;
 
   // Native overscroll handles bounce and momentum perfectly
   listContainer.style.overscrollBehavior = "contain";
@@ -8571,6 +8430,19 @@ document.addEventListener("DOMContentLoaded", () => {
       if (difficultyEngines.has(difficultyEngine)) {
         localStorage.setItem(difficultyEngineStorageKey, difficultyEngine);
       }
+      const displayMode = document.getElementById("display-mode-select").value;
+      if (displayMode === "A" || displayMode === "B") {
+        candidatePopupFormat = displayMode;
+        localStorage.setItem("sudokuDisplayFormat", candidatePopupFormat);
+      }
+      isExperimentalMode =
+        document.getElementById("experimental-mode-toggle").checked &&
+        !arePencilsHidden;
+      saveExperimentalModePreference();
+      updateControls();
+      renderBoard();
+      invalidateCandidateGeometry();
+      renderLines();
 
       // 2. Close the modal
       document.getElementById("preferences-modal").classList.add("hidden");
@@ -8610,10 +8482,11 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.removeItem("sudokuTechniquePrefs");
       localStorage.removeItem(difficultyEngineStorageKey);
 
-      // 3. Reset Candidate Display layout to t("ui_msg_74")
+      // 3. Reset the candidate display layout to its default.
       candidatePopupFormat = "A";
-
       localStorage.setItem("sudokuDisplayFormat", candidatePopupFormat);
+      isExperimentalMode = false;
+      saveExperimentalModePreference();
 
       updateControls();
       renderBoard();
