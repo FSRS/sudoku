@@ -5574,12 +5574,14 @@ async function buildViewAllTechniquesList(step) {
   allHints.forEach((item) => {
     // Format the action string to serve as part of the group key
     const actionStr = formatResultAction(item.result, " | ");
+    const displayName = item.result.hint?.name || item.tech.name;
 
-    const groupKey = `${item.tech.id || item.tech.name}::${actionStr}`;
+    const groupKey = `${item.tech.id || item.tech.name}::${displayName}::${actionStr}`;
 
     if (!groupedHints.has(groupKey)) {
       groupedHints.set(groupKey, {
         tech: item.tech,
+        displayName,
         actionStr: actionStr,
         items: [],
       });
@@ -5614,7 +5616,7 @@ async function buildViewAllTechniquesList(step) {
     techNameEl.style.color = getThemeColor(group.tech.level);
     techNameEl.style.fontWeight = "bold";
     techNameEl.style.fontSize = "12px";
-    techNameEl.textContent = group.tech.name;
+    techNameEl.textContent = group.displayName;
 
     const actionEl = document.createElement("div");
     actionEl.style.fontSize = "11px";
@@ -5691,7 +5693,7 @@ async function buildViewAllTechniquesList(step) {
           : "rgba(0,0,0,0.08)";
 
         showMessage(
-          `${group.tech.name}: ${subItem.result.hint.detail || ""} => ${group.actionStr}`,
+          `${group.displayName}: ${subItem.result.hint.detail || ""} => ${group.actionStr}`,
           "blue",
         );
         renderBoard();
@@ -5859,12 +5861,14 @@ async function searchAndAppendVatLevel(
 
     newHints.forEach((item) => {
       const actionStr = formatResultAction(item.result, " | ");
+      const displayName = item.result.hint?.name || item.tech.name;
 
-      const groupKey = `${item.tech.id || item.tech.name}::${actionStr}`;
+      const groupKey = `${item.tech.id || item.tech.name}::${displayName}::${actionStr}`;
 
       if (!groupedHints.has(groupKey)) {
         groupedHints.set(groupKey, {
           tech: item.tech,
+          displayName,
           actionStr: actionStr,
           items: [],
         });
@@ -5897,7 +5901,7 @@ async function searchAndAppendVatLevel(
       techNameEl.style.color = getThemeColor(group.tech.level);
       techNameEl.style.fontWeight = "bold";
       techNameEl.style.fontSize = "12px";
-      techNameEl.textContent = group.tech.name;
+      techNameEl.textContent = group.displayName;
 
       const actionEl = document.createElement("div");
       actionEl.style.fontSize = "11px";
@@ -5976,7 +5980,7 @@ async function searchAndAppendVatLevel(
             ? subItem.result.hint.detail || ""
             : "";
           showMessage(
-            `${group.tech.name}: ${detail} => ${group.actionStr}`,
+            `${group.displayName}: ${detail} => ${group.actionStr}`,
             "blue",
           );
           renderBoard();
