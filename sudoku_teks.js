@@ -11963,18 +11963,16 @@ const techniques = {
         return paths;
       };
 
-      const pickDisjoint = (listA, listB) => {
+      const pickPair = (listA, listB) => {
         for (const a of listA) {
           const usedA = new Set(a);
           for (const b of listB) {
             if (b.every((node) => !usedA.has(node))) return [a, b];
           }
         }
-        return null;
+        return [listA[0], listB[0]];
       };
 
-      // The result reports exactly what the chosen branch endpoints see in
-      // common, so the written chain proves every candidate it removes.
       const provenElims = (paths) => {
         const mask = Array.from({ length: 9 }, () => [0, 0, 0]);
         const last = paths.map((path) => path[path.length - 1]);
@@ -11989,8 +11987,6 @@ const techniques = {
           }
         }
 
-        // A branch that asserts a candidate cannot also be shown removing
-        // it, so those candidates are left to another chain.
         const asserted = new Set();
         for (const path of paths) {
           for (let i = 0; i < path.length; i += 2) {
@@ -12017,15 +12013,13 @@ const techniques = {
         );
         if (lists.some((list) => list.length === 0)) continue;
 
-        const firstPair = pickDisjoint(lists[0], lists[1]);
-        if (!firstPair) continue;
+        const firstPair = pickPair(lists[0], lists[1]);
 
         let paths;
         if (startNodes.length === 3) {
           paths = [firstPair[0], firstPair[1], lists[2][0]];
         } else {
-          const secondPair = pickDisjoint(lists[2], lists[3]);
-          if (!secondPair) continue;
+          const secondPair = pickPair(lists[2], lists[3]);
           paths = [firstPair[0], firstPair[1], secondPair[0], secondPair[1]];
         }
 
