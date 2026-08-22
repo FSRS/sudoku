@@ -28,7 +28,7 @@ const TRANSLATIONS = {
     btn_solve: "Solve",
     btn_reset: "Quick Reset",
     btn_wipe_draw: "Wipe Draw",
-    btn_wipe_colors: "Wipe Colors",
+    btn_wipe_colors: "Erase Colors",
     tooltip_undo: "Undo the last action (Ctrl+Z).",
     tooltip_redo: "Redo the last undone action (Ctrl+Y).",
     tooltip_auto_pencil: "Fill all empty cells with possible candidates (A).",
@@ -36,7 +36,7 @@ const TRANSLATIONS = {
     tooltip_reset: "Clear all user-entered numbers and pencil marks (Q).",
     tooltip_wipe_draw: "Clear all drawn lines (W).",
     tooltip_wipe_colors:
-      "Clear all cell and candidate colors, circles, and crosses (E).",
+      "Erase all cell and candidate colors, circles, and crosses (E).",
 
     // === Solver bar ===
     tooltip_prev_step: "Previous Step",
@@ -367,9 +367,9 @@ const TRANSLATIONS = {
     ui_msg_148: "You solved it!{0} → ",
     ui_msg_149: "Share",
     ui_msg_150: "You solved it!{0}",
-    ui_msg_151: "All colors cleared.",
+    ui_msg_151: "All colors erased.",
     ui_msg_drawings_cleared: "All drawings cleared.",
-    ui_msg_annotations_cleared: "All drawings and colors cleared.",
+    ui_msg_annotations_cleared: "All drawings and colors erased.",
     ui_msg_152: "Auto-Pencil complete!",
     ui_msg_153:
       "Tip: To highlight all bivalue cells, touch one when highlighting is off.",
@@ -839,7 +839,7 @@ const TRANSLATIONS = {
     btn_solve: "솔버",
     btn_reset: "초기화",
     btn_wipe_draw: "선 초기화",
-    btn_wipe_colors: "색 초기화",
+    btn_wipe_colors: "색 지우기",
     tooltip_undo: "이전 행동으로 되돌립니다 (Ctrl+Z).",
     tooltip_redo: "방금 행동을 다시합니다 (Ctrl+Y).",
     tooltip_auto_pencil: "가능한 후보숫자를 모두 채웁니다 (A).",
