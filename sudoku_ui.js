@@ -2135,6 +2135,9 @@ function setupEventListeners() {
   });
 
   modeSelector.addEventListener("click", (e) => handleModeChange(e));
+  modeSelector.addEventListener("contextmenu", (e) =>
+    handleModeChange(e, true),
+  );
   numberPad.addEventListener("click", handleNumberPadClick);
   loadBtn.addEventListener("click", () => loadPuzzle(puzzleStringInput.value));
 
@@ -2295,6 +2298,8 @@ function setupEventListeners() {
   });
   clearDrawBtn.addEventListener("click", clearAllDrawings);
   clearColorsBtn.addEventListener("click", clearAllColors);
+  clearDrawBtn.addEventListener("contextmenu", clearAllAnnotations);
+  clearColorsBtn.addEventListener("contextmenu", clearAllAnnotations);
   autoPencilBtn.addEventListener("click", autoPencil);
   undoBtn.addEventListener("click", undo);
   redoBtn.addEventListener("click", redo);
@@ -3438,11 +3443,9 @@ function handleCellClick(e) {
 }
 
 /* REPLACE handleModeChange function */
-function handleModeChange(e) {
+function handleModeChange(e, reverse = false) {
   const clickedButton = e.target.closest("button");
   if (!clickedButton) return;
-
-  e.stopPropagation();
 
   // Allow Draw button, plus the existing ones
   const drawButton = modeSelector.querySelector('[data-mode="draw"]');
@@ -3453,6 +3456,10 @@ function handleModeChange(e) {
   ) {
     return;
   }
+
+  e.stopPropagation();
+  // Suppress the browser menu only when right-clicking a mode control.
+  if (reverse) e.preventDefault();
 
   // --- Logic Checks (Guard Clauses) ---
   if (clickedButton === modeToggleButton) {
@@ -3465,7 +3472,9 @@ function handleModeChange(e) {
 
   if (clickedButton === colorButton) {
     if (currentMode === "color") {
-      const targetSubMode = nextColorSubMode(coloringSubMode);
+      const targetSubMode = reverse
+        ? previousColorSubMode(coloringSubMode)
+        : nextColorSubMode(coloringSubMode);
       if (targetSubMode !== "cell" && arePencilsHidden) {
         showMessage(t("ui_msg_120"), "orange");
         return;
@@ -3521,7 +3530,9 @@ function handleModeChange(e) {
       currentMode = "color";
       coloringSubMode = "cell";
     } else {
-      coloringSubMode = nextColorSubMode(coloringSubMode);
+      coloringSubMode = reverse
+        ? previousColorSubMode(coloringSubMode)
+        : nextColorSubMode(coloringSubMode);
     }
   }
 
@@ -4208,7 +4219,7 @@ function showCandidatePopup(row, col) {
   candidateModal.classList.add("flex");
 }
 
-function clearAllColors() {
+function clearColorAnnotations() {
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       boardState[r][c].cellColor = null;
@@ -4217,6 +4228,10 @@ function clearAllColors() {
       boardState[r][c].candSlashes.clear();
     }
   }
+}
+
+function clearAllColors() {
+  clearColorAnnotations();
   saveState();
   renderBoard();
   showMessage(t("ui_msg_151"), "gray");
@@ -4228,6 +4243,17 @@ function clearAllDrawings() {
   renderLines();
   saveState();
   showMessage(t("ui_msg_drawings_cleared"), "gray");
+}
+
+function clearAllAnnotations(e) {
+  e.preventDefault();
+  clearColorAnnotations();
+  drawnLines = [];
+  drawingState = null;
+  saveState();
+  renderBoard();
+  renderLines();
+  showMessage(t("ui_msg_annotations_cleared"), "gray");
 }
 
 function autoPencil(skipConfirm = false) {

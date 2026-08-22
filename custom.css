@@ -541,12 +541,21 @@ html.dark .offline-cache-dot {
   outline-offset: 2px;
 }
 
+#clear-btn {
+  background-color: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #b91c1c !important;
+}
+
+#clear-btn:hover {
+  background-color: #fee2e2 !important;
+}
+
 .control-btn:not(.active):not(.active-green):not(.active-red):not(
     .active-blue
   ):hover,
 #undo-btn:hover,
 #redo-btn:hover,
-#clear-btn:hover,
 #clear-colors-btn:hover {
   background-color: var(--nc-border-color) !important;
 }
@@ -1079,9 +1088,16 @@ html.dark {
   #number-pad button[data-number]:hover {
     background-color: #4b5563;
   }
+  #clear-btn {
+    background-color: #7f1d1d !important;
+    border-color: #ef4444 !important;
+    color: #fecaca !important;
+  }
+  #clear-btn:hover {
+    background-color: #991b1b !important;
+  }
   #undo-btn:hover,
   #redo-btn:hover,
-  #clear-btn:hover,
   #clear-colors-btn:hover {
     background-color: #4b5563 !important;
   }

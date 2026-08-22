@@ -190,6 +190,13 @@ function nextColorSubMode(subMode) {
   return COLOR_SUBMODE_CYCLE[(idx + 1) % COLOR_SUBMODE_CYCLE.length];
 }
 
+function previousColorSubMode(subMode) {
+  const idx = COLOR_SUBMODE_CYCLE.indexOf(subMode);
+  return COLOR_SUBMODE_CYCLE[
+    (idx - 1 + COLOR_SUBMODE_CYCLE.length) % COLOR_SUBMODE_CYCLE.length
+  ];
+}
+
 // --- Pre-calculated Sudoku Constants ---
 
 // Array of 27 units: 0-8 (Rows), 9-17 (Cols), 18-26 (Boxes).

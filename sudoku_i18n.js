@@ -36,7 +36,7 @@ const TRANSLATIONS = {
     tooltip_reset: "Clear all user-entered numbers and pencil marks (Q).",
     tooltip_wipe_draw: "Clear all drawn lines (W).",
     tooltip_wipe_colors:
-      "Clear all cell and candidate colors, circles, and slashes (E).",
+      "Clear all cell and candidate colors, circles, and crosses (E).",
 
     // === Solver bar ===
     tooltip_prev_step: "Previous Step",
@@ -369,6 +369,7 @@ const TRANSLATIONS = {
     ui_msg_150: "You solved it!{0}",
     ui_msg_151: "All colors cleared.",
     ui_msg_drawings_cleared: "All drawings cleared.",
+    ui_msg_annotations_cleared: "All drawings and colors cleared.",
     ui_msg_152: "Auto-Pencil complete!",
     ui_msg_153:
       "Tip: To highlight all bivalue cells, touch one when highlighting is off.",
@@ -1175,6 +1176,7 @@ const TRANSLATIONS = {
     ui_msg_150: "퍼즐을 풀었습니다!{0}",
     ui_msg_151: "모든 색상이 지워졌습니다.",
     ui_msg_drawings_cleared: "모든 선을 지웠습니다.",
+    ui_msg_annotations_cleared: "모든 선과 색상을 지웠습니다.",
     ui_msg_152: "후보 숫자 채우기 완료!",
     ui_msg_153:
       "팁: 강조 표시가 꺼져 있을 때 이중값 셀을 터치하면 모든 해당 셀이 강조됩니다.",
