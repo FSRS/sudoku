@@ -9970,6 +9970,11 @@ const techniques = {
             const trueNode = aSubsetOfD ? D : A;
             const removalBitset = trueNode.NandBitset;
             let dnRemovals = extractRemovals(removalBitset);
+            if (endSameDigits) {
+              dnRemovals = dnRemovals.filter(
+                (removal) => removal.num === A.digits[0],
+              );
+            }
 
             // A basic node proven true is a placement. In the subset cases the
             // proven node is always the superset, so it is never basic there.
