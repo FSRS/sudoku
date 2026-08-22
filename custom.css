@@ -190,6 +190,20 @@ button:disabled:hover {
   overflow-y: auto;
 }
 
+/* Two-line readout shown while the solver engine evaluates a puzzle */
+.solver-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.solver-progress-stage {
+  opacity: 0.75;
+}
+
 /* --- Responsive Horizontal Layout --- */
 .max-w-5xl {
   /* Req 4: Reduced max-width to shrink overall scale for 16:9 screens */

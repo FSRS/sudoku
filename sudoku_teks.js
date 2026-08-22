@@ -3134,6 +3134,53 @@ const techniques = {
       };
     };
 
+    const getURXyWingVisuals = (
+      cells,
+      d1,
+      d2,
+      wings,
+      pivotDigit,
+      extraDigits,
+      removals,
+    ) => {
+      return () => {
+        highlightState = 0;
+        highlightedDigit = null;
+
+        cells.forEach(([r, c]) => {
+          boardState[r][c].cellColor = cellColorPalette[7];
+          boardState[r][c].pencils.forEach((digit) => {
+            boardState[r][c].pencilColors.set(
+              digit,
+              digit === d1 || digit === d2
+                ? candidateColorPalette[7]
+                : digit === extraDigits[1]
+                  ? candidateColorPalette[5]
+                  : candidateColorPalette[4],
+            );
+          });
+        });
+
+        wings.forEach(([r, c], index) => {
+          boardState[r][c].cellColor = cellColorPalette[6];
+          boardState[r][c].pencils.forEach((digit) => {
+            boardState[r][c].pencilColors.set(
+              digit,
+              digit === pivotDigit
+                ? candidateColorPalette[6]
+                : index === 0
+                  ? candidateColorPalette[4]
+                  : candidateColorPalette[5],
+            );
+          });
+        });
+
+        removals.forEach(({ r, c, num }) => {
+          boardState[r][c].candSlashes.set(num, markColorPalette[0]);
+        });
+      };
+    };
+
     for (const rect of rects) {
       const { cells, digits } = rect;
       const [d1, d2] = digits;
@@ -3174,7 +3221,7 @@ const techniques = {
           };
           if (!findAll) return resultObj;
           results.push(resultObj);
-          continue;
+          // continue;
         }
       }
 
@@ -3242,7 +3289,7 @@ const techniques = {
 
               if (!findAll) return resultObj;
               results.push(resultObj);
-              continue;
+              // continue;
             }
           }
         }
@@ -3355,7 +3402,7 @@ const techniques = {
               };
               if (!findAll) return resultObj;
               results.push(resultObj);
-              continue;
+              // continue;
             }
           }
         }
@@ -3430,7 +3477,7 @@ const techniques = {
                 };
                 if (!findAll) return resultObj;
                 results.push(resultObj);
-                continue;
+                // continue;
               }
             }
           }
@@ -3488,13 +3535,55 @@ const techniques = {
                 if (!findAll) return resultObj;
                 results.push(resultObj);
 
-                continue;
+                // continue;
               }
             }
           }
         }
       }
     }
+
+    const xyWingProofs = techniques._findUniqueRectangleXyWings(
+      board,
+      pencils,
+      rects,
+    );
+    for (const proof of xyWingProofs) {
+      const removals = proof.removals.map(({ r, c, num }) => ({ r, c, num }));
+      const resultObj = {
+        change: true,
+        type: "remove",
+        cells: removals,
+        hint: {
+          name: t("teks_msg_307"),
+          mainInfo: t("teks_msg_77", proof.d1, proof.d2),
+          detail: t(
+            "teks_msg_308",
+            proof.d1,
+            proof.d2,
+            getBasePosStr(proof.cells),
+            getGuardiansStr(proof.petals, proof.d1, proof.d2),
+            proof.branches[0][0] + 1,
+            proof.branches[0][1] + 1,
+            proof.branches[1][0] + 1,
+            proof.branches[1][1] + 1,
+            proof.pivotDigit,
+          ),
+        },
+        applyVisuals: getURXyWingVisuals(
+          proof.cells,
+          proof.d1,
+          proof.d2,
+          proof.branches,
+          proof.pivotDigit,
+          proof.extraDigits,
+          removals,
+        ),
+      };
+      if (!findAll) return resultObj;
+      results.push(resultObj);
+    }
+
     return findAll ? results : { change: false };
   },
 
@@ -3615,25 +3704,6 @@ const techniques = {
         }
       };
 
-      /*
-       * Take each UR cell without additional candidates.
-       *
-       *       floor -------- colMate
-       *         |               |
-       *         |               |
-       *       rowMate ------ opposite
-       *
-       * For the corner opposite the floor:
-       *
-       *   - check its ROW;
-       *   - check its COLUMN.
-       *
-       * If one UR digit occurs nowhere outside the two UR cells
-       * in BOTH houses, that digit is bilocated in both houses.
-       *
-       * Therefore the OTHER UR digit can be eliminated
-       * from the opposite corner.
-       */
       for (const [fr, fc] of bivalueCells) {
         // Unique diagonally opposite corner of this rectangle
         const opposite = cells.find(([r, c]) => r !== fr && c !== fc);
@@ -3650,13 +3720,6 @@ const techniques = {
           // that would be eliminated.
           if (!pencils[or][oc].has(elimDigit)) continue;
 
-          /*
-           * Row through opposite corner:
-           *
-           *   [or, fc] ---- [or, oc]
-           *
-           * linkDigit must occur exactly at these two UR positions.
-           */
           const rowBilocation = techniques._isStrongLink(
             pencils,
             linkDigit,
@@ -3667,17 +3730,6 @@ const techniques = {
           );
 
           if (!rowBilocation) continue;
-
-          /*
-           * Column through opposite corner:
-           *
-           *   [fr, oc]
-           *       |
-           *       |
-           *   [or, oc]
-           *
-           * linkDigit must occur exactly at these two UR positions.
-           */
           const colBilocation = techniques._isStrongLink(
             pencils,
             linkDigit,
@@ -3864,16 +3916,203 @@ const techniques = {
     return rects;
   },
 
+  _findUniqueRectangleXyWings: (board, pencils, rectangles = null) => {
+    const rects = rectangles || techniques._findHiddenRectangles(pencils) || [];
+    if (rects.length === 0) return [];
+
+    const candidateMasks = new Uint16Array(81);
+    const candidateCells = Array(10).fill(0n);
+    const bivalueCells = Array.from({ length: 10 }, () => []);
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] !== 0) continue;
+        const id = r * 9 + c;
+        const mask = BITS.setToMask(pencils[r][c]);
+        candidateMasks[id] = mask;
+        for (const digit of pencils[r][c]) {
+          candidateCells[digit] |= CELL_MASK[id];
+          if (pencils[r][c].size === 2) bivalueCells[digit].push(id);
+        }
+      }
+    }
+
+    const crossGroupPairIndex = (first, second) => {
+      let index = 0;
+      for (let a = 0; a < 9; a++) {
+        for (let b = a + 1; b < 9; b++) {
+          if (Math.floor(a / 3) === Math.floor(b / 3)) continue;
+          if (a === first && b === second) return index;
+          index++;
+        }
+      }
+      return -1;
+    };
+
+    const withinGroupPairIndex = (first, second) => {
+      const a = first % 3;
+      const b = second % 3;
+      if (a === 0) return b - 1;
+      return 2;
+    };
+
+    const patternIndex = (cells) => {
+      const r1 = cells[0][0];
+      const r2 = cells[2][0];
+      const c1 = cells[0][1];
+      const c2 = cells[1][1];
+      if (Math.floor(r1 / 3) === Math.floor(r2 / 3)) {
+        return (
+          Math.floor(r1 / 3) * 81 +
+          withinGroupPairIndex(r1, r2) * 27 +
+          crossGroupPairIndex(c1, c2)
+        );
+      }
+      return (
+        243 +
+        Math.floor(c1 / 3) * 81 +
+        withinGroupPairIndex(c1, c2) * 27 +
+        crossGroupPairIndex(r1, r2)
+      );
+    };
+
+    const cornerPairs = [
+      [0, 1],
+      [0, 2],
+      [0, 3],
+      [1, 2],
+      [1, 3],
+      [2, 3],
+    ];
+    const foundByPattern = new Map();
+
+    for (const rect of rects) {
+      const index = patternIndex(rect.cells);
+      if (foundByPattern.has(index)) continue;
+
+      const ids = rect.cells.map(([r, c]) => r * 9 + c);
+      const [d1, d2] = rect.digits;
+      const baseMask = (1 << (d1 - 1)) | (1 << (d2 - 1));
+      const canMakeDeadlyPattern =
+        (Boolean(
+          candidateMasks[ids[0]] & candidateMasks[ids[3]] & (1 << (d1 - 1)),
+        ) &&
+          Boolean(
+            candidateMasks[ids[1]] & candidateMasks[ids[2]] & (1 << (d2 - 1)),
+          )) ||
+        (Boolean(
+          candidateMasks[ids[1]] & candidateMasks[ids[2]] & (1 << (d1 - 1)),
+        ) &&
+          Boolean(
+            candidateMasks[ids[0]] & candidateMasks[ids[3]] & (1 << (d2 - 1)),
+          ));
+      if (!canMakeDeadlyPattern) continue;
+
+      for (const [cornerIndex1, cornerIndex2] of cornerPairs) {
+        const cornerMask =
+          candidateMasks[ids[cornerIndex1]] | candidateMasks[ids[cornerIndex2]];
+        if (cornerMask !== baseMask) continue;
+
+        const petalIndices = [0, 1, 2, 3].filter(
+          (value) => value !== cornerIndex1 && value !== cornerIndex2,
+        );
+        const petalMask1 = candidateMasks[ids[petalIndices[0]]];
+        const petalMask2 = candidateMasks[ids[petalIndices[1]]];
+        if (
+          (petalMask1 & petalMask2 & baseMask) === 0 ||
+          ((petalMask1 | petalMask2) & baseMask) !== baseMask
+        ) {
+          continue;
+        }
+
+        const extraMask = (petalMask1 | petalMask2) & ~baseMask;
+        if (BITS.popcount(extraMask) !== 2) continue;
+        const [extraDigit1, extraDigit2] = BITS.maskToDigits(extraMask);
+
+        const sourceMask1 = ids.reduce(
+          (mask, id) =>
+            candidateMasks[id] & (1 << (extraDigit1 - 1))
+              ? mask | CELL_MASK[id]
+              : mask,
+          0n,
+        );
+        const sourceMask2 = ids.reduce(
+          (mask, id) =>
+            candidateMasks[id] & (1 << (extraDigit2 - 1))
+              ? mask | CELL_MASK[id]
+              : mask,
+          0n,
+        );
+        const branchGroup1 = bivalueCells[extraDigit1].filter(
+          (id) => (sourceMask1 & ~PEER_MAP[id]) === 0n,
+        );
+        const branchGroup2 = bivalueCells[extraDigit2].filter(
+          (id) => (sourceMask2 & ~PEER_MAP[id]) === 0n,
+        );
+
+        let proof = null;
+        for (const branch1 of branchGroup1) {
+          const pivotMask = candidateMasks[branch1] & ~(1 << (extraDigit1 - 1));
+          if (BITS.popcount(pivotMask) !== 1) continue;
+          const [pivotDigit] = BITS.maskToDigits(pivotMask);
+          const requiredBranch2Mask =
+            (1 << (extraDigit2 - 1)) | (1 << (pivotDigit - 1));
+
+          for (const branch2 of branchGroup2) {
+            if (
+              branch1 === branch2 ||
+              candidateMasks[branch2] !== requiredBranch2Mask
+            ) {
+              continue;
+            }
+
+            const eliminationMask =
+              PEER_MAP[branch1] &
+              PEER_MAP[branch2] &
+              candidateCells[pivotDigit];
+            if (eliminationMask === 0n) continue;
+
+            const removals = [];
+            for (let id = 0; id < 81; id++) {
+              if ((eliminationMask & CELL_MASK[id]) === 0n) continue;
+              removals.push({
+                r: Math.floor(id / 9),
+                c: id % 9,
+                num: pivotDigit,
+              });
+            }
+            proof = {
+              patternIndex: index,
+              cells: rect.cells.map(([r, c]) => [r, c]),
+              d1,
+              d2,
+              petals: petalIndices.map((value) => [...rect.cells[value]]),
+              branches: [
+                [Math.floor(branch1 / 9), branch1 % 9],
+                [Math.floor(branch2 / 9), branch2 % 9],
+              ],
+              pivotDigit,
+              extraDigits: [extraDigit1, extraDigit2],
+              removals,
+            };
+            break;
+          }
+          if (proof) break;
+        }
+        if (proof) {
+          foundByPattern.set(index, proof);
+          break;
+        }
+      }
+    }
+
+    return [...foundByPattern.values()].sort(
+      (left, right) => left.patternIndex - right.patternIndex,
+    );
+  },
+
   avoidableRectangle: (board, pencils, findAll = false) => {
     const results = [];
     const seenResults = new Set();
-
-    /*
-     * Prefer initialPuzzleString because it remains correct while the
-     * solver is working on a virtual board several steps ahead of boardState.
-     *
-     * boardState.isGiven is retained as a fallback.
-     */
     const hasInitialString =
       typeof initialPuzzleString === "string" &&
       initialPuzzleString.length >= 81;
@@ -3897,17 +4136,9 @@ const techniques = {
     };
 
     const isUserFilled = (r, c) => board[r][c] !== 0 && !isInitialGiven(r, c);
-
     const isUnfilled = (r, c) => board[r][c] === 0 && !isInitialGiven(r, c);
-
     const sameCell = (a, b) => a[0] === b[0] && a[1] === b[1];
-
     const cellKey = ([r, c]) => `${r},${c}`;
-
-    // ============================================================
-    // Formatting helpers
-    // ============================================================
-
     const formatRC = (cells) => {
       if (!cells || cells.length === 0) return "";
 
@@ -3960,34 +4191,19 @@ const techniques = {
       return `r${rows}c${cols}`;
     };
 
-    /*
-     * Filled cell detail:
-     *   (4)r2c3,(7)r2c8
-     *
-     * This is the addition you requested compared with the HR hint.
-     */
     const getFilledStr = (filledCells) =>
       filledCells
         .map(([r, c]) => `(${board[r][c]})r${r + 1}c${c + 1}`)
         .join(",");
 
-    /*
-     * Unfilled AR cells with current candidates:
-     *   (27)r5c3,(47)r5c8
-     */
     const getUnfilledStr = (rectCells) =>
       rectCells
         .filter(([r, c]) => board[r][c] === 0)
         .map(([r, c]) => {
           const cands = [...pencils[r][c]].sort((a, b) => a - b).join("");
-
           return `(${cands})r${r + 1}c${c + 1}`;
         })
         .join(",");
-
-    // ============================================================
-    // Candidate / geometry helpers
-    // ============================================================
 
     const setEquals = (r, c, digits) => {
       const want = [...new Set(digits)];
@@ -3995,13 +4211,9 @@ const techniques = {
       if (board[r][c] !== 0) return false;
       if (want.length !== digits.length) return false;
       if (pencils[r][c].size !== want.length) return false;
-
       return want.every((d) => pencils[r][c].has(d));
     };
 
-    /*
-     * Both cells must contain exactly the same bivalue pair.
-     */
     const getSameBivaluePair = (a, b) => {
       const [ar, ac] = a;
       const [br, bc] = b;
@@ -4014,11 +4226,8 @@ const techniques = {
       ) {
         return null;
       }
-
       const p1 = [...pencils[ar][ac]].sort((x, y) => x - y);
-
       const p2 = [...pencils[br][bc]].sort((x, y) => x - y);
-
       if (p1[0] === p2[0] && p1[1] === p2[1]) {
         return p1;
       }
@@ -4026,32 +4235,13 @@ const techniques = {
       return null;
     };
 
-    /*
-     * Diagonal opposite corner.
-     */
     const getOppositeCorner = (cells, cell) =>
       cells.find(([r, c]) => r !== cell[0] && c !== cell[1]);
 
-    /*
-     * For aligned filled cells:
-     *
-     *   d1 d2
-     *   u1 u2
-     *
-     * or
-     *
-     *   d1 u1
-     *   d2 u2
-     *
-     * u1 is the cell across the line from d1.
-     * u2 is the cell across the line from d2.
-     */
     const getOppositeLineMates = (cells, f1, f2) => {
       if (f1[0] === f2[0]) {
         const otherRowCell = cells.find(([r]) => r !== f1[0]);
-
         if (!otherRowCell) return null;
-
         const otherRow = otherRowCell[0];
 
         return [
@@ -4062,9 +4252,7 @@ const techniques = {
 
       if (f1[1] === f2[1]) {
         const otherColCell = cells.find(([, c]) => c !== f1[1]);
-
         if (!otherColCell) return null;
-
         const otherCol = otherColCell[1];
 
         return [
@@ -4076,14 +4264,6 @@ const techniques = {
       return null;
     };
 
-    /*
-     * All houses containing BOTH cells.
-     *
-     * For AR Type 3 this may be:
-     *   row
-     *   column
-     *   box
-     */
     const getSharedUnits = (a, b) => {
       const units = [];
 
@@ -4102,11 +4282,8 @@ const techniques = {
           cells: techniques._getUnitCells("col", a[1]),
         });
       }
-
       const boxA = techniques._getBoxIndex(a[0], a[1]);
-
       const boxB = techniques._getBoxIndex(b[0], b[1]);
-
       if (boxA === boxB) {
         units.push({
           type: "box",
@@ -4118,10 +4295,6 @@ const techniques = {
       return units;
     };
 
-    /*
-     * Remove digit from cells seeing all patternCells.
-     * Rectangle cells themselves are excluded by _findCommonPeers.
-     */
     const getCommonPeerRemovals = (patternCells, rectCells, digit) => {
       const removals = [];
 
@@ -4145,10 +4318,6 @@ const techniques = {
       return _getUniqueRemovals(removals);
     };
 
-    // ============================================================
-    // Result / hint / visuals
-    // ============================================================
-
     const makeResult = (
       nameKey,
       d1,
@@ -4159,13 +4328,9 @@ const techniques = {
       extraData = {},
     ) => {
       const uniqueRemovals = _getUniqueRemovals(removals);
-
       const basePosStr = getBasePosStr(rectCells);
-
       const filledStr = getFilledStr(filledCells);
-
       const unfilledStr = getUnfilledStr(rectCells);
-
       let detail;
 
       if (extraData.subsetCells && extraData.subsetCands) {
@@ -4211,17 +4376,6 @@ const techniques = {
         applyVisuals: () => {
           highlightState = 0;
           highlightedDigit = null;
-
-          /*
-           * AR cells:
-           * cell color 8.
-           *
-           * AR digits:
-           * candidate color 8.
-           *
-           * Other candidates in AR:
-           * candidate color 4.
-           */
           rectCells.forEach(([cr, cc]) => {
             boardState[cr][cc].cellColor = cellColorPalette[7];
 
@@ -4236,18 +4390,9 @@ const techniques = {
               });
             }
           });
-
-          /*
-           * Filled, originally non-given cells:
-           * distinguish them using cell color 7.
-           */
           filledCells.forEach(([cr, cc]) => {
             boardState[cr][cc].cellColor = cellColorPalette[6];
           });
-
-          /*
-           * Type 3 virtual naked subset cells.
-           */
           if (extraData.subsetCells && extraData.subsetCands) {
             extraData.subsetCells.forEach(([cr, cc]) => {
               boardState[cr][cc].cellColor = cellColorPalette[6];
@@ -4262,103 +4407,54 @@ const techniques = {
               });
             });
           }
-
-          /*
-           * Hidden AR strong links.
-           */
           if (extraData.visualLinks) {
             extraData.visualLinks.forEach((link) => drawnLines.push(link));
           }
-
-          /*
-           * Eliminations last so red overrides
-           * any pattern/subset coloring.
-           */
           uniqueRemovals.forEach((el) => {
             boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
           });
         },
       };
     };
-
-    /*
-     * Avoid duplicate findAll entries representing
-     * exactly the same type/eliminations.
-     */
     const addResult = (resultObj, nameKey) => {
       const removalKey = resultObj.cells
         .map((el) => `${el.r},${el.c},${el.num}`)
         .sort()
         .join(";");
-
       const key = `${nameKey}|${removalKey}`;
-
       if (seenResults.has(key)) {
         return null;
       }
-
       seenResults.add(key);
-
       if (findAll) {
         results.push(resultObj);
         return null;
       }
-
       return resultObj;
     };
-
-    // ============================================================
-    // Type 3 virtual naked subset helper
-    // ============================================================
-
     const processVirtualSubset = (unit, rectCells, virtualCands) => {
       const rectSet = new Set(rectCells.map(cellKey));
-
-      /*
-       * Only unsolved cells outside the AR.
-       */
       const outsideCells = unit.cells.filter(
         ([r, c]) => board[r][c] === 0 && !rectSet.has(`${r},${c}`),
       );
-
-      /*
-       * Need:
-       *   at least one subset partner,
-       *   at least one non-subset target.
-       */
       if (outsideCells.length < 2) {
         return null;
       }
-
       for (let k = 1; k < outsideCells.length; k++) {
         for (const chosen of techniques.combinations(outsideCells, k)) {
-          /*
-           * The two AR cells act together as
-           * ONE virtual subset cell.
-           */
           const union = new Set(virtualCands);
-
           chosen.forEach(([r, c]) => {
             pencils[r][c].forEach((cand) => union.add(cand));
           });
-
-          /*
-           * virtual cell + k real cells
-           * must contain exactly k+1 digits.
-           */
           if (union.size !== k + 1) {
             continue;
           }
-
           const chosenSet = new Set(chosen.map(cellKey));
-
           const removals = [];
-
           for (const [r, c] of outsideCells) {
             if (chosenSet.has(`${r},${c}`)) {
               continue;
             }
-
             for (const d of union) {
               if (pencils[r][c].has(d)) {
                 removals.push({
@@ -4369,7 +4465,6 @@ const techniques = {
               }
             }
           }
-
           if (removals.length > 0) {
             return {
               removals: _getUniqueRemovals(removals),
@@ -4382,59 +4477,24 @@ const techniques = {
 
       return null;
     };
-
-    // ============================================================
-    // Search all geometric 2-box rectangles
-    // ============================================================
-
     const rectangles = techniques._findAvoidableRectangles();
-
     for (const rect of rectangles) {
       const cells = rect.cells;
-
-      /*
-       * CRITICAL AR restriction:
-       * none of the four rectangle cells may
-       * have been an initial clue.
-       */
       if (cells.some(([r, c]) => isInitialGiven(r, c))) {
         continue;
       }
-
       const filledCells = cells.filter(([r, c]) => isUserFilled(r, c));
-
       const unfilledCells = cells.filter(([r, c]) => isUnfilled(r, c));
-
-      // ==========================================================
-      // TYPE 1
-      //
-      // Three user-filled cells:
-      //
-      //     d2    d1
-      //     ?     d2
-      //
-      // or rotations/reflections.
-      //
-      // Opposite ? is d1.
-      // Other two filled cells are d2.
-      // Remove d1 from ?.
-      // ==========================================================
-
       if (filledCells.length === 3 && unfilledCells.length === 1) {
         const target = unfilledCells[0];
-
         const opposite = getOppositeCorner(cells, target);
-
         if (opposite) {
           const sideFilled = filledCells.filter(
             (cell) => !sameCell(cell, opposite),
           );
-
           if (sideFilled.length === 2) {
             const d1 = board[opposite[0]][opposite[1]];
-
             const d2 = board[sideFilled[0][0]][sideFilled[0][1]];
-
             if (
               d1 !== 0 &&
               d2 !== 0 &&
@@ -4456,9 +4516,7 @@ const techniques = {
                   },
                 ],
               );
-
               const immediate = addResult(resultObj, "teks_msg_293");
-
               if (immediate) {
                 return immediate;
               }
@@ -4466,60 +4524,21 @@ const techniques = {
           }
         }
       }
-
-      // ==========================================================
-      // TYPES 2 & 3
-      //
-      // Two user-filled, non-diagonal cells.
-      //
-      // Example:
-      //
-      //    d1        d2
-      // {d2,...}  {d1,...}
-      // ==========================================================
-
       if (filledCells.length === 2 && unfilledCells.length === 2) {
         const f1 = filledCells[0];
         const f2 = filledCells[1];
-
         const aligned = f1[0] === f2[0] || f1[1] === f2[1];
-
         if (aligned) {
           const mates = getOppositeLineMates(cells, f1, f2);
-
           if (mates) {
             const [u1, u2] = mates;
-
-            /*
-             * Ensure those calculated mates
-             * really are the two empties.
-             */
             if (
               unfilledCells.some((c) => sameCell(c, u1)) &&
               unfilledCells.some((c) => sameCell(c, u2))
             ) {
               const d1 = board[f1[0]][f1[1]];
-
               const d2 = board[f2[0]][f2[1]];
-
               if (d1 !== 0 && d2 !== 0 && d1 !== d2) {
-                /*
-                 * u1 lies across from d1,
-                 * so its AR candidate is d2.
-                 *
-                 * u2 lies across from d2,
-                 * so its AR candidate is d1.
-                 */
-
-                // ================================================
-                // TYPE 2
-                //
-                // u1 = {d2,g}
-                // u2 = {d1,g}
-                //
-                // Remove g from common peers.
-                // ================================================
-
                 if (
                   pencils[u1[0]][u1[1]].size === 2 &&
                   pencils[u2[0]][u2[1]].size === 2 &&
@@ -4529,25 +4548,21 @@ const techniques = {
                   const extra1 = [...pencils[u1[0]][u1[1]]].filter(
                     (d) => d !== d2,
                   );
-
                   const extra2 = [...pencils[u2[0]][u2[1]]].filter(
                     (d) => d !== d1,
                   );
-
                   if (
                     extra1.length === 1 &&
                     extra2.length === 1 &&
                     extra1[0] === extra2[0]
                   ) {
                     const g = extra1[0];
-
                     if (g !== d1 && g !== d2) {
                       const removals = getCommonPeerRemovals(
                         [u1, u2],
                         cells,
                         g,
                       );
-
                       if (removals.length > 0) {
                         const resultObj = makeResult(
                           "teks_msg_294",
@@ -4557,9 +4572,7 @@ const techniques = {
                           filledCells,
                           removals,
                         );
-
                         const immediate = addResult(resultObj, "teks_msg_294");
-
                         if (immediate) {
                           return immediate;
                         }
@@ -4567,17 +4580,6 @@ const techniques = {
                     }
                   }
                 }
-
-                // ================================================
-                // TYPE 3
-                //
-                // u1 = {d2, extras...}
-                // u2 = {d1, extras...}
-                //
-                // Combine their extras into one virtual cell.
-                // Use the same k+1 naked subset rule as UR Type 3.
-                // ================================================
-
                 if (
                   pencils[u1[0]][u1[1]].has(d2) &&
                   pencils[u2[0]][u2[1]].has(d1)
@@ -4585,30 +4587,20 @@ const techniques = {
                   const extras1 = [...pencils[u1[0]][u1[1]]].filter(
                     (d) => d !== d2,
                   );
-
                   const extras2 = [...pencils[u2[0]][u2[1]]].filter(
                     (d) => d !== d1,
                   );
-
-                  /*
-                   * Per your description:
-                   * both opposite-line cells
-                   * have additional candidates.
-                   */
                   if (extras1.length > 0 && extras2.length > 0) {
                     const virtualCands = new Set([...extras1, ...extras2]);
-
                     for (const unit of getSharedUnits(u1, u2)) {
                       const subsetRes = processVirtualSubset(
                         unit,
                         cells,
                         virtualCands,
                       );
-
                       if (!subsetRes) {
                         continue;
                       }
-
                       const resultObj = makeResult(
                         "teks_msg_295",
                         d1,
@@ -4623,9 +4615,7 @@ const techniques = {
                           unitIdx: unit.idx,
                         },
                       );
-
                       const immediate = addResult(resultObj, "teks_msg_295");
-
                       if (immediate) {
                         return immediate;
                       }
@@ -4637,49 +4627,21 @@ const techniques = {
           }
         }
       }
-
-      // ==========================================================
-      // TYPE 5-A
-      //
-      // Two diagonal filled cells:
-      //
-      //      d1      {d2,g}
-      //   {d2,g}       d1
-      //
-      // Filled cells are both d1.
-      // Other diagonal are both exact {d2,g}.
-      //
-      // Remove g from common peers of those two cells.
-      // ==========================================================
-
       if (filledCells.length === 2 && unfilledCells.length === 2) {
         const f1 = filledCells[0];
         const f2 = filledCells[1];
-
         const diagonal = f1[0] !== f2[0] && f1[1] !== f2[1];
-
         if (diagonal && board[f1[0]][f1[1]] === board[f2[0]][f2[1]]) {
           const d1 = board[f1[0]][f1[1]];
-
           const pair = getSameBivaluePair(unfilledCells[0], unfilledCells[1]);
-
           if (d1 !== 0 && pair) {
-            /*
-             * d2 and g are mutable.
-             *
-             * With no third cell distinguishing them,
-             * test both assignments.
-             */
             for (let i = 0; i < 2; i++) {
               const d2 = pair[i];
               const g = pair[1 - i];
-
               if (d2 === d1 || g === d1 || d2 === g) {
                 continue;
               }
-
               const removals = getCommonPeerRemovals(unfilledCells, cells, g);
-
               if (removals.length > 0) {
                 const resultObj = makeResult(
                   "teks_msg_296",
@@ -4700,78 +4662,36 @@ const techniques = {
           }
         }
       }
-
-      // ==========================================================
-      // TYPE 5-B
-      //
-      // One filled cell:
-      //
-      //       d1       {d2,g}
-      //    {d2,g}        O
-      //
-      // If O = {d1,d2}:
-      //   g is true in at least one side cell.
-      //   Remove g from common peers of the two side cells.
-      //
-      // If O = {d1,d2,g} or {d1,g}:
-      //   remove g from common peers of all three unfilled cells.
-      // ==========================================================
-
       if (filledCells.length === 1 && unfilledCells.length === 3) {
         const filled = filledCells[0];
-
         const opposite = getOppositeCorner(cells, filled);
-
         if (opposite && board[opposite[0]][opposite[1]] === 0) {
           const sideCells = unfilledCells.filter(
             (cell) => !sameCell(cell, opposite),
           );
-
           if (sideCells.length === 2) {
             const d1 = board[filled[0]][filled[1]];
-
             const pair = getSameBivaluePair(sideCells[0], sideCells[1]);
-
             if (d1 !== 0 && pair) {
-              /*
-               * Again d2/g are mutable.
-               * The opposite cell usually
-               * determines which assignment applies.
-               */
               for (let i = 0; i < 2; i++) {
                 const d2 = pair[i];
                 const g = pair[1 - i];
-
                 if (d2 === d1 || g === d1 || d2 === g) {
                   continue;
                 }
-
                 let peerBasis = null;
-
-                /*
-                 * Opposite = exactly {d1,d2}
-                 */
                 if (setEquals(opposite[0], opposite[1], [d1, d2])) {
                   peerBasis = sideCells;
                 } else if (
-                  /*
-                   * Opposite =
-                   *   exactly {d1,d2,g}
-                   * OR
-                   *   exactly {d1,g}
-                   */
                   setEquals(opposite[0], opposite[1], [d1, d2, g]) ||
                   setEquals(opposite[0], opposite[1], [d1, g])
                 ) {
                   peerBasis = unfilledCells;
                 }
-
                 if (!peerBasis) {
                   continue;
                 }
-
                 const removals = getCommonPeerRemovals(peerBasis, cells, g);
-
                 if (removals.length > 0) {
                   const resultObj = makeResult(
                     "teks_msg_296",
@@ -4781,9 +4701,7 @@ const techniques = {
                     filledCells,
                     removals,
                   );
-
                   const immediate = addResult(resultObj, "teks_msg_296");
-
                   if (immediate) {
                     return immediate;
                   }
@@ -4794,24 +4712,6 @@ const techniques = {
         }
       }
 
-      // ==========================================================
-      // HIDDEN AVOIDABLE RECTANGLE
-      //
-      // One filled corner F.
-      //
-      // F = d1
-      //
-      // Take opposite corner O.
-      //
-      // For every possible second AR digit d2 that occurs in
-      // both side cells and O:
-      //
-      // check O's row and O's column.
-      //
-      // If one AR digit is bilocated exactly at the two AR cells
-      // in BOTH houses, eliminate the other AR digit from O.
-      // ==========================================================
-
       if (filledCells.length === 1 && unfilledCells.length === 3) {
         const filled = filledCells[0];
 
@@ -4820,15 +4720,6 @@ const techniques = {
         if (opposite && board[opposite[0]][opposite[1]] === 0) {
           const [fr, fc] = filled;
           const [or, oc] = opposite;
-
-          /*
-           * Cells beside O in its row/column.
-           *
-           *       F ------- colMate
-           *       |            |
-           *       |            |
-           *    rowMate ------- O
-           */
           const rowMate = [or, fc];
           const colMate = [fr, oc];
 
@@ -4837,42 +4728,20 @@ const techniques = {
             board[colMate[0]][colMate[1]] === 0
           ) {
             const d1 = board[fr][fc];
-
-            /*
-             * d2 must be available in:
-             *   rowMate
-             *   colMate
-             *   opposite
-             */
             const possibleD2 = [...pencils[rowMate[0]][rowMate[1]]].filter(
               (d) =>
                 d !== d1 &&
                 pencils[colMate[0]][colMate[1]].has(d) &&
                 pencils[or][oc].has(d),
             );
-
-            /*
-             * O must contain the filled-cell digit too,
-             * otherwise it is not the AR pair {d1,d2}.
-             */
             if (pencils[or][oc].has(d1)) {
               for (const d2 of possibleD2) {
-                /*
-                 * d1/d2 are treated mutably:
-                 * either can be the bilocated digit.
-                 */
                 for (const linkDigit of [d1, d2]) {
                   const elimDigit = linkDigit === d1 ? d2 : d1;
 
                   if (!pencils[or][oc].has(elimDigit)) {
                     continue;
                   }
-
-                  /*
-                   * Row through opposite:
-                   *
-                   * rowMate ----- O
-                   */
                   const rowBilocation = techniques._isStrongLink(
                     pencils,
                     linkDigit,
@@ -4885,15 +4754,6 @@ const techniques = {
                   if (!rowBilocation) {
                     continue;
                   }
-
-                  /*
-                   * Column through opposite:
-                   *
-                   * colMate
-                   *    |
-                   *    |
-                   *    O
-                   */
                   const colBilocation = techniques._isStrongLink(
                     pencils,
                     linkDigit,
@@ -4970,21 +4830,6 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
-  /*
-   * Geometric Avoidable Rectangle finder.
-   *
-   * Search every pair of rows and pair of columns.
-   *
-   * Valid rectangle must occupy exactly TWO boxes:
-   *
-   *   same band + different stacks
-   * OR
-   *   different bands + same stack
-   *
-   * which is:
-   *
-   *   rowsSameBand XOR colsSameStack
-   */
   _findAvoidableRectangles: () => {
     const rectangles = [];
 
@@ -4993,17 +4838,7 @@ const techniques = {
         for (let c1 = 0; c1 < 8; c1++) {
           for (let c2 = c1 + 1; c2 < 9; c2++) {
             const rowsSameBand = Math.floor(r1 / 3) === Math.floor(r2 / 3);
-
             const colsSameStack = Math.floor(c1 / 3) === Math.floor(c2 / 3);
-
-            /*
-             * XOR.
-             *
-             * false,false = 4 boxes -> reject
-             * true,true   = 1 box   -> reject
-             * true,false  = 2 boxes -> accept
-             * false,true  = 2 boxes -> accept
-             */
             if (rowsSameBand === colsSameStack) {
               continue;
             }
@@ -5020,7 +4855,6 @@ const techniques = {
         }
       }
     }
-
     return rectangles;
   },
 
@@ -6402,305 +6236,6 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
-  // --- Unified Helper for Almost Locked Pair & Triple ---
-  _almostLockedSets: (board, pencils, size, findAll = false) => {
-    const results = [];
-    const numBaseCells = size - 1;
-
-    // --- Format Helpers for Hints ---
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      if (norm.length === 1) return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
-      if (norm.every((c) => c[0] === norm[0][0])) {
-        return `r${norm[0][0] + 1}c${norm
-          .map((c) => c[1] + 1)
-          .sort()
-          .join("")}`;
-      }
-      if (norm.every((c) => c[1] === norm[0][1])) {
-        return `r${norm
-          .map((c) => c[0] + 1)
-          .sort()
-          .join("")}c${norm[0][1] + 1}`;
-      }
-      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
-
-    const formatBP = (cells, boxIdx) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      const points = norm
-        .map((c) => (c[0] % 3) * 3 + (c[1] % 3) + 1)
-        .sort((a, b) => a - b)
-        .join("");
-      return `b${boxIdx + 1}p${points}`;
-    };
-
-    // Helper: Remove all candidates EXCEPT those in V from a list of cells
-    const cleanExtraCells = (cellsToClean, V) => {
-      const removals = [];
-      for (const { r, c } of cellsToClean) {
-        for (const cand of pencils[r][c]) {
-          if (!V.has(cand)) {
-            removals.push({ r, c, num: cand });
-          }
-        }
-      }
-      return removals;
-    };
-
-    // Helper: Remove candidates in V from a list of cells, ignoring specific cells
-    const removeCandidates = (cellsToRemove, V, ignoreSet) => {
-      const removals = [];
-      for (const [r, c] of cellsToRemove) {
-        if (ignoreSet.has(`${r},${c}`)) continue;
-        for (const v of V) {
-          if (pencils[r][c].has(v)) {
-            removals.push({ r, c, num: v });
-          }
-        }
-      }
-      return removals;
-    };
-
-    // Iterate 6 Chutes: 0-2 (Rows), 3-5 (Cols)
-    for (let chute = 0; chute < 6; chute++) {
-      const isRow = chute < 3;
-      const bandIdx = chute % 3;
-      const chuteLines = [bandIdx * 3, bandIdx * 3 + 1, bandIdx * 3 + 2];
-      const chuteBoxes = [];
-      for (let i = 0; i < 3; i++) {
-        chuteBoxes.push(isRow ? bandIdx * 3 + i : i * 3 + bandIdx);
-      }
-
-      // Merge Line-to-Box and Box-to-Line using a boolean
-      for (const isLineToBox of [true, false]) {
-        const baseUnits = isLineToBox ? chuteLines : chuteBoxes;
-        const targetUnits = isLineToBox ? chuteBoxes : chuteLines;
-        const baseType = isLineToBox ? (isRow ? "row" : "col") : "box";
-        const targetType = isLineToBox ? "box" : isRow ? "row" : "col";
-
-        for (const baseIdx of baseUnits) {
-          const baseCellsAll = techniques._getUnitCells(baseType, baseIdx);
-          const emptyBaseCells = baseCellsAll.filter(
-            ([r, c]) => board[r][c] === 0,
-          );
-
-          // Need exactly size-1 base cells to form the pattern
-          if (emptyBaseCells.length < numBaseCells) continue;
-
-          // Select combinations from base unit
-          for (const baseCells of techniques.combinations(
-            emptyBaseCells,
-            numBaseCells,
-          )) {
-            const V = new Set();
-            baseCells.forEach(([r, c]) => {
-              for (const v of pencils[r][c]) V.add(v);
-            });
-
-            // Condition: Candidates union is exactly 'size'
-            if (V.size !== size) continue;
-
-            const baseTargetIndices = new Set();
-            baseCells.forEach(([r, c]) => {
-              if (targetType === "box")
-                baseTargetIndices.add(techniques._getBoxIndex(r, c));
-              else baseTargetIndices.add(isRow ? r : c);
-            });
-
-            for (const targetIdx of targetUnits) {
-              if (baseTargetIndices.has(targetIdx)) continue; // Skip if any base cell is in the target unit
-
-              const targetCells = techniques._getUnitCells(
-                targetType,
-                targetIdx,
-              );
-
-              // Refinement: Target unit must not contain concrete digits from V
-              let hasConcrete = false;
-              for (const [tr, tc] of targetCells) {
-                if (V.has(board[tr][tc])) {
-                  hasConcrete = true;
-                  break;
-                }
-              }
-              if (hasConcrete) continue;
-
-              const inIntersection = [];
-              const outsideIntersection = [];
-
-              for (const [tr, tc] of targetCells) {
-                if (board[tr][tc] !== 0) continue;
-
-                let hasV = false;
-                for (const v of V) {
-                  if (pencils[tr][tc].has(v)) {
-                    hasV = true;
-                    break;
-                  }
-                }
-                if (!hasV) continue;
-
-                let isIntersect = false;
-                if (baseType === "box") {
-                  isIntersect = techniques._getBoxIndex(tr, tc) === baseIdx;
-                } else {
-                  isIntersect = (isRow ? tr : tc) === baseIdx;
-                }
-
-                if (isIntersect) {
-                  inIntersection.push({ r: tr, c: tc });
-                } else {
-                  outsideIntersection.push({ r: tr, c: tc });
-                }
-              }
-
-              // Condition: Candidates appear in intersection, AND exactly size-1 cells outside intersection.
-              if (
-                inIntersection.length > 0 &&
-                outsideIntersection.length === numBaseCells
-              ) {
-                const elims = [];
-
-                // Elimination 1: Remove OTHER candidates from the extra cells outside the intersection
-                elims.push(...cleanExtraCells(outsideIntersection, V));
-
-                // Elimination 2: Remove V candidates from the Base Unit
-                // (excluding the base cells themselves and the target unit intersection)
-                const ignoreSet = new Set();
-                baseCells.forEach(([r, c]) => ignoreSet.add(`${r},${c}`));
-                inIntersection.forEach(({ r, c }) =>
-                  ignoreSet.add(`${r},${c}`),
-                );
-
-                elims.push(...removeCandidates(emptyBaseCells, V, ignoreSet));
-
-                if (elims.length > 0) {
-                  const uniqueElims = [];
-                  const seen = new Set();
-                  for (let i = 0; i < elims.length; i++) {
-                    const el = elims[i];
-                    // Create a unique 12-bit integer key for r, c, num
-                    const key = (el.r << 8) | (el.c << 4) | el.num;
-                    if (!seen.has(key)) {
-                      seen.add(key);
-                      uniqueElims.push(el);
-                    }
-                  }
-
-                  const digitsStr = Array.from(V)
-                    .sort((a, b) => a - b)
-                    .join("");
-                  const alsStr =
-                    baseType === "box"
-                      ? formatBP(baseCells, baseIdx)
-                      : formatRC(baseCells);
-                  const intStr = formatRC(inIntersection);
-                  const outStr =
-                    targetType === "box"
-                      ? formatBP(outsideIntersection, targetIdx)
-                      : formatRC(outsideIntersection);
-
-                  const techName =
-                    size === 2 ? t("teks_msg_123") : t("teks_msg_124");
-                  const mainInfo = t(
-                    "teks_msg_125",
-                    isRow ? t("teks_msg_14") : t("teks_msg_15"),
-                    isLineToBox ? baseIdx + 1 : targetIdx + 1,
-                    isLineToBox ? targetIdx + 1 : baseIdx + 1,
-                  );
-
-                  const resultObj = {
-                    change: true,
-                    type: "remove",
-                    cells: uniqueElims,
-                    hint: {
-                      name: techName,
-                      mainInfo: mainInfo,
-                      detail: t(
-                        "teks_msg_126",
-                        digitsStr,
-                        alsStr,
-                        intStr,
-                        outStr,
-                      ),
-                    },
-                    applyVisuals: () => {
-                      highlightedDigit = null;
-                      highlightState = 0;
-                      const digits = [...V];
-
-                      baseCells.forEach(([cr, cc]) => {
-                        window.addCellColor(cr, cc, cellColorPalette[6]);
-                        digits.forEach((d) => {
-                          if (boardState[cr][cc].pencils.has(d))
-                            boardState[cr][cc].pencilColors.set(
-                              d,
-                              candidateColorPalette[4],
-                            );
-                        });
-                      });
-
-                      inIntersection.forEach(({ r: cr, c: cc }) => {
-                        window.addCellColor(cr, cc, cellColorPalette[6]);
-                        window.addCellColor(cr, cc, cellColorPalette[7]);
-                        digits.forEach((d) => {
-                          if (boardState[cr][cc].pencils.has(d))
-                            boardState[cr][cc].pencilColors.set(
-                              d,
-                              candidateColorPalette[4],
-                            );
-                        });
-                      });
-
-                      outsideIntersection.forEach(({ r: cr, c: cc }) => {
-                        window.addCellColor(cr, cc, cellColorPalette[7]);
-                        digits.forEach((d) => {
-                          if (boardState[cr][cc].pencils.has(d))
-                            boardState[cr][cc].pencilColors.set(
-                              d,
-                              candidateColorPalette[4],
-                            );
-                        });
-                      });
-
-                      uniqueElims.forEach((el) =>
-                        boardState[el.r][el.c].candSlashes.set(
-                          el.num,
-                          markColorPalette[0],
-                        ),
-                      );
-                    },
-                  };
-                  if (!findAll) return resultObj;
-                  results.push(resultObj);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return findAll ? results : { change: false }; // ← was just `return { change: false }`
-  },
-
-  almostLockedPair: (board, pencils, findAll = false) => {
-    return techniques._almostLockedSets(board, pencils, 2, findAll); // pass findAll
-  },
-
-  almostLockedTriple: (board, pencils, findAll = false) => {
-    return techniques._almostLockedSets(board, pencils, 3, findAll); // pass findAll
-  },
-
   uniquenessExternalTest: (board, pencils, findAll = false) => {
     const results = [];
     const emitted = new Set();
@@ -7168,6 +6703,304 @@ const techniques = {
   },
 
   // --- Unified Helper for Almost Locked Pair & Triple ---
+  _almostLockedSets: (board, pencils, size, findAll = false) => {
+    const results = [];
+    const numBaseCells = size - 1;
+
+    // --- Format Helpers for Hints ---
+    const formatRC = (cells) => {
+      if (!cells || cells.length === 0) return "";
+      const norm = cells.map((c) => [
+        c.r !== undefined ? c.r : c[0],
+        c.c !== undefined ? c.c : c[1],
+      ]);
+      if (norm.length === 1) return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
+      if (norm.every((c) => c[0] === norm[0][0])) {
+        return `r${norm[0][0] + 1}c${norm
+          .map((c) => c[1] + 1)
+          .sort()
+          .join("")}`;
+      }
+      if (norm.every((c) => c[1] === norm[0][1])) {
+        return `r${norm
+          .map((c) => c[0] + 1)
+          .sort()
+          .join("")}c${norm[0][1] + 1}`;
+      }
+      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
+    };
+
+    const formatBP = (cells, boxIdx) => {
+      if (!cells || cells.length === 0) return "";
+      const norm = cells.map((c) => [
+        c.r !== undefined ? c.r : c[0],
+        c.c !== undefined ? c.c : c[1],
+      ]);
+      const points = norm
+        .map((c) => (c[0] % 3) * 3 + (c[1] % 3) + 1)
+        .sort((a, b) => a - b)
+        .join("");
+      return `b${boxIdx + 1}p${points}`;
+    };
+
+    // Helper: Remove all candidates EXCEPT those in V from a list of cells
+    const cleanExtraCells = (cellsToClean, V) => {
+      const removals = [];
+      for (const { r, c } of cellsToClean) {
+        for (const cand of pencils[r][c]) {
+          if (!V.has(cand)) {
+            removals.push({ r, c, num: cand });
+          }
+        }
+      }
+      return removals;
+    };
+
+    // Helper: Remove candidates in V from a list of cells, ignoring specific cells
+    const removeCandidates = (cellsToRemove, V, ignoreSet) => {
+      const removals = [];
+      for (const [r, c] of cellsToRemove) {
+        if (ignoreSet.has(`${r},${c}`)) continue;
+        for (const v of V) {
+          if (pencils[r][c].has(v)) {
+            removals.push({ r, c, num: v });
+          }
+        }
+      }
+      return removals;
+    };
+
+    // Iterate 6 Chutes: 0-2 (Rows), 3-5 (Cols)
+    for (let chute = 0; chute < 6; chute++) {
+      const isRow = chute < 3;
+      const bandIdx = chute % 3;
+      const chuteLines = [bandIdx * 3, bandIdx * 3 + 1, bandIdx * 3 + 2];
+      const chuteBoxes = [];
+      for (let i = 0; i < 3; i++) {
+        chuteBoxes.push(isRow ? bandIdx * 3 + i : i * 3 + bandIdx);
+      }
+
+      // Merge Line-to-Box and Box-to-Line using a boolean
+      for (const isLineToBox of [true, false]) {
+        const baseUnits = isLineToBox ? chuteLines : chuteBoxes;
+        const targetUnits = isLineToBox ? chuteBoxes : chuteLines;
+        const baseType = isLineToBox ? (isRow ? "row" : "col") : "box";
+        const targetType = isLineToBox ? "box" : isRow ? "row" : "col";
+
+        for (const baseIdx of baseUnits) {
+          const baseCellsAll = techniques._getUnitCells(baseType, baseIdx);
+          const emptyBaseCells = baseCellsAll.filter(
+            ([r, c]) => board[r][c] === 0,
+          );
+
+          // Need exactly size-1 base cells to form the pattern
+          if (emptyBaseCells.length < numBaseCells) continue;
+
+          // Select combinations from base unit
+          for (const baseCells of techniques.combinations(
+            emptyBaseCells,
+            numBaseCells,
+          )) {
+            const V = new Set();
+            baseCells.forEach(([r, c]) => {
+              for (const v of pencils[r][c]) V.add(v);
+            });
+
+            // Condition: Candidates union is exactly 'size'
+            if (V.size !== size) continue;
+
+            const baseTargetIndices = new Set();
+            baseCells.forEach(([r, c]) => {
+              if (targetType === "box")
+                baseTargetIndices.add(techniques._getBoxIndex(r, c));
+              else baseTargetIndices.add(isRow ? r : c);
+            });
+
+            for (const targetIdx of targetUnits) {
+              if (baseTargetIndices.has(targetIdx)) continue; // Skip if any base cell is in the target unit
+
+              const targetCells = techniques._getUnitCells(
+                targetType,
+                targetIdx,
+              );
+
+              // Refinement: Target unit must not contain concrete digits from V
+              let hasConcrete = false;
+              for (const [tr, tc] of targetCells) {
+                if (V.has(board[tr][tc])) {
+                  hasConcrete = true;
+                  break;
+                }
+              }
+              if (hasConcrete) continue;
+
+              const inIntersection = [];
+              const outsideIntersection = [];
+
+              for (const [tr, tc] of targetCells) {
+                if (board[tr][tc] !== 0) continue;
+
+                let hasV = false;
+                for (const v of V) {
+                  if (pencils[tr][tc].has(v)) {
+                    hasV = true;
+                    break;
+                  }
+                }
+                if (!hasV) continue;
+
+                let isIntersect = false;
+                if (baseType === "box") {
+                  isIntersect = techniques._getBoxIndex(tr, tc) === baseIdx;
+                } else {
+                  isIntersect = (isRow ? tr : tc) === baseIdx;
+                }
+
+                if (isIntersect) {
+                  inIntersection.push({ r: tr, c: tc });
+                } else {
+                  outsideIntersection.push({ r: tr, c: tc });
+                }
+              }
+
+              // Condition: Candidates appear in intersection, AND exactly size-1 cells outside intersection.
+              if (
+                inIntersection.length > 0 &&
+                outsideIntersection.length === numBaseCells
+              ) {
+                const elims = [];
+
+                // Elimination 1: Remove OTHER candidates from the extra cells outside the intersection
+                elims.push(...cleanExtraCells(outsideIntersection, V));
+
+                // Elimination 2: Remove V candidates from the Base Unit
+                // (excluding the base cells themselves and the target unit intersection)
+                const ignoreSet = new Set();
+                baseCells.forEach(([r, c]) => ignoreSet.add(`${r},${c}`));
+                inIntersection.forEach(({ r, c }) =>
+                  ignoreSet.add(`${r},${c}`),
+                );
+
+                elims.push(...removeCandidates(emptyBaseCells, V, ignoreSet));
+
+                if (elims.length > 0) {
+                  const uniqueElims = [];
+                  const seen = new Set();
+                  for (let i = 0; i < elims.length; i++) {
+                    const el = elims[i];
+                    // Create a unique 12-bit integer key for r, c, num
+                    const key = (el.r << 8) | (el.c << 4) | el.num;
+                    if (!seen.has(key)) {
+                      seen.add(key);
+                      uniqueElims.push(el);
+                    }
+                  }
+
+                  const digitsStr = Array.from(V)
+                    .sort((a, b) => a - b)
+                    .join("");
+                  const alsStr =
+                    baseType === "box"
+                      ? formatBP(baseCells, baseIdx)
+                      : formatRC(baseCells);
+                  const intStr = formatRC(inIntersection);
+                  const outStr =
+                    targetType === "box"
+                      ? formatBP(outsideIntersection, targetIdx)
+                      : formatRC(outsideIntersection);
+
+                  const techName =
+                    size === 2 ? t("teks_msg_123") : t("teks_msg_124");
+                  const mainInfo = t(
+                    "teks_msg_125",
+                    isRow ? t("teks_msg_14") : t("teks_msg_15"),
+                    isLineToBox ? baseIdx + 1 : targetIdx + 1,
+                    isLineToBox ? targetIdx + 1 : baseIdx + 1,
+                  );
+
+                  const resultObj = {
+                    change: true,
+                    type: "remove",
+                    cells: uniqueElims,
+                    hint: {
+                      name: techName,
+                      mainInfo: mainInfo,
+                      detail: t(
+                        "teks_msg_126",
+                        digitsStr,
+                        alsStr,
+                        intStr,
+                        outStr,
+                      ),
+                    },
+                    applyVisuals: () => {
+                      highlightedDigit = null;
+                      highlightState = 0;
+                      const digits = [...V];
+
+                      baseCells.forEach(([cr, cc]) => {
+                        window.addCellColor(cr, cc, cellColorPalette[6]);
+                        digits.forEach((d) => {
+                          if (boardState[cr][cc].pencils.has(d))
+                            boardState[cr][cc].pencilColors.set(
+                              d,
+                              candidateColorPalette[4],
+                            );
+                        });
+                      });
+
+                      inIntersection.forEach(({ r: cr, c: cc }) => {
+                        window.addCellColor(cr, cc, cellColorPalette[6]);
+                        window.addCellColor(cr, cc, cellColorPalette[7]);
+                        digits.forEach((d) => {
+                          if (boardState[cr][cc].pencils.has(d))
+                            boardState[cr][cc].pencilColors.set(
+                              d,
+                              candidateColorPalette[4],
+                            );
+                        });
+                      });
+
+                      outsideIntersection.forEach(({ r: cr, c: cc }) => {
+                        window.addCellColor(cr, cc, cellColorPalette[7]);
+                        digits.forEach((d) => {
+                          if (boardState[cr][cc].pencils.has(d))
+                            boardState[cr][cc].pencilColors.set(
+                              d,
+                              candidateColorPalette[4],
+                            );
+                        });
+                      });
+
+                      uniqueElims.forEach((el) =>
+                        boardState[el.r][el.c].candSlashes.set(
+                          el.num,
+                          markColorPalette[0],
+                        ),
+                      );
+                    },
+                  };
+                  if (!findAll) return resultObj;
+                  results.push(resultObj);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return findAll ? results : { change: false };
+  },
+
+  almostLockedPair: (board, pencils, findAll = false) => {
+    return techniques._almostLockedSets(board, pencils, 2, findAll);
+  },
+
+  almostLockedTriple: (board, pencils, findAll = false) => {
+    return techniques._almostLockedSets(board, pencils, 3, findAll);
+  },
+
   sueDeCoq: (board, pencils, findAll = false) => {
     const results = [];
     const bitFor = (d) => 1 << (d - 1);
@@ -8420,6 +8253,9 @@ const techniques = {
 
     // When several ALSs generate the same node pair, prefer this size.
     const preferredAlsSize = normalizedOptions.preferredAlsSize ?? null;
+    const preferSmallestAls = normalizedOptions.preferSmallestAls === true;
+    const requireAlsCellSubsetForDominance =
+      normalizedOptions.requireAlsCellSubsetForDominance === true;
 
     const alses = techniques._collectAllALS(board, pencils);
     const candidateLinks = [];
@@ -8485,8 +8321,22 @@ const techniques = {
       return subNode.cells.every((id) => superNode.cells.includes(id));
     };
 
-    // Subset-reduction stage.
+    // Subset-reduction stage. isSubset() only holds between nodes of the
+    // same digit, so a link can only be dominated by one carrying the same
+    // unordered digit pair - bucket by that pair instead of scanning all.
     const finalLinks = [];
+    const linksByDigitPair = new Map();
+    for (const link of candidateLinks) {
+      const left = link.nodeA.digits[0];
+      const right = link.nodeB.digits[0];
+      const pairKey = left < right ? left * 10 + right : right * 10 + left;
+      let bucket = linksByDigitPair.get(pairKey);
+      if (!bucket) {
+        bucket = [];
+        linksByDigitPair.set(pairKey, bucket);
+      }
+      bucket.push(link);
+    }
 
     for (let i = 0; i < candidateLinks.length; i++) {
       const candidate = candidateLinks[i];
@@ -8504,10 +8354,18 @@ const techniques = {
 
       let isDominated = false;
 
-      for (let j = 0; j < candidateLinks.length; j++) {
-        if (i === j) continue;
+      const digitLeft = nodeA.digits[0];
+      const digitRight = nodeB.digits[0];
+      const peers =
+        linksByDigitPair.get(
+          digitLeft < digitRight
+            ? digitLeft * 10 + digitRight
+            : digitRight * 10 + digitLeft,
+        ) || [];
 
-        const other = candidateLinks[j];
+      for (let j = 0; j < peers.length; j++) {
+        const other = peers[j];
+        if (other === candidate) continue;
 
         const directlyDominated =
           isSubset(other.nodeA, nodeA) && isSubset(other.nodeB, nodeB);
@@ -8515,15 +8373,24 @@ const techniques = {
         const reverseDominated =
           isSubset(other.nodeA, nodeB) && isSubset(other.nodeB, nodeA);
 
-        if (directlyDominated || reverseDominated) {
-          const differentNodeSizes =
-            other.nodeA.cells.length !== nodeA.cells.length ||
-            other.nodeB.cells.length !== nodeB.cells.length;
+        if (!directlyDominated && !reverseDominated) continue;
 
-          if (differentNodeSizes) {
-            isDominated = true;
-            break;
-          }
+        const differentNodeSizes =
+          other.nodeA.cells.length !== nodeA.cells.length ||
+          other.nodeB.cells.length !== nodeB.cells.length;
+        if (!differentNodeSizes) continue;
+
+        const otherAlsCellsAreSubset =
+          !requireAlsCellSubsetForDominance ||
+          other.als.cells.every(([r, c]) =>
+            als.cells.some(
+              ([alsRow, alsColumn]) => alsRow === r && alsColumn === c,
+            ),
+          );
+
+        if (otherAlsCellsAreSubset) {
+          isDominated = true;
+          break;
         }
       }
 
@@ -8551,6 +8418,11 @@ const techniques = {
 
       if (!existing) {
         pairMap.set(nodeB, als);
+        return;
+      }
+
+      if (preferSmallestAls) {
+        if (als.cells.length < existing.cells.length) pairMap.set(nodeB, als);
         return;
       }
 
@@ -8913,6 +8785,7 @@ const techniques = {
     return techniques._templatingCache[num];
   },
 
+  _solvedBoardCache: { signature: null, board: null },
   _sharedAICCache: { signature: null, cache: null },
 
   /**
@@ -8956,6 +8829,88 @@ const techniques = {
    * board signature, so repeated technique calls on the same position solve
    * only once.
    */
+  _getSolvedBoard: (board) => {
+    const signature = board.map((row) => row.join("")).join("");
+    const cache = techniques._solvedBoardCache;
+    if (cache.signature === signature) return cache.board;
+
+    const grid = new Int8Array(81);
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) grid[r * 9 + c] = board[r][c];
+    }
+    const rowMasks = new Int32Array(9);
+    const colMasks = new Int32Array(9);
+    const boxMasks = new Int32Array(9);
+    const boxOf = (id) =>
+      Math.floor(Math.floor(id / 9) / 3) * 3 + Math.floor((id % 9) / 3);
+    for (let id = 0; id < 81; id++) {
+      const digit = grid[id];
+      if (!digit) continue;
+      const bit = 1 << digit;
+      rowMasks[Math.floor(id / 9)] |= bit;
+      colMasks[id % 9] |= bit;
+      boxMasks[boxOf(id)] |= bit;
+    }
+
+    const allDigits = 0x3fe;
+    const fill = () => {
+      let bestId = -1;
+      let bestMask = 0;
+      let bestCount = 10;
+      for (let id = 0; id < 81; id++) {
+        if (grid[id]) continue;
+        const mask =
+          allDigits &
+          ~(
+            rowMasks[Math.floor(id / 9)] |
+            colMasks[id % 9] |
+            boxMasks[boxOf(id)]
+          );
+        let count = 0;
+        let bits = mask;
+        while (bits !== 0) {
+          bits &= bits - 1;
+          count++;
+        }
+        if (count === 0) return false;
+        if (count < bestCount) {
+          bestCount = count;
+          bestId = id;
+          bestMask = mask;
+          if (count === 1) break;
+        }
+      }
+      if (bestId < 0) return true;
+
+      const row = Math.floor(bestId / 9);
+      const col = bestId % 9;
+      const box = boxOf(bestId);
+      let bits = bestMask;
+      while (bits !== 0) {
+        const low = bits & -bits;
+        grid[bestId] = 31 - Math.clz32(low);
+        rowMasks[row] |= low;
+        colMasks[col] |= low;
+        boxMasks[box] |= low;
+        if (fill()) return true;
+        grid[bestId] = 0;
+        rowMasks[row] &= ~low;
+        colMasks[col] &= ~low;
+        boxMasks[box] &= ~low;
+        bits &= bits - 1;
+      }
+      return false;
+    };
+
+    cache.signature = signature;
+    cache.board = fill()
+      ? Array.from({ length: 9 }, (_, r) =>
+          Array.from({ length: 9 }, (_, c) => grid[r * 9 + c]),
+        )
+      : null;
+    return cache.board;
+  },
+
   _resetAICCache: () => {
     techniques._templatingCache = null;
     techniques._aicCache = {
@@ -10016,15 +9971,6 @@ const techniques = {
             const removalBitset = trueNode.NandBitset;
             let dnRemovals = extractRemovals(removalBitset);
 
-            // Matching-end techniques only eliminate the shared endpoint
-            // digit; any other candidates in the true node's weak-link mask
-            // are not part of this deduction.
-            if (endSameDigits) {
-              dnRemovals = dnRemovals.filter(
-                (removal) => removal.num === A.digits[0],
-              );
-            }
-
             // A basic node proven true is a placement. In the subset cases the
             // proven node is always the superset, so it is never basic there.
             const dnPlacement =
@@ -10583,6 +10529,8 @@ const techniques = {
                 mask: currentMask,
                 size: k,
                 candMap: candMap,
+                unitType: name,
+                unitIndex: i,
                 unitName: t("teks_msg_17", label, i + 1),
                 hash: hash,
                 positions: positions,
@@ -11292,13 +11240,7 @@ const techniques = {
   },
 
   // --- Almost AIC ---
-
   _almostAicMaxBranchNodes: 16,
-
-  /**
-   * Builds (and caches per board state) the alternating-inference graph the
-   * Almost AIC branches walk on. All three stem kinds share one graph.
-   */
   _buildAlmostAicGraph: (board, pencils) => {
     techniques._useSharedAICCache(board, pencils);
     const cache = techniques._aicCache;
@@ -11384,8 +11326,6 @@ const techniques = {
     orMap = techniques.mergeOrMaps(orMap, cache.FishMap);
 
     // 2. Flatten to index based adjacency so a branch walk stays cheap.
-    // Basic nodes are always kept: a stem candidate has to be walkable even
-    // when it carries no OR gate of its own.
     const nodes = [];
     for (const node of allNodes) {
       const neighbors = orMap.get(node);
@@ -11421,8 +11361,6 @@ const techniques = {
       if (node.cells.length === 1) singleCellNodes[node.cells[0]].push(node);
     }
 
-    // Weak links follow the generic AIC rules: same-digit visibility plus
-    // the other candidates of a single cell.
     const nandAdj = nodes.map((node) => {
       if (node.digits.length !== 1) return Int32Array.from([]);
 
@@ -13948,10 +13886,6 @@ const techniques = {
 
           const checkType3 = () => {
             const type3Results = [];
-            // ------------------------------------------------------------
-            // 1. Validate Oddagon extra cells
-            // ------------------------------------------------------------
-
             for (const cell of extraCells) {
               const mask = allCellMasks[cell];
 
@@ -13967,33 +13901,17 @@ const techniques = {
             if (sharedHouses.length === 0) {
               return null;
             }
-
-            // ------------------------------------------------------------
-            // 2. Determine the Oddagon extra digits
-            // ------------------------------------------------------------
-
             let extraCellsUnionMask = 0;
-
             for (const cell of extraCells) {
               extraCellsUnionMask |= allCellMasks[cell];
             }
-
             if ((extraCellsUnionMask & comparer) !== comparer) {
               return null;
             }
-
             const otherDigitsMask = extraCellsUnionMask & ~comparer;
             const otherDigitsCount = popCount(otherDigitsMask);
-
-            // ------------------------------------------------------------
-            // 3. Search each house shared by all extra cells
-            // ------------------------------------------------------------
-
             for (const house of sharedHouses) {
-              // If d1 or d2 is already solved in this house,
-              // this house cannot be used for this Type 3 deduction.
               let hasPairValue = false;
-
               for (const cell of housesMap[house]) {
                 const r = Math.floor(cell / 9);
                 const c = cell % 9;
@@ -14004,30 +13922,18 @@ const techniques = {
                   break;
                 }
               }
-
               if (hasPairValue) {
                 continue;
               }
-
-              // ----------------------------------------------------------
-              // 4. Candidate cells for the ALS
-              // ----------------------------------------------------------
-
               const otherCellsInHouse = [];
-
               for (const cell of housesMap[house]) {
                 const r = Math.floor(cell / 9);
                 const c = cell % 9;
-
                 if (board[r][c] === 0 && !loop.includes(cell)) {
                   otherCellsInHouse.push(cell);
                 }
               }
-
-              // The ALS must be large enough to cover all Oddagon
-              // extra digits.
               const minimumSize = otherDigitsCount - 1;
-
               for (
                 let size = minimumSize;
                 size <= otherCellsInHouse.length;
@@ -14039,12 +13945,7 @@ const techniques = {
                   otherCellsInHouse,
                   size,
                 )) {
-                  // ------------------------------------------------------
-                  // 5. Build the FULL candidate union of this ALS
-                  // ------------------------------------------------------
-
                   let comboMask = 0;
-
                   for (const cell of combo) {
                     comboMask |= allCellMasks[cell];
                   }
@@ -14059,13 +13960,7 @@ const techniques = {
                   if ((comboMask & otherDigitsMask) !== otherDigitsMask) {
                     continue;
                   }
-
-                  // ------------------------------------------------------
-                  // 6. Eliminate ALS candidates elsewhere in the house
-                  // ------------------------------------------------------
-
                   const elimMap = [];
-
                   for (const cell of housesMap[house]) {
                     const r = Math.floor(cell / 9);
                     const c = cell % 9;
@@ -14077,9 +13972,7 @@ const techniques = {
                     ) {
                       continue;
                     }
-
                     const removableMask = allCellMasks[cell] & comboMask;
-
                     for (let digit = 1; digit <= 9; digit++) {
                       const bit = 1 << (digit - 1);
 
@@ -14092,11 +13985,6 @@ const techniques = {
                       }
                     }
                   }
-
-                  // ------------------------------------------------------
-                  // 7. Return Type 3 result
-                  // ------------------------------------------------------
-
                   if (elimMap.length > 0) {
                     const subsetStr = combo
                       .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
@@ -14622,5 +14510,2224 @@ const techniques = {
       }
     }
     return findAll ? results : { change: false };
+  },
+
+  _applyBlossomVisuals: (blossom, removals) => {
+    highlightedDigit = null;
+    highlightState = 0;
+    const usedAlses = blossom.alses;
+    const burrNodes = blossom.burr;
+    const paths = [blossom.mainPath, ...blossom.branches];
+    const alsColorIndices = [6, 7, 2, 3, 4, 5, 8, 1];
+    usedAlses.forEach((als, index) => {
+      const color =
+        cellColorPalette[alsColorIndices[index % alsColorIndices.length]];
+      for (const [r, c] of als.cells) {
+        if (window.addCellColor) {
+          window.addCellColor(r, c, color);
+        } else {
+          const existing = boardState[r][c].cellColor;
+          boardState[r][c].cellColor = existing
+            ? Array.isArray(existing)
+              ? [...new Set([...existing, color])]
+              : existing === color
+                ? existing
+                : [existing, color]
+            : color;
+        }
+      }
+    });
+
+    for (const node of burrNodes) {
+      for (const id of node.cells) {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        if (boardState[r][c].pencils.has(node.digits[0])) {
+          window.addCandidateColor?.(
+            r,
+            c,
+            node.digits[0],
+            candidateColorPalette[6],
+          );
+        }
+      }
+    }
+
+    const drawnGroupedNodeKeys = new Set();
+    const closest = (left, right) => {
+      let pair = [left.cells[0], right.cells[0]];
+      let distance = Infinity;
+      for (const x of left.cells) {
+        for (const y of right.cells) {
+          const next =
+            Math.abs(Math.floor(x / 9) - Math.floor(y / 9)) +
+            Math.abs((x % 9) - (y % 9));
+          if (next < distance) {
+            distance = next;
+            pair = [x, y];
+          }
+        }
+      }
+      return pair;
+    };
+
+    paths.forEach((path, pathIndex) => {
+      const isBurringLoop = pathIndex === 0;
+      const candidateColors = isBurringLoop ? [4, 2] : [7, 5, 8, 3];
+      const lineColorIndex = isBurringLoop
+        ? 0
+        : 1 + ((pathIndex - 1) % Math.max(1, lineColorPalette.length - 1));
+      path.forEach((node, nodeIndex) => {
+        const color = candidateColors[nodeIndex % candidateColors.length];
+        for (const id of node.cells) {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (boardState[r][c].pencils.has(node.digits[0])) {
+            window.addCandidateColor?.(
+              r,
+              c,
+              node.digits[0],
+              candidateColorPalette[color],
+            );
+          }
+        }
+      });
+
+      path.forEach((node, nodeIndex) => {
+        if (node.cells.length < 2) return;
+        const key = `${node.digits[0]}:${[...node.cells]
+          .sort((a, b) => a - b)
+          .join(",")}`;
+        if (drawnGroupedNodeKeys.has(key)) return;
+        drawnGroupedNodeKeys.add(key);
+
+        const groupLineColorIndex = nodeIndex % 2 === 0 ? 5 : 4;
+        for (let i = 0; i + 1 < node.cells.length; i++) {
+          const left = node.cells[i];
+          const right = node.cells[i + 1];
+          drawnLines.push({
+            r1: Math.floor(left / 9),
+            c1: left % 9,
+            n1: node.digits[0],
+            r2: Math.floor(right / 9),
+            c2: right % 9,
+            n2: node.digits[0],
+            color: lineColorPalette[groupLineColorIndex],
+            style: "solid",
+            role: isBurringLoop ? "blossom-main-group" : "blossom-branch-group",
+          });
+        }
+      });
+      for (let i = 0; i + 1 < path.length; i++) {
+        const [x, y] = closest(path[i], path[i + 1]);
+        drawnLines.push({
+          r1: Math.floor(x / 9),
+          c1: x % 9,
+          n1: path[i].digits[0],
+          r2: Math.floor(y / 9),
+          c2: y % 9,
+          n2: path[i + 1].digits[0],
+          color: lineColorPalette[lineColorIndex],
+          style: i % 2 === 0 ? "dash" : "solid",
+          role: isBurringLoop ? "blossom-main" : "blossom-branch",
+        });
+      }
+    });
+
+    for (const el of removals) {
+      boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
+    }
+  },
+
+  _blossomLoopCore: (
+    board,
+    pencils,
+    isRegion,
+    findAll = false,
+    focusKindOverride = null,
+  ) => {
+    const focusKind = focusKindOverride || (isRegion ? "region" : "cell");
+    techniques._useSharedAICCache(board, pencils);
+    const cache = techniques._aicCache;
+    if (cache.AllNodes.length === 0) {
+      const bitsets = techniques.buildCandidateBitsets(board, pencils);
+      const baseNodes = techniques.generateBasicNodesFromBitsets(bitsets);
+      for (const node of baseNodes) {
+        const key = `${node.digits.join(",")}_${node.cells.join(",")}`;
+        cache.NodeCache.set(key, node);
+        cache.AllNodes.push(node);
+      }
+    }
+
+    const allNodes = cache.AllNodes;
+    const nodeCache = cache.NodeCache;
+    const getNode = (cells, digit) => {
+      const sortedCells = [...cells].sort((a, b) => a - b);
+      const key = `${digit}_${sortedCells.join(",")}`;
+      if (nodeCache.has(key)) return nodeCache.get(key);
+      const node = new AICNode(sortedCells, [digit]);
+      nodeCache.set(key, node);
+      allNodes.push(node);
+      return node;
+    };
+
+    let orMap = new Map();
+    for (const node of allNodes) orMap.set(node, new Set());
+
+    if (cache.BilocationOrMap.size === 0) {
+      cache.BilocationOrMap = techniques.buildBilocationOrMap(allNodes);
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.BilocationOrMap);
+
+    if (cache.BivalueOrMap.size === 0) {
+      cache.BivalueOrMap = techniques.buildBivalueOrMap(allNodes);
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.BivalueOrMap);
+
+    if (cache.GroupedOrMap.size === 0) {
+      cache.GroupedOrMap = techniques.buildGroupedOrMap(
+        pencils,
+        (cells, digit) => getNode(cells, digit),
+        cache.GroupedLinkRegistry,
+      );
+    }
+    orMap = techniques.mergeOrMaps(orMap, cache.GroupedOrMap);
+
+    const blossomAlsPolicyKey = "blossom-full-sectors";
+    let blossomAlsPolicy = cache.AlsPolicyCache.get(blossomAlsPolicyKey);
+    if (!blossomAlsPolicy) {
+      const registry = new Map();
+      const map = techniques.buildAlsOrMap(
+        board,
+        pencils,
+        (cells, digit) => getNode(cells, digit),
+        registry,
+        {
+          preferSmallestAls: true,
+          requireAlsCellSubsetForDominance: false,
+        },
+      );
+      blossomAlsPolicy = { map, registry };
+      cache.AlsPolicyCache.set(blossomAlsPolicyKey, blossomAlsPolicy);
+    }
+    const blossomAlsMap = blossomAlsPolicy.map;
+    const blossomAlsLinkRegistry = blossomAlsPolicy.registry;
+    orMap = techniques.mergeOrMaps(orMap, blossomAlsMap);
+    const alsEdgeSize = (left, right) =>
+      blossomAlsLinkRegistry.get(left)?.get(right)?.cells.length || 0;
+    const nodeAlsSizeCache = new WeakMap();
+    const minimumAlsEdgeSize = (node) => {
+      if (nodeAlsSizeCache.has(node)) return nodeAlsSizeCache.get(node);
+      let minimum = Infinity;
+      for (const neighbor of blossomAlsMap.get(node) || []) {
+        minimum = Math.min(minimum, alsEdgeSize(node, neighbor));
+      }
+      nodeAlsSizeCache.set(node, minimum);
+      return minimum;
+    };
+
+    let blossomSearchCache = cache.BlossomSearchCache;
+    if (
+      !blossomSearchCache ||
+      blossomSearchCache.nodeCount !== allNodes.length
+    ) {
+      const orNodes = [];
+      const orNodeSet = new Set();
+      for (const [node, neighbors] of orMap) {
+        if (neighbors.size > 0 && !orNodeSet.has(node)) {
+          orNodeSet.add(node);
+          orNodes.push(node);
+        }
+        for (const neighbor of neighbors) {
+          if (!orNodeSet.has(neighbor)) {
+            orNodeSet.add(neighbor);
+            orNodes.push(neighbor);
+          }
+        }
+      }
+
+      const nodeIndices = new Map(allNodes.map((node, index) => [node, index]));
+      const orNodeOrder = new Map(orNodes.map((node, index) => [node, index]));
+      const nodesByCandidate = Array.from({ length: 9 * 81 }, () => []);
+      for (const node of orNodes) {
+        for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+          for (let part = 0; part < 3; part++) {
+            let bits = node.NodeBitset[digitIndex][part] >>> 0;
+            while (bits !== 0) {
+              const low = bits & -bits;
+              const bit = 31 - Math.clz32(low);
+              const id = part * 27 + bit;
+              if (id < 81) nodesByCandidate[digitIndex * 81 + id].push(node);
+              bits = (bits & (bits - 1)) >>> 0;
+            }
+          }
+        }
+      }
+
+      blossomSearchCache = {
+        nodeCount: allNodes.length,
+        orNodes,
+        nodeIndices,
+        orNodeOrder,
+        nodesByCandidate,
+        nandCache: new Map(),
+        reverseDistanceCache: new Map(),
+        mainNeighborOrderCache: new Map(),
+        burrNandOrderCache: new Map(),
+        burrOrOrderCache: new Map(),
+        branchPotentialCache: new Map(),
+        branchReachabilityCache: new Map(),
+        branchReverseStateEdges: null,
+        solvedBoard: null,
+      };
+      cache.BlossomSearchCache = blossomSearchCache;
+    }
+
+    const {
+      orNodes,
+      nodeIndices,
+      orNodeOrder,
+      nodesByCandidate,
+      nandCache,
+      reverseDistanceCache,
+      mainNeighborOrderCache,
+      burrNandOrderCache,
+      burrOrOrderCache,
+      branchPotentialCache,
+      branchReachabilityCache,
+    } = blossomSearchCache;
+
+    if (!blossomSearchCache.solvedBoard) {
+      blossomSearchCache.solvedBoard = techniques._getSolvedBoard(board);
+    }
+    const solvedBoard = blossomSearchCache.solvedBoard;
+
+    const nodeWordCache = new WeakMap();
+    const nodeWords = (node) => {
+      let words = nodeWordCache.get(node);
+      if (words) return words;
+      words = [];
+      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+        for (let part = 0; part < 3; part++) {
+          const bits = node.NodeBitset[digitIndex][part];
+          if (bits !== 0) words.push(digitIndex, part, bits);
+        }
+      }
+      nodeWordCache.set(node, words);
+      return words;
+    };
+    const isNodeWithinMask = (node, mask) => {
+      const words = nodeWords(node);
+      for (let i = 0; i < words.length; i += 3) {
+        const bits = words[i + 2];
+        if ((mask[words[i]][words[i + 1]] & bits) !== bits) return false;
+      }
+      return true;
+    };
+
+    const nandNeighbors = (source) => {
+      if (nandCache.has(source)) return nandCache.get(source);
+      const candidateSet = new Set();
+      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+        for (let part = 0; part < 3; part++) {
+          let bits = source.NandBitset[digitIndex][part] >>> 0;
+          while (bits !== 0) {
+            const low = bits & -bits;
+            const bit = 31 - Math.clz32(low);
+            const id = part * 27 + bit;
+            if (id < 81) {
+              for (const node of nodesByCandidate[digitIndex * 81 + id]) {
+                candidateSet.add(node);
+              }
+            }
+            bits = (bits & (bits - 1)) >>> 0;
+          }
+        }
+      }
+      const candidates = [...candidateSet].sort(
+        (left, right) => orNodeOrder.get(left) - orNodeOrder.get(right),
+      );
+      const neighbors = [];
+      for (const candidate of candidates) {
+        if (
+          candidate !== source &&
+          techniques.isBitsetSubset(candidate.NodeBitset, source.NandBitset)
+        ) {
+          neighbors.push(candidate);
+        }
+      }
+      nandCache.set(source, neighbors);
+      return neighbors;
+    };
+
+    const burrSets = [];
+    if (focusKind === "cell") {
+      for (let id = 0; id < 81; id++) {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        if (board[r][c] !== 0) continue;
+        const digits = [...pencils[r][c]].sort((a, b) => a - b);
+        if (digits.length < 3 || digits.length > 5) continue;
+        burrSets.push({
+          kind: "cell",
+          cells: [id],
+          digits,
+          nodes: digits.map((digit) => getNode([id], digit)),
+        });
+      }
+    } else if (focusKind === "region") {
+      for (let digit = 1; digit <= 9; digit++) {
+        for (let unit = 0; unit < 27; unit++) {
+          const cells = [];
+          for (let id = 0; id < 81; id++) {
+            const part = Math.floor(id / 27);
+            const bit = id % 27;
+            if ((UNIT_BITSETS[unit][part] & (1 << bit)) === 0) continue;
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            if (board[r][c] === 0 && pencils[r][c].has(digit)) cells.push(id);
+          }
+          if (cells.length < 3 || cells.length > 5) continue;
+          burrSets.push({
+            kind: "region",
+            unit,
+            cells,
+            digits: [digit],
+            nodes: cells.map((id) => getNode([id], digit)),
+          });
+        }
+      }
+    } else {
+      const seenAals = new Set();
+      const aalsUnitOrder = [
+        ...Array.from({ length: 9 }, (_, index) => 9 + index),
+        ...Array.from({ length: 9 }, (_, index) => index),
+        ...Array.from({ length: 9 }, (_, index) => 18 + index),
+      ];
+      for (const unit of aalsUnitOrder) {
+        const eligibleCells = [];
+        for (let id = 0; id < 81; id++) {
+          const part = Math.floor(id / 27);
+          const bit = id % 27;
+          if ((UNIT_BITSETS[unit][part] & (1 << bit)) === 0) continue;
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (board[r][c] === 0 && pencils[r][c].size >= 2) {
+            eligibleCells.push(id);
+          }
+        }
+        if (eligibleCells.length < 5) continue;
+
+        const maximumSize = eligibleCells.length - 2;
+        const choose = (start, size, cells) => {
+          if (cells.length === size) {
+            let unionMask = 0;
+            const digitCounts = Array(10).fill(0);
+            const digitCells = Array(10).fill(-1);
+            for (const id of cells) {
+              const r = Math.floor(id / 9);
+              const c = id % 9;
+              for (const digit of pencils[r][c]) {
+                unionMask |= 1 << digit;
+                digitCounts[digit]++;
+                digitCells[digit] = id;
+              }
+            }
+            if (techniques._bits.popcount(unionMask) !== size + 2) return;
+
+            const onlyDigits = [];
+            for (let digit = 1; digit <= 9; digit++) {
+              if (digitCounts[digit] === 1) onlyDigits.push(digit);
+            }
+            if (onlyDigits.length !== 3) return;
+
+            const key = [...cells].sort((a, b) => a - b).join(",");
+            if (seenAals.has(key)) return;
+            seenAals.add(key);
+            const allDigits = [];
+            for (let digit = 1; digit <= 9; digit++) {
+              if (unionMask & (1 << digit)) allDigits.push(digit);
+            }
+            const alsCells = cells.map((id) => [Math.floor(id / 9), id % 9]);
+            burrSets.push({
+              kind: "aals",
+              unit,
+              cells: [...cells],
+              digits: onlyDigits,
+              allDigits,
+              nodes: onlyDigits.map((digit) =>
+                getNode([digitCells[digit]], digit),
+              ),
+              als: {
+                cells: alsCells,
+                candidates: unionMask,
+                mask: unionMask,
+                size,
+                candMap: Object.fromEntries(
+                  allDigits.map((digit) => [
+                    digit,
+                    alsCells.filter(([r, c]) => pencils[r][c].has(digit)),
+                  ]),
+                ),
+                unitName: `AALS ${unit + 1}`,
+              },
+            });
+            return;
+          }
+          const needed = size - cells.length;
+          for (
+            let index = start;
+            index <= eligibleCells.length - needed;
+            index++
+          ) {
+            cells.push(eligibleCells[index]);
+            choose(index + 1, size, cells);
+            cells.pop();
+          }
+        };
+
+        for (let size = 3; size <= maximumSize; size++) {
+          choose(0, size, []);
+        }
+      }
+    }
+    const actualCandidate = (id, digit) => {
+      const r = Math.floor(id / 9);
+      const c = id % 9;
+      return board[r][c] === 0 && pencils[r][c]?.has(digit);
+    };
+    const candidateCode = (id, digit) => (digit - 1) * 81 + id;
+    const candidateId = (code) => code % 81;
+    const candidateDigit = (code) => Math.floor(code / 81) + 1;
+    const candidateTextKey = (code) =>
+      `${candidateId(code)}:${candidateDigit(code)}`;
+    const liveCandidateCodes = [];
+    for (let id = 0; id < 81; id++) {
+      const r = Math.floor(id / 9);
+      const c = id % 9;
+      if (board[r][c] !== 0) continue;
+      for (const digit of pencils[r][c]) {
+        liveCandidateCodes.push(candidateCode(id, digit));
+      }
+    }
+
+    const emptyMask = () => Array.from({ length: 9 }, () => [0, 0, 0]);
+
+    const maskToRemovals = (mask, burrKeys) => {
+      const removals = [];
+      for (let digit = 1; digit <= 9; digit++) {
+        for (let part = 0; part < 3; part++) {
+          let bits = mask[digit - 1][part] >>> 0;
+          while (bits !== 0) {
+            const low = bits & -bits;
+            const bit = 31 - Math.clz32(low);
+            const id = part * 27 + bit;
+            const key = candidateCode(id, digit);
+            if (id < 81 && !burrKeys.has(key) && actualCandidate(id, digit)) {
+              removals.push({ r: Math.floor(id / 9), c: id % 9, num: digit });
+            }
+            bits = (bits & (bits - 1)) >>> 0;
+          }
+        }
+      }
+      removals.sort((a, b) => a.r - b.r || a.c - b.c || a.num - b.num);
+      return removals;
+    };
+
+    const nodesShareCandidate = (left, right) => {
+      for (let d = 0; d < 9; d++) {
+        for (let p = 0; p < 3; p++) {
+          if ((left.NodeBitset[d][p] & right.NodeBitset[d][p]) !== 0) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    const sharesWithSet = (node, nodes) => {
+      for (const other of nodes) {
+        if (nodesShareCandidate(node, other)) return true;
+      }
+      return false;
+    };
+
+    const nodeCandidateKeyCache = new WeakMap();
+    const nodeCandidateKeys = (node) => {
+      let keys = nodeCandidateKeyCache.get(node);
+      if (!keys) {
+        keys = node.cells.map((id) => candidateCode(id, node.digits[0]));
+        nodeCandidateKeyCache.set(node, keys);
+      }
+      return keys;
+    };
+
+    const cellUnits = Array.from({ length: 81 }, (_, id) => [
+      Math.floor(id / 9),
+      9 + (id % 9),
+      18 + Math.floor(Math.floor(id / 9) / 3) * 3 + Math.floor((id % 9) / 3),
+    ]);
+    const candidateKeysByUnit = Array.from({ length: 9 }, (_, digitIndex) =>
+      Array.from({ length: 27 }, (_, unit) => {
+        const keys = [];
+        for (let id = 0; id < 81; id++) {
+          const part = Math.floor(id / 27);
+          const bit = id % 27;
+          if (
+            (UNIT_BITSETS[unit][part] & (1 << bit)) !== 0 &&
+            actualCandidate(id, digitIndex + 1)
+          ) {
+            keys.push(candidateCode(id, digitIndex + 1));
+          }
+        }
+        return keys;
+      }),
+    );
+    const cellCandidateKeys = Array.from({ length: 81 }, (_, id) => {
+      const r = Math.floor(id / 9);
+      const c = id % 9;
+      return [...pencils[r][c]]
+        .map((digit) => candidateCode(id, digit))
+        .sort((left, right) => left - right);
+    });
+    const buildTruthRegion = (keys) => {
+      const uniqueKeys = [...new Set(keys)].sort((left, right) => left - right);
+      return { uniqueKeys, signature: uniqueKeys.join("|") };
+    };
+    const cellTruthRegions = Array.from({ length: 81 }, (_, id) =>
+      buildTruthRegion(cellCandidateKeys[id]),
+    );
+    const linkTruthRegionCache = new Map();
+    const burrTruthRegionCache = new WeakMap();
+    const nandLinkChoiceCache = new Map();
+    const getAlsUnitIndex = (als) =>
+      als.unitType === "row"
+        ? als.unitIndex
+        : als.unitType === "col"
+          ? 9 + als.unitIndex
+          : als.unitType === "box"
+            ? 18 + als.unitIndex
+            : null;
+
+    const nodePairKey = (left, right) => {
+      const leftIndex = nodeIndices.get(left);
+      const rightIndex = nodeIndices.get(right);
+      return leftIndex < rightIndex
+        ? `${leftIndex}:${rightIndex}`
+        : `${rightIndex}:${leftIndex}`;
+    };
+
+    const linkTruthRegion = (left, right) => {
+      const cacheKey = nodePairKey(left, right);
+      let region = linkTruthRegionCache.get(cacheKey);
+      if (region === undefined) {
+        region = buildTruthRegion([
+          ...nodeCandidateKeys(left),
+          ...nodeCandidateKeys(right),
+        ]);
+        linkTruthRegionCache.set(cacheKey, region);
+      }
+      return region;
+    };
+
+    const burrTruthRegion = (burr) => {
+      let region = burrTruthRegionCache.get(burr);
+      if (region === undefined) {
+        region = buildTruthRegion(
+          burr.nodes.flatMap((node) => nodeCandidateKeys(node)),
+        );
+        burrTruthRegionCache.set(burr, region);
+      }
+      return region;
+    };
+
+    const nandLinkOptions = (left, right) => {
+      const cacheKey = nodePairKey(left, right);
+      const cached = nandLinkChoiceCache.get(cacheKey);
+      if (cached) return cached;
+
+      const options = [];
+      if (left.digits[0] !== right.digits[0]) {
+        if (
+          left.cells.length === 1 &&
+          right.cells.length === 1 &&
+          left.cells[0] === right.cells[0]
+        ) {
+          options.push(cellCandidateKeys[left.cells[0]]);
+        }
+        nandLinkChoiceCache.set(cacheKey, options);
+        return options;
+      }
+
+      const digit = left.digits[0];
+      const cells = [...new Set([...left.cells, ...right.cells])];
+      if (cells.length === 0) {
+        nandLinkChoiceCache.set(cacheKey, options);
+        return options;
+      }
+      const commonUnits = cellUnits[cells[0]].filter((unit) =>
+        cells.every((id) => cellUnits[id].includes(unit)),
+      );
+      const seen = new Set();
+      for (const unit of commonUnits) {
+        const keys = candidateKeysByUnit[digit - 1][unit];
+        const signature = keys.join("|");
+        if (!seen.has(signature)) {
+          seen.add(signature);
+          options.push(keys);
+        }
+      }
+      nandLinkChoiceCache.set(cacheKey, options);
+      return options;
+    };
+
+    const alsLinkCache = new Map();
+    const alsLinkContribution = (left, right, als) => {
+      const cacheKey = nodePairKey(left, right);
+      const cached = alsLinkCache.get(cacheKey);
+      if (cached !== undefined) return cached;
+
+      const regions = als.cells.map(([r, c]) => cellTruthRegions[r * 9 + c]);
+      const alsUnit = getAlsUnitIndex(als);
+      const endDigits = new Set([left.digits[0], right.digits[0]]);
+      const choices = [];
+      for (const textDigit of Object.keys(als.candMap)) {
+        const digit = Number(textDigit);
+        if (endDigits.has(digit)) continue;
+        const cells = als.candMap[digit].map(([r, c]) => r * 9 + c);
+        const options =
+          alsUnit === null
+            ? cellUnits[cells[0]]
+                .filter((unit) =>
+                  cells.every((id) => cellUnits[id].includes(unit)),
+                )
+                .map((unit) => candidateKeysByUnit[digit - 1][unit])
+            : [candidateKeysByUnit[digit - 1][alsUnit]];
+        if (options.length === 0) {
+          alsLinkCache.set(cacheKey, null);
+          return null;
+        }
+        choices.push(options);
+      }
+      const contribution = { regions, choices };
+      alsLinkCache.set(cacheKey, contribution);
+      return contribution;
+    };
+
+    const choiceInfoCache = new WeakMap();
+    const choiceSignatureIds = new Map();
+    const choiceInfo = (choice) => {
+      let info = choiceInfoCache.get(choice);
+      if (info) return info;
+      const uniqueKeys = [...new Set(choice)].sort(
+        (left, right) => left - right,
+      );
+      const signature = uniqueKeys.join("|");
+      let id = choiceSignatureIds.get(signature);
+      if (id === undefined) {
+        id = choiceSignatureIds.size;
+        choiceSignatureIds.set(signature, id);
+      }
+      info = { uniqueKeys, id };
+      choiceInfoCache.set(choice, info);
+      return info;
+    };
+
+    const captureProof = Boolean(globalThis.__BLOSSOM_CAPTURE_PROOFS__);
+    const evaluateStrictRankZero = (burr, paths) => {
+      const truths = new Uint16Array(729);
+      const truthKeys = [];
+      const nandChoices = [];
+      const truthRegionSignatures = new Set();
+      const truthRegions = captureProof ? [] : null;
+      const eliminationWitnesses = captureProof ? new Map() : null;
+      let duplicateTruthRegion = false;
+      let truthRegionCount = 0;
+
+      const addTruthRegion = (region) => {
+        const signature = region.signature;
+        if (truthRegionSignatures.has(signature)) {
+          duplicateTruthRegion = true;
+          return;
+        }
+        truthRegionSignatures.add(signature);
+        const uniqueKeys = region.uniqueKeys;
+        if (truthRegions) {
+          truthRegions.push(uniqueKeys.map(candidateTextKey));
+        }
+        truthRegionCount++;
+        for (let i = 0; i < uniqueKeys.length; i++) {
+          const key = uniqueKeys[i];
+          if (truths[key] === 0) truthKeys.push(key);
+          truths[key]++;
+        }
+      };
+      addTruthRegion(burrTruthRegion(burr));
+
+      for (const path of paths) {
+        for (let i = 0; i + 1 < path.length; i++) {
+          const left = path[i];
+          const right = path[i + 1];
+          if (i % 2 === 0) {
+            const choices = nandLinkOptions(left, right);
+            if (choices.length === 0) return null;
+            nandChoices.push(choices);
+            continue;
+          }
+
+          const als = blossomAlsLinkRegistry.get(left)?.get(right);
+          if (!als) {
+            addTruthRegion(linkTruthRegion(left, right));
+            continue;
+          }
+
+          const contribution = alsLinkContribution(left, right, als);
+          if (contribution === null) return null;
+          for (const region of contribution.regions) addTruthRegion(region);
+          for (const choices of contribution.choices) {
+            nandChoices.push(choices);
+          }
+        }
+      }
+
+      if (duplicateTruthRegion) return null;
+      if (nandChoices.length !== truthRegionCount) {
+        return null;
+      }
+
+      const removalMask = emptyMask();
+      let validCoverCount = 0;
+      let visitedCovers = 0;
+      const maxCovers = 20000;
+      const truthIndexByKey = new Int16Array(729).fill(-1);
+      for (let index = 0; index < truthKeys.length; index++) {
+        truthIndexByKey[truthKeys[index]] = index;
+      }
+      const remainingCoverage = new Array(nandChoices.length + 1);
+      remainingCoverage[nandChoices.length] = new Uint16Array(truthKeys.length);
+      for (let index = nandChoices.length - 1; index >= 0; index--) {
+        const coverage = new Uint16Array(remainingCoverage[index + 1]);
+        const locallyCovered = new Uint8Array(truthKeys.length);
+        for (const choice of nandChoices[index]) {
+          for (const key of choiceInfo(choice).uniqueKeys) {
+            const truthIndex = truthIndexByKey[key];
+            if (truthIndex >= 0) locallyCovered[truthIndex] = 1;
+          }
+        }
+        for (let truthIndex = 0; truthIndex < truthKeys.length; truthIndex++) {
+          coverage[truthIndex] += locallyCovered[truthIndex];
+        }
+        remainingCoverage[index] = coverage;
+      }
+
+      const visitChoices = (index, links, usedLinkSignatures, chosenCovers) => {
+        if (visitedCovers >= maxCovers) return;
+        const remaining = remainingCoverage[index];
+        for (let truthIndex = 0; truthIndex < truthKeys.length; truthIndex++) {
+          const key = truthKeys[truthIndex];
+          if (links[key] + remaining[truthIndex] < truths[key]) {
+            return;
+          }
+        }
+        if (index < nandChoices.length) {
+          for (const choice of nandChoices[index]) {
+            const { uniqueKeys, id } = choiceInfo(choice);
+            if (usedLinkSignatures.has(id)) continue;
+            usedLinkSignatures.add(id);
+            for (const key of uniqueKeys) links[key]++;
+            if (chosenCovers) chosenCovers.push(uniqueKeys);
+            visitChoices(index + 1, links, usedLinkSignatures, chosenCovers);
+            if (chosenCovers) chosenCovers.pop();
+            for (const key of uniqueKeys) links[key]--;
+            usedLinkSignatures.delete(id);
+            if (visitedCovers >= maxCovers) break;
+          }
+          return;
+        }
+
+        visitedCovers++;
+        validCoverCount++;
+        for (const key of liveCandidateCodes) {
+          if (links[key] <= truths[key]) continue;
+          const id = candidateId(key);
+          const digit = candidateDigit(key);
+          if (actualCandidate(id, digit)) {
+            const part = Math.floor(id / 27);
+            removalMask[digit - 1][part] |= 1 << (id % 27);
+            const textKey = captureProof ? candidateTextKey(key) : null;
+            if (eliminationWitnesses && !eliminationWitnesses.has(textKey)) {
+              eliminationWitnesses.set(
+                textKey,
+                chosenCovers.map((cover) => cover.map(candidateTextKey)),
+              );
+            }
+          }
+        }
+      };
+      visitChoices(
+        0,
+        new Uint16Array(729),
+        new Set(),
+        captureProof ? [] : null,
+      );
+      if (validCoverCount === 0) return null;
+
+      if (burr.kind === "aals") {
+        const onlyDigits = new Set(burr.digits);
+        for (const digit of burr.allDigits) {
+          if (onlyDigits.has(digit)) continue;
+          for (const key of candidateKeysByUnit[digit - 1][burr.unit]) {
+            const id = candidateId(key);
+            const part = Math.floor(id / 27);
+            removalMask[digit - 1][part] |= 1 << (id % 27);
+          }
+        }
+      }
+
+      if (captureProof) {
+        removalMask.validationProof = {
+          truthRegions,
+          eliminationWitnesses: Object.fromEntries(eliminationWitnesses),
+          validCoverCount,
+        };
+      }
+      return removalMask;
+    };
+
+    const candidateSlots = new Int32Array(729).fill(-1);
+    let assignedSlots = 0;
+    for (const key of liveCandidateCodes) {
+      candidateSlots[key] = assignedSlots++;
+    }
+    const MASK_WORDS = Math.max(1, Math.ceil(assignedSlots / 32));
+    const MASK_FOLD = MASK_WORDS;
+    const MASK_LENGTH = MASK_WORDS + 1;
+
+    let maskArena = new Uint32Array(MASK_LENGTH * 4096);
+    let maskArenaTop = 0;
+    const maskAlloc = () => {
+      const offset = maskArenaTop;
+      maskArenaTop = offset + MASK_LENGTH;
+      if (maskArenaTop > maskArena.length) {
+        let capacity = maskArena.length * 2;
+        while (capacity < maskArenaTop) capacity *= 2;
+        const grown = new Uint32Array(capacity);
+        grown.set(maskArena);
+        maskArena = grown;
+      }
+      return offset;
+    };
+    const volatileNodeMasks = [];
+    const releaseMasks = (mark) => {
+      while (volatileNodeMasks.length > 0) {
+        const node = volatileNodeMasks[volatileNodeMasks.length - 1];
+        if (nodeMaskCache.get(node) < mark) break;
+        nodeMaskCache.delete(node);
+        volatileNodeMasks.pop();
+      }
+      maskArenaTop = mark;
+    };
+    const newMask = () => {
+      const out = maskAlloc();
+      maskArena.fill(0, out, out + MASK_LENGTH);
+      return out;
+    };
+    const maskUnion = (left, right) => {
+      const out = maskAlloc();
+      const arena = maskArena;
+      for (let i = 0; i < MASK_LENGTH; i++) {
+        arena[out + i] = arena[left + i] | arena[right + i];
+      }
+      return out;
+    };
+    const maskWithout = (left, right) => {
+      const out = maskAlloc();
+      const arena = maskArena;
+      let fold = 0;
+      for (let i = 0; i < MASK_WORDS; i++) {
+        const word = arena[left + i] & ~arena[right + i];
+        arena[out + i] = word;
+        fold |= word;
+      }
+      arena[out + MASK_FOLD] = fold;
+      return out;
+    };
+    const maskIntersects = (left, right) => {
+      const arena = maskArena;
+      if ((arena[left + MASK_FOLD] & arena[right + MASK_FOLD]) === 0) {
+        return false;
+      }
+      for (let i = 0; i < MASK_WORDS; i++) {
+        if ((arena[left + i] & arena[right + i]) !== 0) return true;
+      }
+      return false;
+    };
+    const nodeMaskCache = new WeakMap();
+    let maskArenaFloor = Infinity;
+    const nodeMask = (node) => {
+      const cached = nodeMaskCache.get(node);
+      if (cached !== undefined) return cached;
+      const mask = newMask();
+      const arena = maskArena;
+      for (const digit of node.digits) {
+        for (const id of node.cells) {
+          const slot = candidateSlots[(digit - 1) * 81 + id];
+          if (slot < 0) continue;
+          arena[mask + (slot >>> 5)] |= 1 << (slot & 31);
+        }
+      }
+      let fold = 0;
+      for (let i = 0; i < MASK_WORDS; i++) fold |= arena[mask + i];
+      arena[mask + MASK_FOLD] = fold;
+      nodeMaskCache.set(node, mask);
+      if (mask >= maskArenaFloor) volatileNodeMasks.push(node);
+      return mask;
+    };
+    for (const node of allNodes) nodeMask(node);
+    maskArenaFloor = maskArenaTop;
+    const nodeMaskAt = new Int32Array(nodeIndices.size);
+    for (const [node, index] of nodeIndices) nodeMaskAt[index] = nodeMask(node);
+
+    const pathsMask = (paths) => {
+      const mask = newMask();
+      for (const path of paths) {
+        for (const node of path) {
+          const nodeBits = nodeMask(node);
+          const arena = maskArena;
+          for (let i = 0; i < MASK_LENGTH; i++) {
+            arena[mask + i] |= arena[nodeBits + i];
+          }
+        }
+      }
+      return mask;
+    };
+
+    const focusMaskWithout = (burrNodes, allowed) => {
+      const mask = newMask();
+      for (const node of burrNodes) {
+        if (node === allowed) continue;
+        const nodeBits = nodeMask(node);
+        const arena = maskArena;
+        for (let i = 0; i < MASK_LENGTH; i++) {
+          arena[mask + i] |= arena[nodeBits + i];
+        }
+      }
+      return mask;
+    };
+
+    const nodeSlot = (node) => {
+      const index = nodeIndices.get(node);
+      return index === undefined ? 0 : index + 1;
+    };
+    const stateId = (node, expectNand) =>
+      nodeSlot(node) * 2 + (expectNand ? 1 : 0);
+    const STATE_PREDECESSOR_BUCKETS = 8;
+    const stateBucketKey = (state, predecessorIndex) =>
+      state * STATE_PREDECESSOR_BUCKETS +
+      (predecessorIndex & (STATE_PREDECESSOR_BUCKETS - 1));
+
+    const reconstructWorkPath = (records, index) => {
+      const path = [];
+      while (index >= 0) {
+        const record = records[index];
+        path.push(record.node);
+        index = record.parent;
+      }
+      path.reverse();
+      return path;
+    };
+
+    const foldWithoutCore = (mask, core) => {
+      const arena = maskArena;
+      let fold = 0;
+      for (let i = 0; i < MASK_WORDS; i++) {
+        fold |= arena[mask + i] & ~arena[core + i];
+      }
+      return fold;
+    };
+
+    const retainUndominatedMask = (seen, key, usedMask, coreMask) => {
+      const arena = maskArena;
+      const usedFold = foldWithoutCore(usedMask, coreMask);
+      const notUsedFold = ~usedFold;
+      const store = seen.get(key);
+      if (store === undefined) {
+        const data = new Int32Array(16);
+        data[0] = usedMask;
+        data[1] = usedFold;
+        seen.set(key, { data, count: 2 });
+        return true;
+      }
+
+      const data = store.data;
+      const count = store.count;
+      for (let index = 0; index < count; index += 2) {
+        if ((data[index + 1] & notUsedFold) !== 0) continue;
+        const prior = data[index];
+        let contained = true;
+        for (let word = 0; word < MASK_WORDS; word++) {
+          if ((arena[prior + word] & ~arena[usedMask + word]) !== 0) {
+            contained = false;
+            break;
+          }
+        }
+        if (contained) return false;
+      }
+      if (count === data.length) {
+        const grown = new Int32Array(count * 2);
+        grown.set(data);
+        grown[count] = usedMask;
+        grown[count + 1] = usedFold;
+        store.data = grown;
+      } else {
+        data[count] = usedMask;
+        data[count + 1] = usedFold;
+      }
+      store.count = count + 2;
+      return true;
+    };
+    function* iterateMainPaths(start, finish, burrNodes, maxStates = 30000) {
+      const arenaMark = maskArenaTop;
+      try {
+        yield* iterateMainPathsFrom(start, finish, burrNodes, maxStates);
+      } finally {
+        releaseMasks(arenaMark);
+      }
+    }
+
+    function* iterateMainPathsFrom(
+      start,
+      finish,
+      burrNodes,
+      maxStates = 30000,
+    ) {
+      const stateKey = stateId;
+      let distance = reverseDistanceCache.get(finish);
+      if (!distance) {
+        distance = new Map();
+        const reverseQueue = [{ node: finish, expectNand: false }];
+        distance.set(stateKey(finish, false), 0);
+        for (let head = 0; head < reverseQueue.length; head++) {
+          const state = reverseQueue[head];
+          const priorExpectNand = !state.expectNand;
+          const predecessors = priorExpectNand
+            ? nandNeighbors(state.node)
+            : orMap.get(state.node) || new Set();
+          for (const predecessor of predecessors) {
+            const key = stateKey(predecessor, priorExpectNand);
+            if (distance.has(key)) continue;
+            distance.set(
+              key,
+              distance.get(stateKey(state.node, state.expectNand)) + 1,
+            );
+            reverseQueue.push({
+              node: predecessor,
+              expectNand: priorExpectNand,
+            });
+          }
+        }
+        reverseDistanceCache.set(finish, distance);
+      }
+
+      const orderedNeighbors = (node, expectNand) => {
+        const orderKey = `${nodeIndices.get(finish)}:${nodeIndices.get(node)}:${
+          expectNand ? 1 : 0
+        }`;
+        const cached = mainNeighborOrderCache.get(orderKey);
+        if (cached) return cached;
+
+        const neighbors = [
+          ...(expectNand ? nandNeighbors(node) : orMap.get(node) || new Set()),
+        ];
+        if (
+          expectNand &&
+          !neighbors.includes(finish) &&
+          techniques.isBitsetSubset(finish.NodeBitset, node.NandBitset)
+        ) {
+          neighbors.push(finish);
+        }
+        neighbors.sort((left, right) => {
+          const leftAlsSize = expectNand
+            ? minimumAlsEdgeSize(left)
+            : alsEdgeSize(node, left);
+          const rightAlsSize = expectNand
+            ? minimumAlsEdgeSize(right)
+            : alsEdgeSize(node, right);
+          return (
+            leftAlsSize - rightAlsSize ||
+            orNodeOrder.get(left) - orNodeOrder.get(right)
+          );
+        });
+        const indices = new Int32Array(neighbors.length);
+        for (let i = 0; i < neighbors.length; i++) {
+          indices[i] = nodeIndices.get(neighbors[i]);
+        }
+        const entry = { nodes: neighbors, indices };
+        mainNeighborOrderCache.set(orderKey, entry);
+        return entry;
+      };
+
+      const blockedFocusMask = maskWithout(
+        focusMaskWithout(burrNodes, start),
+        nodeMask(finish),
+      );
+      const records = [
+        {
+          node: start,
+          nodeIndex: nodeIndices.get(start),
+          expectNand: true,
+          parent: -1,
+          usedMask: nodeMask(start),
+        },
+      ];
+      const seen = new Map();
+      const seenCore = nodeMask(start);
+      const startState = stateKey(start, true);
+      retainUndominatedMask(
+        seen,
+        stateBucketKey(startState, nodeIndices.get(start)),
+        seenCore,
+        seenCore,
+      );
+
+      for (
+        let head = 0;
+        head < records.length && records.length < maxStates;
+        head++
+      ) {
+        const current = records[head];
+        const nextExpectNand = !current.expectNand;
+        const nextStateBase = nextExpectNand ? 1 : 0;
+        const neighbors = orderedNeighbors(current.node, current.expectNand);
+        const neighborNodes = neighbors.nodes;
+        const neighborIndices = neighbors.indices;
+        for (let i = 0; i < neighborNodes.length; i++) {
+          const next = neighborNodes[i];
+          if (next === finish) {
+            if (!current.expectNand) continue;
+            let cursor = head;
+            let alreadyUsedFinish = false;
+            while (cursor >= 0) {
+              if (records[cursor].node === finish) {
+                alreadyUsedFinish = true;
+                break;
+              }
+              cursor = records[cursor].parent;
+            }
+            if (alreadyUsedFinish) continue;
+            const terminalIndex = records.length;
+            records.push({
+              node: finish,
+              nodeIndex: neighborIndices[i],
+              expectNand: false,
+              parent: head,
+              usedMask: maskUnion(current.usedMask, nodeMask(finish)),
+            });
+            yield reconstructWorkPath(records, terminalIndex);
+            if (records.length >= maxStates) return;
+            continue;
+          }
+
+          const nextIndex = neighborIndices[i];
+          const nextMask = nodeMaskAt[nextIndex];
+          if (
+            maskIntersects(nextMask, current.usedMask) ||
+            maskIntersects(nextMask, blockedFocusMask)
+          ) {
+            continue;
+          }
+          const nextState = (nextIndex + 1) * 2 + nextStateBase;
+          if (!distance.has(nextState)) continue;
+
+          const usedMask = maskUnion(current.usedMask, nextMask);
+          if (
+            !retainUndominatedMask(
+              seen,
+              stateBucketKey(nextState, current.nodeIndex),
+              usedMask,
+              seenCore,
+            )
+          ) {
+            continue;
+          }
+          records.push({
+            node: next,
+            nodeIndex: nextIndex,
+            expectNand: nextExpectNand,
+            parent: head,
+            usedMask,
+          });
+          if (records.length >= maxStates) return;
+        }
+      }
+    }
+
+    const alsInteriorCache = new Map();
+    const alsInteriorNodes = (left, right, als) => {
+      const cacheKey = nodePairKey(left, right);
+      let nodes = alsInteriorCache.get(cacheKey);
+      if (nodes !== undefined) return nodes;
+      nodes = [];
+      const endDigits = new Set([left.digits[0], right.digits[0]]);
+      for (const textDigit of Object.keys(als.candMap)) {
+        const digit = Number(textDigit);
+        if (endDigits.has(digit)) continue;
+        nodes.push(
+          getNode(
+            als.candMap[digit].map(([r, c]) => r * 9 + c),
+            digit,
+          ),
+        );
+      }
+      alsInteriorCache.set(cacheKey, nodes);
+      return nodes;
+    };
+
+    const getMainPotentialMask = (mainPath) => {
+      const potentialMask = emptyMask();
+      for (let i = 0; i + 1 < mainPath.length; i += 2) {
+        const left = mainPath[i];
+        const right = mainPath[i + 1];
+        for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+          for (let part = 0; part < 3; part++) {
+            potentialMask[digitIndex][part] |=
+              left.NandBitset[digitIndex][part] &
+              right.NandBitset[digitIndex][part];
+          }
+        }
+      }
+
+      for (let i = 1; i + 1 < mainPath.length; i += 2) {
+        const left = mainPath[i];
+        const right = mainPath[i + 1];
+        const als = blossomAlsLinkRegistry.get(left)?.get(right);
+        if (!als) continue;
+
+        for (const internalNode of alsInteriorNodes(left, right, als)) {
+          const digit = internalNode.digits[0];
+          for (let part = 0; part < 3; part++) {
+            potentialMask[digit - 1][part] |=
+              internalNode.NandBitset[digit - 1][part];
+          }
+        }
+      }
+      return potentialMask;
+    };
+
+    const isBurrEndInMainPotential = (branch, mainPotentialMask) => {
+      if (branch.length < 2) return true;
+      const end = branch[branch.length - 1];
+      const digit = end.digits[0];
+      return end.cells.every((id) => {
+        const part = Math.floor(id / 27);
+        const bit = id % 27;
+        return (mainPotentialMask[digit - 1][part] & (1 << bit)) !== 0;
+      });
+    };
+
+    const orderedBurrNeighbors = (node, expectNand) => {
+      const orderCache = expectNand ? burrNandOrderCache : burrOrOrderCache;
+      const cached = orderCache.get(node);
+      if (cached) return cached;
+
+      const neighbors = [
+        ...(expectNand ? nandNeighbors(node) : orMap.get(node) || new Set()),
+      ];
+      neighbors.sort((left, right) => {
+        const leftAlsSize = expectNand
+          ? minimumAlsEdgeSize(left)
+          : alsEdgeSize(node, left);
+        const rightAlsSize = expectNand
+          ? minimumAlsEdgeSize(right)
+          : alsEdgeSize(node, right);
+        return (
+          leftAlsSize - rightAlsSize ||
+          orNodeOrder.get(left) - orNodeOrder.get(right)
+        );
+      });
+      const indices = new Int32Array(neighbors.length);
+      for (let i = 0; i < neighbors.length; i++) {
+        indices[i] = nodeIndices.get(neighbors[i]);
+      }
+      const entry = { nodes: neighbors, indices };
+      orderCache.set(node, entry);
+      return entry;
+    };
+
+    const potentialMaskKey = (potentialMask) => {
+      let key = "";
+      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+        const parts = potentialMask[digitIndex];
+        key += parts[0] + "," + parts[1] + "," + parts[2] + ";";
+      }
+      return key;
+    };
+
+    const getBranchReachability = (potentialMask) => {
+      const potentialKey = potentialMaskKey(potentialMask);
+      const cached = branchPotentialCache.get(potentialKey);
+      if (cached) return cached;
+
+      const nodeCount = nodeIndices.size;
+      const stateCount = nodeCount * 2;
+
+      if (!blossomSearchCache.branchReverseStateEdges) {
+        const reverseStateEdges = Array.from({ length: stateCount }, () => []);
+        for (const source of orNodes) {
+          const sourceIndex = nodeIndices.get(source);
+          if (sourceIndex === undefined) continue;
+          for (const target of nandNeighbors(source)) {
+            const targetIndex = nodeIndices.get(target);
+            if (targetIndex !== undefined) {
+              reverseStateEdges[targetIndex * 2].push(sourceIndex * 2 + 1);
+            }
+          }
+          for (const target of orMap.get(source) || []) {
+            const targetIndex = nodeIndices.get(target);
+            if (targetIndex !== undefined) {
+              reverseStateEdges[targetIndex * 2 + 1].push(sourceIndex * 2);
+            }
+          }
+        }
+        blossomSearchCache.branchReverseStateEdges = reverseStateEdges;
+      }
+
+      const within = new Uint8Array(nodeCount);
+      for (const [node, index] of nodeIndices) {
+        if (isNodeWithinMask(node, potentialMask)) {
+          within[index] = 1;
+        }
+      }
+
+      let eligibleTerminalBits = 0n;
+      const terminalStates = [];
+      for (const terminal of orNodes) {
+        const terminalIndex = nodeIndices.get(terminal);
+        if (terminalIndex === undefined || within[terminalIndex] === 0) {
+          continue;
+        }
+        eligibleTerminalBits |= 1n << BigInt(terminalIndex);
+        terminalStates.push(terminalIndex * 2 + 1);
+      }
+
+      let reachable = branchReachabilityCache.get(eligibleTerminalBits);
+      if (!reachable) {
+        reachable = new Uint8Array(stateCount);
+        const queue = new Int32Array(stateCount);
+        let queueHead = 0;
+        let queueTail = 0;
+        for (const state of terminalStates) {
+          if (reachable[state] !== 0) continue;
+          reachable[state] = 1;
+          queue[queueTail++] = state;
+        }
+        const reverseStateEdges = blossomSearchCache.branchReverseStateEdges;
+        while (queueHead < queueTail) {
+          const state = queue[queueHead++];
+          for (const predecessor of reverseStateEdges[state]) {
+            if (reachable[predecessor] !== 0) continue;
+            reachable[predecessor] = 1;
+            queue[queueTail++] = predecessor;
+          }
+        }
+        branchReachabilityCache.set(eligibleTerminalBits, reachable);
+        if (branchReachabilityCache.size > 4096) {
+          branchReachabilityCache.delete(
+            branchReachabilityCache.keys().next().value,
+          );
+        }
+      }
+
+      const entry = { reachable, within };
+      branchPotentialCache.set(potentialKey, entry);
+      return entry;
+    };
+
+    // Branch chains outlive the per-main-path arena marks, so they keep their
+    // candidate masks in a store of their own rather than in the mask arena.
+    // Layout matches the arena: MASK_WORDS words plus the fold word that
+    // maskIntersects uses as a quick reject.
+    let chainStore = new Uint32Array(MASK_LENGTH * 8192);
+    let chainStoreTop = 0;
+    const chainStoreReset = () => {
+      chainStoreTop = 0;
+    };
+    const chainAlloc = () => {
+      const offset = chainStoreTop;
+      chainStoreTop = offset + MASK_LENGTH;
+      if (chainStoreTop > chainStore.length) {
+        let capacity = chainStore.length * 2;
+        while (capacity < chainStoreTop) capacity *= 2;
+        const grown = new Uint32Array(capacity);
+        grown.set(chainStore);
+        chainStore = grown;
+      }
+      return offset;
+    };
+
+    const chainTableCache = new Map();
+    const chainTableKey = (burr, remaining) => {
+      let key = burr.kind + (burr.unit === undefined ? "" : burr.unit);
+      for (const node of burr.nodes) key += "," + nodeIndices.get(node);
+      key += "|";
+      for (const node of remaining) key += "," + nodeIndices.get(node);
+      return key;
+    };
+
+    const buildChainsForRoot = (
+      burr,
+      remaining,
+      rootIndex,
+      unionReach,
+      maxStates,
+    ) => {
+      const root = remaining[rootIndex];
+      const unionWithin = unionReach.within;
+      const unionReachable = unionReach.reachable;
+      const overrides = new Uint8Array(nodeIndices.size * 2);
+      const canReachTerminalAt = (nodeIndex, node, expectNand) => {
+        const stateIndex = nodeIndex * 2 + (expectNand ? 1 : 0);
+        if (unionReachable[stateIndex] === 1) return true;
+        const known = overrides[stateIndex];
+        if (known !== 0) return known === 3;
+        const neighbors = expectNand
+          ? nandNeighbors(node)
+          : orMap.get(node) || [];
+        const nextExpectNand = !expectNand;
+        let reaches = false;
+        for (const next of neighbors) {
+          const nextIndex = nodeIndices.get(next);
+          if (
+            nextIndex !== undefined &&
+            unionReachable[nextIndex * 2 + (nextExpectNand ? 1 : 0)] === 1
+          ) {
+            reaches = true;
+            break;
+          }
+        }
+        overrides[stateIndex] = reaches ? 3 : 2;
+        return reaches;
+      };
+
+      const arenaMark = maskArenaTop;
+      const chains = [];
+      const rootMaskOffset = nodeMask(root);
+      const blockedFocusMask = focusMaskWithout(burr.nodes, root);
+      const records = [
+        {
+          node: root,
+          nodeIndex: nodeIndices.get(root),
+          expectNand: true,
+          parent: -1,
+          usedMask: rootMaskOffset,
+        },
+      ];
+      const seen = new Map();
+      retainUndominatedMask(
+        seen,
+        stateBucketKey(stateId(root, true), nodeIndices.get(root)),
+        rootMaskOffset,
+        rootMaskOffset,
+      );
+
+      const materialise = (head) => {
+        const nodes = [];
+        let cursor = head;
+        while (cursor >= 0) {
+          nodes.push(records[cursor].node);
+          cursor = records[cursor].parent;
+        }
+        nodes.reverse();
+        const offset = chainAlloc();
+        const source = records[head].usedMask;
+        for (let i = 0; i < MASK_LENGTH; i++) {
+          chainStore[offset + i] = maskArena[source + i];
+        }
+        let gateCoverMask = 0;
+        if (burr.kind === "region" && nodes.length > 1) {
+          const gateOptions = nandLinkOptions(nodes[0], nodes[1]);
+          for (let index = 0; index < remaining.length; index++) {
+            if (index === rootIndex) continue;
+            const focusKeys = nodeCandidateKeys(remaining[index]);
+            if (
+              gateOptions.some((option) =>
+                focusKeys.every((key) => option.includes(key)),
+              )
+            ) {
+              gateCoverMask |= 1 << index;
+            }
+          }
+        }
+        chains.push({
+          nodes,
+          endIndex: records[head].nodeIndex,
+          maskOffset: offset,
+          gateCoverMask,
+        });
+      };
+
+      for (
+        let head = 0;
+        head < records.length && records.length < maxStates;
+        head++
+      ) {
+        const current = records[head];
+        if (current.expectNand && unionWithin[current.nodeIndex] === 1) {
+          materialise(head);
+        }
+        const expectNand = !current.expectNand;
+        const stateBase = expectNand ? 1 : 0;
+        const neighbors = orderedBurrNeighbors(
+          current.node,
+          current.expectNand,
+        );
+        const neighborNodes = neighbors.nodes;
+        const neighborIndices = neighbors.indices;
+        for (let i = 0; i < neighborNodes.length; i++) {
+          const nextIndex = neighborIndices[i];
+          const nextMask = nodeMaskAt[nextIndex];
+          if (
+            maskIntersects(nextMask, current.usedMask) ||
+            maskIntersects(nextMask, blockedFocusMask)
+          ) {
+            continue;
+          }
+          const next = neighborNodes[i];
+          if (!canReachTerminalAt(nextIndex, next, expectNand)) continue;
+          const usedMask = maskUnion(current.usedMask, nextMask);
+          const key = stateBucketKey(
+            (nextIndex + 1) * 2 + stateBase,
+            current.nodeIndex,
+          );
+          if (!retainUndominatedMask(seen, key, usedMask, rootMaskOffset)) {
+            continue;
+          }
+          records.push({
+            node: next,
+            nodeIndex: nextIndex,
+            expectNand,
+            parent: head,
+            usedMask,
+          });
+          if (records.length >= maxStates) break;
+        }
+      }
+      releaseMasks(arenaMark);
+      // Grouped by end node: a main path admits or rejects a whole group with
+      // one lookup. Chain by chain, that test was 79% of the join's work.
+      const byEnd = new Map();
+      for (const chain of chains) {
+        let group = byEnd.get(chain.endIndex);
+        if (group === undefined) {
+          group = [];
+          byEnd.set(chain.endIndex, group);
+        }
+        group.push(chain);
+      }
+      return {
+        ends: Int32Array.from(byEnd.keys()),
+        groups: [...byEnd.values()],
+      };
+    };
+
+    const chainTableRebuilds = (burr, remaining) => {
+      const table = chainTableCache.get(chainTableKey(burr, remaining));
+      return table === undefined ? 0 : table.rebuilds || 0;
+    };
+
+    const primeChainTable = (burr, remaining, seedMask) => {
+      const key = chainTableKey(burr, remaining);
+      let table = chainTableCache.get(key);
+      if (!table) {
+        table = { unionMask: emptyMask(), byRoot: null, rebuilds: 0 };
+        chainTableCache.set(key, table);
+      }
+      const unionMask = table.unionMask;
+      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+        for (let part = 0; part < 3; part++) {
+          unionMask[digitIndex][part] |= seedMask[digitIndex][part];
+        }
+      }
+      table.byRoot = null;
+    };
+
+    const getChainTable = (burr, remaining, mainPotentialMask, maxStates) => {
+      const key = chainTableKey(burr, remaining);
+      let table = chainTableCache.get(key);
+      let grew = false;
+      if (!table) {
+        table = { unionMask: emptyMask(), byRoot: null, rebuilds: 0 };
+        chainTableCache.set(key, table);
+      }
+      const unionMask = table.unionMask;
+      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+        const into = unionMask[digitIndex];
+        const from = mainPotentialMask[digitIndex];
+        for (let part = 0; part < 3; part++) {
+          const bits = from[part];
+          if ((into[part] & bits) !== bits) {
+            into[part] |= bits;
+            grew = true;
+          }
+        }
+      }
+      if (grew || table.byRoot === null) {
+        table.rebuilds = (table.rebuilds || 0) + 1;
+        // A widened union invalidates every chain mask, so the store is rebuilt
+        // from scratch and the other tables are marked stale.
+        chainStoreReset();
+        for (const entry of chainTableCache.values()) {
+          if (entry !== table) entry.byRoot = null;
+        }
+        const unionReach = getBranchReachability(unionMask);
+        const byRoot = [];
+        for (let index = 0; index < remaining.length; index++) {
+          byRoot.push(
+            buildChainsForRoot(burr, remaining, index, unionReach, maxStates),
+          );
+        }
+        table.byRoot = byRoot;
+      }
+      return table;
+    };
+
+    // Scratch used-candidate masks for the join, one level per remaining root.
+    let joinScratch = new Uint32Array(MASK_LENGTH * 8);
+    const joinScratchGrow = (levels) => {
+      const need = MASK_LENGTH * (levels + 2);
+      if (need > joinScratch.length) {
+        const grown = new Uint32Array(need * 2);
+        grown.set(joinScratch);
+        joinScratch = grown;
+      }
+    };
+    const chainHitsScratch = (chainOffset, scratchOffset) => {
+      if (
+        (chainStore[chainOffset + MASK_FOLD] &
+          joinScratch[scratchOffset + MASK_FOLD]) ===
+        0
+      ) {
+        return false;
+      }
+      for (let i = 0; i < MASK_WORDS; i++) {
+        if (
+          (chainStore[chainOffset + i] & joinScratch[scratchOffset + i]) !==
+          0
+        ) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    function* iterateIntegratedBranches(
+      burr,
+      mainPath,
+      remaining,
+      mainPotentialMask,
+      maxStates = 30000,
+    ) {
+      if (remaining.length === 0) {
+        yield [];
+        return;
+      }
+      const arenaMark = maskArenaTop;
+      try {
+        const table = getChainTable(
+          burr,
+          remaining,
+          mainPotentialMask,
+          maxStates,
+        );
+        const within = getBranchReachability(mainPotentialMask).within;
+        joinScratchGrow(remaining.length + 1);
+        const mainUsedMask = pathsMask([mainPath]);
+        for (let i = 0; i < MASK_LENGTH; i++) {
+          joinScratch[i] = maskArena[mainUsedMask + i];
+        }
+        yield* joinChains(burr, remaining, table.byRoot, within, 0, 0, [], {
+          budget: maxStates,
+        });
+      } finally {
+        releaseMasks(arenaMark);
+      }
+    }
+
+    function* joinChains(
+      burr,
+      remaining,
+      byRoot,
+      within,
+      depth,
+      coveredMask,
+      completed,
+      counter,
+    ) {
+      let rootIndex = -1;
+      for (let index = 0; index < remaining.length; index++) {
+        if ((coveredMask & (1 << index)) === 0) {
+          rootIndex = index;
+          break;
+        }
+      }
+      if (rootIndex < 0) {
+        yield completed;
+        return;
+      }
+      const usedOffset = depth * MASK_LENGTH;
+      const nextOffset = usedOffset + MASK_LENGTH;
+      const entry = byRoot[rootIndex];
+      const ends = entry.ends;
+      const groups = entry.groups;
+      const isRegion = burr.kind === "region";
+      for (let e = 0; e < ends.length; e++) {
+        if (within[ends[e]] !== 1) continue;
+        const chains = groups[e];
+        for (let index = 0; index < chains.length; index++) {
+          if (counter.budget <= 0) return;
+          counter.budget--;
+          const chain = chains[index];
+          const offset = chain.maskOffset;
+          if (chainHitsScratch(offset, usedOffset)) continue;
+          for (let i = 0; i < MASK_LENGTH; i++) {
+            joinScratch[nextOffset + i] =
+              joinScratch[usedOffset + i] | chainStore[offset + i];
+          }
+          completed.push(chain.nodes);
+          yield* joinChains(
+            burr,
+            remaining,
+            byRoot,
+            within,
+            depth + 1,
+            isRegion
+              ? coveredMask | (1 << rootIndex) | chain.gateCoverMask
+              : coveredMask | (1 << rootIndex),
+            completed,
+            counter,
+          );
+          completed.pop();
+        }
+      }
+    }
+
+    const getLoc = (cells, preferBox = false) => {
+      const ids = [...new Set(cells)].sort((a, b) => a - b);
+      if (ids.length === 0) return "";
+
+      if (ids.length === 1) {
+        const r = Math.floor(ids[0] / 9);
+        const c = ids[0] % 9;
+        if (preferBox) {
+          const box = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
+          const position = (r % 3) * 3 + (c % 3) + 1;
+          return `b${box}p${position}`;
+        }
+        return `r${r + 1}c${c + 1}`;
+      }
+
+      const rows = [...new Set(ids.map((id) => Math.floor(id / 9) + 1))];
+      const cols = [...new Set(ids.map((id) => (id % 9) + 1))];
+      const boxes = [
+        ...new Set(
+          ids.map(
+            (id) =>
+              Math.floor(Math.floor(id / 9) / 3) * 3 +
+              Math.floor((id % 9) / 3) +
+              1,
+          ),
+        ),
+      ];
+      if (preferBox && boxes.length === 1) {
+        const positions = ids.map((id) => {
+          const r = Math.floor(id / 9) % 3;
+          const c = (id % 9) % 3;
+          return r * 3 + c + 1;
+        });
+        return `b${boxes[0]}p${positions.join("")}`;
+      }
+      if (rows.length === 1) return `r${rows[0]}c${cols.join("")}`;
+      if (cols.length === 1) return `r${rows.join("")}c${cols[0]}`;
+      return ids
+        .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+        .join("");
+    };
+
+    const getAlsForLink = (left, right) =>
+      blossomAlsLinkRegistry.get(left)?.get(right) || null;
+
+    const getAlsText = (left, right, als) => {
+      const ids = als.cells.map(([r, c]) => r * 9 + c);
+      const preferBox = als.unitName && als.unitName.includes(t("teks_msg_7"));
+      return `(${left.digits[0]}=${right.digits[0]})${getLoc(ids, preferBox)}`;
+    };
+
+    const getPlainNodeText = (node, previousDigit = null) => {
+      const digit = node.digits[0];
+      return `${previousDigit === digit ? "" : `(${digit})`}${getLoc(node.cells)}`;
+    };
+
+    const buildBlossomEureka = (
+      path,
+      initialText = null,
+      initialDigit = null,
+    ) => {
+      if (path.length === 0) return "";
+      let text = initialText || getPlainNodeText(path[0]);
+      let lastDigit = initialDigit ?? path[0].digits[0];
+      for (let i = 0; i + 1 < path.length; i += 2) {
+        const nandEnd = path[i + 1];
+        const orEnd = path[i + 2];
+        text += "-";
+
+        if (!orEnd) {
+          text += getPlainNodeText(nandEnd, lastDigit);
+          break;
+        }
+
+        const als = getAlsForLink(nandEnd, orEnd);
+        const isBivalueCell =
+          !als &&
+          nandEnd.digits[0] !== orEnd.digits[0] &&
+          nandEnd.cells.length === 1 &&
+          orEnd.cells.length === 1 &&
+          nandEnd.cells[0] === orEnd.cells[0];
+
+        if (als) {
+          text += getAlsText(nandEnd, orEnd, als);
+        } else if (isBivalueCell) {
+          text += `(${nandEnd.digits[0]}=${orEnd.digits[0]})${getLoc(nandEnd.cells)}`;
+        } else {
+          text += `${getPlainNodeText(nandEnd, lastDigit)}=${getPlainNodeText(
+            orEnd,
+            nandEnd.digits[0],
+          )}`;
+        }
+        lastDigit = orEnd.digits[0];
+      }
+      return `${text}-`;
+    };
+
+    const buildBurrBranchEureka = (burr, path, peerRoots = null) => {
+      const root = path[0];
+      const rootDigit = root.digits[0];
+      const peers = peerRoots || burr.nodes.filter((node) => node !== root);
+      if (burr.kind === "cell" || burr.kind === "aals") {
+        const otherDigits = peers
+          .map((node) => node.digits[0])
+          .sort((a, b) => a - b)
+          .join("");
+        const gate = `(${otherDigits}=${rootDigit})${getLoc(
+          burr.cells,
+          burr.kind === "aals" && burr.unit >= 18,
+        )}`;
+        return buildBlossomEureka(path, gate, rootDigit);
+      }
+      const otherCells = peers.flatMap((node) => node.cells);
+      const gate = `(${rootDigit})${getLoc(otherCells)}=${getLoc(root.cells)}`;
+      return buildBlossomEureka(path, gate, rootDigit);
+    };
+
+    const buildMultiBurrGate = (burr, mainPath, branches) => {
+      const mainRoots = [mainPath[0], mainPath[mainPath.length - 1]];
+      const branchRoots = branches.map((path) => path[0]);
+      if (burr.kind === "cell" || burr.kind === "aals") {
+        const mainDigits = mainRoots
+          .map((node) => node.digits[0])
+          .sort((a, b) => a - b)
+          .join("");
+        const branchDigits = branchRoots
+          .map((node) => node.digits[0])
+          .sort((a, b) => a - b)
+          .join("");
+        return `(${mainDigits}=${branchDigits})${getLoc(
+          burr.cells,
+          burr.kind === "aals" && burr.unit >= 18,
+        )}`;
+      }
+
+      const digit = mainRoots[0].digits[0];
+      return `(${digit})${getLoc(mainRoots.flatMap((node) => node.cells))}=${getLoc(
+        branchRoots.flatMap((node) => node.cells),
+      )}`;
+    };
+
+    const getUsedAlses = (paths) => {
+      const used = [];
+      const seen = new Set();
+      for (const path of paths) {
+        for (let i = 1; i + 1 < path.length; i += 2) {
+          const als = getAlsForLink(path[i], path[i + 1]);
+          if (!als) continue;
+          const key = als.cells
+            .map(([r, c]) => r * 9 + c)
+            .sort((a, b) => a - b)
+            .join(",");
+          if (!seen.has(key)) {
+            seen.add(key);
+            used.push(als);
+          }
+        }
+      }
+      return used;
+    };
+
+    const formatRemovals = (removals) => {
+      const byCell = new Map();
+      for (const { r, c, num } of removals) {
+        const key = r * 9 + c;
+        if (!byCell.has(key)) byCell.set(key, []);
+        byCell.get(key).push(num);
+      }
+      return [...byCell.entries()]
+        .sort(([left], [right]) => left - right)
+        .map(([id, digits]) => {
+          digits.sort((a, b) => a - b);
+          return `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}<>${digits.join(",")}`;
+        })
+        .join(", ");
+    };
+
+    const results = [];
+    const resultKeys = new Set();
+    chainTableCache.clear();
+    chainStoreReset();
+
+    for (const burr of burrSets) {
+      const burrNodeSet = new Set(burr.nodes);
+      const burrKeys = new Set();
+      for (const node of burr.nodes) {
+        for (const id of node.cells) {
+          burrKeys.add(candidateCode(id, node.digits[0]));
+        }
+      }
+      if (burr.kind === "aals") {
+        for (const id of burr.cells) {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          for (const digit of pencils[r][c]) {
+            burrKeys.add(candidateCode(id, digit));
+          }
+        }
+      }
+
+      for (let a = 0; a < burr.nodes.length - 1; a++) {
+        for (let b = a + 1; b < burr.nodes.length; b++) {
+          if (solvedBoard && burr.kind !== "aals") {
+            let trueNode = null;
+            if (burr.kind === "cell") {
+              const id = burr.cells[0];
+              const solvedDigit = solvedBoard[Math.floor(id / 9)][id % 9];
+              trueNode = burr.nodes.find(
+                (node) => node.digits[0] === solvedDigit,
+              );
+            } else {
+              const trueCell = burr.cells.find(
+                (id) =>
+                  solvedBoard[Math.floor(id / 9)][id % 9] === burr.digits[0],
+              );
+              trueNode = burr.nodes.find((node) => node.cells[0] === trueCell);
+            }
+            if (
+              trueNode &&
+              burr.nodes[a] !== trueNode &&
+              burr.nodes[b] !== trueNode
+            ) {
+              continue;
+            }
+          }
+          const remaining = burr.nodes.filter(
+            (_, index) => index !== a && index !== b,
+          );
+          let primed = false;
+          const primeAfter = globalThis.__PRIME_AFTER ?? 1;
+          let selected = null;
+
+          for (const candidateMain of iterateMainPaths(
+            burr.nodes[a],
+            burr.nodes[b],
+            burr.nodes,
+          )) {
+            if (candidateMain.length < 4) continue;
+            if (
+              candidateMain.length === 4 &&
+              !blossomAlsLinkRegistry
+                .get(candidateMain[1])
+                ?.has(candidateMain[2]) &&
+              candidateMain[1].cells.length === 1 &&
+              candidateMain[2].cells.length === 1
+            ) {
+              continue;
+            }
+            if (!primed && chainTableRebuilds(burr, remaining) >= primeAfter) {
+              const seedMask = emptyMask();
+              for (const seedMain of iterateMainPaths(
+                burr.nodes[a],
+                burr.nodes[b],
+                burr.nodes,
+              )) {
+                if (seedMain.length < 4) continue;
+                const learned = getMainPotentialMask(seedMain);
+                for (let d = 0; d < 9; d++) {
+                  for (let p = 0; p < 3; p++) seedMask[d][p] |= learned[d][p];
+                }
+              }
+              primeChainTable(burr, remaining, seedMask);
+              primed = true;
+            }
+            const mainPotentialMask = getMainPotentialMask(candidateMain);
+            for (let branches of iterateIntegratedBranches(
+              burr,
+              candidateMain,
+              remaining,
+              mainPotentialMask,
+            )) {
+              if (!branches.some((path) => path.length > 1)) continue;
+              branches = branches.slice();
+              const paths = [candidateMain, ...branches];
+              const mask = evaluateStrictRankZero(burr, paths);
+              if (!mask) continue;
+
+              const trialStructureKeys = new Set(burrKeys);
+              for (const path of paths) {
+                for (const node of path) {
+                  for (const id of node.cells) {
+                    trialStructureKeys.add(candidateCode(id, node.digits[0]));
+                  }
+                }
+              }
+              if (maskToRemovals(mask, trialStructureKeys).length === 0) {
+                continue;
+              }
+              selected = {
+                mainPath: candidateMain,
+                branches,
+                removalMask: mask,
+              };
+              break;
+            }
+            if (selected) break;
+          }
+          if (!selected) continue;
+
+          const { mainPath, branches, removalMask } = selected;
+          const structureKeys = new Set(burrKeys);
+          for (const path of [mainPath, ...branches]) {
+            for (const node of path) {
+              for (const id of node.cells) {
+                structureKeys.add(candidateCode(id, node.digits[0]));
+              }
+            }
+          }
+          const removals = maskToRemovals(removalMask, structureKeys);
+          if (removals.length === 0) continue;
+
+          const removalKey = removals
+            .map((el) => `${el.r}:${el.c}:${el.num}`)
+            .join("|");
+          if (resultKeys.has(removalKey)) continue;
+          resultKeys.add(removalKey);
+
+          const burrText =
+            burr.kind === "cell"
+              ? `(${burr.digits.join("")})${getLoc(burr.cells)}`
+              : burr.kind === "region"
+                ? `(${burr.digits[0]})${getLoc(burr.cells)}`
+                : `AALS(${burr.allDigits.join("")})${getLoc(
+                    burr.cells,
+                    burr.unit >= 18,
+                  )}`;
+          const visibleBranches = branches.filter((path) => path.length > 1);
+          const allPaths = [mainPath, ...visibleBranches];
+          const usedAlses = getUsedAlses(allPaths);
+          if (burr.kind === "aals") usedAlses.unshift(burr.als);
+          const eurekaParts = [`[${buildBlossomEureka(mainPath)}]`];
+          if (visibleBranches.length > 1) {
+            eurekaParts.push(
+              buildMultiBurrGate(burr, mainPath, visibleBranches),
+            );
+            for (const path of visibleBranches) {
+              const peers = visibleBranches
+                .map((branch) => branch[0])
+                .filter((root) => root !== path[0]);
+              eurekaParts.push(`[${buildBurrBranchEureka(burr, path, peers)}]`);
+            }
+          } else {
+            eurekaParts.push(
+              ...visibleBranches.map((path) =>
+                buildBurrBranchEureka(burr, path),
+              ),
+            );
+          }
+          const eurekaText = `${eurekaParts.join(" + ")}`;
+
+          const result = {
+            change: true,
+            type: "remove",
+            cells: removals,
+            hint: {
+              name:
+                burr.kind === "cell"
+                  ? t("teks_msg_193")
+                  : burr.kind === "region"
+                    ? t("teks_msg_194")
+                    : t("teks_msg_196"),
+              mainInfo: t("teks_msg_195", burrText),
+              detail: eurekaText,
+            },
+            blossom: {
+              kind: burr.kind,
+              burrText,
+              burr: burr.nodes,
+              mainPath,
+              branches: visibleBranches,
+              alses: usedAlses,
+              rank: 0,
+              validationProof: removalMask.validationProof,
+              validationBranches: globalThis.__BLOSSOM_CAPTURE_PROOFS__
+                ? branches
+                : undefined,
+              validationMainPotential: globalThis.__BLOSSOM_CAPTURE_PROOFS__
+                ? getMainPotentialMask(mainPath)
+                : undefined,
+            },
+            applyVisuals: () =>
+              techniques._applyBlossomVisuals(result.blossom, removals),
+          };
+
+          if (!findAll) return result;
+          results.push(result);
+        }
+      }
+    }
+
+    return findAll ? results : { change: false };
+  },
+
+  blossomLoop: (board, pencils, findAll = false) => {
+    if (findAll) {
+      return [
+        ...techniques.cellBlossomLoop(board, pencils, true),
+        ...techniques.regionBlossomLoop(board, pencils, true),
+        ...techniques.aalsBlossomLoop(board, pencils, true),
+      ];
+    }
+    const cell = techniques.cellBlossomLoop(board, pencils, false);
+    if (cell.change) return cell;
+    const region = techniques.regionBlossomLoop(board, pencils, false);
+    if (region.change) return region;
+    return techniques.aalsBlossomLoop(board, pencils, false);
+  },
+
+  cellBlossomLoop: (board, pencils, findAll = false) => {
+    return techniques._blossomLoopCore(board, pencils, false, findAll);
+  },
+
+  regionBlossomLoop: (board, pencils, findAll = false) => {
+    return techniques._blossomLoopCore(board, pencils, true, findAll);
+  },
+
+  aalsBlossomLoop: (board, pencils, findAll = false) => {
+    return techniques._blossomLoopCore(board, pencils, false, findAll, "aals");
   },
 };

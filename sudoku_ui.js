@@ -337,6 +337,96 @@ async function updateVatSearchingButton(button, techniqueName, runId) {
   return runId === vatSearchRunId && isViewAllTechniquesMode;
 }
 
+function getBlossomWorkerKind(func) {
+  if (func === techniques.blossomLoop) return "all";
+  if (func === techniques.cellBlossomLoop) return "cell";
+  if (func === techniques.regionBlossomLoop) return "region";
+  if (func === techniques.aalsBlossomLoop) return "aals";
+  return null;
+}
+
+function hydrateBlossomWorkerResult(result) {
+  const kind = result.blossom.kind;
+  result.hint.name =
+    kind === "cell"
+      ? t("teks_msg_193")
+      : kind === "region"
+        ? t("teks_msg_194")
+        : t("teks_msg_196");
+  result.hint.mainInfo = t("teks_msg_195", result.blossom.burrText);
+  result.applyVisuals = () =>
+    techniques._applyBlossomVisuals(result.blossom, result.cells);
+  return result;
+}
+
+function runBlossomWorkerKind(kind, fallback, board, pencils, findAll) {
+  return new Promise((resolve) => {
+    let worker;
+    try {
+      worker = new Worker("sudoku/sudoku_blossom_worker.js");
+    } catch (error) {
+      console.warn(
+        "Blossom worker could not start; using the main thread.",
+        error,
+      );
+      resolve(fallback(board, pencils, findAll));
+      return;
+    }
+    let settled = false;
+    const finish = () => worker.terminate();
+    const runFallback = (error) => {
+      if (settled) return;
+      settled = true;
+      console.warn("Blossom worker failed; using the main thread.", error);
+      finish();
+      resolve(fallback(board, pencils, findAll));
+    };
+    worker.onmessage = ({ data }) => {
+      if (settled) return;
+      if (data.error) {
+        runFallback(new Error(data.error));
+        return;
+      }
+      settled = true;
+      finish();
+      const results = data.results.map(hydrateBlossomWorkerResult);
+      resolve(findAll ? results : results[0] || { change: false });
+    };
+    worker.onerror = (event) => {
+      runFallback(event.error || new Error(event.message));
+    };
+    worker.postMessage({
+      id: 1,
+      kind,
+      board,
+      candidateLists: pencils.map((row) => row.map((digits) => [...digits])),
+      findAll,
+    });
+  });
+}
+
+function runBlossomTechniqueInWorker(func, board, pencils, findAll = false) {
+  const kind = getBlossomWorkerKind(func);
+  if (!kind || typeof Worker === "undefined") {
+    return Promise.resolve(func(board, pencils, findAll));
+  }
+
+  if (kind === "all" && findAll) {
+    const variants = [
+      ["cell", techniques.cellBlossomLoop],
+      ["region", techniques.regionBlossomLoop],
+      ["aals", techniques.aalsBlossomLoop],
+    ];
+    return Promise.all(
+      variants.map(([workerKind, fallback]) =>
+        runBlossomWorkerKind(workerKind, fallback, board, pencils, true),
+      ),
+    ).then((groups) => groups.flat());
+  }
+
+  return runBlossomWorkerKind(kind, func, board, pencils, findAll);
+}
+
 const lastUsedColors = {
   draw: { solid: null, dash: null },
   color: { cell: null, candidate: null, circle: null, slash: null },
@@ -4485,12 +4575,15 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }
 
   if (puzzleData) {
-    await evaluateBoardDifficulty({ waitForFrame: false });
+    await evaluateBoardDifficulty({ waitForFrame: false, showProgress: true });
 
     // Retry once if the evaluation was interrupted or aborted.
     if (!isCustomDifficultyEvaluated) {
       currentEvaluationId++;
-      await evaluateBoardDifficulty({ waitForFrame: false });
+      await evaluateBoardDifficulty({
+        waitForFrame: false,
+        showProgress: true,
+      });
     }
   }
   // --- APPLY SAVED PROGRESS ---
@@ -4555,7 +4648,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
 
   // Evaluate AGAIN to update the Lamp color based on current (potentially resumed) progress
   isLoadingSavedGame = false;
-  await evaluateBoardDifficulty();
+  await evaluateBoardDifficulty({ showProgress: true });
 
   saveState();
 
@@ -5421,7 +5514,9 @@ async function buildViewAllTechniquesList(step) {
   for (const tech of activeTechniques) {
     if (typeof tech.func === "function") {
       // Pass true for the findAll parameter
-      const results = tech.func(board, pencils, true);
+      const results = getBlossomWorkerKind(tech.func)
+        ? await runBlossomTechniqueInWorker(tech.func, board, pencils, true)
+        : tech.func(board, pencils, true);
 
       if (Array.isArray(results) && results.length > 0) {
         results.forEach((res) => {
@@ -5693,7 +5788,14 @@ async function searchAndAppendVatLevel(
 
     try {
       // The button now visibly contains this exact technique name.
-      const results = tech.func(vatCurrentBoard, vatCurrentPencils, true);
+      const results = getBlossomWorkerKind(tech.func)
+        ? await runBlossomTechniqueInWorker(
+            tech.func,
+            vatCurrentBoard,
+            vatCurrentPencils,
+            true,
+          )
+        : tech.func(vatCurrentBoard, vatCurrentPencils, true);
 
       if (runId !== vatSearchRunId || !isViewAllTechniquesMode) return false;
 
@@ -6440,17 +6542,18 @@ function setupTimelineDragging() {
   });
 }
 
+const MESSAGE_COLOR_CLASSES = [
+  "text-red-600",
+  "text-green-600",
+  "text-blue-500",
+  "text-gray-600",
+  "text-orange-500",
+];
+
 function showMessage(text, color) {
   messageArea.innerHTML = "";
   messageArea.innerHTML = `<span>${text}</span>`;
-  const colorClasses = [
-    "text-red-600",
-    "text-green-600",
-    "text-blue-500",
-    "text-gray-600",
-    "text-orange-500",
-  ];
-  messageArea.classList.remove(...colorClasses);
+  messageArea.classList.remove(...MESSAGE_COLOR_CLASSES);
   const colors = {
     red: "text-red-600",
     green: "text-green-600",
@@ -6459,6 +6562,61 @@ function showMessage(text, color) {
     orange: "text-orange-500",
   };
   messageArea.classList.add(colors[color] || "text-gray-600");
+}
+
+// --- SOLVER ENGINE PROGRESS READOUT ---
+const SOLVER_PROGRESS_DELAY_MS = 40; // stay silent for fast evaluations
+const SOLVER_PROGRESS_INTERVAL_MS = 120; // repaint cadence while solving
+const SOLVER_PROGRESS_FRAME_TIMEOUT_MS = 50; // fallback when no frame comes
+const SOLVER_PROGRESS_COLOR_CLASS = "text-blue-500";
+
+// Waiting on an animation frame is what actually gets the readout painted;
+// a plain setTimeout only queues the next task, which the solver fills again
+// right away. The timer is a safety net: a hidden tab never fires rAF.
+function yieldForSolverProgress() {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, SOLVER_PROGRESS_FRAME_TIMEOUT_MS);
+    requestAnimationFrame(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+function countRemainingCandidates(pencils) {
+  let total = 0;
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) total += pencils[r][c].size;
+  }
+  return total;
+}
+
+let solverProgressPrevHtml = null;
+let solverProgressPrevClass = null;
+
+function renderSolverProgress(remaining, total, techName) {
+  if (!messageArea.querySelector(".solver-progress")) {
+    solverProgressPrevHtml = messageArea.innerHTML;
+    solverProgressPrevClass = messageArea.className;
+    messageArea.classList.remove(...MESSAGE_COLOR_CLASSES);
+    messageArea.classList.add(SOLVER_PROGRESS_COLOR_CLASS);
+  }
+  messageArea.innerHTML =
+    `<span class="solver-progress">` +
+    `<span>${t("solver_progress_remaining", remaining, total)}</span>` +
+    `<span class="solver-progress-stage">${t("solver_progress_searching", techName)}</span>` +
+    `</span>`;
+}
+
+function clearSolverProgress() {
+  if (!messageArea.querySelector(".solver-progress")) return;
+  // Put back whatever was showing before the readout took over.
+  messageArea.innerHTML = solverProgressPrevHtml || "";
+  if (solverProgressPrevClass !== null) {
+    messageArea.className = solverProgressPrevClass;
+  }
+  solverProgressPrevHtml = null;
+  solverProgressPrevClass = null;
 }
 
 function generateCompletionText(format = "discord") {
@@ -7184,7 +7342,15 @@ function getBoardStateHash(board, pencils) {
 }
 
 async function evaluateBoardDifficulty(opts = {}) {
-  const { waitForFrame = true, force = false } = opts;
+  try {
+    return await runBoardDifficultyEvaluation(opts);
+  } finally {
+    if (opts.showProgress) clearSolverProgress();
+  }
+}
+
+async function runBoardDifficultyEvaluation(opts = {}) {
+  const { waitForFrame = true, force = false, showProgress = false } = opts;
   if (isSolverMode && !force) return;
 
   const techniqueOrder = getActiveTechniques();
@@ -7311,6 +7477,10 @@ async function evaluateBoardDifficulty(opts = {}) {
 
   let maxDifficulty = 0;
   const solveStartTime = performance.now();
+  const progressTotalCandidates = showProgress
+    ? countRemainingCandidates(startingPencils)
+    : 0;
+  let lastProgressPaint = solveStartTime;
   if (IS_DEBUG_MODE) {
     console.clear();
     console.log(t("ui_msg_196"));
@@ -7367,8 +7537,34 @@ async function evaluateBoardDifficulty(opts = {}) {
         result = techniqueResultCache.get(cacheKey);
         // console.log(`Used cache ${tech.name}`);
       } else {
+        // Report the technique about to run, then yield so the browser can
+        // paint the progress before this (possibly long) search blocks.
+        // A hidden tab paints nothing and clamps timers, so skip it there.
+        if (showProgress && document.visibilityState === "visible") {
+          const nowMs = performance.now();
+          if (
+            nowMs - solveStartTime > SOLVER_PROGRESS_DELAY_MS &&
+            nowMs - lastProgressPaint > SOLVER_PROGRESS_INTERVAL_MS
+          ) {
+            renderSolverProgress(
+              countRemainingCandidates(startingPencils),
+              progressTotalCandidates,
+              tech.name,
+            );
+            await yieldForSolverProgress();
+            if (myEvaluationId !== currentEvaluationId) return;
+            lastProgressPaint = performance.now();
+            lastYieldTime = lastProgressPaint;
+          }
+        }
         // Run Technique
-        result = tech.func(virtualBoard, startingPencils);
+        result = getBlossomWorkerKind(tech.func)
+          ? await runBlossomTechniqueInWorker(
+              tech.func,
+              virtualBoard,
+              startingPencils,
+            )
+          : tech.func(virtualBoard, startingPencils);
         if (myEvaluationId !== currentEvaluationId) return;
         // Store in Cache (if safe)
         if (cacheKey) techniqueResultCache.set(cacheKey, result);
@@ -7957,6 +8153,13 @@ function getDefaultTechniques() {
       level: 10,
       score: 390,
     },
+    //{
+    //  nameKey: "ui_msg_352",
+    //  aliases: ["ui_msg_340", "ui_msg_341", "ui_msg_342"],
+    //  func: techniques.blossomLoop,
+    //  level: 10,
+    //  score: 400,
+    //},
     {
       nameKey: "ui_msg_299",
       func: techniques.complexAic,
@@ -9310,13 +9513,13 @@ async function handleUrlParameters() {
       hadUsedHint = true;
       currentEvaluationId++;
       showMessage(t("ui_msg_333"), "blue");
-      await evaluateBoardDifficulty({ waitForFrame: true });
+      await evaluateBoardDifficulty({ waitForFrame: true, showProgress: true });
 
       enterSolverModeUI();
     } else {
       // Re-evaluate with the actual progressed board state
       currentEvaluationId++;
-      await evaluateBoardDifficulty({ waitForFrame: true });
+      await evaluateBoardDifficulty({ waitForFrame: true, showProgress: true });
     }
     return true; // Successfully loaded from URL
   } else if (puzzleStr) {
@@ -9334,7 +9537,7 @@ async function handleUrlParameters() {
       hadUsedHint = true;
       currentEvaluationId++;
       showMessage(t("ui_msg_333"), "blue");
-      await evaluateBoardDifficulty({ waitForFrame: true });
+      await evaluateBoardDifficulty({ waitForFrame: true, showProgress: true });
 
       enterSolverModeUI();
     }
