@@ -343,10 +343,10 @@ html.dark .offline-cache-dot {
   background-color: #f87171;
 }
 .lamp-violet {
-  background-color: #8b5cf6; /* violet-500 */
+  background-color: #8b5cf6;
 }
 .lamp-blue {
-  background-color: #3b82f6; /* blue-500 */
+  background-color: #2563eb;
 }
 .lamp-gray {
   background-color: #9ca3af;
@@ -355,7 +355,7 @@ html.dark .offline-cache-dot {
   background-color: #111827;
 }
 .lamp-magenta {
-  background-color: #d946ef; /* Switched to fuchsia-500 */
+  background-color: #d946ef;
 }
 /* --- Component: Sudoku Grid & Cells --- */
 .sudoku-cell {
@@ -906,16 +906,16 @@ html.dark {
     background-color: #ef4444;
   } /* red-500 */
   .lamp-violet {
-    background-color: #a78bfa; /* violet-400, matches pattern of other dark mode colors */
+    background-color: #a78bfa;
   }
   .lamp-blue {
-    background-color: #60a5fa; /* blue-400 */
+    background-color: #1447e6;
   }
   .lamp-gray {
     background-color: #6b7280;
   } /* gray-500 */
   .lamp-magenta {
-    background-color: #c026d3; /* A stronger fuchsia-600 for dark mode */
+    background-color: #c026d3;
   }
 
   /* --- Sudoku Grid (Gray Theme) --- */
