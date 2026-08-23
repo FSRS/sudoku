@@ -42,6 +42,7 @@ const techniqueResultCache = new Map();
 const difficultyRatingCache = new Map();
 const puzzleValidityCache = new Map();
 const minDateNum = 20260301;
+const level11DailyFallbackLastDate = 20260823;
 const difficultyEngineStorageKey = "sudokuDifficultyEngine";
 const difficultyEngines = new Set(["skfr", "se", "old-se"]);
 // Display names only; the stored engine ids above must stay unchanged.
@@ -3942,7 +3943,7 @@ async function populateSelectors() {
   blankOption.hidden = true;
   levelSelect.appendChild(blankOption);
 
-  for (let i = 0; i <= 10; i++) {
+  for (let i = 0; i <= 11; i++) {
     const option = document.createElement("option");
     option.value = i;
     option.textContent = `${i} (${difficultyWords[i]})`;
@@ -4159,8 +4160,15 @@ async function findAndLoadSelectedPuzzle() {
   }
 
   const dateStr = dateSelect.value;
-  const selectedLevel = parseInt(levelSelect.value, 10);
+  let selectedLevel = parseInt(levelSelect.value, 10);
   const selectedDateInt = parseInt(dateStr, 10);
+  const shouldFallbackLevel11 =
+    selectedLevel === 11 && selectedDateInt <= level11DailyFallbackLastDate;
+
+  if (shouldFallbackLevel11) {
+    selectedLevel = 10;
+    levelSelect.value = String(selectedLevel);
+  }
 
   showMessage(t("ui_msg_140"), "blue");
 
@@ -4184,13 +4192,21 @@ async function findAndLoadSelectedPuzzle() {
       const decompressedPuzzle = decompressPuzzleString(rawPuzzle);
 
       puzzleStringInput.value = decompressedPuzzle;
-      loadPuzzle(decompressedPuzzle, puzzleData);
+      await loadPuzzle(decompressedPuzzle, puzzleData);
+      if (shouldFallbackLevel11) {
+        showMessage(t("ui_msg_level_11_fallback"), "orange");
+      }
     } else {
       throw new Error(t("ui_msg_141"));
     }
   } catch (err) {
     console.error(err);
-    if (await loadSavedDailyPuzzle(selectedDateInt, selectedLevel)) return;
+    if (await loadSavedDailyPuzzle(selectedDateInt, selectedLevel)) {
+      if (shouldFallbackLevel11) {
+        showMessage(t("ui_msg_level_11_fallback"), "orange");
+      }
+      return;
+    }
 
     initBoardState();
     onBoardUpdated();

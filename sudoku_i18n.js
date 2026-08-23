@@ -361,6 +361,8 @@ const TRANSLATIONS = {
     solver_progress_searching: "Searching {0}",
     ui_msg_141: "Puzzle level not found in daily file",
     ui_msg_142: "No puzzle found for this date and level.",
+    ui_msg_level_11_fallback:
+      "Level 11 is unavailable for this date. Loaded Level 10 instead.",
     ui_msg_143: "Fetching Unlimited Puzzle (Lv. {0})...",
     ui_msg_144: "Puzzle integrity check failed.",
     ui_msg_145: "Apply selected technique and re-evaluate from this step",
@@ -1178,6 +1180,8 @@ const TRANSLATIONS = {
     solver_progress_searching: "{0} 탐색 중",
     ui_msg_141: "일일 파일에서 퍼즐 레벨을 찾을 수 없습니다",
     ui_msg_142: "이 날짜와 레벨에 해당하는 퍼즐을 찾을 수 없습니다.",
+    ui_msg_level_11_fallback:
+      "이 날짜에는 레벨 11을 이용할 수 없어 레벨 10을 불러왔습니다.",
     ui_msg_143: "무제한 퍼즐 가져오는 중 (레벨 {0})...",
     ui_msg_144: "퍼즐 무결성 검사에 실패했습니다.",
     ui_msg_145: "선택한 기술을 적용하고 이 단계부터 재평가합니다.",
