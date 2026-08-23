@@ -359,44 +359,76 @@ function hydrateBlossomWorkerResult(result) {
   return result;
 }
 
+const blossomWorkers = new Map();
+
+function dropBlossomWorker(kind, entry, error) {
+  if (blossomWorkers.get(kind) === entry) blossomWorkers.delete(kind);
+  const abandoned = [...entry.pending.values()];
+  entry.pending.clear();
+  try {
+    entry.worker.terminate();
+  } catch (terminateError) {
+    console.warn("Blossom worker did not terminate.", terminateError);
+  }
+  for (const request of abandoned) request.fail(error);
+}
+
+function getBlossomWorker(kind) {
+  const existing = blossomWorkers.get(kind);
+  if (existing) return existing;
+  let worker;
+  try {
+    worker = new Worker("sudoku/sudoku_blossom_worker.js");
+  } catch (error) {
+    console.warn(
+      "Blossom worker could not start; using the main thread.",
+      error,
+    );
+    return null;
+  }
+  const entry = { worker, pending: new Map(), nextId: 1 };
+  worker.onmessage = ({ data }) => {
+    const request = entry.pending.get(data.id);
+    if (!request) return;
+    entry.pending.delete(data.id);
+    if (data.error) {
+      request.fail(new Error(data.error));
+      return;
+    }
+    request.done(data.results);
+  };
+  worker.onerror = (event) => {
+    dropBlossomWorker(kind, entry, event.error || new Error(event.message));
+  };
+  blossomWorkers.set(kind, entry);
+  return entry;
+}
+
+function warmBlossomWorkers() {
+  if (typeof Worker === "undefined") return;
+  for (const kind of ["cell", "region", "aals"]) getBlossomWorker(kind);
+}
+
 function runBlossomWorkerKind(kind, fallback, board, pencils, findAll) {
   return new Promise((resolve) => {
-    let worker;
-    try {
-      worker = new Worker("sudoku/sudoku_blossom_worker.js");
-    } catch (error) {
-      console.warn(
-        "Blossom worker could not start; using the main thread.",
-        error,
-      );
+    const entry = getBlossomWorker(kind);
+    if (!entry) {
       resolve(fallback(board, pencils, findAll));
       return;
     }
-    let settled = false;
-    const finish = () => worker.terminate();
-    const runFallback = (error) => {
-      if (settled) return;
-      settled = true;
-      console.warn("Blossom worker failed; using the main thread.", error);
-      finish();
-      resolve(fallback(board, pencils, findAll));
-    };
-    worker.onmessage = ({ data }) => {
-      if (settled) return;
-      if (data.error) {
-        runFallback(new Error(data.error));
-        return;
-      }
-      settled = true;
-      finish();
-      const results = data.results.map(hydrateBlossomWorkerResult);
-      resolve(findAll ? results : results[0] || { change: false });
-    };
-    worker.onerror = (event) => {
-      runFallback(event.error || new Error(event.message));
-    };
-    worker.postMessage({
-      id: 1,
+    const id = entry.nextId++;
+    entry.pending.set(id, {
+      done: (results) => {
+        const hydrated = results.map(hydrateBlossomWorkerResult);
+        resolve(findAll ? hydrated : hydrated[0] || { change: false });
+      },
+      fail: (error) => {
+        console.warn("Blossom worker failed; using the main thread.", error);
+        resolve(fallback(board, pencils, findAll));
+      },
+    });
+    entry.worker.postMessage({
+      id,
       kind,
       board,
       candidateLists: pencils.map((row) => row.map((digits) => [...digits])),
@@ -411,7 +443,7 @@ function runBlossomTechniqueInWorker(func, board, pencils, findAll = false) {
     return Promise.resolve(func(board, pencils, findAll));
   }
 
-  if (kind === "all" && findAll) {
+  if (kind === "all") {
     const variants = [
       ["cell", techniques.cellBlossomLoop],
       ["region", techniques.regionBlossomLoop],
@@ -419,9 +451,12 @@ function runBlossomTechniqueInWorker(func, board, pencils, findAll = false) {
     ];
     return Promise.all(
       variants.map(([workerKind, fallback]) =>
-        runBlossomWorkerKind(workerKind, fallback, board, pencils, true),
+        runBlossomWorkerKind(workerKind, fallback, board, pencils, findAll),
       ),
-    ).then((groups) => groups.flat());
+    ).then((groups) => {
+      if (findAll) return groups.flat();
+      return groups.find((result) => result.change) || { change: false };
+    });
   }
 
   return runBlossomWorkerKind(kind, func, board, pencils, findAll);
@@ -8624,6 +8659,10 @@ function getDragAfterElement(container, y) {
 
 // Bind Button Listeners
 document.addEventListener("DOMContentLoaded", () => {
+  // Boot the Blossom workers now so their startup overlaps the analysis
+  // that runs before the first Blossom call.
+  warmBlossomWorkers();
+
   // --- SAVE BUTTON ---
   document
     .getElementById("pref-save-btn")
