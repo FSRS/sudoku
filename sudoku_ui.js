@@ -6493,11 +6493,17 @@ function buildSolverSummary() {
     nameEl.textContent = t("ui_msg_187");
 
     const scoreEl = document.createElement("div");
+    scoreEl.classList.add(
+      "score-string",
+      "grid",
+      "grid-cols-[3ch_3ch_4ch]",
+      "items-center",
+    );
     scoreEl.style.textAlign = "right";
     scoreEl.style.flexShrink = "0";
     scoreEl.style.opacity = "0.9";
     // Visually match the alignment of the standard score elements
-    scoreEl.innerHTML = `<span style="opacity:0.5">  ? = </span>   ? pt`;
+    scoreEl.innerHTML = `<span class="flex justify-center opacity-50"><img class="block h-3 w-auto" src="sudoku/bruteforce.svg"></span><span class="text-center opacity-50">=</span><span class="flex justify-end"><img class="block h-3 w-auto" src="sudoku/bruteforce.svg"></span>`;
 
     row.appendChild(countEl);
     row.appendChild(dotEl);
@@ -8210,13 +8216,13 @@ function getDefaultTechniques() {
       level: 10,
       score: 390,
     },
-    //{
-    //  nameKey: "ui_msg_352",
-    //  aliases: ["ui_msg_340", "ui_msg_341", "ui_msg_342"],
-    //  func: techniques.blossomLoop,
-    //  level: 10,
-    //  score: 400,
-    //},
+    /*{
+      nameKey: "ui_msg_352",
+      aliases: ["ui_msg_340", "ui_msg_341", "ui_msg_342"],
+      func: techniques.blossomLoop,
+      level: 10,
+      score: 400,
+    },*/
     {
       nameKey: "ui_msg_299",
       func: techniques.complexAic,
