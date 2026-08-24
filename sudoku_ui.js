@@ -6610,6 +6610,7 @@ const MESSAGE_COLOR_CLASSES = [
 function showMessage(text, color) {
   messageArea.innerHTML = "";
   messageArea.innerHTML = `<span>${text}</span>`;
+  messageArea.classList.replace("text-sm", "text-xs");
   messageArea.classList.remove(...MESSAGE_COLOR_CLASSES);
   const colors = {
     red: "text-red-600",
