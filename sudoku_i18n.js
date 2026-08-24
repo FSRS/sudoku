@@ -864,7 +864,7 @@ const TRANSLATIONS = {
     btn_auto_pencil: "후보수 채우기",
     btn_solve: "솔버",
     btn_reset: "초기화",
-    btn_wipe_draw: "선 초기화",
+    btn_wipe_draw: "선 지우기",
     btn_wipe_colors: "색 지우기",
     tooltip_undo: "이전 행동으로 되돌립니다 (Ctrl+Z).",
     tooltip_redo: "방금 행동을 다시합니다 (Ctrl+Y).",
