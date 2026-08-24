@@ -6681,6 +6681,8 @@ const techniques = {
       formatCandidateCells(cells, (r, c) =>
         [d1, d2].filter((digit) => pencils[r][c].has(digit)),
       );
+    const formatHouse = (type, index) =>
+      `${type === "row" ? "r" : type === "col" ? "c" : "b"}${index + 1}`;
 
     const makeVisuals =
       (body, d1, d2, guardians, removals, extra = {}) =>
@@ -6992,9 +6994,8 @@ const techniques = {
                   "" + d1 + d2,
                   formatBody(body),
                   formatGuardians(guardians, d1, d2),
-                  formatCandidateCells(positions, (r, c) =>
-                    digits.filter((digit) => pencils[r][c].has(digit)),
-                  ),
+                  digits.join(""),
+                  formatHouse(ahsCarrier.type, ahsCarrier.index),
                 ),
                 { ahsCells: positions, ahsDigits },
               );

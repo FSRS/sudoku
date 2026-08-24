@@ -807,7 +807,7 @@ const TRANSLATIONS = {
     teks_msg_206:
       "Base ({0}) in {1}, Guardians {2}, Extra cells for virtual naked subset {3}",
     teks_msg_207:
-      "Base ({0}) in {1}, Guardians {2}, Extra candidates for virtual hidden subset {3}",
+      "Base ({0}) in {1}, Guardians {2}, Extra digits ({3}) for virtual hidden subset in {4}",
     teks_msg_293: "Avoidable Rectangle Type 1",
     teks_msg_294: "Avoidable Rectangle Type 2",
     teks_msg_295: "Avoidable Rectangle Type 3",
@@ -1642,7 +1642,7 @@ const TRANSLATIONS = {
     teks_msg_206:
       "{1}의 기반 숫자 ({0}), 수호자 {2}, 가상의 드러난 부분집합을 위한 추가 칸 {3}",
     teks_msg_207:
-      "{1}의 기반 숫자 ({0}), 수호자 {2}, 가상의 숨은 부분집합을 위한 추가 후보수 {3}",
+      "{1}의 기반 숫자 ({0}), 수호자 {2}, {4}의 가상의 숨은 부분집합을 위한 추가 숫자 ({3})",
     teks_msg_293: "회피 가능한 직사각형 유형 1",
     teks_msg_294: "회피 가능한 직사각형 유형 2",
     teks_msg_295: "회피 가능한 직사각형 유형 3",
