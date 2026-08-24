@@ -8003,6 +8003,12 @@ function getDefaultTechniques() {
       score: 100,
     },
     {
+      nameKey: "ui_msg_354",
+      func: (b, p, findAll) => techniques.bugPlusN(b, p, findAll),
+      level: 5,
+      score: 110,
+    },
+    {
       nameKey: "ui_msg_345",
       func: techniques.uniquenessExternalTest,
       level: 5,

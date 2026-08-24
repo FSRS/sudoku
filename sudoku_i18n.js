@@ -797,13 +797,16 @@ const TRANSLATIONS = {
     teks_msg_196: "AALS Blossom Loop",
     teks_msg_197: "AALS Death Blossom",
     teks_msg_198: "Stem AALS ({0}){1}",
-    teks_msg_199: "Uniqueness External Test Type 1",
-    teks_msg_200: "Uniqueness External Test Type 2/4",
+    teks_msg_200: "Uniqueness External Test Type 2",
     teks_msg_201: "Uniqueness External Test Type 3",
     teks_msg_202: "Uniqueness External Test Type 3h",
     teks_msg_203: "Uniqueness External Test + XY-Wing",
     teks_msg_204: "using Digits ({0})",
     teks_msg_205: "Base ({0}) in {1}, Guardians: {2}",
+    teks_msg_206:
+      "Base ({0}) in {1}, Guardians {2}, Extra cells for virtual naked subset {3}",
+    teks_msg_207:
+      "Base ({0}) in {1}, Guardians {2}, Extra candidates for virtual hidden subset {3}",
     teks_msg_293: "Avoidable Rectangle Type 1",
     teks_msg_294: "Avoidable Rectangle Type 2",
     teks_msg_295: "Avoidable Rectangle Type 3",
@@ -823,6 +826,16 @@ const TRANSLATIONS = {
     teks_msg_311: "Cell Almost AIC",
     teks_msg_312: "Region Almost AIC",
     teks_msg_313: "AALS Almost AIC",
+    teks_msg_314: "BUG Type 2",
+    teks_msg_315: "BUG Type 3",
+    teks_msg_316: "BUG Type 4",
+    teks_msg_317: "BUG+{0}",
+    teks_msg_318: "Guardians: {0}",
+    teks_msg_319: "Guardians: {0}",
+    teks_msg_320:
+      "Guardians {0}, Extra cells {2} for virtual naked subset ({1})",
+    teks_msg_321: "Guardians {0}, Conjugate pair ({1}) in {2}",
+    teks_msg_322: "Guardians: {0}",
   },
 
   ko: {
@@ -972,7 +985,7 @@ const TRANSLATIONS = {
     level_tip_2: "Lv. 2: 잠긴 숫자, 드러난/숨은 둘, 드러난/숨은 셋",
     level_tip_3: "Lv. 3: 드러난/숨은 넷, X-윙, 황새치, XY-윙, 떨어진 둘",
     level_tip_4:
-      "Lv. 4: 전역 이중값+1, 해파리, XYZ-윙, W-윙, 두 줄 연, 크레인, 마천루, 유일한 직사각형",
+      "Lv. 4: BUG+1, 해파리, XYZ-윙, W-윙, 두 줄 연, 크레인, 마천루, 유일한 직사각형",
     level_tip_5:
       "Lv. 5: 유일성 논법, 그룹 두 줄 연, 비어있는 직사각형, 지느러미 X-윙, 거의 잠긴 후보수",
     level_tip_6:
@@ -1256,7 +1269,7 @@ const TRANSLATIONS = {
     ui_msg_201: "Custom Lv. 12{0}",
     ui_msg_202: "레벨 11 (NULL)",
     ui_msg_203: "난이도 평가 완료까지 걸린 시간: {0} ms",
-    ui_msg_204: "전역 이중값+1",
+    ui_msg_204: "BUG+1",
     ui_msg_205: "유일한 직사각형",
     ui_msg_206: "유일한 고리",
     ui_msg_207: "확장된 유일한 직사각형",
@@ -1321,7 +1334,7 @@ const TRANSLATIONS = {
     ui_msg_266: "황새치",
     ui_msg_267: "XY-윙",
     ui_msg_268: "떨어진 둘",
-    ui_msg_269: "전역 이중값+1",
+    ui_msg_269: "BUG+1",
     ui_msg_270: "해파리",
     ui_msg_271: "XYZ-윙",
     ui_msg_272: "W-윙",
@@ -1477,7 +1490,7 @@ const TRANSLATIONS = {
     teks_msg_67: "크레인",
     teks_msg_69: "그룹 두 줄 연",
     teks_msg_71: "비어있는 직사각형",
-    teks_msg_73: "전역 이중값+1",
+    teks_msg_73: "BUG+1",
     teks_msg_74: "r{0}c{1}의 삼중값을 가진 칸",
     teks_msg_75:
       "({0})r{1}c{2}을(를) 제외한 모든 숫자가 모든 하우스에서 정확히 두 번 나타남",
@@ -1618,13 +1631,16 @@ const TRANSLATIONS = {
     teks_msg_196: "고리꽃 (AALS)",
     teks_msg_197: "죽음의 꽃 (AALS)",
     teks_msg_198: "{1}의 줄기 AALS ({0})",
-    teks_msg_199: "외부 수호자 논법 유형 1",
-    teks_msg_200: "외부 수호자 논법 유형 2/4",
+    teks_msg_200: "외부 수호자 논법 유형 2",
     teks_msg_201: "외부 수호자 논법 유형 3",
     teks_msg_202: "외부 수호자 논법 유형 3h",
     teks_msg_203: "외부 수호자 논법 + XY-윙",
     teks_msg_204: "숫자 ({0}) 사용",
     teks_msg_205: "{1}의 기반 숫자 ({0}), 수호자: {2}",
+    teks_msg_206:
+      "{1}의 기반 숫자 ({0}), 수호자 {2}, 가상의 드러난 부분집합을 위한 추가 칸 {3}",
+    teks_msg_207:
+      "{1}의 기반 숫자 ({0}), 수호자 {2}, 가상의 숨은 부분집합을 위한 추가 후보수 {3}",
     teks_msg_293: "회피 가능한 직사각형 유형 1",
     teks_msg_294: "회피 가능한 직사각형 유형 2",
     teks_msg_295: "회피 가능한 직사각형 유형 3",
@@ -1644,6 +1660,15 @@ const TRANSLATIONS = {
     teks_msg_311: "거의 완성된 교대 추론 사슬 (칸)",
     teks_msg_312: "거의 완성된 교대 추론 사슬 (영역)",
     teks_msg_313: "거의 완성된 교대 추론 사슬 (AALS)",
+    teks_msg_314: "BUG 유형 2",
+    teks_msg_315: "BUG 유형 3",
+    teks_msg_316: "BUG 유형 4",
+    teks_msg_317: "BUG+{0}",
+    teks_msg_318: "수호자: {0}",
+    teks_msg_319: "수호자: {0}",
+    teks_msg_320: "수호자 {0}, 가상의 드러난 부분집합 ({1})을 위한 추가 칸 {2}",
+    teks_msg_321: "수호자 {0}, {2}의 이중 위치 ({1})",
+    teks_msg_322: "수호자: {0}",
   },
 };
 

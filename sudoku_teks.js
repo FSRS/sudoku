@@ -2962,6 +2962,389 @@ const techniques = {
     return { change: false };
   },
 
+  bugPlusN: (board, pencils, findAll = false) => {
+    const maxTrueCandidates = 5; // BUG+n limit.
+    const results = [];
+    const emptyCells = [];
+    const bivalueCells = [];
+    const multivalueCells = [];
+    let candidatesCount = 0;
+
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] !== 0) continue;
+        const digits = [...pencils[r][c]].sort((a, b) => a - b);
+        if (digits.length < 2) return findAll ? [] : { change: false };
+        const cell = { r, c, digits };
+        emptyCells.push(cell);
+        candidatesCount += digits.length;
+        if (digits.length === 2) bivalueCells.push(cell);
+        else multivalueCells.push(cell);
+      }
+    }
+
+    if (
+      multivalueCells.length === 0 ||
+      candidatesCount > emptyCells.length * 2 + 28
+    ) {
+      return findAll ? [] : { change: false };
+    }
+
+    const boxOf = (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3);
+    const housesOf = (r, c) => [r, 9 + c, 18 + boxOf(r, c)];
+    const sameCell = (a, b) => a.r === b.r && a.c === b.c;
+    const sees = (a, b) =>
+      a.r === b.r || a.c === b.c || boxOf(a.r, a.c) === boxOf(b.r, b.c);
+    const candidatePeers = (a, b) =>
+      (sameCell(a, b) && a.num !== b.num) ||
+      (a.num === b.num && !sameCell(a, b) && sees(a, b));
+
+    const formatCells = (cells) => {
+      const unique = [];
+      const seen = new Set();
+      for (const cell of cells) {
+        const key = `${cell.r},${cell.c}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(cell);
+        }
+      }
+      unique.sort((a, b) => a.r - b.r || a.c - b.c);
+      if (unique.length === 0) return "";
+      if (unique.every((cell) => cell.r === unique[0].r)) {
+        return `r${unique[0].r + 1}c${unique.map((cell) => cell.c + 1).join("")}`;
+      }
+      if (unique.every((cell) => cell.c === unique[0].c)) {
+        return `r${unique.map((cell) => cell.r + 1).join("")}c${unique[0].c + 1}`;
+      }
+      return unique.map((cell) => `r${cell.r + 1}c${cell.c + 1}`).join(",");
+    };
+    const formatCandidates = (candidates) => {
+      const cellsByDigit = new Map();
+      for (const { r, c, num } of candidates) {
+        if (!cellsByDigit.has(num)) cellsByDigit.set(num, []);
+        cellsByDigit.get(num).push({ r, c });
+      }
+
+      const formatByHouse = (num, cells, groupByRow) => {
+        const groups = new Map();
+        for (const { r, c } of cells) {
+          const primary = groupByRow ? r : c;
+          const secondary = groupByRow ? c : r;
+          if (!groups.has(primary)) groups.set(primary, new Set());
+          groups.get(primary).add(secondary);
+        }
+        return [...groups]
+          .sort(([a], [b]) => a - b)
+          .map(([primary, secondaries]) => {
+            const secondaryText = [...secondaries]
+              .sort((a, b) => a - b)
+              .map((value) => value + 1)
+              .join("");
+            return groupByRow
+              ? `(${num})r${primary + 1}c${secondaryText}`
+              : `(${num})r${secondaryText}c${primary + 1}`;
+          })
+          .join(",");
+      };
+
+      return [...cellsByDigit]
+        .sort(([a], [b]) => a - b)
+        .map(([num, cells]) => {
+          const byRow = formatByHouse(num, cells, true);
+          const byCol = formatByHouse(num, cells, false);
+          return byRow.length <= byCol.length ? byRow : byCol;
+        })
+        .join(",");
+    };
+
+    // Choose a two-candidate BUG floor for every multi-value cell.
+    const houseCounts = Array.from({ length: 10 }, () => new Uint8Array(27));
+    for (const cell of bivalueCells) {
+      for (const num of cell.digits) {
+        for (const house of housesOf(cell.r, cell.c)) {
+          if (++houseCounts[num][house] > 2) {
+            return findAll ? [] : { change: false };
+          }
+        }
+      }
+    }
+
+    const chosenPairs = new Array(multivalueCells.length);
+    const chooseFloor = (index) => {
+      if (index === multivalueCells.length) return true;
+      const cell = multivalueCells[index];
+      const houses = housesOf(cell.r, cell.c);
+      for (let i = 0; i < cell.digits.length - 1; i++) {
+        for (let j = i + 1; j < cell.digits.length; j++) {
+          const pair = [cell.digits[i], cell.digits[j]];
+          let valid = true;
+          for (const num of pair) {
+            for (const house of houses) {
+              if (houseCounts[num][house] >= 2) valid = false;
+            }
+          }
+          if (!valid) continue;
+          for (const num of pair) {
+            for (const house of houses) houseCounts[num][house]++;
+          }
+          chosenPairs[index] = pair;
+          if (chooseFloor(index + 1)) return true;
+          for (const num of pair) {
+            for (const house of houses) houseCounts[num][house]--;
+          }
+        }
+      }
+      return false;
+    };
+
+    if (!chooseFloor(0)) return findAll ? [] : { change: false };
+
+    const trueCandidates = [];
+    for (let i = 0; i < multivalueCells.length; i++) {
+      const cell = multivalueCells[i];
+      const floorPair = new Set(chosenPairs[i]);
+      for (const num of cell.digits) {
+        if (!floorPair.has(num))
+          trueCandidates.push({ r: cell.r, c: cell.c, num });
+      }
+    }
+    if (trueCandidates.length < 2) return findAll ? [] : { change: false };
+    const guardiansStr = formatCandidates(trueCandidates);
+
+    const makeVisuals =
+      (removals, extra = {}) =>
+      () => {
+        highlightState = extra.conjugate ? 1 : 2;
+        highlightedDigit = extra.conjugate ? extra.conjugate.num : null;
+        for (const candidate of trueCandidates) {
+          boardState[candidate.r][candidate.c].cellColor = cellColorPalette[7];
+          boardState[candidate.r][candidate.c].pencilColors.set(
+            candidate.num,
+            candidateColorPalette[3],
+          );
+        }
+        for (const cell of extra.subsetCells || []) {
+          boardState[cell.r][cell.c].cellColor = cellColorPalette[6];
+          for (const num of cell.digits) {
+            boardState[cell.r][cell.c].pencilColors.set(
+              num,
+              candidateColorPalette[4],
+            );
+          }
+        }
+        if (extra.conjugate) {
+          const { cell1, cell2, num } = extra.conjugate;
+          boardState[cell1.r][cell1.c].pencilColors.set(
+            num,
+            candidateColorPalette[4],
+          );
+          boardState[cell2.r][cell2.c].pencilColors.set(
+            num,
+            candidateColorPalette[4],
+          );
+          drawnLines.push({
+            r1: cell1.r,
+            c1: cell1.c,
+            n1: num,
+            r2: cell2.r,
+            c2: cell2.c,
+            n2: num,
+            color: lineColorPalette[0],
+            style: "solid",
+          });
+        }
+        for (const { r, c, num } of removals) {
+          boardState[r][c].candSlashes.set(num, markColorPalette[0]);
+        }
+      };
+
+    const addResult = (name, detail, removals, extra = {}) => {
+      const uniqueRemovals = _getUniqueRemovals(removals);
+      if (uniqueRemovals.length === 0) return null;
+      const result = {
+        change: true,
+        type: "remove",
+        cells: uniqueRemovals,
+        hint: {
+          name,
+          mainInfo: t("teks_msg_318", guardiansStr),
+          detail,
+        },
+        applyVisuals: makeVisuals(uniqueRemovals, extra),
+      };
+      if (!findAll) return result;
+      results.push(result);
+      return null;
+    };
+
+    const trueCandidateCells = [];
+    const trueDigitsByCell = new Map();
+    for (const candidate of trueCandidates) {
+      const key = candidate.r * 9 + candidate.c;
+      if (!trueDigitsByCell.has(key)) {
+        trueDigitsByCell.set(key, new Set());
+        trueCandidateCells.push({ r: candidate.r, c: candidate.c });
+      }
+      trueDigitsByCell.get(key).add(candidate.num);
+    }
+
+    // Type 2.
+    if (
+      trueCandidates.every(
+        (candidate) => candidate.num === trueCandidates[0].num,
+      )
+    ) {
+      const num = trueCandidates[0].num;
+      const removals = [];
+      for (const cell of emptyCells) {
+        if (
+          !trueCandidateCells.some((candidateCell) =>
+            sameCell(cell, candidateCell),
+          ) &&
+          cell.digits.includes(num) &&
+          trueCandidateCells.every((candidateCell) => sees(cell, candidateCell))
+        ) {
+          removals.push({ r: cell.r, c: cell.c, num });
+        }
+      }
+      const result = addResult(
+        t("teks_msg_314"),
+        t("teks_msg_319", guardiansStr),
+        removals,
+      );
+      if (result) return result;
+      return findAll ? results : { change: false };
+    }
+
+    // BUG + n.
+    if (trueCandidates.length <= maxTrueCandidates) {
+      const removals = [];
+      for (const cell of emptyCells) {
+        for (const num of cell.digits) {
+          const candidate = { r: cell.r, c: cell.c, num };
+          if (
+            trueCandidates.every((trueCandidate) =>
+              candidatePeers(candidate, trueCandidate),
+            )
+          ) {
+            removals.push(candidate);
+          }
+        }
+      }
+      const result = addResult(
+        t("teks_msg_317", trueCandidates.length),
+        t("teks_msg_322", guardiansStr),
+        removals,
+      );
+      if (result) return result;
+    }
+
+    const sharedHouses = (cells) => {
+      if (cells.length === 0) return [];
+      return housesOf(cells[0].r, cells[0].c).filter((house) =>
+        cells.every((cell) => housesOf(cell.r, cell.c).includes(house)),
+      );
+    };
+
+    // Type 3.
+    const trueDigits = new Set(
+      trueCandidates.map((candidate) => candidate.num),
+    );
+    for (const house of sharedHouses(trueCandidateCells)) {
+      const houseType = house < 9 ? "row" : house < 18 ? "col" : "box";
+      const houseIndex =
+        house < 9 ? house : house < 18 ? house - 9 : house - 18;
+      const otherCells = techniques
+        ._getUnitCells(houseType, houseIndex)
+        .filter(
+          ([r, c]) =>
+            board[r][c] === 0 &&
+            !trueCandidateCells.some((cell) => cell.r === r && cell.c === c),
+        )
+        .map(([r, c]) => ({
+          r,
+          c,
+          digits: [...pencils[r][c]].sort((a, b) => a - b),
+        }));
+
+      for (let size = 1; size < otherCells.length; size++) {
+        for (const subsetCells of techniques.combinations(otherCells, size)) {
+          const subsetDigits = new Set(trueDigits);
+          for (const cell of subsetCells) {
+            for (const num of cell.digits) subsetDigits.add(num);
+          }
+          if (subsetDigits.size !== size + 1) continue;
+          const subsetKeys = new Set(
+            subsetCells.map((cell) => cell.r * 9 + cell.c),
+          );
+          const removals = [];
+          for (const cell of otherCells) {
+            if (subsetKeys.has(cell.r * 9 + cell.c)) continue;
+            for (const num of subsetDigits) {
+              if (cell.digits.includes(num))
+                removals.push({ r: cell.r, c: cell.c, num });
+            }
+          }
+          const result = addResult(
+            t("teks_msg_315"),
+            t(
+              "teks_msg_320",
+              guardiansStr,
+              [...subsetDigits].sort((a, b) => a - b).join(""),
+              formatCells(subsetCells),
+            ),
+            removals,
+            { subsetCells },
+          );
+          if (result) return result;
+        }
+      }
+    }
+
+    // Type 4.
+    if (trueCandidateCells.length === 2) {
+      const [cell1, cell2] = trueCandidateCells;
+      for (const house of sharedHouses(trueCandidateCells)) {
+        const houseType = house < 9 ? "row" : house < 18 ? "col" : "box";
+        const houseIndex =
+          house < 9 ? house : house < 18 ? house - 9 : house - 18;
+        const unitCells = techniques._getUnitCells(houseType, houseIndex);
+        for (let num = 1; num <= 9; num++) {
+          if (trueDigits.has(num)) continue;
+          const positions = unitCells.filter(
+            ([r, c]) => board[r][c] === 0 && pencils[r][c].has(num),
+          );
+          if (
+            positions.length !== 2 ||
+            !positions.some(([r, c]) => r === cell1.r && c === cell1.c) ||
+            !positions.some(([r, c]) => r === cell2.r && c === cell2.c)
+          ) {
+            continue;
+          }
+          const removals = [];
+          for (const cell of [cell1, cell2]) {
+            const cellTrueDigits = trueDigitsByCell.get(cell.r * 9 + cell.c);
+            for (const digit of pencils[cell.r][cell.c]) {
+              if (digit !== num && !cellTrueDigits.has(digit)) {
+                removals.push({ r: cell.r, c: cell.c, num: digit });
+              }
+            }
+          }
+          const result = addResult(
+            t("teks_msg_316"),
+            t("teks_msg_321", guardiansStr, num, formatCells([cell1, cell2])),
+            removals,
+            { conjugate: { cell1, cell2, num } },
+          );
+          if (result) return result;
+        }
+      }
+    }
+
+    return findAll ? results : { change: false };
+  },
+
   _findCommonPeers: (cells, rectCells, board, pencils) => {
     // returns array of [r,c] that see every cell in `cells`
     // exclude any cells that are inside rectCells (or equal to any in cells),
@@ -3836,7 +4219,7 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
-  _findHiddenRectangles: (pencils) => {
+  _findHiddenRectangles: (pencils, requireBivalueFloor = true) => {
     const rects = [];
     for (let d1 = 1; d1 <= 8; d1++) {
       for (let d2 = d1 + 1; d2 <= 9; d2++) {
@@ -3896,12 +4279,12 @@ const techniques = {
                 [r2, c2],
               ];
 
-              const hasBivalueFloor = currentCells.some(([r, c]) => {
-                const cands = pencils[r][c];
-                return cands.size === 2 && cands.has(d1) && cands.has(d2);
-              });
-              if (!hasBivalueFloor) {
-                continue;
+              if (requireBivalueFloor) {
+                const hasBivalueFloor = currentCells.some(([r, c]) => {
+                  const cands = pencils[r][c];
+                  return cands.size === 2 && cands.has(d1) && cands.has(d2);
+                });
+                if (!hasBivalueFloor) continue;
               }
 
               rects.push({
@@ -6255,29 +6638,49 @@ const techniques = {
       );
       return "r" + rows.join("") + "c" + cols.join("");
     };
-    const formatGuardians = (cells, d1, d2) => {
+    const formatCompactCells = (cells) => {
+      const unique = uniqueCells(cells);
+      const groupBy = (primaryIndex, secondaryIndex, primaryPrefix) => {
+        const groups = new Map();
+        unique.forEach((cell) => {
+          const primary = cell[primaryIndex];
+          if (!groups.has(primary)) groups.set(primary, []);
+          groups.get(primary).push(cell[secondaryIndex] + 1);
+        });
+        return [...groups]
+          .map(([primary, secondary]) =>
+            primaryPrefix === "r"
+              ? `r${primary + 1}c${secondary.join("")}`
+              : `r${secondary.join("")}c${primary + 1}`,
+          )
+          .join(",");
+      };
+      const byRow = groupBy(0, 1, "r");
+      const byColumn = groupBy(1, 0, "c");
+      return byColumn.length < byRow.length ? byColumn : byRow;
+    };
+    const formatCandidateCells = (cells, getDigits) => {
       const byDigits = new Map();
       uniqueCells(cells).forEach(([r, c]) => {
-        let digits = "";
-        if (pencils[r][c].has(d1)) digits += d1;
-        if (pencils[r][c].has(d2)) digits += d2;
-        if (!byDigits.has(digits)) byDigits.set(digits, new Map());
-        const byRow = byDigits.get(digits);
-        if (!byRow.has(r)) byRow.set(r, []);
-        byRow.get(r).push(c + 1);
+        const digits = [...new Set(getDigits(r, c))]
+          .sort((a, b) => a - b)
+          .join("");
+        if (!digits) return;
+        if (!byDigits.has(digits)) byDigits.set(digits, []);
+        byDigits.get(digits).push([r, c]);
       });
       return [...byDigits]
+        .sort(([a], [b]) => a.localeCompare(b))
         .map(
-          ([digits, byRow]) =>
-            "(" +
-            digits +
-            ")" +
-            [...byRow]
-              .map(([r, cols]) => "r" + (r + 1) + "c" + cols.join(""))
-              .join(","),
+          ([digits, groupedCells]) =>
+            `(${digits})${formatCompactCells(groupedCells)}`,
         )
         .join(",");
     };
+    const formatGuardians = (cells, d1, d2) =>
+      formatCandidateCells(cells, (r, c) =>
+        [d1, d2].filter((digit) => pencils[r][c].has(digit)),
+      );
 
     const makeVisuals =
       (body, d1, d2, guardians, removals, extra = {}) =>
@@ -6313,6 +6716,25 @@ const techniques = {
               boardState[r][c].pencilColors.set(
                 digit,
                 candidateColorPalette[5],
+              );
+            }
+          });
+        });
+        const guardianKeys = new Set(
+          uniqueCells(guardians).map(([r, c]) => cellKey(r, c)),
+        );
+        (extra.ahsCells || []).forEach(([r, c]) => {
+          const isGuardian = guardianKeys.has(cellKey(r, c));
+          const colorIndex = isGuardian ? 6 : 5;
+          const digits = isGuardian
+            ? new Set([d1, d2, ...(extra.ahsDigits || [])])
+            : extra.ahsDigits || [];
+          boardState[r][c].cellColor = cellColorPalette[colorIndex];
+          digits.forEach((digit) => {
+            if (boardState[r][c].pencils.has(digit)) {
+              boardState[r][c].pencilColors.set(
+                digit,
+                candidateColorPalette[colorIndex],
               );
             }
           });
@@ -6372,43 +6794,11 @@ const techniques = {
       return null;
     };
 
-    const bodies = [];
-    for (let d1 = 1; d1 <= 8; d1++) {
-      for (let d2 = d1 + 1; d2 <= 9; d2++) {
-        for (let r1 = 0; r1 < 8; r1++) {
-          for (let r2 = r1 + 1; r2 < 9; r2++) {
-            const cols = [];
-            for (let c = 0; c < 9; c++) {
-              if (
-                board[r1][c] === 0 &&
-                board[r2][c] === 0 &&
-                pencils[r1][c].has(d1) &&
-                pencils[r1][c].has(d2) &&
-                pencils[r2][c].has(d1) &&
-                pencils[r2][c].has(d2)
-              ) {
-                cols.push(c);
-              }
-            }
-            for (const [c1, c2] of techniques.combinations(cols, 2)) {
-              const sameBand = Math.floor(r1 / 3) === Math.floor(r2 / 3);
-              const sameStack = Math.floor(c1 / 3) === Math.floor(c2 / 3);
-              if (sameBand === sameStack) continue;
-              bodies.push({
-                d1,
-                d2,
-                cells: [
-                  [r1, c1],
-                  [r1, c2],
-                  [r2, c1],
-                  [r2, c2],
-                ],
-              });
-            }
-          }
-        }
-      }
-    }
+    const bodies = techniques
+      ._findHiddenRectangles(pencils, false)
+      .flatMap(({ cells, digits: [d1, d2] }) =>
+        cells.some(([r, c]) => board[r][c] !== 0) ? [] : [{ d1, d2, cells }],
+      );
 
     const unsolved = [];
     for (let r = 0; r < 9; r++) {
@@ -6483,26 +6873,7 @@ const techniques = {
           formatGuardians(guardians, d1, d2),
         );
 
-        // Type 1: the only external guardian cell must retain d1 or d2.
-        if (guardians.length === 1) {
-          const [r, c] = guardians[0];
-          const removals = [...pencils[r][c]]
-            .filter((digit) => digit !== d1 && digit !== d2)
-            .map((num) => ({ r, c, num }));
-          const result = publish(
-            "teks_msg_199",
-            body,
-            d1,
-            d2,
-            guardians,
-            removals,
-            detail,
-          );
-          if (result) return result;
-        }
-
-        // Type 2/4: one deadly digit has no guardians.  A candidate of the
-        // other digit that sees every guardian would make them all false.
+        // Type 2
         for (const [targetDigit, absentDigit] of [
           [d1, d2],
           [d2, d1],
@@ -6539,7 +6910,100 @@ const techniques = {
           if (result) return result;
         }
 
-        // The cover must fit in one house for the Type 3/3H capacity proof.
+        const guardianSet = new Set(guardians.map(([r, c]) => cellKey(r, c)));
+
+        // Type 3H
+        const [firstGuardianRow, firstGuardianCol] = guardians[0];
+        const ahsCarrierSpecs = [
+          { type: "row", index: firstGuardianRow },
+          { type: "col", index: firstGuardianCol },
+          {
+            type: "box",
+            index: techniques._getBoxIndex(firstGuardianRow, firstGuardianCol),
+          },
+        ];
+        const extraDigits = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(
+          (digit) => digit !== d1 && digit !== d2,
+        );
+        for (const ahsCarrier of ahsCarrierSpecs) {
+          const ahsHouseCells = techniques._getUnitCells(
+            ahsCarrier.type,
+            ahsCarrier.index,
+          );
+          const ahsHouseCellSet = new Set(
+            ahsHouseCells.map(([r, c]) => cellKey(r, c)),
+          );
+          if (![...guardianSet].every((key) => ahsHouseCellSet.has(key))) {
+            continue;
+          }
+
+          const emptyHouseCellCount = ahsHouseCells.filter(
+            ([r, c]) => board[r][c] === 0,
+          ).length;
+          const minAhsDigitCount = Math.max(1, guardians.length - 1);
+          const maxAhsDigitCount = Math.min(
+            extraDigits.length,
+            emptyHouseCellCount - 1,
+          );
+          for (
+            let count = minAhsDigitCount;
+            count <= maxAhsDigitCount;
+            count++
+          ) {
+            for (const digits of techniques.combinations(extraDigits, count)) {
+              const ahsDigits = new Set(digits);
+              const positions = ahsHouseCells.filter(
+                ([r, c]) =>
+                  board[r][c] === 0 &&
+                  digits.some((digit) => pencils[r][c].has(digit)),
+              );
+              if (
+                !digits.every((digit) =>
+                  positions.some(([r, c]) => pencils[r][c].has(digit)),
+                )
+              ) {
+                continue;
+              }
+              if (positions.length !== count + 1) continue;
+              const positionSet = new Set(
+                positions.map(([r, c]) => cellKey(r, c)),
+              );
+              if (![...guardianSet].every((key) => positionSet.has(key)))
+                continue;
+              const guardianAllowedDigits = new Set([d1, d2, ...digits]);
+              const removals = [];
+              positions.forEach(([r, c]) => {
+                const allowedDigits = guardianSet.has(cellKey(r, c))
+                  ? guardianAllowedDigits
+                  : ahsDigits;
+                pencils[r][c].forEach((num) => {
+                  if (!allowedDigits.has(num)) removals.push({ r, c, num });
+                });
+              });
+              const result = publish(
+                "teks_msg_202",
+                body,
+                d1,
+                d2,
+                guardians,
+                removals,
+                t(
+                  "teks_msg_207",
+                  "" + d1 + d2,
+                  formatBody(body),
+                  formatGuardians(guardians, d1, d2),
+                  formatCandidateCells(positions, (r, c) =>
+                    digits.filter((digit) => pencils[r][c].has(digit)),
+                  ),
+                ),
+                { ahsCells: positions, ahsDigits },
+              );
+              if (result) return result;
+            }
+          }
+        }
+
+        // The cover must fit in one house for the Type 3 capacity proof.
         if (guardians.length > 4) continue;
         const carrier = houses.find(({ cells }) => {
           const local = new Set(cells.map(([r, c]) => cellKey(r, c)));
@@ -6548,7 +7012,6 @@ const techniques = {
         if (!carrier) continue;
 
         const houseCells = techniques._getUnitCells(family.type, carrier.index);
-        const guardianSet = new Set(guardians.map(([r, c]) => cellKey(r, c)));
         const available = houseCells.filter(
           ([r, c]) =>
             board[r][c] === 0 &&
@@ -6590,62 +7053,20 @@ const techniques = {
               d2,
               guardians,
               removals,
-              detail,
+              t(
+                "teks_msg_206",
+                "" + d1 + d2,
+                formatBody(body),
+                formatGuardians(guardians, d1, d2),
+                selected.length ? formatCompactCells(selected) : "-",
+              ),
               { subsetCells, subsetDigits },
             );
             if (result) return result;
           }
         }
 
-        // Type 3H: the dual hidden-subset capacity check.
-        for (let count = Math.max(2, guardians.length); count <= 4; count++) {
-          for (const digits of techniques.combinations(
-            [1, 2, 3, 4, 5, 6, 7, 8, 9],
-            count,
-          )) {
-            const subsetDigits = new Set(digits);
-            const positions = houseCells.filter(
-              ([r, c]) =>
-                board[r][c] === 0 &&
-                digits.some((digit) => pencils[r][c].has(digit)),
-            );
-            if (
-              !digits.every((digit) =>
-                houseCells.some(
-                  ([r, c]) => board[r][c] === 0 && pencils[r][c].has(digit),
-                ),
-              )
-            ) {
-              continue;
-            }
-            if (positions.length !== count) continue;
-            const positionSet = new Set(
-              positions.map(([r, c]) => cellKey(r, c)),
-            );
-            if (![...guardianSet].every((key) => positionSet.has(key)))
-              continue;
-            const removals = [];
-            positions.forEach(([r, c]) => {
-              pencils[r][c].forEach((num) => {
-                if (!subsetDigits.has(num)) removals.push({ r, c, num });
-              });
-            });
-            const result = publish(
-              "teks_msg_202",
-              body,
-              d1,
-              d2,
-              guardians,
-              removals,
-              detail,
-              { subsetCells: positions, subsetDigits },
-            );
-            if (result) return result;
-          }
-        }
-
-        // External XY-Wing: d1/z and d2/z bivalue wings see their guardian
-        // groups.  At least one guardian is true, so one wing must be z.
+        // UET + XY Wing
         const guardians1 = guardianByDigit.get(d1);
         const guardians2 = guardianByDigit.get(d2);
         if (guardians1.length === 0 || guardians2.length === 0) continue;
