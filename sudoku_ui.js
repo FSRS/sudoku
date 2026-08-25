@@ -7404,6 +7404,7 @@ async function evaluateBoardDifficulty(opts = {}) {
   try {
     return await runBoardDifficultyEvaluation(opts);
   } finally {
+    techniques._releaseAICCache();
     if (opts.showProgress) clearSolverProgress();
   }
 }
@@ -7646,7 +7647,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
         if (IS_DEBUG_MODE) {
           const logColor = getThemeColor(tech.level);
           console.groupCollapsed(
-            `%c${tech.level.toString().padStart(2)} ${result.hint.name.padEnd(36)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
+            `%cLv.${tech.level.toString().padStart(2)} ${result.hint.name.padEnd(36)} (+${tech.score.toString().padStart(3)}, ${evaluatedScore.toString().padStart(4)})`,
             `color: ${logColor}; font-weight: bold;`,
           );
 

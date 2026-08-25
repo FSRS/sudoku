@@ -250,6 +250,449 @@ const techniques = {
     return techniques._unitCache[unitIndex];
   },
 
+  _normalizeCells: (cells) =>
+    cells.map((cell) => [
+      cell.r !== undefined ? cell.r : cell[0],
+      cell.c !== undefined ? cell.c : cell[1],
+    ]),
+
+  _formatCellsRC: (cells) => {
+    if (!cells || cells.length === 0) return "";
+    const normalized = techniques._normalizeCells(cells);
+    if (normalized.length === 1) {
+      return `r${normalized[0][0] + 1}c${normalized[0][1] + 1}`;
+    }
+    if (normalized.every((cell) => cell[0] === normalized[0][0])) {
+      const columns = normalized
+        .map((cell) => cell[1] + 1)
+        .sort((a, b) => a - b)
+        .join("");
+      return `r${normalized[0][0] + 1}c${columns}`;
+    }
+    if (normalized.every((cell) => cell[1] === normalized[0][1])) {
+      const rows = normalized
+        .map((cell) => cell[0] + 1)
+        .sort((a, b) => a - b)
+        .join("");
+      return `r${rows}c${normalized[0][1] + 1}`;
+    }
+    return normalized
+      .map(([r, c]) => `r${r + 1}c${c + 1}`)
+      .join(",");
+  },
+
+  _formatBoxPoints: (cells, boxIndex) => {
+    if (!cells || cells.length === 0) return "";
+    const points = techniques
+      ._normalizeCells(cells)
+      .map(([r, c]) => (r % 3) * 3 + (c % 3) + 1)
+      .sort((a, b) => a - b)
+      .join("");
+    return `b${boxIndex + 1}p${points}`;
+  },
+
+  _formatRectangleBounds: (cells) => {
+    const normalized = techniques._normalizeCells(cells);
+    const rows = [...new Set(normalized.map(([r]) => r + 1))]
+      .sort((a, b) => a - b)
+      .join("");
+    const columns = [...new Set(normalized.map(([, c]) => c + 1))]
+      .sort((a, b) => a - b)
+      .join("");
+    return `r${rows}c${columns}`;
+  },
+
+  _formatGuardianExtras: (cells, excludedDigits, pencils) =>
+    cells
+      .map(([r, c]) => {
+        const extras = [...pencils[r][c]]
+          .filter((digit) => !excludedDigits.has(digit))
+          .sort((a, b) => a - b)
+          .join("");
+        return `(${extras})r${r + 1}c${c + 1}`;
+      })
+      .join(","),
+
+  _formatAicLocation: (cells, preferBox = false) => {
+    if (cells.length === 0) return "";
+    if (cells.length === 1) {
+      const r = Math.floor(cells[0] / 9);
+      const c = cells[0] % 9;
+      if (preferBox) {
+        const box = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
+        const point = (r % 3) * 3 + (c % 3) + 1;
+        return `b${box}p${point}`;
+      }
+      return `r${r + 1}c${c + 1}`;
+    }
+    const boxes = [
+      ...new Set(
+        cells.map(
+          (id) =>
+            Math.floor(Math.floor(id / 9) / 3) * 3 +
+            Math.floor((id % 9) / 3) +
+            1,
+        ),
+      ),
+    ];
+    if (preferBox && boxes.length === 1) {
+      const points = cells
+        .map((id) => (Math.floor(id / 9) % 3) * 3 + ((id % 9) % 3) + 1)
+        .sort((a, b) => a - b);
+      return `b${boxes[0]}p${points.join("")}`;
+    }
+    const rows = [...new Set(cells.map((id) => Math.floor(id / 9) + 1))].sort(
+      (a, b) => a - b,
+    );
+    const columns = [...new Set(cells.map((id) => (id % 9) + 1))].sort(
+      (a, b) => a - b,
+    );
+    if (rows.length === 1) return `r${rows[0]}c${columns.join("")}`;
+    if (columns.length === 1) return `r${rows.join("")}c${columns[0]}`;
+    return [...cells]
+      .sort((a, b) => a - b)
+      .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
+      .join("");
+  },
+
+  _formatCompactAicLocation: (cells) => {
+    if (cells.length <= 1) return techniques._formatAicLocation(cells);
+    const uniqueCells = [...new Set(cells)];
+    const rows = new Set(uniqueCells.map((id) => Math.floor(id / 9)));
+    const columns = new Set(uniqueCells.map((id) => id % 9));
+    if (rows.size === 1 || columns.size === 1) {
+      return techniques._formatAicLocation(uniqueCells);
+    }
+    const groupByRow = rows.size <= columns.size;
+    const groups = new Map();
+    for (const id of uniqueCells) {
+      const key = groupByRow ? Math.floor(id / 9) : id % 9;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(groupByRow ? id % 9 : Math.floor(id / 9));
+    }
+    return Array.from(groups.entries())
+      .map(([key, values]) => {
+        const positions = values
+          .sort((a, b) => a - b)
+          .map((value) => value + 1)
+          .join("");
+        return groupByRow
+          ? `r${key + 1}c${positions}`
+          : `r${positions}c${key + 1}`;
+      })
+      .join(",");
+  },
+
+  _hasNandCandidates: (node, pencils) => {
+    const digit = node.digits[0];
+    for (let part = 0; part < 3; part++) {
+      let mask = node.NandBitset[digit - 1][part];
+      let bit = 0;
+      while (mask > 0) {
+        if (mask & 1) {
+          const id = part * 27 + bit;
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (pencils[r][c] && pencils[r][c].has(digit)) return true;
+        }
+        mask >>>= 1;
+        bit++;
+      }
+    }
+    return false;
+  },
+
+  _cellBitsetAnd: (left, right) => [
+    left[0] & right[0],
+    left[1] & right[1],
+    left[2] & right[2],
+  ],
+
+  _setCellBit: (bitset, id) => {
+    bitset[Math.floor(id / 27)] |= 1 << (id % 27);
+  },
+
+  _getCellBits: (bitset) => {
+    const ids = [];
+    for (let part = 0; part < 3; part++) {
+      let mask = bitset[part];
+      let bit = 0;
+      while (mask > 0) {
+        if (mask & 1) ids.push(part * 27 + bit);
+        mask >>= 1;
+        bit++;
+      }
+    }
+    return ids;
+  },
+
+  _applySingleDigitChainVisuals: (digit, nodes, removals, grouped = false) => {
+    highlightedDigit = digit;
+    highlightState = 1;
+
+    nodes.forEach((node, index) => {
+      node.cells.forEach(([r, c]) => {
+        const colorIndex = index % 2 === 0 ? 5 : 4;
+        boardState[r][c].pencilColors.set(
+          digit,
+          candidateColorPalette[colorIndex],
+        );
+      });
+    });
+    removals.forEach(({ r, c, num }) => {
+      boardState[r][c].candSlashes.set(num, markColorPalette[0]);
+    });
+
+    const drawGroup = (node, index) => {
+      if (!grouped || node.cells.length <= 1) return;
+      const colorIndex = index % 2 === 0 ? 5 : 4;
+      for (let i = 0; i < node.cells.length - 1; i++) {
+        drawnLines.push({
+          r1: node.cells[i][0],
+          c1: node.cells[i][1],
+          n1: digit,
+          r2: node.cells[i + 1][0],
+          c2: node.cells[i + 1][1],
+          n2: digit,
+          color: lineColorPalette[colorIndex],
+          style: "solid",
+        });
+      }
+    };
+
+    const closestCells = (left, right) => {
+      let minimum = Infinity;
+      let bestLeft = left.cells[0];
+      let bestRight = right.cells[0];
+      for (const leftCell of left.cells) {
+        for (const rightCell of right.cells) {
+          const distance =
+            Math.abs(leftCell[0] - rightCell[0]) +
+            Math.abs(leftCell[1] - rightCell[1]);
+          if (distance < minimum) {
+            minimum = distance;
+            bestLeft = leftCell;
+            bestRight = rightCell;
+          }
+        }
+      }
+      return [bestLeft, bestRight];
+    };
+
+    for (let i = 0; i < nodes.length - 1; i++) {
+      const left = nodes[i];
+      const right = nodes[i + 1];
+      if (i === 0) drawGroup(left, 0);
+      drawGroup(right, i + 1);
+      const [from, to] = grouped
+        ? closestCells(left, right)
+        : [left.cells[0], right.cells[0]];
+      drawnLines.push({
+        r1: from[0],
+        c1: from[1],
+        n1: digit,
+        r2: to[0],
+        c2: to[1],
+        n2: digit,
+        color: lineColorPalette[0],
+        style: i % 2 === 0 ? "solid" : "dash",
+      });
+    }
+  },
+
+  _applyDeadlyPatternBaseVisuals: (type, cells, digits, extraData) => {
+    highlightState = type === 4 || type === 6 ? 1 : 0;
+    highlightedDigit =
+      type === 4 || type === 6 ? extraData.restrictedDigit : null;
+
+    const coreDigits = new Set(digits);
+    cells.forEach(([r, c]) => {
+      boardState[r][c].cellColor = cellColorPalette[7];
+      boardState[r][c].pencils.forEach((candidate) => {
+        boardState[r][c].pencilColors.set(
+          candidate,
+          coreDigits.has(candidate)
+            ? candidateColorPalette[7]
+            : candidateColorPalette[3],
+        );
+      });
+    });
+
+    if (type === 3) {
+      extraData.subsetCells.forEach(([r, c]) => {
+        boardState[r][c].cellColor = cellColorPalette[6];
+        boardState[r][c].pencils.forEach((candidate) => {
+          if (extraData.subsetCands.has(candidate)) {
+            boardState[r][c].pencilColors.set(
+              candidate,
+              candidateColorPalette[4],
+            );
+          }
+        });
+      });
+    }
+
+    if (type === 4) {
+      drawnLines.push({
+        r1: extraData.e1[0],
+        c1: extraData.e1[1],
+        n1: extraData.restrictedDigit,
+        r2: extraData.e2[0],
+        c2: extraData.e2[1],
+        n2: extraData.restrictedDigit,
+        color: lineColorPalette[0],
+        style: "solid",
+      });
+    }
+  },
+
+  _collectBlossomStems: (
+    board,
+    pencils,
+    kind,
+    maxBranches,
+    maxAalsCandidates,
+  ) => {
+    const stems = [];
+    if (kind === "cell") {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          const size = pencils[r][c].size;
+          if (size >= 3 && size <= maxBranches) {
+            stems.push({
+              size,
+              r,
+              c,
+              cellId: r * 9 + c,
+              startDigits: [...pencils[r][c]].sort((a, b) => a - b),
+            });
+          }
+        }
+      }
+    } else if (kind === "region") {
+      for (let digit = 1; digit <= 9; digit++) {
+        for (let unit = 0; unit < 27; unit++) {
+          const cells = techniques
+            ._getUnitCellsCached(unit)
+            .filter(([r, c]) => pencils[r][c].has(digit))
+            .map(([r, c]) => r * 9 + c);
+          if (cells.length < 3 || cells.length > maxBranches) continue;
+          stems.push({
+            size: cells.length,
+            digit,
+            cells,
+            houseName:
+              unit < 9
+                ? t("teks_msg_153", unit + 1)
+                : unit < 18
+                  ? t("teks_msg_154", unit - 8)
+                  : t("teks_msg_155", unit - 17),
+          });
+        }
+      }
+    } else {
+      const seenAals = new Set();
+      const unitLabel = (unit) =>
+        unit < 9
+          ? t("teks_msg_153", unit + 1)
+          : unit < 18
+            ? t("teks_msg_154", unit - 8)
+            : t("teks_msg_155", unit - 17);
+
+      for (let unit = 0; unit < 27; unit++) {
+        const eligibleCells = [];
+        for (let id = 0; id < 81; id++) {
+          const part = Math.floor(id / 27);
+          const bit = id % 27;
+          if ((UNIT_BITSETS[unit][part] & (1 << bit)) === 0) continue;
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (board[r][c] === 0 && pencils[r][c].size > 0) {
+            eligibleCells.push(id);
+          }
+        }
+
+        const addAalsStems = (cells) => {
+          let mask = 0;
+          const cellsByDigit = Array.from({ length: 10 }, () => []);
+          for (const id of cells) {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            for (const digit of pencils[r][c]) {
+              mask |= 1 << digit;
+              cellsByDigit[digit].push(id);
+            }
+          }
+          if (techniques._bits.popcount(mask) !== cells.length + 2) return;
+          const key = [...cells].sort((a, b) => a - b).join(",");
+          if (seenAals.has(key)) return;
+          seenAals.add(key);
+
+          const digits = [];
+          for (let digit = 1; digit <= 9; digit++) {
+            if (mask & (1 << digit)) digits.push(digit);
+          }
+          for (let first = 0; first < digits.length - 2; first++) {
+            for (let second = first + 1; second < digits.length - 1; second++) {
+              for (let third = second + 1; third < digits.length; third++) {
+                const startDigits = [
+                  digits[first],
+                  digits[second],
+                  digits[third],
+                ];
+                const startCandidates = startDigits.flatMap((digit) =>
+                  cellsByDigit[digit].map((id) => ({ id, digit })),
+                );
+                if (
+                  startCandidates.length < 3 ||
+                  startCandidates.length > maxAalsCandidates
+                ) {
+                  continue;
+                }
+                stems.push({
+                  size: startCandidates.length,
+                  kind: "aals",
+                  unit,
+                  cells: [...cells],
+                  houseName: unitLabel(unit),
+                  startDigits,
+                  startCandidates,
+                  startCandidateKeys: new Set(
+                    startCandidates.map(({ id, digit }) => `${id}:${digit}`),
+                  ),
+                });
+              }
+            }
+          }
+        };
+
+        const chooseCells = (start, size, cells) => {
+          if (cells.length === size) {
+            addAalsStems(cells);
+            return;
+          }
+          const needed = size - cells.length;
+          for (
+            let index = start;
+            index <= eligibleCells.length - needed;
+            index++
+          ) {
+            cells.push(eligibleCells[index]);
+            chooseCells(index + 1, size, cells);
+            cells.pop();
+          }
+        };
+
+        for (let size = 2; size <= Math.min(7, eligibleCells.length); size++) {
+          chooseCells(0, size, []);
+        }
+      }
+    }
+    stems.sort((left, right) => left.size - right.size);
+    return stems;
+  },
+
+
   eliminateCandidates: (board, pencils, findAll = false) => {
     // Initialize Cache
     techniques._resetAICCache();
@@ -2175,48 +2618,17 @@ const techniques = {
                 mainInfo: t("teks_msg_48", num),
                 detail: `(${num})(${link1Str})-(${link2Str})`,
               },
-              applyVisuals: () => {
-                highlightedDigit = num;
-                highlightState = 1;
-
-                const visualNodes = [
-                  { cells: [p1] },
-                  { cells: [base1] },
-                  { cells: [base2] },
-                  { cells: [p2] },
-                ];
-
-                visualNodes.forEach((node, idx) => {
-                  node.cells.forEach(([cr, cc]) => {
-                    const colorIdx = idx % 2 === 0 ? 5 : 4;
-                    boardState[cr][cc].pencilColors.set(
-                      num,
-                      candidateColorPalette[colorIdx],
-                    );
-                  });
-                });
-                removals.forEach((el) =>
-                  boardState[el.r][el.c].candSlashes.set(
-                    el.num,
-                    markColorPalette[0],
-                  ),
-                );
-
-                for (let i = 0; i < visualNodes.length - 1; i++) {
-                  const u = visualNodes[i].cells[0];
-                  const v = visualNodes[i + 1].cells[0];
-                  drawnLines.push({
-                    r1: u[0],
-                    c1: u[1],
-                    n1: num,
-                    r2: v[0],
-                    c2: v[1],
-                    n2: num,
-                    color: lineColorPalette[0],
-                    style: i % 2 === 0 ? "solid" : "dash",
-                  });
-                }
-              },
+              applyVisuals: () =>
+                techniques._applySingleDigitChainVisuals(
+                  num,
+                  [
+                    { cells: [p1] },
+                    { cells: [base1] },
+                    { cells: [base2] },
+                    { cells: [p2] },
+                  ],
+                  removals,
+                ),
             };
             if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
             results.push(resultObj);
@@ -2317,47 +2729,17 @@ const techniques = {
                       mainInfo: t("teks_msg_48", num),
                       detail: `(${num})(${link1Str})-(${link2Str})`,
                     },
-                    applyVisuals: () => {
-                      highlightedDigit = num;
-                      highlightState = 1;
-                      const visualNodes = [
-                        { cells: [p1] },
-                        { cells: [pBox1] },
-                        { cells: [pBox2] },
-                        { cells: [p2] },
-                      ];
-
-                      visualNodes.forEach((node, idx) => {
-                        node.cells.forEach(([cr, cc]) => {
-                          const colorIdx = idx % 2 === 0 ? 5 : 4;
-                          boardState[cr][cc].pencilColors.set(
-                            num,
-                            candidateColorPalette[colorIdx],
-                          );
-                        });
-                      });
-                      removals.forEach((el) =>
-                        boardState[el.r][el.c].candSlashes.set(
-                          el.num,
-                          markColorPalette[0],
-                        ),
-                      );
-
-                      for (let i = 0; i < visualNodes.length - 1; i++) {
-                        const u = visualNodes[i].cells[0];
-                        const v = visualNodes[i + 1].cells[0];
-                        drawnLines.push({
-                          r1: u[0],
-                          c1: u[1],
-                          n1: num,
-                          r2: v[0],
-                          c2: v[1],
-                          n2: num,
-                          color: lineColorPalette[0],
-                          style: i % 2 === 0 ? "solid" : "dash",
-                        });
-                      }
-                    },
+                    applyVisuals: () =>
+                      techniques._applySingleDigitChainVisuals(
+                        num,
+                        [
+                          { cells: [p1] },
+                          { cells: [pBox1] },
+                          { cells: [pBox2] },
+                          { cells: [p2] },
+                        ],
+                        removals,
+                      ),
                   };
                   if (!findAll) return resultObj; // Note the wrapper
                   results.push(resultObj);
@@ -2439,47 +2821,17 @@ const techniques = {
                         mainInfo: t("teks_msg_48", num),
                         detail: `(${num})(${link1Str})-(${link2Str})`,
                       },
-                      applyVisuals: () => {
-                        highlightedDigit = num;
-                        highlightState = 1;
-                        const visualNodes = [
-                          { cells: [pA] },
-                          { cells: [pB] },
-                          { cells: [pC] },
-                          { cells: [pD] },
-                        ];
-
-                        visualNodes.forEach((node, idx) => {
-                          node.cells.forEach(([cr, cc]) => {
-                            const colorIdx = idx % 2 === 0 ? 5 : 4;
-                            boardState[cr][cc].pencilColors.set(
-                              num,
-                              candidateColorPalette[colorIdx],
-                            );
-                          });
-                        });
-                        removals.forEach((el) =>
-                          boardState[el.r][el.c].candSlashes.set(
-                            el.num,
-                            markColorPalette[0],
-                          ),
-                        );
-
-                        for (let i = 0; i < visualNodes.length - 1; i++) {
-                          const u = visualNodes[i].cells[0];
-                          const v = visualNodes[i + 1].cells[0];
-                          drawnLines.push({
-                            r1: u[0],
-                            c1: u[1],
-                            n1: num,
-                            r2: v[0],
-                            c2: v[1],
-                            n2: num,
-                            color: lineColorPalette[0],
-                            style: i % 2 === 0 ? "solid" : "dash",
-                          });
-                        }
-                      },
+                      applyVisuals: () =>
+                        techniques._applySingleDigitChainVisuals(
+                          num,
+                          [
+                            { cells: [pA] },
+                            { cells: [pB] },
+                            { cells: [pC] },
+                            { cells: [pD] },
+                          ],
+                          removals,
+                        ),
                     };
                     if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
                     results.push(resultObj);
@@ -2575,78 +2927,19 @@ const techniques = {
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
                 applyVisuals: () => {
-                  highlightedDigit = num;
-                  highlightState = 1;
-
                   const group1 = box_n_cells.filter(([r, c]) => r === r1);
                   const group2 = box_n_cells.filter(([r, c]) => c === c1);
-                  const visualNodes = [
-                    { cells: [[r1, c2]] },
-                    { cells: group1 },
-                    { cells: group2 },
-                    { cells: [[r2, c1]] },
-                  ];
-
-                  visualNodes.forEach((node, idx) => {
-                    node.cells.forEach(([cr, cc]) => {
-                      const colorIdx = idx % 2 === 0 ? 5 : 4;
-                      boardState[cr][cc].pencilColors.set(
-                        num,
-                        candidateColorPalette[colorIdx],
-                      );
-                    });
-                  });
-                  boardState[r2][c2].candSlashes.set(num, markColorPalette[0]); // Removal
-
-                  const drawGroup = (node, idx) => {
-                    if (node.cells.length > 1) {
-                      const colorIdx = idx % 2 === 0 ? 5 : 4; // Dynamically match candidate color
-                      for (let i = 0; i < node.cells.length - 1; i++) {
-                        drawnLines.push({
-                          r1: node.cells[i][0],
-                          c1: node.cells[i][1],
-                          n1: num,
-                          r2: node.cells[i + 1][0],
-                          c2: node.cells[i + 1][1],
-                          n2: num,
-                          color: lineColorPalette[colorIdx],
-                          style: "solid",
-                        });
-                      }
-                    }
-                  };
-                  const getClosestCells = (nodeA, nodeB) => {
-                    let minD = Infinity;
-                    let bestA = nodeA.cells[0];
-                    let bestB = nodeB.cells[0];
-                    for (const a of nodeA.cells)
-                      for (const b of nodeB.cells) {
-                        const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                        if (d < minD) {
-                          minD = d;
-                          bestA = a;
-                          bestB = b;
-                        }
-                      }
-                    return [bestA, bestB];
-                  };
-                  for (let i = 0; i < visualNodes.length - 1; i++) {
-                    const u = visualNodes[i];
-                    const v = visualNodes[i + 1];
-                    if (i === 0) drawGroup(u, 0);
-                    drawGroup(v, i + 1);
-                    const [cA, cB] = getClosestCells(u, v);
-                    drawnLines.push({
-                      r1: cA[0],
-                      c1: cA[1],
-                      n1: num,
-                      r2: cB[0],
-                      c2: cB[1],
-                      n2: num,
-                      color: lineColorPalette[0],
-                      style: i % 2 === 0 ? "solid" : "dash",
-                    });
-                  }
+                  techniques._applySingleDigitChainVisuals(
+                    num,
+                    [
+                      { cells: [[r1, c2]] },
+                      { cells: group1 },
+                      { cells: group2 },
+                      { cells: [[r2, c1]] },
+                    ],
+                    [{ r: r2, c: c2, num }],
+                    true,
+                  );
                 },
               };
               if (!findAll) return resultObj; // Note the wrapper
@@ -2762,84 +3055,22 @@ const techniques = {
                         mainInfo: t("teks_msg_48", num),
                         detail: `(${num})(${link1Str})-(${link2Str})`,
                       },
-                      applyVisuals: () => {
-                        highlightedDigit = num;
-                        highlightState = 1;
-
-                        const visualNodes = [
-                          { cells: groupCells },
-                          { cells: baseCells },
-                          { cells: isRowVersion ? [[r2, c1]] : [[r1, c2]] },
-                          { cells: [[r2, c2]] },
-                        ];
-
-                        visualNodes.forEach((node, idx) => {
-                          node.cells.forEach(([cr, cc]) => {
-                            const colorIdx = idx % 2 === 0 ? 5 : 4;
-                            boardState[cr][cc].pencilColors.set(
-                              num,
-                              candidateColorPalette[colorIdx],
-                            );
-                          });
-                        });
-                        boardState[elimR][elimC].candSlashes.set(
+                      applyVisuals: () =>
+                        techniques._applySingleDigitChainVisuals(
                           num,
-                          markColorPalette[0],
-                        ); // Removal
-
-                        const drawGroup = (node, idx) => {
-                          if (node.cells.length > 1) {
-                            const colorIdx = idx % 2 === 0 ? 5 : 4; // Dynamically match candidate color
-                            for (let i = 0; i < node.cells.length - 1; i++) {
-                              drawnLines.push({
-                                r1: node.cells[i][0],
-                                c1: node.cells[i][1],
-                                n1: num,
-                                r2: node.cells[i + 1][0],
-                                c2: node.cells[i + 1][1],
-                                n2: num,
-                                color: lineColorPalette[colorIdx],
-                                style: "solid",
-                              });
-                            }
-                          }
-                        };
-
-                        const getClosestCells = (nodeA, nodeB) => {
-                          let minD = Infinity;
-                          let bestA = nodeA.cells[0];
-                          let bestB = nodeB.cells[0];
-                          for (const a of nodeA.cells)
-                            for (const b of nodeB.cells) {
-                              const d =
-                                Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-                              if (d < minD) {
-                                minD = d;
-                                bestA = a;
-                                bestB = b;
-                              }
-                            }
-                          return [bestA, bestB];
-                        };
-
-                        for (let i = 0; i < visualNodes.length - 1; i++) {
-                          const u = visualNodes[i];
-                          const v = visualNodes[i + 1];
-                          if (i === 0) drawGroup(u, 0);
-                          drawGroup(v, i + 1);
-                          const [cA, cB] = getClosestCells(u, v);
-                          drawnLines.push({
-                            r1: cA[0],
-                            c1: cA[1],
-                            n1: num,
-                            r2: cB[0],
-                            c2: cB[1],
-                            n2: num,
-                            color: lineColorPalette[0],
-                            style: i % 2 === 0 ? "solid" : "dash",
-                          });
-                        }
-                      },
+                          [
+                            { cells: groupCells },
+                            { cells: baseCells },
+                            {
+                              cells: isRowVersion
+                                ? [[r2, c1]]
+                                : [[r1, c2]],
+                            },
+                            { cells: [[r2, c2]] },
+                          ],
+                          [{ r: elimR, c: elimC, num }],
+                          true,
+                        ),
                     };
                     if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
                     results.push(resultObj);
@@ -2990,7 +3221,7 @@ const techniques = {
       return findAll ? [] : { change: false };
     }
 
-    const boxOf = (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3);
+    const boxOf = techniques._getBoxIndex;
     const housesOf = (r, c) => [r, 9 + c, 18 + boxOf(r, c)];
     const sameCell = (a, b) => a.r === b.r && a.c === b.c;
     const sees = (a, b) =>
@@ -3381,62 +3612,15 @@ const techniques = {
       pencils[r][c].has(d1) &&
       pencils[r][c].has(d2);
 
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      if (norm.length === 1) return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
-      if (norm.every((c) => c[0] === norm[0][0])) {
-        return `r${norm[0][0] + 1}c${norm
-          .map((c) => c[1] + 1)
-          .sort((a, b) => a - b)
-          .join("")}`;
-      }
-      if (norm.every((c) => c[1] === norm[0][1])) {
-        return `r${norm
-          .map((c) => c[0] + 1)
-          .sort((a, b) => a - b)
-          .join("")}c${norm[0][1] + 1}`;
-      }
-      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
-
-    const formatBP = (cells, boxIdx) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      const points = norm
-        .map((c) => (c[0] % 3) * 3 + (c[1] % 3) + 1)
-        .sort((a, b) => a - b)
-        .join("");
-      return `b${boxIdx + 1}p${points}`;
-    };
-
-    const getGuardiansStr = (extraCells, d1, d2) => {
-      return extraCells
-        .map(([r, c]) => {
-          const extras = Array.from(pencils[r][c])
-            .filter((d) => d !== d1 && d !== d2)
-            .sort((a, b) => a - b)
-            .join("");
-          return `(${extras})r${r + 1}c${c + 1}`;
-        })
-        .join(",");
-    };
-
-    const getBasePosStr = (urCells) => {
-      const rows = Array.from(new Set(urCells.map((c) => c[0] + 1)))
-        .sort((a, b) => a - b)
-        .join("");
-      const cols = Array.from(new Set(urCells.map((c) => c[1] + 1)))
-        .sort((a, b) => a - b)
-        .join("");
-      return `r${rows}c${cols}`;
-    };
+    const formatRC = techniques._formatCellsRC;
+    const formatBP = techniques._formatBoxPoints;
+    const getGuardiansStr = (extraCells, d1, d2) =>
+      techniques._formatGuardianExtras(
+        extraCells,
+        new Set([d1, d2]),
+        pencils,
+      );
+    const getBasePosStr = techniques._formatRectangleBounds;
 
     const getURVisuals = (type, cells, d1, d2, removals, extraData = {}) => {
       return () => {
@@ -4522,57 +4706,9 @@ const techniques = {
     const isUnfilled = (r, c) => board[r][c] === 0 && !isInitialGiven(r, c);
     const sameCell = (a, b) => a[0] === b[0] && a[1] === b[1];
     const cellKey = ([r, c]) => `${r},${c}`;
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-
-      if (norm.length === 1) {
-        return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
-      }
-
-      if (norm.every((c) => c[0] === norm[0][0])) {
-        return `r${norm[0][0] + 1}c${norm
-          .map((c) => c[1] + 1)
-          .sort((a, b) => a - b)
-          .join("")}`;
-      }
-
-      if (norm.every((c) => c[1] === norm[0][1])) {
-        return `r${norm
-          .map((c) => c[0] + 1)
-          .sort((a, b) => a - b)
-          .join("")}c${norm[0][1] + 1}`;
-      }
-
-      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
-
-    const formatBP = (cells, boxIdx) => {
-      if (!cells || cells.length === 0) return "";
-
-      const points = cells
-        .map(([r, c]) => (r % 3) * 3 + (c % 3) + 1)
-        .sort((a, b) => a - b)
-        .join("");
-
-      return `b${boxIdx + 1}p${points}`;
-    };
-
-    const getBasePosStr = (cells) => {
-      const rows = [...new Set(cells.map(([r]) => r + 1))]
-        .sort((a, b) => a - b)
-        .join("");
-
-      const cols = [...new Set(cells.map(([, c]) => c + 1))]
-        .sort((a, b) => a - b)
-        .join("");
-
-      return `r${rows}c${cols}`;
-    };
+    const formatRC = techniques._formatCellsRC;
+    const formatBP = techniques._formatBoxPoints;
+    const getBasePosStr = techniques._formatRectangleBounds;
 
     const getFilledStr = (filledCells) =>
       filledCells
@@ -5259,14 +5395,7 @@ const techniques = {
   _checkAndAddER: (pairs, pencils, er_list, is_nx2, found) => {
     const pairMasks = [];
     const digitFrequency = new Uint8Array(10);
-    const bitCount = (mask) => {
-      let count = 0;
-      while (mask) {
-        mask &= mask - 1;
-        count++;
-      }
-      return count;
-    };
+    const bitCount = techniques._bits.popcount;
 
     for (const [[r1, c1], [r2, c2]] of pairs) {
       // Prevent using solved cells (naked singles) which can cause false positives with union
@@ -5370,111 +5499,20 @@ const techniques = {
     const ers = techniques._findExtendedRectangles(pencils);
     if (ers.length === 0) return { change: false };
 
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      if (norm.length === 1) return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
-      if (norm.every((c) => c[0] === norm[0][0])) {
-        return `r${norm[0][0] + 1}c${norm
-          .map((c) => c[1] + 1)
-          .sort((a, b) => a - b)
-          .join("")}`;
-      }
-      if (norm.every((c) => c[1] === norm[0][1])) {
-        return `r${norm
-          .map((c) => c[0] + 1)
-          .sort((a, b) => a - b)
-          .join("")}c${norm[0][1] + 1}`;
-      }
-      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
-
-    const formatBP = (cells, boxIdx) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      const points = norm
-        .map((c) => (c[0] % 3) * 3 + (c[1] % 3) + 1)
-        .sort((a, b) => a - b)
-        .join("");
-      return `b${boxIdx + 1}p${points}`;
-    };
-
-    const getBasePosStr = (cells) => {
-      const rows = Array.from(new Set(cells.map((c) => c[0] + 1)))
-        .sort((a, b) => a - b)
-        .join("");
-      const cols = Array.from(new Set(cells.map((c) => c[1] + 1)))
-        .sort((a, b) => a - b)
-        .join("");
-      return `r${rows}c${cols}`;
-    };
-
-    const getGuardiansStr = (extraCells, core_digits, pencils) => {
-      return extraCells
-        .map(([r, c]) => {
-          const extras = Array.from(pencils[r][c])
-            .filter((d) => !core_digits.has(d))
-            .sort((a, b) => a - b)
-            .join("");
-          return `(${extras})r${r + 1}c${c + 1}`;
-        })
-        .join(",");
-    };
+    const formatRC = techniques._formatCellsRC;
+    const formatBP = techniques._formatBoxPoints;
+    const getBasePosStr = techniques._formatRectangleBounds;
+    const getGuardiansStr = (extraCells, coreDigits, sourcePencils) =>
+      techniques._formatGuardianExtras(extraCells, coreDigits, sourcePencils);
 
     const getEURVisuals = (type, cells, digits, removals, extraData = {}) => {
       return () => {
-        highlightState = type === 4 || type === 6 ? 1 : 0;
-        highlightedDigit =
-          type === 4 || type === 6 ? extraData.restrictedDigit : null;
-
-        const core_digits = new Set(digits);
-        cells.forEach(([cr, cc]) => {
-          boardState[cr][cc].cellColor = cellColorPalette[7];
-          boardState[cr][cc].pencils.forEach((cand) => {
-            if (core_digits.has(cand))
-              boardState[cr][cc].pencilColors.set(
-                cand,
-                candidateColorPalette[7],
-              );
-            else
-              boardState[cr][cc].pencilColors.set(
-                cand,
-                candidateColorPalette[3],
-              );
-          });
-        });
-
-        if (type === 3) {
-          extraData.subsetCells.forEach(([cr, cc]) => {
-            boardState[cr][cc].cellColor = cellColorPalette[6];
-            boardState[cr][cc].pencils.forEach((cand) => {
-              if (extraData.subsetCands.has(cand))
-                boardState[cr][cc].pencilColors.set(
-                  cand,
-                  candidateColorPalette[4],
-                );
-            });
-          });
-        }
-
-        if (type === 4) {
-          drawnLines.push({
-            r1: extraData.e1[0],
-            c1: extraData.e1[1],
-            n1: extraData.restrictedDigit,
-            r2: extraData.e2[0],
-            c2: extraData.e2[1],
-            n2: extraData.restrictedDigit,
-            color: lineColorPalette[0],
-            style: "solid",
-          });
-        }
+        techniques._applyDeadlyPatternBaseVisuals(
+          type,
+          cells,
+          digits,
+          extraData,
+        );
 
         if (type === 6) {
           const u = extraData.restrictedDigit;
@@ -6098,111 +6136,20 @@ const techniques = {
     const loops = techniques._findUniqueLoops(pencils);
     if (loops.length === 0) return { change: false };
 
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      if (norm.length === 1) return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
-      if (norm.every((c) => c[0] === norm[0][0])) {
-        return `r${norm[0][0] + 1}c${norm
-          .map((c) => c[1] + 1)
-          .sort((a, b) => a - b)
-          .join("")}`;
-      }
-      if (norm.every((c) => c[1] === norm[0][1])) {
-        return `r${norm
-          .map((c) => c[0] + 1)
-          .sort((a, b) => a - b)
-          .join("")}c${norm[0][1] + 1}`;
-      }
-      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
-
-    const formatBP = (cells, boxIdx) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      const points = norm
-        .map((c) => (c[0] % 3) * 3 + (c[1] % 3) + 1)
-        .sort((a, b) => a - b)
-        .join("");
-      return `b${boxIdx + 1}p${points}`;
-    };
-
-    const getBasePosStr = (cells) => {
-      const rows = Array.from(new Set(cells.map((c) => c[0] + 1)))
-        .sort((a, b) => a - b)
-        .join("");
-      const cols = Array.from(new Set(cells.map((c) => c[1] + 1)))
-        .sort((a, b) => a - b)
-        .join("");
-      return `r${rows}c${cols}`;
-    };
-
-    const getGuardiansStr = (extraCells, d_set, pencils) => {
-      return extraCells
-        .map(([r, c]) => {
-          const extras = Array.from(pencils[r][c])
-            .filter((d) => !d_set.has(d))
-            .sort((a, b) => a - b)
-            .join("");
-          return `(${extras})r${r + 1}c${c + 1}`;
-        })
-        .join(",");
-    };
+    const formatRC = techniques._formatCellsRC;
+    const formatBP = techniques._formatBoxPoints;
+    const getBasePosStr = techniques._formatRectangleBounds;
+    const getGuardiansStr = (extraCells, digitSet, sourcePencils) =>
+      techniques._formatGuardianExtras(extraCells, digitSet, sourcePencils);
 
     const getULVisuals = (type, cells, digits, removals, extraData = {}) => {
       return () => {
-        highlightState = type === 4 || type === 6 ? 1 : 0;
-        highlightedDigit =
-          type === 4 || type === 6 ? extraData.restrictedDigit : null;
-
-        const core_digits = new Set(digits);
-        cells.forEach(([cr, cc]) => {
-          boardState[cr][cc].cellColor = cellColorPalette[7];
-          boardState[cr][cc].pencils.forEach((cand) => {
-            if (core_digits.has(cand))
-              boardState[cr][cc].pencilColors.set(
-                cand,
-                candidateColorPalette[7],
-              );
-            else
-              boardState[cr][cc].pencilColors.set(
-                cand,
-                candidateColorPalette[3],
-              );
-          });
-        });
-
-        if (type === 3) {
-          extraData.subsetCells.forEach(([cr, cc]) => {
-            boardState[cr][cc].cellColor = cellColorPalette[6];
-            boardState[cr][cc].pencils.forEach((cand) => {
-              if (extraData.subsetCands.has(cand))
-                boardState[cr][cc].pencilColors.set(
-                  cand,
-                  candidateColorPalette[4],
-                );
-            });
-          });
-        }
-
-        if (type === 4) {
-          drawnLines.push({
-            r1: extraData.e1[0],
-            c1: extraData.e1[1],
-            n1: extraData.restrictedDigit,
-            r2: extraData.e2[0],
-            c2: extraData.e2[1],
-            n2: extraData.restrictedDigit,
-            color: lineColorPalette[0],
-            style: "solid",
-          });
-        }
+        techniques._applyDeadlyPatternBaseVisuals(
+          type,
+          cells,
+          digits,
+          extraData,
+        );
 
         if (type === 6) {
           const u = extraData.restrictedDigit;
@@ -6623,21 +6570,13 @@ const techniques = {
     const results = [];
     const emitted = new Set();
     const cellKey = (r, c) => r + "," + c;
-    const cellId = (r, c) => r * 9 + c;
-    const idToCell = (id) => [Math.floor(id / 9), id % 9];
+    const cellId = techniques._cellToId;
+    const idToCell = techniques._idToCell;
     const uniqueCells = (cells) =>
       [...new Set(cells.map(([r, c]) => cellId(r, c)))]
         .sort((a, b) => a - b)
         .map(idToCell);
-    const formatBody = (cells) => {
-      const rows = [...new Set(cells.map(([r]) => r + 1))].sort(
-        (a, b) => a - b,
-      );
-      const cols = [...new Set(cells.map(([, c]) => c + 1))].sort(
-        (a, b) => a - b,
-      );
-      return "r" + rows.join("") + "c" + cols.join("");
-    };
+    const formatBody = techniques._formatRectangleBounds;
     const formatCompactCells = (cells) => {
       const unique = uniqueCells(cells);
       const groupBy = (primaryIndex, secondaryIndex, primaryPrefix) => {
@@ -7130,40 +7069,8 @@ const techniques = {
     const numBaseCells = size - 1;
 
     // --- Format Helpers for Hints ---
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      if (norm.length === 1) return `r${norm[0][0] + 1}c${norm[0][1] + 1}`;
-      if (norm.every((c) => c[0] === norm[0][0])) {
-        return `r${norm[0][0] + 1}c${norm
-          .map((c) => c[1] + 1)
-          .sort()
-          .join("")}`;
-      }
-      if (norm.every((c) => c[1] === norm[0][1])) {
-        return `r${norm
-          .map((c) => c[0] + 1)
-          .sort()
-          .join("")}c${norm[0][1] + 1}`;
-      }
-      return norm.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
-
-    const formatBP = (cells, boxIdx) => {
-      if (!cells || cells.length === 0) return "";
-      const norm = cells.map((c) => [
-        c.r !== undefined ? c.r : c[0],
-        c.c !== undefined ? c.c : c[1],
-      ]);
-      const points = norm
-        .map((c) => (c[0] % 3) * 3 + (c[1] % 3) + 1)
-        .sort((a, b) => a - b)
-        .join("");
-      return `b${boxIdx + 1}p${points}`;
-    };
+    const formatRC = techniques._formatCellsRC;
+    const formatBP = techniques._formatBoxPoints;
 
     // Helper: Remove all candidates EXCEPT those in V from a list of cells
     const cleanExtraCells = (cellsToClean, V) => {
@@ -7425,37 +7332,11 @@ const techniques = {
 
   sueDeCoq: (board, pencils, findAll = false) => {
     const results = [];
-    const bitFor = (d) => 1 << (d - 1);
-    const maskFromSet = (s) => {
-      let m = 0;
-      for (const v of s) m |= bitFor(v);
-      return m;
-    };
-    const bitCount = (m) => {
-      let cnt = 0;
-      while (m) {
-        m &= m - 1;
-        cnt++;
-      }
-      return cnt;
-    };
+    const bitFor = techniques._bits.bitFor;
+    const maskFromSet = techniques._bits.maskFromSet;
+    const bitCount = techniques._bits.popcount;
 
-    const combinations = (arr, k) => {
-      const res = [];
-      const comb = Array(k);
-      const dfs = (start, depth) => {
-        if (depth === k) {
-          res.push(comb.slice());
-          return;
-        }
-        for (let i = start; i <= arr.length - (k - depth); i++) {
-          comb[depth] = arr[i];
-          dfs(i + 1, depth + 1);
-        }
-      };
-      if (k <= arr.length) dfs(0, 0);
-      return res;
-    };
+    const combinations = techniques.combinations;
 
     // Modified to track 'extra' candidates and allow up to maxExtra (2 for AALS)
     const findAlses = (cells, minSize = 1, maxSize = 8, maxExtra = 2) => {
@@ -7494,27 +7375,7 @@ const techniques = {
       });
     };
 
-    const formatRC = (cells) => {
-      if (!cells || cells.length === 0) return "";
-      // Check if they all share the same row
-      if (cells.every((c) => c[0] === cells[0][0])) {
-        const cols = cells
-          .map((c) => c[1] + 1)
-          .sort()
-          .join("");
-        return `r${cells[0][0] + 1}c${cols}`;
-      }
-      // Check if they all share the same col
-      if (cells.every((c) => c[1] === cells[0][1])) {
-        const rows = cells
-          .map((c) => c[0] + 1)
-          .sort()
-          .join("");
-        return `r${rows}c${cells[0][1] + 1}`;
-      }
-      // Fallback if they are disjoint (shouldn't happen for valid SdC lines, but safe to have)
-      return cells.map((c) => `r${c[0] + 1}c${c[1] + 1}`).join(",");
-    };
+    const formatRC = techniques._formatCellsRC;
 
     const formatBP = (cells, boxNum) => {
       if (!cells || cells.length === 0) return "";
@@ -7800,26 +7661,11 @@ const techniques = {
 
   fireworkQuadruple: (board, pencils, findAll = false) => {
     const results = [];
-    const bitFor = (d) => 1 << (d - 1);
-    const maskFromSet = (s) => {
-      let m = 0;
-      for (const v of s) m |= bitFor(v);
-      return m;
-    };
-    const bitCount = (m) => {
-      let c = 0;
-      while (m) {
-        m &= m - 1;
-        c++;
-      }
-      return c;
-    };
-    const maskToDigits = (mask) => {
-      const out = [];
-      for (let d = 1; d <= 9; d++) if (mask & bitFor(d)) out.push(d);
-      return out;
-    };
-    const boxIndex = (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3);
+    const bitFor = techniques._bits.bitFor;
+    const maskFromSet = techniques._bits.maskFromSet;
+    const bitCount = techniques._bits.popcount;
+    const maskToDigits = techniques._bits.maskToDigits;
+    const boxIndex = techniques._getBoxIndex;
 
     const eliminations = [];
 
@@ -8119,26 +7965,11 @@ const techniques = {
 
   fireworkTriple: (board, pencils, findAll = false) => {
     const results = [];
-    const bitFor = (d) => 1 << (d - 1);
-    const maskFromSet = (s) => {
-      let m = 0;
-      for (const v of s) m |= bitFor(v);
-      return m;
-    };
-    const bitCount = (m) => {
-      let c = 0;
-      while (m) {
-        m &= m - 1;
-        c++;
-      }
-      return c;
-    };
-    const maskToDigits = (mask) => {
-      const out = [];
-      for (let d = 1; d <= 9; d++) if (mask & bitFor(d)) out.push(d);
-      return out;
-    };
-    const boxIndex = (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3);
+    const bitFor = techniques._bits.bitFor;
+    const maskFromSet = techniques._bits.maskFromSet;
+    const bitCount = techniques._bits.popcount;
+    const maskToDigits = techniques._bits.maskToDigits;
+    const boxIndex = techniques._getBoxIndex;
     const boxStart = (b) => [Math.floor(b / 3) * 3, (b % 3) * 3];
 
     const eliminations = [];
@@ -8682,31 +8513,8 @@ const techniques = {
     const alses = techniques._collectAllALS(board, pencils);
     const candidateLinks = [];
 
-    const hasNandCandidates = (node) => {
-      const d = node.digits[0];
-
-      for (let p = 0; p < 3; p++) {
-        let mask = node.NandBitset[d - 1][p];
-        let bitPos = 0;
-
-        while (mask > 0) {
-          if (mask & 1) {
-            const id = p * 27 + bitPos;
-            const r = Math.floor(id / 9);
-            const c = id % 9;
-
-            if (pencils[r][c] && pencils[r][c].has(d)) {
-              return true;
-            }
-          }
-
-          mask >>>= 1;
-          bitPos++;
-        }
-      }
-
-      return false;
-    };
+    const hasNandCandidates = (node) =>
+      techniques._hasNandCandidates(node, pencils);
 
     for (const als of alses) {
       const digits = Object.keys(als.candMap).map(Number);
@@ -8888,43 +8696,10 @@ const techniques = {
   buildFishOrMap: (board, pencils, getNode, fishLinkRegistry) => {
     const orMap = new Map();
 
-    // Optimized combination generator using backtracking (less garbage collection)
-    const getCombinations = (arr, size) => {
-      const result = [];
-      const combo = [];
-      const f = (start) => {
-        if (combo.length === size) {
-          result.push([...combo]);
-          return;
-        }
-        for (let i = start; i < arr.length; i++) {
-          combo.push(arr[i]);
-          f(i + 1);
-          combo.pop(); // Backtrack
-        }
-      };
-      f(0);
-      return result;
-    };
+    const getCombinations = techniques.combinations;
 
-    const hasNandCandidates = (node) => {
-      const d = node.digits[0];
-      for (let p = 0; p < 3; p++) {
-        let mask = node.NandBitset[d - 1][p];
-        let bitPos = 0;
-        while (mask > 0) {
-          if (mask & 1) {
-            const id = p * 27 + bitPos;
-            const r = Math.floor(id / 9);
-            const c = id % 9;
-            if (pencils[r][c] && pencils[r][c].has(d)) return true;
-          }
-          mask >>>= 1;
-          bitPos++;
-        }
-      }
-      return false;
-    };
+    const hasNandCandidates = (node) =>
+      techniques._hasNandCandidates(node, pencils);
 
     const addLink = (nodeA, nodeB, fish) => {
       if (nodeA === nodeB) return;
@@ -9352,6 +9127,12 @@ const techniques = {
       BlossomSearchCache: null,
       AlmostAicGraph: null,
     };
+  },
+
+  _releaseAICCache: () => {
+    techniques._sharedAICCache.signature = null;
+    techniques._sharedAICCache.cache = null;
+    techniques._resetAICCache();
   },
 
   _addLink: (map, u, v) => {
@@ -9824,95 +9605,8 @@ const techniques = {
       return null;
     };
 
-    const getLoc = (cells, preferBox = false) => {
-      if (cells.length === 0) return "";
-
-      if (cells.length === 1) {
-        const r = Math.floor(cells[0] / 9);
-        const c = cells[0] % 9;
-        if (preferBox) {
-          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
-          const p = (r % 3) * 3 + (c % 3) + 1;
-          return `b${b}p${p}`;
-        }
-        return `r${r + 1}c${c + 1}`;
-      }
-
-      const rows = [...new Set(cells.map((id) => Math.floor(id / 9) + 1))].sort(
-        (a, b) => a - b,
-      );
-      const cols = [...new Set(cells.map((id) => (id % 9) + 1))].sort(
-        (a, b) => a - b,
-      );
-      const boxes = [
-        ...new Set(
-          cells.map(
-            (id) =>
-              Math.floor(Math.floor(id / 9) / 3) * 3 +
-              Math.floor((id % 9) / 3) +
-              1,
-          ),
-        ),
-      ];
-
-      if (preferBox && boxes.length === 1) {
-        const points = cells
-          .map((id) => {
-            const r = Math.floor(id / 9) % 3;
-            const c = (id % 9) % 3;
-            return r * 3 + c + 1;
-          })
-          .sort((a, b) => a - b);
-        return `b${boxes[0]}p${points.join("")}`;
-      }
-
-      if (rows.length === 1) return `r${rows[0]}c${cols.join("")}`;
-      if (cols.length === 1) return `r${rows.join("")}c${cols[0]}`;
-
-      return [...cells]
-        .sort((a, b) => a - b)
-        .map((id) => {
-          const r = Math.floor(id / 9) + 1;
-          const c = (id % 9) + 1;
-          return `r${r}c${c}`;
-        })
-        .join("");
-    };
-
-    const getCompactFinLoc = (cells) => {
-      if (cells.length <= 1) return getLoc(cells);
-
-      const uniqueCells = [...new Set(cells)];
-      const rows = new Set(uniqueCells.map((id) => Math.floor(id / 9)));
-      const cols = new Set(uniqueCells.map((id) => id % 9));
-
-      if (rows.size === 1 || cols.size === 1) return getLoc(uniqueCells);
-
-      // Use the direction that produces fewer groups. Keep group order based
-      // on the fish-node cell order so Eureka notation follows the fin order.
-      const groupByRow = rows.size <= cols.size;
-      const groups = new Map();
-
-      for (const id of uniqueCells) {
-        const r = Math.floor(id / 9);
-        const c = id % 9;
-        const key = groupByRow ? r : c;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(groupByRow ? c : r);
-      }
-
-      return Array.from(groups.entries())
-        .map(([key, values]) => {
-          const positions = values
-            .sort((a, b) => a - b)
-            .map((value) => value + 1)
-            .join("");
-          return groupByRow
-            ? `r${key + 1}c${positions}`
-            : `r${positions}c${key + 1}`;
-        })
-        .join(",");
-    };
+    const getLoc = techniques._formatAicLocation;
+    const getCompactFinLoc = techniques._formatCompactAicLocation;
 
     const buildCompactEureka = (path, isRing) => {
       let str = "";
@@ -10779,6 +10473,7 @@ const techniques = {
 
   // --- BITWISE HELPERS ---
   _bits: {
+    bitFor: (digit) => 1 << (digit - 1),
     popcount: (n) => {
       // Handle BigInt (used for 81-cell position masks)
       if (typeof n === "bigint") {
@@ -11038,217 +10733,16 @@ const techniques = {
     orMap = techniques.mergeOrMaps(orMap, cache.AlsMap);
 
     // Helper for location string
-    const getLoc = (cells, preferBox = false) => {
-      if (cells.length === 0) return "";
-      if (cells.length === 1) {
-        const r = Math.floor(cells[0] / 9);
-        const c = cells[0] % 9;
-        if (preferBox) {
-          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
-          const p = (r % 3) * 3 + (c % 3) + 1;
-          return `b${b}p${p}`;
-        }
-        return `r${r + 1}c${c + 1}`;
-      }
-      const boxes = [
-        ...new Set(
-          cells.map(
-            (id) =>
-              Math.floor(Math.floor(id / 9) / 3) * 3 +
-              Math.floor((id % 9) / 3) +
-              1,
-          ),
-        ),
-      ];
-      if (preferBox && boxes.length === 1) {
-        const points = cells
-          .map((id) => (Math.floor(id / 9) % 3) * 3 + ((id % 9) % 3) + 1)
-          .sort((a, b) => a - b);
-        return `b${boxes[0]}p${points.join("")}`;
-      }
-      const rows = [...new Set(cells.map((id) => Math.floor(id / 9) + 1))].sort(
-        (a, b) => a - b,
-      );
-      const cols = [...new Set(cells.map((id) => (id % 9) + 1))].sort(
-        (a, b) => a - b,
-      );
-      if (rows.length === 1) return `r${rows[0]}c${cols.join("")}`;
-      if (cols.length === 1) return `r${rows.join("")}c${cols[0]}`;
-      return [...cells]
-        .sort((a, b) => a - b)
-        .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
-        .join("");
-    };
+    const getLoc = techniques._formatAicLocation;
 
     // 2. Collect and sort potential stems (3 to 6 candidates)
-    const potentialStems = [];
-
-    if (isCell) {
-      // Cell Death Blossom
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          const size = pencils[r][c].size;
-          if (size >= 3 && size <= 6) {
-            potentialStems.push({
-              size,
-              r,
-              c,
-              cellId: r * 9 + c,
-              startDigits: Array.from(pencils[r][c]).sort((a, b) => a - b),
-            });
-          }
-        }
-      }
-    } else if (isRegion) {
-      // Region Death Blossom
-      for (let d = 1; d <= 9; d++) {
-        // Rows
-        for (let r = 0; r < 9; r++) {
-          const cells = [];
-          for (let c = 0; c < 9; c++)
-            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
-          if (cells.length >= 3 && cells.length <= 6)
-            potentialStems.push({
-              size: cells.length,
-              digit: d,
-              cells,
-              houseName: t("teks_msg_153", r + 1),
-            });
-        }
-        // Cols
-        for (let c = 0; c < 9; c++) {
-          const cells = [];
-          for (let r = 0; r < 9; r++)
-            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
-          if (cells.length >= 3 && cells.length <= 6)
-            potentialStems.push({
-              size: cells.length,
-              digit: d,
-              cells,
-              houseName: t("teks_msg_154", c + 1),
-            });
-        }
-        // Boxes
-        for (let b = 0; b < 9; b++) {
-          const cells = [];
-          const br = Math.floor(b / 3) * 3;
-          const bc = (b % 3) * 3;
-          for (let i = 0; i < 9; i++) {
-            const r = br + Math.floor(i / 3);
-            const c = bc + (i % 3);
-            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
-          }
-          if (cells.length >= 3 && cells.length <= 6)
-            potentialStems.push({
-              size: cells.length,
-              digit: d,
-              cells,
-              houseName: t("teks_msg_155", b + 1),
-            });
-        }
-      }
-    } else {
-      // AALS Death Blossom
-      const seenAals = new Set();
-      const unitLabel = (unit) =>
-        unit < 9
-          ? t("teks_msg_153", unit + 1)
-          : unit < 18
-            ? t("teks_msg_154", unit - 8)
-            : t("teks_msg_155", unit - 17);
-
-      for (let unit = 0; unit < 27; unit++) {
-        const eligibleCells = [];
-        for (let id = 0; id < 81; id++) {
-          const part = Math.floor(id / 27);
-          const bit = id % 27;
-          if ((UNIT_BITSETS[unit][part] & (1 << bit)) === 0) continue;
-          const r = Math.floor(id / 9);
-          const c = id % 9;
-          if (board[r][c] === 0 && pencils[r][c].size > 0) {
-            eligibleCells.push(id);
-          }
-        }
-
-        const addAalsStems = (cells) => {
-          let mask = 0;
-          const cellsByDigit = Array.from({ length: 10 }, () => []);
-          for (const id of cells) {
-            const r = Math.floor(id / 9);
-            const c = id % 9;
-            for (const digit of pencils[r][c]) {
-              mask |= 1 << digit;
-              cellsByDigit[digit].push(id);
-            }
-          }
-          if (techniques._bits.popcount(mask) !== cells.length + 2) return;
-
-          const aalsKey = [...cells].sort((a, b) => a - b).join(",");
-          if (seenAals.has(aalsKey)) return;
-          seenAals.add(aalsKey);
-
-          const digits = [];
-          for (let digit = 1; digit <= 9; digit++) {
-            if (mask & (1 << digit)) digits.push(digit);
-          }
-          for (let first = 0; first < digits.length - 2; first++) {
-            for (let second = first + 1; second < digits.length - 1; second++) {
-              for (let third = second + 1; third < digits.length; third++) {
-                const startDigits = [
-                  digits[first],
-                  digits[second],
-                  digits[third],
-                ];
-                const startCandidates = startDigits.flatMap((digit) =>
-                  cellsByDigit[digit].map((id) => ({ id, digit })),
-                );
-                if (startCandidates.length < 3 || startCandidates.length > 5) {
-                  continue;
-                }
-
-                potentialStems.push({
-                  size: startCandidates.length,
-                  kind: "aals",
-                  unit,
-                  cells: [...cells],
-                  houseName: unitLabel(unit),
-                  startDigits,
-                  startCandidates,
-                  startCandidateKeys: new Set(
-                    startCandidates.map(({ id, digit }) => `${id}:${digit}`),
-                  ),
-                });
-              }
-            }
-          }
-        };
-
-        const chooseCells = (start, size, cells) => {
-          if (cells.length === size) {
-            addAalsStems(cells);
-            return;
-          }
-          const needed = size - cells.length;
-          for (
-            let index = start;
-            index <= eligibleCells.length - needed;
-            index++
-          ) {
-            cells.push(eligibleCells[index]);
-            chooseCells(index + 1, size, cells);
-            cells.pop();
-          }
-        };
-
-        for (let size = 2; size <= Math.min(7, eligibleCells.length); size++) {
-          chooseCells(0, size, []);
-        }
-      }
-    }
-
-    // Sort stems so cells/regions with fewer candidates are processed first
-    potentialStems.sort((a, b) => a.size - b.size);
-
+    const potentialStems = techniques._collectBlossomStems(
+      board,
+      pencils,
+      isCell ? "cell" : isRegion ? "region" : "aals",
+      6,
+      5,
+    );
     // 3. Iterate through sorted stem cells/regions
     for (const stem of potentialStems) {
       const startNodes = isCell
@@ -11975,76 +11469,9 @@ const techniques = {
     const groupedLinkRegistry = graph.groupedLinkRegistry;
     const fishLinkRegistry = graph.fishLinkRegistry;
 
-    const getLoc = (cells, preferBox = false) => {
-      if (cells.length === 0) return "";
-      if (cells.length === 1) {
-        const r = Math.floor(cells[0] / 9);
-        const c = cells[0] % 9;
-        if (preferBox) {
-          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
-          const p = (r % 3) * 3 + (c % 3) + 1;
-          return `b${b}p${p}`;
-        }
-        return `r${r + 1}c${c + 1}`;
-      }
-      const boxes = [
-        ...new Set(
-          cells.map(
-            (id) =>
-              Math.floor(Math.floor(id / 9) / 3) * 3 +
-              Math.floor((id % 9) / 3) +
-              1,
-          ),
-        ),
-      ];
-      if (preferBox && boxes.length === 1) {
-        const points = cells
-          .map((id) => (Math.floor(id / 9) % 3) * 3 + ((id % 9) % 3) + 1)
-          .sort((a, b) => a - b);
-        return `b${boxes[0]}p${points.join("")}`;
-      }
-      const rows = [...new Set(cells.map((id) => Math.floor(id / 9) + 1))].sort(
-        (a, b) => a - b,
-      );
-      const cols = [...new Set(cells.map((id) => (id % 9) + 1))].sort(
-        (a, b) => a - b,
-      );
-      if (rows.length === 1) return `r${rows[0]}c${cols.join("")}`;
-      if (cols.length === 1) return `r${rows.join("")}c${cols[0]}`;
-      return [...cells]
-        .sort((a, b) => a - b)
-        .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
-        .join("");
-    };
+    const getLoc = techniques._formatAicLocation;
 
-    const getCompactFinLoc = (cells) => {
-      if (cells.length <= 1) return getLoc(cells);
-
-      const uniqueCells = [...new Set(cells)];
-      const rows = new Set(uniqueCells.map((id) => Math.floor(id / 9)));
-      const cols = new Set(uniqueCells.map((id) => id % 9));
-      if (rows.size === 1 || cols.size === 1) return getLoc(uniqueCells);
-
-      const groupByRow = rows.size <= cols.size;
-      const groups = new Map();
-      for (const id of uniqueCells) {
-        const key = groupByRow ? Math.floor(id / 9) : id % 9;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(groupByRow ? id % 9 : Math.floor(id / 9));
-      }
-
-      return Array.from(groups.entries())
-        .map(([key, values]) => {
-          const positions = values
-            .sort((a, b) => a - b)
-            .map((value) => value + 1)
-            .join("");
-          return groupByRow
-            ? `r${key + 1}c${positions}`
-            : `r${positions}c${key + 1}`;
-        })
-        .join(",");
-    };
+    const getCompactFinLoc = techniques._formatCompactAicLocation;
 
     // One Eureka term per strong link, following the AIC core formatting.
     const strongTerm = (u, v, lastDigit) => {
@@ -12117,167 +11544,13 @@ const techniques = {
 
     // 1. Collect stems. Death Blossom allows up to six branches; Almost AIC
     // stops at four because each branch reaches far further.
-    const potentialStems = [];
-
-    if (isCell) {
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          const size = pencils[r][c].size;
-          if (size >= 3 && size <= 4) {
-            potentialStems.push({
-              size,
-              r,
-              c,
-              cellId: r * 9 + c,
-              startDigits: Array.from(pencils[r][c]).sort((a, b) => a - b),
-            });
-          }
-        }
-      }
-    } else if (isRegion) {
-      for (let d = 1; d <= 9; d++) {
-        for (let r = 0; r < 9; r++) {
-          const cells = [];
-          for (let c = 0; c < 9; c++)
-            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
-          if (cells.length >= 3 && cells.length <= 4)
-            potentialStems.push({
-              size: cells.length,
-              digit: d,
-              cells,
-              houseName: t("teks_msg_153", r + 1),
-            });
-        }
-        for (let c = 0; c < 9; c++) {
-          const cells = [];
-          for (let r = 0; r < 9; r++)
-            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
-          if (cells.length >= 3 && cells.length <= 4)
-            potentialStems.push({
-              size: cells.length,
-              digit: d,
-              cells,
-              houseName: t("teks_msg_154", c + 1),
-            });
-        }
-        for (let b = 0; b < 9; b++) {
-          const cells = [];
-          const br = Math.floor(b / 3) * 3;
-          const bc = (b % 3) * 3;
-          for (let i = 0; i < 9; i++) {
-            const r = br + Math.floor(i / 3);
-            const c = bc + (i % 3);
-            if (pencils[r][c].has(d)) cells.push(r * 9 + c);
-          }
-          if (cells.length >= 3 && cells.length <= 4)
-            potentialStems.push({
-              size: cells.length,
-              digit: d,
-              cells,
-              houseName: t("teks_msg_155", b + 1),
-            });
-        }
-      }
-    } else {
-      const seenAals = new Set();
-      const unitLabel = (unit) =>
-        unit < 9
-          ? t("teks_msg_153", unit + 1)
-          : unit < 18
-            ? t("teks_msg_154", unit - 8)
-            : t("teks_msg_155", unit - 17);
-
-      for (let unit = 0; unit < 27; unit++) {
-        const eligibleCells = [];
-        for (let id = 0; id < 81; id++) {
-          const part = Math.floor(id / 27);
-          const bit = id % 27;
-          if ((UNIT_BITSETS[unit][part] & (1 << bit)) === 0) continue;
-          const r = Math.floor(id / 9);
-          const c = id % 9;
-          if (board[r][c] === 0 && pencils[r][c].size > 0) {
-            eligibleCells.push(id);
-          }
-        }
-
-        const addAalsStems = (cells) => {
-          let mask = 0;
-          const cellsByDigit = Array.from({ length: 10 }, () => []);
-          for (const id of cells) {
-            const r = Math.floor(id / 9);
-            const c = id % 9;
-            for (const digit of pencils[r][c]) {
-              mask |= 1 << digit;
-              cellsByDigit[digit].push(id);
-            }
-          }
-          if (techniques._bits.popcount(mask) !== cells.length + 2) return;
-
-          const aalsKey = [...cells].sort((a, b) => a - b).join(",");
-          if (seenAals.has(aalsKey)) return;
-          seenAals.add(aalsKey);
-
-          const digits = [];
-          for (let digit = 1; digit <= 9; digit++) {
-            if (mask & (1 << digit)) digits.push(digit);
-          }
-          for (let first = 0; first < digits.length - 2; first++) {
-            for (let second = first + 1; second < digits.length - 1; second++) {
-              for (let third = second + 1; third < digits.length; third++) {
-                const startDigits = [
-                  digits[first],
-                  digits[second],
-                  digits[third],
-                ];
-                const startCandidates = startDigits.flatMap((digit) =>
-                  cellsByDigit[digit].map((id) => ({ id, digit })),
-                );
-                if (startCandidates.length < 3 || startCandidates.length > 4) {
-                  continue;
-                }
-
-                potentialStems.push({
-                  size: startCandidates.length,
-                  kind: "aals",
-                  unit,
-                  cells: [...cells],
-                  houseName: unitLabel(unit),
-                  startDigits,
-                  startCandidates,
-                  startCandidateKeys: new Set(
-                    startCandidates.map(({ id, digit }) => `${id}:${digit}`),
-                  ),
-                });
-              }
-            }
-          }
-        };
-
-        const chooseCells = (start, size, cells) => {
-          if (cells.length === size) {
-            addAalsStems(cells);
-            return;
-          }
-          const needed = size - cells.length;
-          for (
-            let index = start;
-            index <= eligibleCells.length - needed;
-            index++
-          ) {
-            cells.push(eligibleCells[index]);
-            chooseCells(index + 1, size, cells);
-            cells.pop();
-          }
-        };
-
-        for (let size = 2; size <= Math.min(7, eligibleCells.length); size++) {
-          chooseCells(0, size, []);
-        }
-      }
-    }
-
-    potentialStems.sort((a, b) => a.size - b.size);
-
+    const potentialStems = techniques._collectBlossomStems(
+      board,
+      pencils,
+      isCell ? "cell" : isRegion ? "region" : "aals",
+      4,
+      4,
+    );
     // 2. Every stem candidate grows one branch; an elimination has to survive
     // all of them, exactly as in Death Blossom.
     for (const stem of potentialStems) {
@@ -12819,31 +12092,17 @@ const techniques = {
 
     // --- 3x27 Bitset Helpers ---
     const isZero = (a) => a[0] === 0 && a[1] === 0 && a[2] === 0;
-    const bitAnd = (a, b) => [a[0] & b[0], a[1] & b[1], a[2] & b[2]];
+    const bitAnd = techniques._cellBitsetAnd;
     const bitOr = (a, b) => [a[0] | b[0], a[1] | b[1], a[2] | b[2]];
     const bitAndNot = (a, b) => [a[0] & ~b[0], a[1] & ~b[1], a[2] & ~b[2]];
     const bitPopcount = (a) =>
       techniques._bits.popcount(a[0]) +
       techniques._bits.popcount(a[1]) +
       techniques._bits.popcount(a[2]);
-    const setBit = (a, id) => {
-      a[Math.floor(id / 27)] |= 1 << (id % 27);
-    };
+    const setBit = techniques._setCellBit;
     const testBit = (a, id) =>
       (a[Math.floor(id / 27)] & (1 << (id % 27))) !== 0;
-    const getBits = (a) => {
-      const res = [];
-      for (let p = 0; p < 3; p++) {
-        let m = a[p];
-        let bit = 0;
-        while (m > 0) {
-          if (m & 1) res.push(p * 27 + bit);
-          m >>= 1;
-          bit++;
-        }
-      }
-      return res;
-    };
+    const getBits = techniques._getCellBits;
 
     const toCheck = isMutant
       ? [{ base: [U_ROW, U_COL, U_BOX], cover: [U_ROW, U_COL, U_BOX] }]
@@ -13440,7 +12699,7 @@ const techniques = {
   ) => {
     const parseCandId = techniques._parseCandId;
     const getCandId = techniques._getCandId;
-    const bitFor = (d) => 1 << (d - 1);
+    const bitFor = techniques._bits.bitFor;
 
     // Returns formatted elimination context based on the violated rule
     const eliminateColor = (targetColor, rule, data) => {
@@ -14692,23 +13951,9 @@ const techniques = {
     const results = [];
 
     // --- 3x27 Bitset Helpers ---
-    const bitAnd = (a, b) => [a[0] & b[0], a[1] & b[1], a[2] & b[2]];
-    const setBit = (a, id) => {
-      a[Math.floor(id / 27)] |= 1 << (id % 27);
-    };
-    const getBits = (a) => {
-      const res = [];
-      for (let p = 0; p < 3; p++) {
-        let m = a[p];
-        let bit = 0;
-        while (m > 0) {
-          if (m & 1) res.push(p * 27 + bit);
-          m >>= 1;
-          bit++;
-        }
-      }
-      return res;
-    };
+    const bitAnd = techniques._cellBitsetAnd;
+    const setBit = techniques._setCellBit;
+    const getBits = techniques._getCellBits;
 
     const getCompactLoc = (cellIds) => {
       if (cellIds.length === 0) return "";

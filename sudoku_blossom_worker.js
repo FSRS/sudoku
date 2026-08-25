@@ -42,7 +42,6 @@ self.onmessage = ({ data }) => {
           : kind === "aals"
             ? techniques.aalsBlossomLoop
             : techniques.cellBlossomLoop;
-    techniques._resetAICCache();
     const found = finder(board, pencils, findAll);
     const results = Array.isArray(found)
       ? found.map(serializeResult)
@@ -50,12 +49,13 @@ self.onmessage = ({ data }) => {
         ? [serializeResult(found)]
         : [];
     self.postMessage({ id, results });
-    // The worker is reused, so drop the search caches while it is idle.
-    techniques._resetAICCache();
   } catch (error) {
     self.postMessage({
       id,
       error: error instanceof Error ? error.message : String(error),
     });
+  } finally {
+    // The worker is reused, so release the position cache while it is idle.
+    techniques._releaseAICCache();
   }
 };
