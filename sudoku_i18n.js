@@ -831,12 +831,12 @@ const TRANSLATIONS = {
     teks_msg_315: "BUG Type 3",
     teks_msg_316: "BUG Type 4",
     teks_msg_317: "BUG+{0}",
-    teks_msg_318: "Guardians: {0}",
-    teks_msg_319: "Guardians: {0}",
+    teks_msg_318: "Guardians {0}",
+    teks_msg_319: "Guardians {0}",
     teks_msg_320:
       "Guardians {0}, Extra cells {2} for virtual naked subset ({1})",
     teks_msg_321: "Guardians {0}, Conjugate pair ({1}) in {2}",
-    teks_msg_322: "Guardians: {0}",
+    teks_msg_322: "Guardians {0}",
   },
 
   ko: {
@@ -1666,11 +1666,11 @@ const TRANSLATIONS = {
     teks_msg_315: "BUG 유형 3",
     teks_msg_316: "BUG 유형 4",
     teks_msg_317: "BUG+{0}",
-    teks_msg_318: "수호자: {0}",
-    teks_msg_319: "수호자: {0}",
+    teks_msg_318: "수호자 {0}",
+    teks_msg_319: "수호자 {0}",
     teks_msg_320: "수호자 {0}, 가상의 드러난 부분집합 ({1})을 위한 추가 칸 {2}",
     teks_msg_321: "수호자 {0}, {2}의 이중 위치 ({1})",
-    teks_msg_322: "수호자: {0}",
+    teks_msg_322: "수호자 {0}",
   },
 };
 
