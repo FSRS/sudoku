@@ -6718,6 +6718,7 @@ function generateCompletionText(format = "discord") {
   };
 
   const accomplishmentOrder = [
+    { color: "violet", emoji: isDiscord ? ":purple_square:" : "🟪" },
     { color: "red", emoji: isDiscord ? ":red_square:" : "🟥" },
     { color: "orange", emoji: isDiscord ? ":orange_square:" : "🟧" },
     { color: "yellow", emoji: isDiscord ? ":yellow_square:" : "🟨" },
