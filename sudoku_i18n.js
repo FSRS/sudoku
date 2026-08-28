@@ -61,6 +61,8 @@ const TRANSLATIONS = {
 
     // === Candidate modal ===
     modal_candidate_title: "Color a Candidate",
+    modal_circle_candidate_title: "Circle a Candidate",
+    modal_cross_candidate_title: "Cross a Candidate",
     btn_close: "Close",
 
     // === Resume modal ===
@@ -130,6 +132,10 @@ const TRANSLATIONS = {
     pref_display_mode_a: "Phone",
     pref_display_mode_b: "Numpad",
     pref_experimental_mode: "Experimental Mode",
+    pref_experimental_mode_tooltip_desktop:
+      "Direct candidates: left/right-click to set/erase in Number mode.",
+    pref_experimental_mode_tooltip_mobile:
+      "Direct candidates: left/right-click to set/erase in Number mode; color candidates directly.",
     ui_rating_pending: "rating...",
     pref_uniqueness: "Enable Uniqueness Techniques",
     pref_drag_hint: "Drag & drop to reorder solver priority.",
@@ -241,6 +247,8 @@ const TRANSLATIONS = {
     ui_msg_37: "Disable Experimental Mode.",
     ui_msg_38: "Experimental Mode Disabled.",
     ui_msg_39: "Enable Experimental Mode: Click candidates directly.",
+    ui_msg_experimental_mode_tip:
+      "Tip: Experimental Mode lets you use candidates directly. Enable it in Preferences (⚙).",
     ui_msg_40: "View increasingly concrete hints for the next step.",
     ui_msg_41: "View increasingly concrete hints for the next step (V).",
     ui_msg_42: "Toggle GUI Solver Mode",
@@ -897,6 +905,8 @@ const TRANSLATIONS = {
 
     // === Candidate modal ===
     modal_candidate_title: "후보수 칠하기",
+    modal_circle_candidate_title: "후보수에 동그라미 치기",
+    modal_cross_candidate_title: "후보수에 가위표 표시하기",
     btn_close: "닫기",
 
     // === Resume modal ===
@@ -966,6 +976,9 @@ const TRANSLATIONS = {
     pref_display_mode_a: "전화기",
     pref_display_mode_b: "숫자패드",
     pref_experimental_mode: "실험실 모드",
+    pref_experimental_mode_tooltip_desktop: "좌/우클릭으로 후보수 설정/지우기",
+    pref_experimental_mode_tooltip_mobile:
+      "좌/우클릭으로 후보수 설정/지우기, 후보수 직접 색칠.",
     ui_rating_pending: "측정 중...",
     pref_uniqueness: "유일성 논법 활성화",
     pref_drag_hint:
@@ -1077,6 +1090,8 @@ const TRANSLATIONS = {
     ui_msg_37: "실험실 모드 비활성화.",
     ui_msg_38: "실험실 모드 비활성화됨.",
     ui_msg_39: "실험실 모드 활성화: 후보수를 직접 클릭하세요.",
+    ui_msg_experimental_mode_tip:
+      "팁: 실험실 모드에서는 후보수를 직접 조작할 수 있습니다. 환경설정(⚙)에서 켜세요.",
     ui_msg_40: "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다.",
     ui_msg_41: "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다 (V).",
     ui_msg_42: "솔버 모드를 켜거나 끕니다",

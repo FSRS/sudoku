@@ -13,6 +13,7 @@ const messageArea = document.getElementById("message-area");
 const modeSelector = document.getElementById("mode-selector");
 const numberPad = document.getElementById("number-pad");
 const candidateModal = document.getElementById("candidate-modal");
+const candidateModalTitle = document.getElementById("candidate-modal-title");
 const candidateGrid = document.getElementById("candidate-grid");
 const closeModalBtn = document.getElementById("close-modal-btn");
 const dateSelect = document.getElementById("date-select");
@@ -768,6 +769,17 @@ function updateButtonLabels() {
   const isMobile = window.innerWidth <= 550;
   const useShortTitle = window.innerWidth < 880;
   const titleText = document.getElementById("sudoku-title-text");
+  const experimentalModeLabel = document
+    .getElementById("experimental-mode-toggle")
+    ?.closest("label");
+
+  if (experimentalModeLabel) {
+    experimentalModeLabel.dataset.tooltip = t(
+      isMobile
+        ? "pref_experimental_mode_tooltip_mobile"
+        : "pref_experimental_mode_tooltip_desktop",
+    );
+  }
 
   if (titleText) {
     if (useShortTitle) {
@@ -2111,7 +2123,9 @@ function setupEventListeners() {
         (isCurrentlyMobile &&
           (isExperimentalMode ||
             currentMode === "draw" ||
-            (currentMode === "color" && isMarkSubMode(coloringSubMode))));
+            (currentMode === "color" &&
+              isExperimentalMode &&
+              isMarkSubMode(coloringSubMode))));
 
       if (!canInteractDirectly) {
         handleCellClick({ target: cell }); // Fallback to cell click
@@ -3540,8 +3554,11 @@ function handleCellClick(e) {
           highlightedDigit = null;
           highlightState = 0;
         }
-      } else if (coloringSubMode === "candidate") {
-        // Cell is empty, run original logic for candidate popups
+      } else if (
+        coloringSubMode === "candidate" || isMarkSubMode(coloringSubMode)
+      ) {
+        // On mobile with Experimental Mode off, candidate annotation uses a
+        // popup so circle/cross matches the existing candidate-color flow.
         if (isMobile && !isExperimentalMode) {
           showCandidatePopup(selectedCell.row, selectedCell.col);
         }
@@ -3754,6 +3771,12 @@ function handleModeChange(e, reverse = false) {
         showMessage(exptTip, "blue"); // Use blue to make the new feature stand out
       }
     }, 3500); // Wait 3.5 seconds before showing the advanced tip
+  } else {
+    // Keep the normal mode tip visible first, then introduce the optional
+    // direct-candidate controls without interrupting the immediate action.
+    window.exptTipTimer = setTimeout(() => {
+      showMessage(t("ui_msg_experimental_mode_tip"), "blue");
+    }, 3500);
   }
 
   // Reset Button Classes
@@ -4219,8 +4242,133 @@ async function findAndLoadSelectedPuzzle() {
   }
 }
 
-/* ADD helper function to fetch new unlimited puzzles */
-async function fetchUnlimitedPuzzle(level) {
+/*
+ * Each unlimited level has its own cyclic traversal of the corresponding
+ * puzzle file.  A step that is coprime to the number of puzzles visits every
+ * line exactly once before repeating, instead of sampling with replacement.
+ */
+const UNLIMITED_SEQUENCE_STORAGE_KEY = "sudokuUnlimitedSequences";
+let unlimitedPuzzleLoadQueue = Promise.resolve();
+
+function greatestCommonDivisor(a, b) {
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return a;
+}
+
+function randomIntegerBelow(limit) {
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error("Random integer limit must be positive.");
+  }
+
+  // Rejection sampling avoids the small modulo bias from a 32-bit value.
+  if (globalThis.crypto?.getRandomValues) {
+    const range = 0x100000000;
+    const upperBound = range - (range % limit);
+    const value = new Uint32Array(1);
+    do {
+      globalThis.crypto.getRandomValues(value);
+    } while (value[0] >= upperBound);
+    return value[0] % limit;
+  }
+
+  return Math.floor(Math.random() * limit);
+}
+
+function getUnlimitedSequenceStates() {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(UNLIMITED_SEQUENCE_STORAGE_KEY) || "{}",
+    );
+    return stored && typeof stored === "object" && !Array.isArray(stored)
+      ? stored
+      : {};
+  } catch (error) {
+    console.warn("Failed to read unlimited puzzle sequence state:", error);
+    return {};
+  }
+}
+
+function saveUnlimitedSequenceState(level, state) {
+  const states = getUnlimitedSequenceStates();
+  states[String(level)] = state;
+  localStorage.setItem(UNLIMITED_SEQUENCE_STORAGE_KEY, JSON.stringify(states));
+}
+
+async function fingerprintUnlimitedPuzzleFile(text) {
+  if (globalThis.crypto?.subtle && typeof TextEncoder !== "undefined") {
+    const bytes = new TextEncoder().encode(text);
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+  }
+
+  // Kept only for browsers without Web Crypto; include the length as well.
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `fnv1a-${text.length}-${(hash >>> 0).toString(16)}`;
+}
+
+function createUnlimitedSequenceState(fingerprint, puzzleCount) {
+  if (puzzleCount < 2) {
+    throw new Error("Unlimited puzzle file needs at least two puzzles.");
+  }
+
+  let step;
+  do {
+    // Choose from every valid step, not just those below sqrt(N). This gives
+    // each device an independently shuffled full traversal of all N puzzles.
+    step = randomIntegerBelow(puzzleCount - 1) + 1;
+  } while (greatestCommonDivisor(step, puzzleCount) !== 1);
+
+  return {
+    fingerprint,
+    puzzleCount,
+    p: step,
+    q: randomIntegerBelow(puzzleCount),
+  };
+}
+
+function selectUnlimitedPuzzleIndex(level, fingerprint, puzzleCount) {
+  const previous = getUnlimitedSequenceStates()[String(level)];
+  const canContinue =
+    previous &&
+    previous.fingerprint === fingerprint &&
+    previous.puzzleCount === puzzleCount &&
+    Number.isInteger(previous.p) &&
+    previous.p > 0 &&
+    previous.p < puzzleCount &&
+    greatestCommonDivisor(previous.p, puzzleCount) === 1 &&
+    Number.isInteger(previous.q) &&
+    previous.q >= 0 &&
+    previous.q < puzzleCount;
+
+  if (!canContinue) {
+    return createUnlimitedSequenceState(fingerprint, puzzleCount);
+  }
+
+  return {
+    ...previous,
+    q: (previous.q + previous.p) % puzzleCount,
+  };
+}
+
+/* Fetches a new unlimited puzzle; saved games are handled before this runs. */
+function fetchUnlimitedPuzzle(level) {
+  // Serializing selection prevents rapid repeated calls from reading the same
+  // saved q before either call has written its successor.
+  unlimitedPuzzleLoadQueue = unlimitedPuzzleLoadQueue.then(() =>
+    fetchAndLoadUnlimitedPuzzle(level),
+  );
+  return unlimitedPuzzleLoadQueue;
+}
+
+async function fetchAndLoadUnlimitedPuzzle(level) {
   const fileIndex = String(level).padStart(2, "0");
 
   // Update the URL here
@@ -4240,11 +4388,20 @@ async function fetchUnlimitedPuzzle(level) {
 
     if (lines.length === 0) throw new Error("Puzzle file is empty or invalid.");
 
-    const randomIndex = Math.floor(Math.random() * lines.length);
-    const rawString = lines[randomIndex];
+    const fingerprint = await fingerprintUnlimitedPuzzleFile(text);
+    const sequenceState = selectUnlimitedPuzzleIndex(
+      level,
+      fingerprint,
+      lines.length,
+    );
+    const rawString = lines[sequenceState.q];
     const puzzleStr = decompressPuzzleString(rawString);
 
     if (puzzleStr.length !== 81) throw new Error(t("ui_msg_144"));
+
+    // Persist only after the selected line has passed validation. The stored q
+    // is the puzzle just loaded; the following call advances by p modulo N.
+    saveUnlimitedSequenceState(level, sequenceState);
 
     puzzleStringInput.value = puzzleStr;
 
@@ -4316,6 +4473,23 @@ function showCandidatePopup(row, col) {
   candidateGrid.innerHTML = "";
   const cellState = boardState[row][col];
   if (cellState.pencils.size === 0) return;
+  const popupMode = coloringSubMode;
+  const isCandidateColoring = popupMode === "candidate";
+  const markerSet =
+    popupMode === "circle"
+      ? cellState.candCircles
+      : popupMode === "slash"
+        ? cellState.candSlashes
+        : null;
+
+  if (candidateModalTitle) {
+    candidateModalTitle.textContent = isCandidateColoring
+      ? t("modal_candidate_title")
+      : popupMode === "circle"
+        ? t("modal_circle_candidate_title")
+        : t("modal_cross_candidate_title");
+  }
+
   const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
   const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
@@ -4326,29 +4500,44 @@ function showCandidatePopup(row, col) {
       "p-3 border dark:border-gray-500 text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-slate-700 rounded-md";
     if (cellState.pencils.has(i)) {
       btn.classList.add("hover:bg-gray-200", "dark:hover:bg-slate-600");
-      if (cellState.pencilColors.has(i)) {
-        const pColor = cellState.pencilColors.get(i);
-        if (Array.isArray(pColor)) {
-          btn.style.background = getGradientBackground(pColor, "to bottom"); // Added "to bottom"
+      const existingColor = isCandidateColoring
+        ? cellState.pencilColors.get(i)
+        : markerSet?.get(i);
+      if (existingColor) {
+        if (Array.isArray(existingColor)) {
+          btn.style.background = getGradientBackground(
+            existingColor,
+            "to bottom",
+          );
         } else {
-          btn.style.background = pColor;
+          btn.style.background = existingColor;
         }
       }
 
       btn.onclick = () => {
-        const currentColor = cellState.pencilColors.get(i);
-        // FIX: Process toggling array vs string transparently
-        const newColor = toggleColor(currentColor, selectedColor);
+        if (isCandidateColoring) {
+          const currentColor = cellState.pencilColors.get(i);
+          // Process toggling array vs string transparently.
+          const newColor = toggleColor(currentColor, selectedColor);
 
-        if (newColor === null) {
-          cellState.pencilColors.delete(i);
+          if (newColor === null) {
+            cellState.pencilColors.delete(i);
+          } else {
+            cellState.pencilColors.set(i, newColor);
+          }
+
+          saveState();
+          candidateModal.classList.add("hidden");
+          onBoardUpdated();
         } else {
-          cellState.pencilColors.set(i, newColor);
-        }
+          const currentMarkColor = markerSet.get(i);
+          if (currentMarkColor === selectedColor) markerSet.delete(i);
+          else markerSet.set(i, selectedColor);
 
-        saveState();
-        candidateModal.classList.add("hidden");
-        onBoardUpdated();
+          saveState();
+          candidateModal.classList.add("hidden");
+          renderBoard();
+        }
       };
     } else {
       btn.disabled = true;
