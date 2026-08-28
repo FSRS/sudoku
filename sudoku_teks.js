@@ -276,9 +276,7 @@ const techniques = {
         .join("");
       return `r${rows}c${normalized[0][1] + 1}`;
     }
-    return normalized
-      .map(([r, c]) => `r${r + 1}c${c + 1}`)
-      .join(",");
+    return normalized.map(([r, c]) => `r${r + 1}c${c + 1}`).join(",");
   },
 
   _formatBoxPoints: (cells, boxIndex) => {
@@ -691,7 +689,6 @@ const techniques = {
     stems.sort((left, right) => left.size - right.size);
     return stems;
   },
-
 
   eliminateCandidates: (board, pencils, findAll = false) => {
     // Initialize Cache
@@ -3062,9 +3059,7 @@ const techniques = {
                             { cells: groupCells },
                             { cells: baseCells },
                             {
-                              cells: isRowVersion
-                                ? [[r2, c1]]
-                                : [[r1, c2]],
+                              cells: isRowVersion ? [[r2, c1]] : [[r1, c2]],
                             },
                             { cells: [[r2, c2]] },
                           ],
@@ -3615,11 +3610,7 @@ const techniques = {
     const formatRC = techniques._formatCellsRC;
     const formatBP = techniques._formatBoxPoints;
     const getGuardiansStr = (extraCells, d1, d2) =>
-      techniques._formatGuardianExtras(
-        extraCells,
-        new Set([d1, d2]),
-        pencils,
-      );
+      techniques._formatGuardianExtras(extraCells, new Set([d1, d2]), pencils);
     const getBasePosStr = techniques._formatRectangleBounds;
 
     const getURVisuals = (type, cells, d1, d2, removals, extraData = {}) => {
@@ -9161,6 +9152,7 @@ const techniques = {
       bivalueOnly,
       useGrouped,
       useAlsXZ,
+      useWxyz,
       useAls,
       useFish,
       maxCycle,
@@ -10064,7 +10056,7 @@ const techniques = {
       if (techniqueName === t("teks_msg_182")) maxPathLen = 6;
 
       // Priority 2: DN Loop
-      if (!bivalueOnly && !useAlsXZ) {
+      if (!bivalueOnly && !useWxyz) {
         for (const A of interestedNodes) {
           for (const D of A.OrNodes) {
             if (D.index < A.index) continue;
@@ -10287,26 +10279,12 @@ const techniques = {
         bivalueOnly: false,
         useGrouped: false,
         useAlsXZ: true,
+        useWxyz: true,
         useAls: true,
-
-        // Exactly two OR gates: four AIC nodes.
         maxCycle: 1,
-
         nameOverride: t("teks_msg_145"),
-
-        /*
-         * Preserve the three-cell ALS representation even when a
-         * larger ALS has an equivalent/dominating intra-ALS OR link.
-         */
         preserveAlsSizes: [3],
-
-        /*
-         * If the exact same node pair is produced by a three-cell ALS
-         * and by a larger ALS, register the three-cell ALS.
-         */
         preferredAlsSize: 3,
-
-        // WXYZ consists only of one bivalue OR gate and one ALS OR gate.
         allowedOrLinkTypes: ["als", "bivalue"],
 
         pathFilter: (path, cache, { getOrLinkType, getAlsForLink }) => {
@@ -10331,10 +10309,6 @@ const techniques = {
           const secondIsBivalue = isBivalue(path[2], path[3]);
           const secondIsAls3 = isThreeCellAls(path[2], path[3]);
 
-          /*
-           * Exactly one one-cell ALS/bivalue link and one
-           * three-cell ALS link.
-           */
           return (
             (firstIsBivalue && secondIsAls3) || (secondIsBivalue && firstIsAls3)
           );
@@ -10354,6 +10328,7 @@ const techniques = {
         useGrouped: false,
         useAlsXZ: true,
         useAls: true,
+        endSameDigits: true,
         maxCycle: 1,
         nameOverride: t("teks_msg_146"),
       },
