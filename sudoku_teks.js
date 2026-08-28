@@ -14354,179 +14354,302 @@ const techniques = {
     const blossomAlsMap = blossomAlsPolicy.map;
     const blossomAlsLinkRegistry = blossomAlsPolicy.registry;
     orMap = techniques.mergeOrMaps(orMap, blossomAlsMap);
-    const alsEdgeSize = (left, right) =>
-      blossomAlsLinkRegistry.get(left)?.get(right)?.cells.length || 0;
-    const nodeAlsSizeCache = new WeakMap();
-    const minimumAlsEdgeSize = (node) => {
-      if (nodeAlsSizeCache.has(node)) return nodeAlsSizeCache.get(node);
-      let minimum = Infinity;
-      for (const neighbor of blossomAlsMap.get(node) || []) {
-        minimum = Math.min(minimum, alsEdgeSize(node, neighbor));
-      }
-      nodeAlsSizeCache.set(node, minimum);
-      return minimum;
+
+    const candidateCode = (id, digit) => (digit - 1) * 81 + id;
+    const candidateId = (code) => code % 81;
+    const candidateDigit = (code) => Math.floor(code / 81) + 1;
+    const actualCandidate = (id, digit) => {
+      const r = Math.floor(id / 9);
+      const c = id % 9;
+      return board[r][c] === 0 && pencils[r][c]?.has(digit);
     };
 
-    let blossomSearchCache = cache.BlossomSearchCache;
-    if (
-      !blossomSearchCache ||
-      blossomSearchCache.nodeCount !== allNodes.length
-    ) {
-      const orNodes = [];
-      const orNodeSet = new Set();
-      for (const [node, neighbors] of orMap) {
-        if (neighbors.size > 0 && !orNodeSet.has(node)) {
-          orNodeSet.add(node);
-          orNodes.push(node);
-        }
-        for (const neighbor of neighbors) {
-          if (!orNodeSet.has(neighbor)) {
-            orNodeSet.add(neighbor);
-            orNodes.push(neighbor);
-          }
-        }
-      }
-
-      const nodeIndices = new Map(allNodes.map((node, index) => [node, index]));
-      const orNodeOrder = new Map(orNodes.map((node, index) => [node, index]));
-      const nodesByCandidate = Array.from({ length: 9 * 81 }, () => []);
-      for (const node of orNodes) {
-        for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
-          for (let part = 0; part < 3; part++) {
-            let bits = node.NodeBitset[digitIndex][part] >>> 0;
-            while (bits !== 0) {
-              const low = bits & -bits;
-              const bit = 31 - Math.clz32(low);
-              const id = part * 27 + bit;
-              if (id < 81) nodesByCandidate[digitIndex * 81 + id].push(node);
-              bits = (bits & (bits - 1)) >>> 0;
-            }
-          }
-        }
-      }
-
-      blossomSearchCache = {
-        nodeCount: allNodes.length,
-        orNodes,
-        nodeIndices,
-        orNodeOrder,
-        nodesByCandidate,
-        nandCache: new Map(),
-        reverseDistanceCache: new Map(),
-        mainNeighborOrderCache: new Map(),
-        burrNandOrderCache: new Map(),
-        burrOrOrderCache: new Map(),
-        branchPotentialCache: new Map(),
-        branchReachabilityCache: new Map(),
-        branchReverseStateEdges: null,
-        solvedBoard: null,
-      };
-      cache.BlossomSearchCache = blossomSearchCache;
-    }
-
-    const {
-      orNodes,
-      nodeIndices,
-      orNodeOrder,
-      nodesByCandidate,
-      nandCache,
-      reverseDistanceCache,
-      mainNeighborOrderCache,
-      burrNandOrderCache,
-      burrOrOrderCache,
-      branchPotentialCache,
-      branchReachabilityCache,
-    } = blossomSearchCache;
-
-    if (!blossomSearchCache.solvedBoard) {
-      blossomSearchCache.solvedBoard = techniques._getSolvedBoard(board);
-    }
-    const solvedBoard = blossomSearchCache.solvedBoard;
-
-    const ensureNodeWordTable = () => {
-      let table = blossomSearchCache.nodeWordTable;
-      if (table) return table;
-      const count = nodeIndices.size;
-      const nodesByIndex = new Array(count);
-      for (const [node, index] of nodeIndices) nodesByIndex[index] = node;
-      const offsets = new Int32Array(count + 1);
-      const words = [];
-      for (let index = 0; index < count; index++) {
-        offsets[index] = words.length;
-        const bitset = nodesByIndex[index].NodeBitset;
-        for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
-          const parts = bitset[digitIndex];
-          for (let part = 0; part < 3; part++) {
-            const bits = parts[part];
-            if (bits !== 0) words.push(digitIndex * 3 + part, bits);
-          }
-        }
-      }
-      offsets[count] = words.length;
-      table = { offsets, words: Int32Array.from(words) };
-      blossomSearchCache.nodeWordTable = table;
-      return table;
-    };
-    const withinFlatMask = new Int32Array(27);
-    const computeWithinMask = (potentialMask) => {
-      const { offsets, words } = ensureNodeWordTable();
+    const forEachBitsetCandidate = (bitset, visit) => {
       for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
-        const parts = potentialMask[digitIndex];
-        const base = digitIndex * 3;
-        withinFlatMask[base] = parts[0];
-        withinFlatMask[base + 1] = parts[1];
-        withinFlatMask[base + 2] = parts[2];
-      }
-      const count = offsets.length - 1;
-      const within = new Uint8Array(count);
-      for (let index = 0; index < count; index++) {
-        const end = offsets[index + 1];
-        let contained = 1;
-        for (let i = offsets[index]; i < end; i += 2) {
-          const bits = words[i + 1];
-          if ((withinFlatMask[words[i]] & bits) !== bits) {
-            contained = 0;
-            break;
-          }
-        }
-        within[index] = contained;
-      }
-      return within;
-    };
-
-    const nandNeighbors = (source) => {
-      if (nandCache.has(source)) return nandCache.get(source);
-      const candidateSet = new Set();
-      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+        const base = digitIndex * 81;
         for (let part = 0; part < 3; part++) {
-          let bits = source.NandBitset[digitIndex][part] >>> 0;
+          let bits = bitset[digitIndex][part] >>> 0;
           while (bits !== 0) {
             const low = bits & -bits;
-            const bit = 31 - Math.clz32(low);
-            const id = part * 27 + bit;
-            if (id < 81) {
-              for (const node of nodesByCandidate[digitIndex * 81 + id]) {
-                candidateSet.add(node);
-              }
-            }
+            const id = part * 27 + (31 - Math.clz32(low));
+            if (id < 81) visit(base + id);
             bits = (bits & (bits - 1)) >>> 0;
           }
         }
       }
-      const candidates = [...candidateSet].sort(
-        (left, right) => orNodeOrder.get(left) - orNodeOrder.get(right),
-      );
-      const neighbors = [];
-      for (const candidate of candidates) {
-        if (
-          candidate !== source &&
-          techniques.isBitsetSubset(candidate.NodeBitset, source.NandBitset)
-        ) {
-          neighbors.push(candidate);
+    };
+
+    let search = cache.BlossomSearchCache;
+    if (!search || search.nodeCount !== allNodes.length) {
+      const nodeCount = allNodes.length;
+      const indexOf = new Map();
+      for (let index = 0; index < nodeCount; index++) {
+        indexOf.set(allNodes[index], index);
+      }
+
+      const strongOffsets = new Int32Array(nodeCount + 1);
+      const strongLists = new Array(nodeCount);
+      let strongTotal = 0;
+      for (let index = 0; index < nodeCount; index++) {
+        const neighbors = orMap.get(allNodes[index]);
+        if (!neighbors || neighbors.size === 0) {
+          strongLists[index] = null;
+          continue;
+        }
+        const list = [];
+        for (const neighbor of neighbors) {
+          const other = indexOf.get(neighbor);
+          if (other !== undefined && other !== index) list.push(other);
+        }
+        if (list.length === 0) {
+          strongLists[index] = null;
+          continue;
+        }
+        list.sort((left, right) => left - right);
+        strongLists[index] = list;
+        strongTotal += list.length;
+      }
+      const strongTargets = new Int32Array(strongTotal);
+      let strongCursor = 0;
+      for (let index = 0; index < nodeCount; index++) {
+        strongOffsets[index] = strongCursor;
+        const list = strongLists[index];
+        if (list) {
+          for (let i = 0; i < list.length; i++) {
+            strongTargets[strongCursor++] = list[i];
+          }
         }
       }
-      nandCache.set(source, neighbors);
-      return neighbors;
+      strongOffsets[nodeCount] = strongCursor;
+
+      const nodesByCandidate = Array.from({ length: 729 }, () => []);
+      for (let index = 0; index < nodeCount; index++) {
+        if (!strongLists[index]) continue;
+        forEachBitsetCandidate(allNodes[index].NodeBitset, (code) => {
+          nodesByCandidate[code].push(index);
+        });
+      }
+
+      const weakOffsets = new Int32Array(nodeCount + 1);
+      const weakLists = new Array(nodeCount);
+      let weakTotal = 0;
+      const touched = new Int32Array(nodeCount).fill(-1);
+      for (let index = 0; index < nodeCount; index++) {
+        const source = allNodes[index];
+        const list = [];
+        forEachBitsetCandidate(source.NandBitset, (code) => {
+          const bucket = nodesByCandidate[code];
+          for (let i = 0; i < bucket.length; i++) {
+            const other = bucket[i];
+            if (touched[other] === index || other === index) continue;
+            touched[other] = index;
+            if (
+              techniques.isBitsetSubset(
+                allNodes[other].NodeBitset,
+                source.NandBitset,
+              )
+            ) {
+              list.push(other);
+            }
+          }
+        });
+        list.sort((left, right) => left - right);
+        weakLists[index] = list;
+        weakTotal += list.length;
+      }
+      const weakTargets = new Int32Array(weakTotal);
+      let weakCursor = 0;
+      for (let index = 0; index < nodeCount; index++) {
+        weakOffsets[index] = weakCursor;
+        const list = weakLists[index];
+        for (let i = 0; i < list.length; i++) {
+          weakTargets[weakCursor++] = list[i];
+        }
+      }
+      weakOffsets[nodeCount] = weakCursor;
+
+      const candidateNode = new Int32Array(729).fill(-1);
+      for (let index = 0; index < nodeCount; index++) {
+        const node = allNodes[index];
+        if (node.cells.length === 1 && node.digits.length === 1) {
+          candidateNode[candidateCode(node.cells[0], node.digits[0])] = index;
+        }
+      }
+
+      const nodeHouses = new Array(nodeCount);
+      for (let index = 0; index < nodeCount; index++) {
+        const node = allNodes[index];
+        if (node.digits.length !== 1) {
+          nodeHouses[index] = [];
+          continue;
+        }
+        const cells = node.cells;
+        const firstRow = Math.floor(cells[0] / 9);
+        const firstColumn = cells[0] % 9;
+        const firstBox =
+          Math.floor(firstRow / 3) * 3 + Math.floor(firstColumn / 3);
+        let sameRow = true;
+        let sameColumn = true;
+        let sameBox = true;
+        for (let i = 1; i < cells.length; i++) {
+          const r = Math.floor(cells[i] / 9);
+          const c = cells[i] % 9;
+          if (r !== firstRow) sameRow = false;
+          if (c !== firstColumn) sameColumn = false;
+          if (Math.floor(r / 3) * 3 + Math.floor(c / 3) !== firstBox) {
+            sameBox = false;
+          }
+        }
+        const houses = [];
+        if (sameRow) houses.push(firstRow);
+        if (sameColumn) houses.push(9 + firstColumn);
+        if (sameBox) houses.push(18 + firstBox);
+        nodeHouses[index] = houses.map((house) => {
+          let mask = 0;
+          for (const id of cells) {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            mask |=
+              1 << (house < 9 ? c : house < 18 ? r : (r % 3) * 3 + (c % 3));
+          }
+          return { house, mask };
+        });
+      }
+
+      search = {
+        nodeCount,
+        strongOffsets,
+        strongTargets,
+        weakOffsets,
+        weakTargets,
+        candidateNode,
+        nodeHouses,
+        stampOn: new Int32Array(nodeCount),
+        stampOff: new Int32Array(nodeCount),
+        parentOn: new Int32Array(nodeCount),
+        parentOff: new Int32Array(nodeCount),
+        depthOn: new Int32Array(nodeCount),
+        depthOff: new Int32Array(nodeCount),
+        queueOn: new Int32Array(nodeCount + 1),
+        queueOff: new Int32Array(nodeCount + 1),
+        runId: 0,
+        onCount: 0,
+        reachOffsets: null,
+        reachNodes: null,
+        reachDepth: null,
+      };
+      cache.BlossomSearchCache = search;
+    }
+
+    const {
+      nodeCount,
+      strongOffsets,
+      strongTargets,
+      weakOffsets,
+      weakTargets,
+      candidateNode,
+      nodeHouses,
+      stampOn,
+      stampOff,
+      parentOn,
+      parentOff,
+      depthOn,
+      depthOff,
+      queueOn,
+      queueOff,
+    } = search;
+
+    const runForcingChain = (startIndex) => {
+      const runId = ++search.runId;
+      let onHead = 0;
+      let onTail = 0;
+      let offHead = 0;
+      let offTail = 0;
+      queueOn[onTail++] = startIndex;
+      depthOn[startIndex] = 0;
+      while (onHead < onTail || offHead < offTail) {
+        if (onHead < onTail) {
+          const current = queueOn[onHead++];
+          const end = weakOffsets[current + 1];
+          const nextDepth = depthOn[current] + 1;
+          for (let i = weakOffsets[current]; i < end; i++) {
+            const next = weakTargets[i];
+            if (stampOn[next] === runId) {
+              search.onCount = onTail;
+              return runId;
+            }
+            if (stampOff[next] === runId) continue;
+            stampOff[next] = runId;
+            parentOff[next] = current;
+            depthOff[next] = nextDepth;
+            queueOff[offTail++] = next;
+          }
+          continue;
+        }
+        const current = queueOff[offHead++];
+        const end = strongOffsets[current + 1];
+        const nextDepth = depthOff[current] + 1;
+        for (let i = strongOffsets[current]; i < end; i++) {
+          const next = strongTargets[i];
+          if (stampOff[next] === runId) {
+            search.onCount = onTail;
+            return runId;
+          }
+          if (stampOn[next] === runId) continue;
+          stampOn[next] = runId;
+          parentOn[next] = current;
+          depthOn[next] = nextDepth;
+          queueOn[onTail++] = next;
+        }
+      }
+      search.onCount = onTail;
+      return runId;
+    };
+
+    if (!search.reachOffsets) {
+      const offsets = new Int32Array(730);
+      const nodesOut = [];
+      const depthsOut = [];
+      for (let code = 0; code < 729; code++) {
+        offsets[code] = nodesOut.length;
+        const startIndex = candidateNode[code];
+        if (startIndex < 0) continue;
+        const runId = runForcingChain(startIndex);
+        for (let i = 1; i < search.onCount; i++) {
+          const index = queueOn[i];
+          if (stampOn[index] !== runId) continue;
+          nodesOut.push(index);
+          depthsOut.push(depthOn[index]);
+        }
+      }
+      offsets[729] = nodesOut.length;
+      search.reachOffsets = offsets;
+      search.reachNodes = Int32Array.from(nodesOut);
+      search.reachDepth = Int32Array.from(depthsOut);
+    }
+    const { reachOffsets, reachNodes, reachDepth } = search;
+
+    const rebuildChain = (startIndex, endIndex, runId) => {
+      const path = [];
+      let current = endIndex;
+      let isOn = true;
+      for (let guard = 0; guard <= 2 * nodeCount + 2; guard++) {
+        path.push(allNodes[current]);
+        if (isOn && current === startIndex) {
+          path.reverse();
+          return path;
+        }
+        if (isOn) {
+          if (stampOn[current] !== runId) return null;
+          current = parentOn[current];
+          isOn = false;
+        } else {
+          if (stampOff[current] !== runId) return null;
+          current = parentOff[current];
+          isOn = true;
+        }
+      }
+      return null;
     };
 
     const burrSets = [];
@@ -14536,12 +14659,15 @@ const techniques = {
         const c = id % 9;
         if (board[r][c] !== 0) continue;
         const digits = [...pencils[r][c]].sort((a, b) => a - b);
-        if (digits.length < 3 || digits.length > 5) continue;
+        if (digits.length < 3) continue;
         burrSets.push({
           kind: "cell",
           cells: [id],
           digits,
           nodes: digits.map((digit) => getNode([id], digit)),
+          candidates: digits.map((digit) => candidateCode(id, digit)),
+          homeCells: [id],
+          homeUnit: -1,
         });
       }
     } else if (focusKind === "region") {
@@ -14556,13 +14682,16 @@ const techniques = {
             const c = id % 9;
             if (board[r][c] === 0 && pencils[r][c].has(digit)) cells.push(id);
           }
-          if (cells.length < 3 || cells.length > 5) continue;
+          if (cells.length < 3) continue;
           burrSets.push({
             kind: "region",
             unit,
             cells,
             digits: [digit],
             nodes: cells.map((id) => getNode([id], digit)),
+            candidates: cells.map((id) => candidateCode(id, digit)),
+            homeCells: cells,
+            homeUnit: unit,
           });
         }
       }
@@ -14627,6 +14756,11 @@ const techniques = {
               nodes: onlyDigits.map((digit) =>
                 getNode([digitCells[digit]], digit),
               ),
+              candidates: onlyDigits.map((digit) =>
+                candidateCode(digitCells[digit], digit),
+              ),
+              homeCells: [...cells],
+              homeUnit: unit,
               als: {
                 cells: alsCells,
                 candidates: unionMask,
@@ -14660,1525 +14794,86 @@ const techniques = {
         }
       }
     }
-    const actualCandidate = (id, digit) => {
-      const r = Math.floor(id / 9);
-      const c = id % 9;
-      return board[r][c] === 0 && pencils[r][c]?.has(digit);
+
+    if (burrSets.length === 0) return findAll ? [] : { change: false };
+
+    const elimFlags = new Uint8Array(729);
+    let elimCodes = [];
+    const addElim = (code) => {
+      if (elimFlags[code]) return;
+      elimFlags[code] = 1;
+      elimCodes.push(code);
     };
-    const candidateCode = (id, digit) => (digit - 1) * 81 + id;
-    const candidateId = (code) => code % 81;
-    const candidateDigit = (code) => Math.floor(code / 81) + 1;
-    const candidateTextKey = (code) =>
-      `${candidateId(code)}:${candidateDigit(code)}`;
-    const liveCandidateCodes = [];
-    for (let id = 0; id < 81; id++) {
-      const r = Math.floor(id / 9);
-      const c = id % 9;
-      if (board[r][c] !== 0) continue;
-      for (const digit of pencils[r][c]) {
-        liveCandidateCodes.push(candidateCode(id, digit));
-      }
-    }
-
-    const emptyMask = () => [
-      [0, 0, 0],
-      [0, 0, 0],
-      [0, 0, 0],
-      [0, 0, 0],
-      [0, 0, 0],
-      [0, 0, 0],
-      [0, 0, 0],
-      [0, 0, 0],
-      [0, 0, 0],
-    ];
-
-    const maskToRemovals = (mask, burrKeys) => {
-      const removals = [];
-      for (let digit = 1; digit <= 9; digit++) {
-        for (let part = 0; part < 3; part++) {
-          let bits = mask[digit - 1][part] >>> 0;
-          while (bits !== 0) {
-            const low = bits & -bits;
-            const bit = 31 - Math.clz32(low);
-            const id = part * 27 + bit;
-            const key = candidateCode(id, digit);
-            if (id < 81 && !burrKeys.has(key) && actualCandidate(id, digit)) {
-              removals.push({ r: Math.floor(id / 9), c: id % 9, num: digit });
-            }
-            bits = (bits & (bits - 1)) >>> 0;
-          }
+    const resetElims = () => {
+      for (let i = 0; i < elimCodes.length; i++) elimFlags[elimCodes[i]] = 0;
+      elimCodes = [];
+    };
+    const addMaskCandidates = (parts, digitIndex) => {
+      const base = digitIndex * 81;
+      for (let part = 0; part < 3; part++) {
+        let bits = parts[part] >>> 0;
+        while (bits !== 0) {
+          const low = bits & -bits;
+          const id = part * 27 + (31 - Math.clz32(low));
+          if (id < 81) addElim(base + id);
+          bits = (bits & (bits - 1)) >>> 0;
         }
       }
-      removals.sort((a, b) => a.r - b.r || a.c - b.c || a.num - b.num);
-      return removals;
     };
 
-    const nodesShareCandidate = (left, right) => {
-      for (let d = 0; d < 9; d++) {
-        for (let p = 0; p < 3; p++) {
-          if ((left.NodeBitset[d][p] & right.NodeBitset[d][p]) !== 0) {
-            return true;
-          }
-        }
-      }
-      return false;
-    };
-
-    const sharesWithSet = (node, nodes) => {
-      for (const other of nodes) {
-        if (nodesShareCandidate(node, other)) return true;
-      }
-      return false;
-    };
-
-    const nodeCandidateKeyCache = new WeakMap();
-    const nodeCandidateKeys = (node) => {
-      let keys = nodeCandidateKeyCache.get(node);
-      if (!keys) {
-        keys = node.cells.map((id) => candidateCode(id, node.digits[0]));
-        nodeCandidateKeyCache.set(node, keys);
-      }
-      return keys;
-    };
-
-    const cellUnits = Array.from({ length: 81 }, (_, id) => [
-      Math.floor(id / 9),
-      9 + (id % 9),
-      18 + Math.floor(Math.floor(id / 9) / 3) * 3 + Math.floor((id % 9) / 3),
-    ]);
-    const candidateKeysByUnit = Array.from({ length: 9 }, (_, digitIndex) =>
-      Array.from({ length: 27 }, (_, unit) => {
-        const keys = [];
-        for (let id = 0; id < 81; id++) {
-          const part = Math.floor(id / 27);
-          const bit = id % 27;
-          if (
-            (UNIT_BITSETS[unit][part] & (1 << bit)) !== 0 &&
-            actualCandidate(id, digitIndex + 1)
-          ) {
-            keys.push(candidateCode(id, digitIndex + 1));
-          }
-        }
-        return keys;
-      }),
-    );
-    const cellCandidateKeys = Array.from({ length: 81 }, (_, id) => {
-      const r = Math.floor(id / 9);
-      const c = id % 9;
-      return [...pencils[r][c]]
-        .map((digit) => candidateCode(id, digit))
-        .sort((left, right) => left - right);
-    });
-    const truthRegionIds = new Map();
-    const buildTruthRegion = (keys) => {
-      const uniqueKeys = [...new Set(keys)].sort((left, right) => left - right);
-      const signature = uniqueKeys.join("|");
-      let id = truthRegionIds.get(signature);
-      if (id === undefined) {
-        id = truthRegionIds.size;
-        truthRegionIds.set(signature, id);
-      }
-      return { uniqueKeys, signature, id };
-    };
-    const cellTruthRegions = Array.from({ length: 81 }, (_, id) =>
-      buildTruthRegion(cellCandidateKeys[id]),
-    );
-    const linkTruthRegionCache = new Map();
-    const burrTruthRegionCache = new WeakMap();
-    const nandLinkChoiceCache = new Map();
-    const getAlsUnitIndex = (als) =>
-      als.unitType === "row"
-        ? als.unitIndex
-        : als.unitType === "col"
-          ? 9 + als.unitIndex
-          : als.unitType === "box"
-            ? 18 + als.unitIndex
-            : null;
-
-    const nodePairKey = (left, right) => {
-      const leftIndex = nodeIndices.get(left);
-      const rightIndex = nodeIndices.get(right);
-      return leftIndex < rightIndex
-        ? `${leftIndex}:${rightIndex}`
-        : `${rightIndex}:${leftIndex}`;
-    };
-
-    const linkTruthRegion = (left, right) => {
-      const cacheKey = nodePairKey(left, right);
-      let region = linkTruthRegionCache.get(cacheKey);
-      if (region === undefined) {
-        region = buildTruthRegion([
-          ...nodeCandidateKeys(left),
-          ...nodeCandidateKeys(right),
-        ]);
-        linkTruthRegionCache.set(cacheKey, region);
-      }
-      return region;
-    };
-
-    const burrTruthRegion = (burr) => {
-      let region = burrTruthRegionCache.get(burr);
-      if (region === undefined) {
-        region = buildTruthRegion(
-          burr.nodes.flatMap((node) => nodeCandidateKeys(node)),
+    const addLinkEliminations = (left, right) => {
+      const leftMask = left.NandBitset;
+      const rightMask = right.NandBitset;
+      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+        const leftParts = leftMask[digitIndex];
+        const rightParts = rightMask[digitIndex];
+        addMaskCandidates(
+          [
+            leftParts[0] & rightParts[0],
+            leftParts[1] & rightParts[1],
+            leftParts[2] & rightParts[2],
+          ],
+          digitIndex,
         );
-        burrTruthRegionCache.set(burr, region);
       }
-      return region;
     };
 
-    const nandLinkOptions = (left, right) => {
-      const cacheKey = nodePairKey(left, right);
-      const cached = nandLinkChoiceCache.get(cacheKey);
-      if (cached) return cached;
-
-      const options = [];
-      if (left.digits[0] !== right.digits[0]) {
-        if (
-          left.cells.length === 1 &&
-          right.cells.length === 1 &&
-          left.cells[0] === right.cells[0]
-        ) {
-          options.push(cellCandidateKeys[left.cells[0]]);
-        }
-        nandLinkChoiceCache.set(cacheKey, options);
-        return options;
-      }
-
-      const digit = left.digits[0];
-      const cells = [...new Set([...left.cells, ...right.cells])];
-      if (cells.length === 0) {
-        nandLinkChoiceCache.set(cacheKey, options);
-        return options;
-      }
-      const commonUnits = cellUnits[cells[0]].filter((unit) =>
-        cells.every((id) => cellUnits[id].includes(unit)),
-      );
-      const seen = new Set();
-      for (const unit of commonUnits) {
-        const keys = candidateKeysByUnit[digit - 1][unit];
-        const signature = keys.join("|");
-        if (!seen.has(signature)) {
-          seen.add(signature);
-          options.push(keys);
-        }
-      }
-      nandLinkChoiceCache.set(cacheKey, options);
-      return options;
-    };
-
-    const alsLinkCache = new Map();
-    const alsLinkContribution = (left, right, als) => {
-      const cacheKey = nodePairKey(left, right);
-      const cached = alsLinkCache.get(cacheKey);
-      if (cached !== undefined) return cached;
-
-      const regions = als.cells.map(([r, c]) => cellTruthRegions[r * 9 + c]);
-      const alsUnit = getAlsUnitIndex(als);
-      const endDigits = new Set([left.digits[0], right.digits[0]]);
-      const choices = [];
+    const addAlsLoopEliminations = (als, digitLeft, digitRight) => {
       for (const textDigit of Object.keys(als.candMap)) {
         const digit = Number(textDigit);
-        if (endDigits.has(digit)) continue;
-        const cells = als.candMap[digit].map(([r, c]) => r * 9 + c);
-        const options =
-          alsUnit === null
-            ? cellUnits[cells[0]]
-                .filter((unit) =>
-                  cells.every((id) => cellUnits[id].includes(unit)),
-                )
-                .map((unit) => candidateKeysByUnit[digit - 1][unit])
-            : [candidateKeysByUnit[digit - 1][alsUnit]];
-        if (options.length === 0) {
-          alsLinkCache.set(cacheKey, null);
-          return null;
+        if (digit === digitLeft || digit === digitRight) continue;
+        const ids = als.candMap[digit].map(([r, c]) => r * 9 + c);
+        if (ids.length === 0) continue;
+        let part0 = PEER_BITSETS[ids[0]][0];
+        let part1 = PEER_BITSETS[ids[0]][1];
+        let part2 = PEER_BITSETS[ids[0]][2];
+        for (let i = 1; i < ids.length; i++) {
+          part0 &= PEER_BITSETS[ids[i]][0];
+          part1 &= PEER_BITSETS[ids[i]][1];
+          part2 &= PEER_BITSETS[ids[i]][2];
         }
-        choices.push(options);
-      }
-      const contribution = { regions, choices };
-      alsLinkCache.set(cacheKey, contribution);
-      return contribution;
-    };
-
-    const choiceInfoCache = new WeakMap();
-    const choiceSignatureIds = new Map();
-    const choiceInfo = (choice) => {
-      let info = choiceInfoCache.get(choice);
-      if (info) return info;
-      const uniqueKeys = [...new Set(choice)].sort(
-        (left, right) => left - right,
-      );
-      const signature = uniqueKeys.join("|");
-      let id = choiceSignatureIds.get(signature);
-      if (id === undefined) {
-        id = choiceSignatureIds.size;
-        choiceSignatureIds.set(signature, id);
-      }
-      info = { uniqueKeys, id };
-      choiceInfoCache.set(choice, info);
-      return info;
-    };
-
-    const captureProof = Boolean(globalThis.__BLOSSOM_CAPTURE_PROOFS__);
-    const strictTruths = new Uint16Array(729);
-    const strictTruthIndexByKey = new Int16Array(729).fill(-1);
-    const strictLinks = new Uint16Array(729);
-    const strictTruthKeys = [];
-    const strictNandChoices = [];
-    const strictRegionMarkList = [];
-    let strictRegionMarks = new Uint8Array(1024);
-    let strictCoverage = new Uint16Array(1024);
-    let strictLocallyCovered = new Uint8Array(256);
-    let strictUsedSignatures = new Uint8Array(1024);
-
-    const evaluateStrictRankZero = (burr, paths) => {
-      const truths = strictTruths;
-      const truthKeys = strictTruthKeys;
-      for (let i = 0; i < truthKeys.length; i++) {
-        truths[truthKeys[i]] = 0;
-        strictTruthIndexByKey[truthKeys[i]] = -1;
-      }
-      truthKeys.length = 0;
-      const nandChoices = strictNandChoices;
-      nandChoices.length = 0;
-      for (let i = 0; i < strictRegionMarkList.length; i++) {
-        strictRegionMarks[strictRegionMarkList[i]] = 0;
-      }
-      strictRegionMarkList.length = 0;
-      const truthRegions = captureProof ? [] : null;
-      const eliminationWitnesses = captureProof ? new Map() : null;
-      let duplicateTruthRegion = false;
-      let truthRegionCount = 0;
-
-      const addTruthRegion = (region) => {
-        const regionId = region.id;
-        if (regionId >= strictRegionMarks.length) {
-          const grown = new Uint8Array((regionId + 1) * 2);
-          grown.set(strictRegionMarks);
-          strictRegionMarks = grown;
-        }
-        if (strictRegionMarks[regionId] === 1) {
-          duplicateTruthRegion = true;
-          return;
-        }
-        strictRegionMarks[regionId] = 1;
-        strictRegionMarkList.push(regionId);
-        const uniqueKeys = region.uniqueKeys;
-        if (truthRegions) {
-          truthRegions.push(uniqueKeys.map(candidateTextKey));
-        }
-        truthRegionCount++;
-        for (let i = 0; i < uniqueKeys.length; i++) {
-          const key = uniqueKeys[i];
-          if (truths[key] === 0) truthKeys.push(key);
-          truths[key]++;
-        }
-      };
-      addTruthRegion(burrTruthRegion(burr));
-
-      for (const path of paths) {
-        for (let i = 0; i + 1 < path.length; i++) {
-          const left = path[i];
-          const right = path[i + 1];
-          if (i % 2 === 0) {
-            const choices = nandLinkOptions(left, right);
-            if (choices.length === 0) return null;
-            nandChoices.push(choices);
-            continue;
-          }
-
-          const als = blossomAlsLinkRegistry.get(left)?.get(right);
-          if (!als) {
-            addTruthRegion(linkTruthRegion(left, right));
-            continue;
-          }
-
-          const contribution = alsLinkContribution(left, right, als);
-          if (contribution === null) return null;
-          for (const region of contribution.regions) addTruthRegion(region);
-          for (const choices of contribution.choices) {
-            nandChoices.push(choices);
-          }
-        }
-      }
-
-      if (duplicateTruthRegion) return null;
-      if (nandChoices.length !== truthRegionCount) {
-        return null;
-      }
-
-      const removalMask = emptyMask();
-      let validCoverCount = 0;
-      let visitedCovers = 0;
-      const maxCovers = 20000;
-      const truthLength = truthKeys.length;
-      const truthIndexByKey = strictTruthIndexByKey;
-      for (let index = 0; index < truthLength; index++) {
-        truthIndexByKey[truthKeys[index]] = index;
-      }
-      const coverageLevels = nandChoices.length + 1;
-      const coverageNeed = coverageLevels * truthLength;
-      if (strictCoverage.length < coverageNeed) {
-        strictCoverage = new Uint16Array(coverageNeed * 2);
-      }
-      const remainingCoverage = strictCoverage;
-      remainingCoverage.fill(0, 0, coverageNeed);
-      if (strictLocallyCovered.length < truthLength) {
-        strictLocallyCovered = new Uint8Array(truthLength * 2);
-      }
-      const locallyCovered = strictLocallyCovered;
-      for (let index = nandChoices.length - 1; index >= 0; index--) {
-        const base = index * truthLength;
-        const previous = base + truthLength;
-        locallyCovered.fill(0, 0, truthLength);
-        for (const choice of nandChoices[index]) {
-          for (const key of choiceInfo(choice).uniqueKeys) {
-            const truthIndex = truthIndexByKey[key];
-            if (truthIndex >= 0) locallyCovered[truthIndex] = 1;
-          }
-        }
-        for (let truthIndex = 0; truthIndex < truthLength; truthIndex++) {
-          remainingCoverage[base + truthIndex] =
-            remainingCoverage[previous + truthIndex] +
-            locallyCovered[truthIndex];
-        }
-      }
-      const signatureCount = choiceSignatureIds.size;
-      if (strictUsedSignatures.length < signatureCount) {
-        strictUsedSignatures = new Uint8Array(signatureCount * 2);
-      }
-
-      const visitChoices = (index, links, usedLinkSignatures, chosenCovers) => {
-        if (visitedCovers >= maxCovers) return;
-        const coverageBase = index * truthLength;
-        for (let truthIndex = 0; truthIndex < truthLength; truthIndex++) {
-          const key = truthKeys[truthIndex];
-          if (
-            links[key] + remainingCoverage[coverageBase + truthIndex] <
-            truths[key]
-          ) {
-            return;
-          }
-        }
-        if (index < nandChoices.length) {
-          for (const choice of nandChoices[index]) {
-            const { uniqueKeys, id } = choiceInfo(choice);
-            if (usedLinkSignatures[id] === 1) continue;
-            usedLinkSignatures[id] = 1;
-            for (const key of uniqueKeys) links[key]++;
-            if (chosenCovers) chosenCovers.push(uniqueKeys);
-            visitChoices(index + 1, links, usedLinkSignatures, chosenCovers);
-            if (chosenCovers) chosenCovers.pop();
-            for (const key of uniqueKeys) links[key]--;
-            usedLinkSignatures[id] = 0;
-            if (visitedCovers >= maxCovers) break;
-          }
-          return;
-        }
-
-        visitedCovers++;
-        validCoverCount++;
-        for (const key of liveCandidateCodes) {
-          if (links[key] <= truths[key]) continue;
-          const id = candidateId(key);
-          const digit = candidateDigit(key);
-          if (actualCandidate(id, digit)) {
-            const part = Math.floor(id / 27);
-            removalMask[digit - 1][part] |= 1 << (id % 27);
-            const textKey = captureProof ? candidateTextKey(key) : null;
-            if (eliminationWitnesses && !eliminationWitnesses.has(textKey)) {
-              eliminationWitnesses.set(
-                textKey,
-                chosenCovers.map((cover) => cover.map(candidateTextKey)),
-              );
-            }
-          }
-        }
-      };
-      strictLinks.fill(0);
-      visitChoices(
-        0,
-        strictLinks,
-        strictUsedSignatures,
-        captureProof ? [] : null,
-      );
-      if (validCoverCount === 0) return null;
-
-      if (burr.kind === "aals") {
-        const onlyDigits = new Set(burr.digits);
-        for (const digit of burr.allDigits) {
-          if (onlyDigits.has(digit)) continue;
-          for (const key of candidateKeysByUnit[digit - 1][burr.unit]) {
-            const id = candidateId(key);
-            const part = Math.floor(id / 27);
-            removalMask[digit - 1][part] |= 1 << (id % 27);
-          }
-        }
-      }
-
-      if (captureProof) {
-        removalMask.validationProof = {
-          truthRegions,
-          eliminationWitnesses: Object.fromEntries(eliminationWitnesses),
-          validCoverCount,
-        };
-      }
-      return removalMask;
-    };
-
-    const candidateSlots = new Int32Array(729).fill(-1);
-    let assignedSlots = 0;
-    for (const key of liveCandidateCodes) {
-      candidateSlots[key] = assignedSlots++;
-    }
-    const MASK_WORDS = Math.max(1, Math.ceil(assignedSlots / 32));
-    const MASK_FOLD = MASK_WORDS;
-    const MASK_LENGTH = MASK_WORDS + 1;
-
-    let maskArena = new Uint32Array(MASK_LENGTH * 4096);
-    let maskArenaTop = 0;
-    const maskAlloc = () => {
-      const offset = maskArenaTop;
-      maskArenaTop = offset + MASK_LENGTH;
-      if (maskArenaTop > maskArena.length) {
-        let capacity = maskArena.length * 2;
-        while (capacity < maskArenaTop) capacity *= 2;
-        const grown = new Uint32Array(capacity);
-        grown.set(maskArena);
-        maskArena = grown;
-      }
-      return offset;
-    };
-    const volatileNodeMasks = [];
-    const releaseMasks = (mark) => {
-      while (volatileNodeMasks.length > 0) {
-        const node = volatileNodeMasks[volatileNodeMasks.length - 1];
-        if (nodeMaskCache.get(node) < mark) break;
-        nodeMaskCache.delete(node);
-        volatileNodeMasks.pop();
-      }
-      maskArenaTop = mark;
-    };
-    const newMask = () => {
-      const out = maskAlloc();
-      maskArena.fill(0, out, out + MASK_LENGTH);
-      return out;
-    };
-    const maskUnion = (left, right) => {
-      const out = maskAlloc();
-      const arena = maskArena;
-      for (let i = 0; i < MASK_LENGTH; i++) {
-        arena[out + i] = arena[left + i] | arena[right + i];
-      }
-      return out;
-    };
-    const maskWithout = (left, right) => {
-      const out = maskAlloc();
-      const arena = maskArena;
-      let fold = 0;
-      for (let i = 0; i < MASK_WORDS; i++) {
-        const word = arena[left + i] & ~arena[right + i];
-        arena[out + i] = word;
-        fold |= word;
-      }
-      arena[out + MASK_FOLD] = fold;
-      return out;
-    };
-    const maskIntersects = (left, right) => {
-      const arena = maskArena;
-      if ((arena[left + MASK_FOLD] & arena[right + MASK_FOLD]) === 0) {
-        return false;
-      }
-      for (let i = 0; i < MASK_WORDS; i++) {
-        if ((arena[left + i] & arena[right + i]) !== 0) return true;
-      }
-      return false;
-    };
-    const nodeMaskCache = new WeakMap();
-    let maskArenaFloor = Infinity;
-    const nodeMask = (node) => {
-      const cached = nodeMaskCache.get(node);
-      if (cached !== undefined) return cached;
-      const mask = newMask();
-      const arena = maskArena;
-      for (const digit of node.digits) {
-        for (const id of node.cells) {
-          const slot = candidateSlots[(digit - 1) * 81 + id];
-          if (slot < 0) continue;
-          arena[mask + (slot >>> 5)] |= 1 << (slot & 31);
-        }
-      }
-      let fold = 0;
-      for (let i = 0; i < MASK_WORDS; i++) fold |= arena[mask + i];
-      arena[mask + MASK_FOLD] = fold;
-      nodeMaskCache.set(node, mask);
-      if (mask >= maskArenaFloor) volatileNodeMasks.push(node);
-      return mask;
-    };
-    for (const node of allNodes) nodeMask(node);
-    maskArenaFloor = maskArenaTop;
-    const nodeMaskAt = new Int32Array(nodeIndices.size);
-    for (const [node, index] of nodeIndices) nodeMaskAt[index] = nodeMask(node);
-
-    const pathsMask = (paths) => {
-      const mask = newMask();
-      for (const path of paths) {
-        for (const node of path) {
-          const nodeBits = nodeMask(node);
-          const arena = maskArena;
-          for (let i = 0; i < MASK_LENGTH; i++) {
-            arena[mask + i] |= arena[nodeBits + i];
-          }
-        }
-      }
-      return mask;
-    };
-
-    const focusMaskWithout = (burrNodes, allowed) => {
-      const mask = newMask();
-      for (const node of burrNodes) {
-        if (node === allowed) continue;
-        const nodeBits = nodeMask(node);
-        const arena = maskArena;
-        for (let i = 0; i < MASK_LENGTH; i++) {
-          arena[mask + i] |= arena[nodeBits + i];
-        }
-      }
-      return mask;
-    };
-
-    const nodeSlot = (node) => {
-      const index = nodeIndices.get(node);
-      return index === undefined ? 0 : index + 1;
-    };
-    const stateId = (node, expectNand) =>
-      nodeSlot(node) * 2 + (expectNand ? 1 : 0);
-    const STATE_PREDECESSOR_BUCKETS = 8;
-    const stateBucketKey = (state, predecessorIndex) =>
-      state * STATE_PREDECESSOR_BUCKETS +
-      (predecessorIndex & (STATE_PREDECESSOR_BUCKETS - 1));
-
-    const reconstructWorkPath = (recordNodes, recordParent, index) => {
-      const path = [];
-      while (index >= 0) {
-        path.push(recordNodes[index]);
-        index = recordParent[index];
-      }
-      path.reverse();
-      return path;
-    };
-    const mainRecordPool = [];
-    const acquireMainRecords = () => {
-      const pooled = mainRecordPool.pop();
-      if (pooled) return pooled;
-      return {
-        nodes: [],
-        nodeIndex: new Int32Array(1024),
-        expectNand: new Uint8Array(1024),
-        parent: new Int32Array(1024),
-        usedMask: new Int32Array(1024),
-      };
-    };
-    const releaseMainRecords = (buffers) => {
-      buffers.nodes.length = 0;
-      if (mainRecordPool.length < 8) mainRecordPool.push(buffers);
-    };
-    const growMainRecords = (buffers, need) => {
-      if (need <= buffers.nodeIndex.length) return;
-      let capacity = buffers.nodeIndex.length * 2;
-      while (capacity < need) capacity *= 2;
-      const nodeIndex = new Int32Array(capacity);
-      nodeIndex.set(buffers.nodeIndex);
-      buffers.nodeIndex = nodeIndex;
-      const expectNand = new Uint8Array(capacity);
-      expectNand.set(buffers.expectNand);
-      buffers.expectNand = expectNand;
-      const parent = new Int32Array(capacity);
-      parent.set(buffers.parent);
-      buffers.parent = parent;
-      const usedMask = new Int32Array(capacity);
-      usedMask.set(buffers.usedMask);
-      buffers.usedMask = usedMask;
-    };
-
-    const foldWithoutCore = (mask, core) => {
-      const arena = maskArena;
-      let fold = 0;
-      for (let i = 0; i < MASK_WORDS; i++) {
-        fold |= arena[mask + i] & ~arena[core + i];
-      }
-      return fold;
-    };
-
-    const seenKeySpace = (nodeIndices.size + 1) * 2 * STATE_PREDECESSOR_BUCKETS;
-    const makeSeenContext = () => ({
-      slots: new Array(seenKeySpace),
-      generation: 0,
-    });
-    const beginSeenGeneration = (seen) => {
-      seen.generation++;
-      return seen;
-    };
-    const mainSeenContext = makeSeenContext();
-    const chainSeenContext = makeSeenContext();
-    const retainNotUsed = new Int32Array(MASK_WORDS);
-    const retainUndominatedMask = (seen, key, usedMask, coreMask) => {
-      const arena = maskArena;
-      const usedFold = foldWithoutCore(usedMask, coreMask);
-      const notUsedFold = ~usedFold;
-      for (let word = 0; word < MASK_WORDS; word++) {
-        retainNotUsed[word] = ~arena[usedMask + word];
-      }
-      const generation = seen.generation;
-      let store = seen.slots[key];
-      if (store === undefined) {
-        store = {
-          folds: new Int32Array(8),
-          words: new Int32Array(8 * MASK_WORDS),
-          count: 0,
-          stamp: generation,
-        };
-        seen.slots[key] = store;
-      } else if (store.stamp !== generation) {
-        store.stamp = generation;
-        store.count = 0;
-      }
-
-      const count = store.count;
-      const folds = store.folds;
-      const words = store.words;
-      for (let index = 0; index < count; index++) {
-        if ((folds[index] & notUsedFold) !== 0) continue;
-        const base = index * MASK_WORDS;
-        let contained = true;
-        for (let word = 0; word < MASK_WORDS; word++) {
-          if ((words[base + word] & retainNotUsed[word]) !== 0) {
-            contained = false;
-            break;
-          }
-        }
-        if (contained) return false;
-      }
-      let targetFolds = folds;
-      let targetWords = words;
-      if (count === folds.length) {
-        targetFolds = new Int32Array(count * 2);
-        targetFolds.set(folds);
-        targetWords = new Int32Array(count * 2 * MASK_WORDS);
-        targetWords.set(words);
-        store.folds = targetFolds;
-        store.words = targetWords;
-      }
-      targetFolds[count] = usedFold;
-      const base = count * MASK_WORDS;
-      for (let word = 0; word < MASK_WORDS; word++) {
-        targetWords[base + word] = arena[usedMask + word];
-      }
-      store.count = count + 1;
-      return true;
-    };
-    const forEachMainPath = (
-      start,
-      finish,
-      burrNodes,
-      visit,
-      maxStates = 30000,
-    ) => {
-      const arenaMark = maskArenaTop;
-      try {
-        forEachMainPathFrom(start, finish, burrNodes, visit, maxStates);
-      } finally {
-        releaseMasks(arenaMark);
+        addMaskCandidates([part0, part1, part2], digit - 1);
       }
     };
 
-    const forEachMainPathFrom = (
-      start,
-      finish,
-      burrNodes,
-      visit,
-      maxStates = 30000,
-    ) => {
-      const stateKey = stateId;
-      let distance = reverseDistanceCache.get(finish);
-      if (!distance) {
-        distance = new Int32Array((nodeIndices.size + 1) * 2).fill(-1);
-        const reverseQueue = [{ node: finish, expectNand: false }];
-        distance[stateKey(finish, false)] = 0;
-        for (let head = 0; head < reverseQueue.length; head++) {
-          const state = reverseQueue[head];
-          const priorExpectNand = !state.expectNand;
-          const predecessors = priorExpectNand
-            ? nandNeighbors(state.node)
-            : orMap.get(state.node) || new Set();
-          for (const predecessor of predecessors) {
-            const key = stateKey(predecessor, priorExpectNand);
-            if (distance[key] !== -1) continue;
-            distance[key] =
-              distance[stateKey(state.node, state.expectNand)] + 1;
-            reverseQueue.push({
-              node: predecessor,
-              expectNand: priorExpectNand,
-            });
-          }
-        }
-        reverseDistanceCache.set(finish, distance);
-      }
-
-      const finishOrderIndex = nodeIndices.get(finish);
-      const orderStride = nodeIndices.size;
-      const orderedNeighbors = (node, expectNand) => {
-        const nodeOrderIndex = nodeIndices.get(node);
-        const orderKey =
-          finishOrderIndex === undefined || nodeOrderIndex === undefined
-            ? `${finishOrderIndex}:${nodeOrderIndex}:${expectNand ? 1 : 0}`
-            : (finishOrderIndex * orderStride + nodeOrderIndex) * 2 +
-              (expectNand ? 1 : 0);
-        const cached = mainNeighborOrderCache.get(orderKey);
-        if (cached) return cached;
-
-        const neighbors = [
-          ...(expectNand ? nandNeighbors(node) : orMap.get(node) || new Set()),
-        ];
-        if (
-          expectNand &&
-          !neighbors.includes(finish) &&
-          techniques.isBitsetSubset(finish.NodeBitset, node.NandBitset)
-        ) {
-          neighbors.push(finish);
-        }
-        neighbors.sort((left, right) => {
-          const leftAlsSize = expectNand
-            ? minimumAlsEdgeSize(left)
-            : alsEdgeSize(node, left);
-          const rightAlsSize = expectNand
-            ? minimumAlsEdgeSize(right)
-            : alsEdgeSize(node, right);
-          return (
-            leftAlsSize - rightAlsSize ||
-            orNodeOrder.get(left) - orNodeOrder.get(right)
-          );
-        });
-        const indices = new Int32Array(neighbors.length);
-        for (let i = 0; i < neighbors.length; i++) {
-          indices[i] = nodeIndices.get(neighbors[i]);
-        }
-        const entry = { nodes: neighbors, indices };
-        mainNeighborOrderCache.set(orderKey, entry);
-        return entry;
-      };
-
-      const blockedFocusMask = maskWithout(
-        focusMaskWithout(burrNodes, start),
-        nodeMask(finish),
-      );
-      const buffers = acquireMainRecords();
-      try {
-        const recordNodes = buffers.nodes;
-        let recordNodeIndex = buffers.nodeIndex;
-        let recordExpectNand = buffers.expectNand;
-        let recordParent = buffers.parent;
-        let recordUsedMask = buffers.usedMask;
-        recordNodes.push(start);
-        recordNodeIndex[0] = nodeIndices.get(start);
-        recordExpectNand[0] = 1;
-        recordParent[0] = -1;
-        recordUsedMask[0] = nodeMask(start);
-        let recordCount = 1;
-        const seen = beginSeenGeneration(mainSeenContext);
-        const seenCore = nodeMask(start);
-        const startState = stateKey(start, true);
-        retainUndominatedMask(
-          seen,
-          stateBucketKey(startState, nodeIndices.get(start)),
-          seenCore,
-          seenCore,
-        );
-
-        for (
-          let head = 0;
-          head < recordCount && recordCount < maxStates;
-          head++
-        ) {
-          const currentNode = recordNodes[head];
-          const currentNodeIndex = recordNodeIndex[head];
-          const currentExpectNand = recordExpectNand[head] === 1;
-          const currentUsedMask = recordUsedMask[head];
-          const nextExpectNand = !currentExpectNand;
-          const nextStateBase = nextExpectNand ? 1 : 0;
-          const neighbors = orderedNeighbors(currentNode, currentExpectNand);
-          const neighborNodes = neighbors.nodes;
-          const neighborIndices = neighbors.indices;
-          for (let i = 0; i < neighborNodes.length; i++) {
-            const next = neighborNodes[i];
-            if (next === finish) {
-              if (!currentExpectNand) continue;
-              let cursor = head;
-              let alreadyUsedFinish = false;
-              while (cursor >= 0) {
-                if (recordNodes[cursor] === finish) {
-                  alreadyUsedFinish = true;
-                  break;
-                }
-                cursor = recordParent[cursor];
-              }
-              if (alreadyUsedFinish) continue;
-              const terminalIndex = recordCount;
-              growMainRecords(buffers, recordCount + 1);
-              recordNodeIndex = buffers.nodeIndex;
-              recordExpectNand = buffers.expectNand;
-              recordParent = buffers.parent;
-              recordUsedMask = buffers.usedMask;
-              recordNodes.push(finish);
-              recordNodeIndex[terminalIndex] = neighborIndices[i];
-              recordExpectNand[terminalIndex] = 0;
-              recordParent[terminalIndex] = head;
-              recordUsedMask[terminalIndex] = maskUnion(
-                currentUsedMask,
-                nodeMask(finish),
-              );
-              recordCount = terminalIndex + 1;
-              visit(
-                reconstructWorkPath(recordNodes, recordParent, terminalIndex),
-              );
-              if (recordCount >= maxStates) return;
-              continue;
-            }
-
-            const nextIndex = neighborIndices[i];
-            const nextMask = nodeMaskAt[nextIndex];
-            if (
-              maskIntersects(nextMask, currentUsedMask) ||
-              maskIntersects(nextMask, blockedFocusMask)
-            ) {
-              continue;
-            }
-            const nextState = (nextIndex + 1) * 2 + nextStateBase;
-            if (distance[nextState] === -1) continue;
-
-            const usedMask = maskUnion(currentUsedMask, nextMask);
-            if (
-              !retainUndominatedMask(
-                seen,
-                stateBucketKey(nextState, currentNodeIndex),
-                usedMask,
-                seenCore,
-              )
-            ) {
-              continue;
-            }
-            growMainRecords(buffers, recordCount + 1);
-            recordNodeIndex = buffers.nodeIndex;
-            recordExpectNand = buffers.expectNand;
-            recordParent = buffers.parent;
-            recordUsedMask = buffers.usedMask;
-            recordNodes.push(next);
-            recordNodeIndex[recordCount] = nextIndex;
-            recordExpectNand[recordCount] = nextExpectNand ? 1 : 0;
-            recordParent[recordCount] = head;
-            recordUsedMask[recordCount] = usedMask;
-            recordCount++;
-            if (recordCount >= maxStates) return;
-          }
-        }
-      } finally {
-        releaseMainRecords(buffers);
-      }
-    };
-
-    const alsInteriorCache = new Map();
-    const alsInteriorNodes = (left, right, als) => {
-      const cacheKey = nodePairKey(left, right);
-      let nodes = alsInteriorCache.get(cacheKey);
-      if (nodes !== undefined) return nodes;
-      nodes = [];
-      const endDigits = new Set([left.digits[0], right.digits[0]]);
-      for (const textDigit of Object.keys(als.candMap)) {
-        const digit = Number(textDigit);
-        if (endDigits.has(digit)) continue;
-        nodes.push(
-          getNode(
-            als.candMap[digit].map(([r, c]) => r * 9 + c),
-            digit,
-          ),
-        );
-      }
-      alsInteriorCache.set(cacheKey, nodes);
-      return nodes;
-    };
-
-    const getMainPotentialMask = (mainPath) => {
-      const potentialMask = emptyMask();
-      for (let i = 0; i + 1 < mainPath.length; i += 2) {
-        const leftBitset = mainPath[i].NandBitset;
-        const rightBitset = mainPath[i + 1].NandBitset;
-        for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
-          const into = potentialMask[digitIndex];
-          const leftParts = leftBitset[digitIndex];
-          const rightParts = rightBitset[digitIndex];
-          into[0] |= leftParts[0] & rightParts[0];
-          into[1] |= leftParts[1] & rightParts[1];
-          into[2] |= leftParts[2] & rightParts[2];
-        }
-      }
-
-      for (let i = 1; i + 1 < mainPath.length; i += 2) {
-        const left = mainPath[i];
-        const right = mainPath[i + 1];
-        const als = blossomAlsLinkRegistry.get(left)?.get(right);
-        if (!als) continue;
-
-        for (const internalNode of alsInteriorNodes(left, right, als)) {
-          const digit = internalNode.digits[0];
-          for (let part = 0; part < 3; part++) {
-            potentialMask[digit - 1][part] |=
-              internalNode.NandBitset[digit - 1][part];
-          }
-        }
-      }
-      return potentialMask;
-    };
-
-    const isBurrEndInMainPotential = (branch, mainPotentialMask) => {
-      if (branch.length < 2) return true;
-      const end = branch[branch.length - 1];
-      const digit = end.digits[0];
-      return end.cells.every((id) => {
-        const part = Math.floor(id / 27);
-        const bit = id % 27;
-        return (mainPotentialMask[digit - 1][part] & (1 << bit)) !== 0;
-      });
-    };
-
-    const orderedBurrNeighbors = (node, expectNand) => {
-      const orderCache = expectNand ? burrNandOrderCache : burrOrOrderCache;
-      const cached = orderCache.get(node);
-      if (cached) return cached;
-
-      const neighbors = [
-        ...(expectNand ? nandNeighbors(node) : orMap.get(node) || new Set()),
-      ];
-      neighbors.sort((left, right) => {
-        const leftAlsSize = expectNand
-          ? minimumAlsEdgeSize(left)
-          : alsEdgeSize(node, left);
-        const rightAlsSize = expectNand
-          ? minimumAlsEdgeSize(right)
-          : alsEdgeSize(node, right);
-        return (
-          leftAlsSize - rightAlsSize ||
-          orNodeOrder.get(left) - orNodeOrder.get(right)
-        );
-      });
-      const indices = new Int32Array(neighbors.length);
-      for (let i = 0; i < neighbors.length; i++) {
-        indices[i] = nodeIndices.get(neighbors[i]);
-      }
-      const entry = { nodes: neighbors, indices };
-      orderCache.set(node, entry);
-      return entry;
-    };
-
-    const potentialMaskKey = (potentialMask) => {
-      let key = "";
-      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
-        const parts = potentialMask[digitIndex];
-        key += parts[0] + "," + parts[1] + "," + parts[2] + ";";
-      }
-      return key;
-    };
-
-    // The join only reads `within` at chain end nodes, and `reachable` only
-    // for the once-per-burr union mask. So the per-main-path side answers one
-    // node at a time and remembers the answer under a generation stamp, and
-    // never builds the full node-wide table or its cache key.
-    const pathWithinValue = new Uint8Array(nodeIndices.size);
-    const pathWithinStamp = new Int32Array(nodeIndices.size);
-    const pathWithinFlat = new Int32Array(27);
-    let pathWithinGeneration = 0;
-    const beginPathWithin = (potentialMask) => {
-      pathWithinGeneration++;
-      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
-        const parts = potentialMask[digitIndex];
-        const base = digitIndex * 3;
-        pathWithinFlat[base] = parts[0];
-        pathWithinFlat[base + 1] = parts[1];
-        pathWithinFlat[base + 2] = parts[2];
-      }
-    };
-    const pathWithinHas = (index) => {
-      if (pathWithinStamp[index] === pathWithinGeneration) {
-        return pathWithinValue[index] === 1;
-      }
-      const { offsets, words } = ensureNodeWordTable();
-      const end = offsets[index + 1];
-      let contained = 1;
-      for (let i = offsets[index]; i < end; i += 2) {
-        const bits = words[i + 1];
-        if ((pathWithinFlat[words[i]] & bits) !== bits) {
-          contained = 0;
-          break;
-        }
-      }
-      pathWithinStamp[index] = pathWithinGeneration;
-      pathWithinValue[index] = contained;
-      return contained === 1;
-    };
-
-    const getBranchReachability = (potentialMask) => {
-      const potentialKey = potentialMaskKey(potentialMask);
-      const cached = branchPotentialCache.get(potentialKey);
-      if (cached && cached.reachable) return cached;
-
-      const nodeCount = nodeIndices.size;
-      const stateCount = nodeCount * 2;
-
-      if (!blossomSearchCache.branchReverseStateEdges) {
-        const reverseStateEdges = Array.from({ length: stateCount }, () => []);
-        for (const source of orNodes) {
-          const sourceIndex = nodeIndices.get(source);
-          if (sourceIndex === undefined) continue;
-          for (const target of nandNeighbors(source)) {
-            const targetIndex = nodeIndices.get(target);
-            if (targetIndex !== undefined) {
-              reverseStateEdges[targetIndex * 2].push(sourceIndex * 2 + 1);
-            }
-          }
-          for (const target of orMap.get(source) || []) {
-            const targetIndex = nodeIndices.get(target);
-            if (targetIndex !== undefined) {
-              reverseStateEdges[targetIndex * 2 + 1].push(sourceIndex * 2);
-            }
-          }
-        }
-        blossomSearchCache.branchReverseStateEdges = reverseStateEdges;
-      }
-
-      const within = cached ? cached.within : computeWithinMask(potentialMask);
-
-      let terminalWords = blossomSearchCache.terminalWordScratch;
-      if (!terminalWords || terminalWords.length !== (nodeCount + 31) >> 5) {
-        terminalWords = new Uint32Array((nodeCount + 31) >> 5);
-        blossomSearchCache.terminalWordScratch = terminalWords;
-      }
-      terminalWords.fill(0);
-      const terminalStates = [];
-      for (const terminal of orNodes) {
-        const terminalIndex = nodeIndices.get(terminal);
-        if (terminalIndex === undefined || within[terminalIndex] === 0) {
+    const addExitEliminations = (exitNodes) => {
+      let common = null;
+      for (const node of exitNodes) {
+        const mask = node.NandBitset;
+        if (common === null) {
+          common = mask.map((parts) => [parts[0], parts[1], parts[2]]);
           continue;
         }
-        terminalWords[terminalIndex >>> 5] |= 1 << (terminalIndex & 31);
-        terminalStates.push(terminalIndex * 2 + 1);
-      }
-      const eligibleTerminalBits = terminalWords.join(",");
-
-      let reachable = branchReachabilityCache.get(eligibleTerminalBits);
-      if (!reachable) {
-        reachable = new Uint8Array(stateCount);
-        const queue = new Int32Array(stateCount);
-        let queueHead = 0;
-        let queueTail = 0;
-        for (const state of terminalStates) {
-          if (reachable[state] !== 0) continue;
-          reachable[state] = 1;
-          queue[queueTail++] = state;
-        }
-        const reverseStateEdges = blossomSearchCache.branchReverseStateEdges;
-        while (queueHead < queueTail) {
-          const state = queue[queueHead++];
-          for (const predecessor of reverseStateEdges[state]) {
-            if (reachable[predecessor] !== 0) continue;
-            reachable[predecessor] = 1;
-            queue[queueTail++] = predecessor;
-          }
-        }
-        branchReachabilityCache.set(eligibleTerminalBits, reachable);
-        if (branchReachabilityCache.size > 4096) {
-          branchReachabilityCache.delete(
-            branchReachabilityCache.keys().next().value,
-          );
+        for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
+          common[digitIndex][0] &= mask[digitIndex][0];
+          common[digitIndex][1] &= mask[digitIndex][1];
+          common[digitIndex][2] &= mask[digitIndex][2];
         }
       }
-
-      const entry = { reachable, within };
-      branchPotentialCache.set(potentialKey, entry);
-      return entry;
-    };
-
-    // Branch chains outlive the per-main-path arena marks, so they keep their
-    // candidate masks in a store of their own rather than in the mask arena.
-    // Layout matches the arena: MASK_WORDS words plus the fold word that
-    // maskIntersects uses as a quick reject.
-    let chainStore = new Uint32Array(MASK_LENGTH * 8192);
-    let chainStoreTop = 0;
-    const chainStoreReset = () => {
-      chainStoreTop = 0;
-    };
-    const chainAlloc = () => {
-      const offset = chainStoreTop;
-      chainStoreTop = offset + MASK_LENGTH;
-      if (chainStoreTop > chainStore.length) {
-        let capacity = chainStore.length * 2;
-        while (capacity < chainStoreTop) capacity *= 2;
-        const grown = new Uint32Array(capacity);
-        grown.set(chainStore);
-        chainStore = grown;
-      }
-      return offset;
-    };
-
-    const chainTableCache = new Map();
-    const chainTableKeyCache = new WeakMap();
-    const chainTableKey = (burr, remaining) => {
-      const cached = chainTableKeyCache.get(remaining);
-      if (cached !== undefined && cached.burr === burr) return cached.key;
-      let key = burr.kind + (burr.unit === undefined ? "" : burr.unit);
-      for (const node of burr.nodes) key += "," + nodeIndices.get(node);
-      key += "|";
-      for (const node of remaining) key += "," + nodeIndices.get(node);
-      chainTableKeyCache.set(remaining, { burr, key });
-      return key;
-    };
-
-    const buildChainsForRoot = (
-      burr,
-      remaining,
-      rootIndex,
-      unionReach,
-      maxStates,
-    ) => {
-      const root = remaining[rootIndex];
-      const unionWithin = unionReach.within;
-      const unionReachable = unionReach.reachable;
-      const overrides = new Uint8Array(nodeIndices.size * 2);
-      const canReachTerminalAt = (nodeIndex, node, expectNand) => {
-        const stateIndex = nodeIndex * 2 + (expectNand ? 1 : 0);
-        if (unionReachable[stateIndex] === 1) return true;
-        const known = overrides[stateIndex];
-        if (known !== 0) return known === 3;
-        const neighbors = expectNand
-          ? nandNeighbors(node)
-          : orMap.get(node) || [];
-        const nextExpectNand = !expectNand;
-        let reaches = false;
-        for (const next of neighbors) {
-          const nextIndex = nodeIndices.get(next);
-          if (
-            nextIndex !== undefined &&
-            unionReachable[nextIndex * 2 + (nextExpectNand ? 1 : 0)] === 1
-          ) {
-            reaches = true;
-            break;
-          }
-        }
-        overrides[stateIndex] = reaches ? 3 : 2;
-        return reaches;
-      };
-
-      const arenaMark = maskArenaTop;
-      const chains = [];
-      const rootMaskOffset = nodeMask(root);
-      const blockedFocusMask = focusMaskWithout(burr.nodes, root);
-      const records = [
-        {
-          node: root,
-          nodeIndex: nodeIndices.get(root),
-          expectNand: true,
-          parent: -1,
-          usedMask: rootMaskOffset,
-        },
-      ];
-      const seen = beginSeenGeneration(chainSeenContext);
-      retainUndominatedMask(
-        seen,
-        stateBucketKey(stateId(root, true), nodeIndices.get(root)),
-        rootMaskOffset,
-        rootMaskOffset,
-      );
-
-      const materialise = (head) => {
-        const nodes = [];
-        let cursor = head;
-        while (cursor >= 0) {
-          nodes.push(records[cursor].node);
-          cursor = records[cursor].parent;
-        }
-        nodes.reverse();
-        const offset = chainAlloc();
-        const source = records[head].usedMask;
-        for (let i = 0; i < MASK_LENGTH; i++) {
-          chainStore[offset + i] = maskArena[source + i];
-        }
-        let gateCoverMask = 0;
-        if (burr.kind === "region" && nodes.length > 1) {
-          const gateOptions = nandLinkOptions(nodes[0], nodes[1]);
-          for (let index = 0; index < remaining.length; index++) {
-            if (index === rootIndex) continue;
-            const focusKeys = nodeCandidateKeys(remaining[index]);
-            if (
-              gateOptions.some((option) =>
-                focusKeys.every((key) => option.includes(key)),
-              )
-            ) {
-              gateCoverMask |= 1 << index;
-            }
-          }
-        }
-        chains.push({
-          nodes,
-          endIndex: records[head].nodeIndex,
-          maskOffset: offset,
-          gateCoverMask,
-        });
-      };
-
-      for (
-        let head = 0;
-        head < records.length && records.length < maxStates;
-        head++
-      ) {
-        const current = records[head];
-        if (current.expectNand && unionWithin[current.nodeIndex] === 1) {
-          materialise(head);
-        }
-        const expectNand = !current.expectNand;
-        const stateBase = expectNand ? 1 : 0;
-        const neighbors = orderedBurrNeighbors(
-          current.node,
-          current.expectNand,
-        );
-        const neighborNodes = neighbors.nodes;
-        const neighborIndices = neighbors.indices;
-        for (let i = 0; i < neighborNodes.length; i++) {
-          const nextIndex = neighborIndices[i];
-          const nextMask = nodeMaskAt[nextIndex];
-          if (
-            maskIntersects(nextMask, current.usedMask) ||
-            maskIntersects(nextMask, blockedFocusMask)
-          ) {
-            continue;
-          }
-          const next = neighborNodes[i];
-          if (!canReachTerminalAt(nextIndex, next, expectNand)) continue;
-          const usedMask = maskUnion(current.usedMask, nextMask);
-          const key = stateBucketKey(
-            (nextIndex + 1) * 2 + stateBase,
-            current.nodeIndex,
-          );
-          if (!retainUndominatedMask(seen, key, usedMask, rootMaskOffset)) {
-            continue;
-          }
-          records.push({
-            node: next,
-            nodeIndex: nextIndex,
-            expectNand,
-            parent: head,
-            usedMask,
-          });
-          if (records.length >= maxStates) break;
-        }
-      }
-      releaseMasks(arenaMark);
-      // Grouped by end node: a main path admits or rejects a whole group with
-      // one lookup. Chain by chain, that test was 79% of the join's work.
-      const byEnd = new Map();
-      for (const chain of chains) {
-        let group = byEnd.get(chain.endIndex);
-        if (group === undefined) {
-          group = [];
-          byEnd.set(chain.endIndex, group);
-        }
-        group.push(chain);
-      }
-      return {
-        ends: Int32Array.from(byEnd.keys()),
-        groups: [...byEnd.values()],
-      };
-    };
-
-    const primeChainTable = (burr, remaining, seedMask) => {
-      const key = chainTableKey(burr, remaining);
-      let table = chainTableCache.get(key);
-      if (!table) {
-        table = { unionMask: emptyMask(), byRoot: null, rebuilds: 0 };
-        chainTableCache.set(key, table);
-      }
-      const unionMask = table.unionMask;
+      if (common === null) return;
       for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
-        for (let part = 0; part < 3; part++) {
-          unionMask[digitIndex][part] |= seedMask[digitIndex][part];
-        }
+        addMaskCandidates(common[digitIndex], digitIndex);
       }
-      table.byRoot = null;
-    };
-
-    const getChainTable = (burr, remaining, mainPotentialMask, maxStates) => {
-      const key = chainTableKey(burr, remaining);
-      let table = chainTableCache.get(key);
-      let grew = false;
-      if (!table) {
-        table = { unionMask: emptyMask(), byRoot: null, rebuilds: 0 };
-        chainTableCache.set(key, table);
-      }
-      const unionMask = table.unionMask;
-      for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
-        const into = unionMask[digitIndex];
-        const from = mainPotentialMask[digitIndex];
-        for (let part = 0; part < 3; part++) {
-          const bits = from[part];
-          if ((into[part] & bits) !== bits) {
-            into[part] |= bits;
-            grew = true;
-          }
-        }
-      }
-      if (grew || table.byRoot === null) {
-        table.rebuilds = (table.rebuilds || 0) + 1;
-        chainStoreReset();
-        for (const entry of chainTableCache.values()) {
-          if (entry !== table) entry.byRoot = null;
-        }
-        const unionReach = getBranchReachability(unionMask);
-        const byRoot = [];
-        for (let index = 0; index < remaining.length; index++) {
-          byRoot.push(
-            buildChainsForRoot(burr, remaining, index, unionReach, maxStates),
-          );
-        }
-        table.byRoot = byRoot;
-      }
-      return table;
-    };
-
-    let joinScratch = new Uint32Array(MASK_LENGTH * 8);
-    const joinScratchGrow = (levels) => {
-      const need = MASK_LENGTH * (levels + 2);
-      if (need > joinScratch.length) {
-        const grown = new Uint32Array(need * 2);
-        grown.set(joinScratch);
-        joinScratch = grown;
-      }
-    };
-    const chainHitsScratch = (chainOffset, scratchOffset) => {
-      if (
-        (chainStore[chainOffset + MASK_FOLD] &
-          joinScratch[scratchOffset + MASK_FOLD]) ===
-        0
-      ) {
-        return false;
-      }
-      for (let i = 0; i < MASK_WORDS; i++) {
-        if (
-          (chainStore[chainOffset + i] & joinScratch[scratchOffset + i]) !==
-          0
-        ) {
-          return true;
-        }
-      }
-      return false;
-    };
-
-    const forEachIntegratedBranch = (
-      burr,
-      mainPath,
-      remaining,
-      mainPotentialMask,
-      visit,
-      maxStates = 30000,
-    ) => {
-      if (remaining.length === 0) {
-        visit([]);
-        return;
-      }
-      const arenaMark = maskArenaTop;
-      try {
-        const table = getChainTable(
-          burr,
-          remaining,
-          mainPotentialMask,
-          maxStates,
-        );
-        beginPathWithin(mainPotentialMask);
-        joinScratchGrow(remaining.length + 1);
-        const mainUsedMask = pathsMask([mainPath]);
-        for (let i = 0; i < MASK_LENGTH; i++) {
-          joinScratch[i] = maskArena[mainUsedMask + i];
-        }
-        joinChains(
-          burr,
-          remaining,
-          table.byRoot,
-          0,
-          0,
-          [],
-          {
-            budget: maxStates,
-          },
-          visit,
-        );
-      } finally {
-        releaseMasks(arenaMark);
-      }
-    };
-
-    const joinChains = (
-      burr,
-      remaining,
-      byRoot,
-      depth,
-      coveredMask,
-      completed,
-      counter,
-      visit,
-    ) => {
-      let rootIndex = -1;
-      for (let index = 0; index < remaining.length; index++) {
-        if ((coveredMask & (1 << index)) === 0) {
-          rootIndex = index;
-          break;
-        }
-      }
-      if (rootIndex < 0) {
-        return visit(completed) === true;
-      }
-      const usedOffset = depth * MASK_LENGTH;
-      const nextOffset = usedOffset + MASK_LENGTH;
-      const entry = byRoot[rootIndex];
-      const ends = entry.ends;
-      const groups = entry.groups;
-      const isRegion = burr.kind === "region";
-      for (let e = 0; e < ends.length; e++) {
-        if (!pathWithinHas(ends[e])) continue;
-        const chains = groups[e];
-        for (let index = 0; index < chains.length; index++) {
-          if (counter.budget <= 0) return false;
-          counter.budget--;
-          const chain = chains[index];
-          const offset = chain.maskOffset;
-          if (chainHitsScratch(offset, usedOffset)) continue;
-          for (let i = 0; i < MASK_LENGTH; i++) {
-            joinScratch[nextOffset + i] =
-              joinScratch[usedOffset + i] | chainStore[offset + i];
-          }
-          completed.push(chain.nodes);
-          const stopped = joinChains(
-            burr,
-            remaining,
-            byRoot,
-            depth + 1,
-            isRegion
-              ? coveredMask | (1 << rootIndex) | chain.gateCoverMask
-              : coveredMask | (1 << rootIndex),
-            completed,
-            counter,
-            visit,
-          );
-          completed.pop();
-          if (stopped) return true;
-        }
-      }
-      return false;
     };
 
     const getLoc = (cells, preferBox = false) => {
@@ -16342,258 +15037,334 @@ const techniques = {
       return used;
     };
 
-    const formatRemovals = (removals) => {
-      const byCell = new Map();
-      for (const { r, c, num } of removals) {
-        const key = r * 9 + c;
-        if (!byCell.has(key)) byCell.set(key, []);
-        byCell.get(key).push(num);
+    const results = [];
+    const bestByRemoval = new Map();
+    const chosenExits = [];
+
+    const assignExits = (adjacency, index, usedMask, budget) => {
+      if (index === adjacency.length) return true;
+      const options = adjacency[index];
+      for (let i = 0; i < options.length; i++) {
+        if (budget.left <= 0) return false;
+        const option = options[i];
+        if (usedMask & option.mask) continue;
+        budget.left--;
+        chosenExits[index] = option;
+        if (assignExits(adjacency, index + 1, usedMask | option.mask, budget)) {
+          return true;
+        }
       }
-      return [...byCell.entries()]
-        .sort(([left], [right]) => left - right)
-        .map(([id, digits]) => {
-          digits.sort((a, b) => a - b);
-          return `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}<>${digits.join(",")}`;
-        })
-        .join(", ");
+      return false;
     };
 
-    const results = [];
-    const resultKeys = new Set();
-    const seedFlatMask = new Int32Array(27);
-    const trialPaths = [];
-    chainTableCache.clear();
-    chainStoreReset();
-
     for (const burr of burrSets) {
-      const burrNodeSet = new Set(burr.nodes);
-      const burrKeys = new Set();
-      for (const node of burr.nodes) {
+      const branchCount = burr.candidates.length;
+      if (branchCount < 3) continue;
+      const fullMask = branchCount >= 31 ? -1 : (1 << branchCount) - 1;
+      if (fullMask === -1) continue;
+      const entryCandidateSet = new Set(burr.candidates);
+      const homeCellSet = new Set(burr.homeCells);
+
+      const cellGroups = new Map();
+      const houseGroups = new Map();
+      const addToGroup = (groups, key, entryIndex, option) => {
+        let group = groups.get(key);
+        if (!group) {
+          group = { mask: 0, byEntry: [] };
+          for (let i = 0; i < branchCount; i++) group.byEntry.push([]);
+          groups.set(key, group);
+        }
+        group.byEntry[entryIndex].push(option);
+        group.mask |= 1 << entryIndex;
+      };
+
+      const addExitOptions = (entryIndex, startCode, nodeIndex, depth) => {
+        const node = allNodes[nodeIndex];
+        if (node.digits.length !== 1) return;
+        const digit = node.digits[0];
         for (const id of node.cells) {
-          burrKeys.add(candidateCode(id, node.digits[0]));
+          const code = candidateCode(id, digit);
+          if (code !== startCode && entryCandidateSet.has(code)) return;
+        }
+
+        if (node.cells.length === 1 && !homeCellSet.has(node.cells[0])) {
+          addToGroup(cellGroups, node.cells[0], entryIndex, {
+            nodeIndex,
+            depth,
+            mask: 1 << (digit - 1),
+          });
+        }
+        for (const { house, mask } of nodeHouses[nodeIndex]) {
+          if (house === burr.homeUnit) continue;
+          addToGroup(houseGroups, house * 9 + (digit - 1), entryIndex, {
+            nodeIndex,
+            depth,
+            mask,
+          });
+        }
+      };
+
+      for (let entryIndex = 0; entryIndex < branchCount; entryIndex++) {
+        const startCode = burr.candidates[entryIndex];
+        const startIndex = candidateNode[startCode];
+        if (startIndex >= 0)
+          addExitOptions(entryIndex, startCode, startIndex, 0);
+        const end = reachOffsets[startCode + 1];
+        for (let i = reachOffsets[startCode]; i < end; i++) {
+          addExitOptions(entryIndex, startCode, reachNodes[i], reachDepth[i]);
         }
       }
-      if (burr.kind === "aals") {
-        for (const id of burr.cells) {
-          const r = Math.floor(id / 9);
-          const c = id % 9;
-          for (const digit of pencils[r][c]) {
-            burrKeys.add(candidateCode(id, digit));
-          }
+
+      const candidateGroups = [];
+      for (const [key, group] of [...cellGroups.entries()].sort(
+        (left, right) => left[0] - right[0],
+      )) {
+        if (group.mask === fullMask) {
+          candidateGroups.push({ exitKind: "cell", key, group });
         }
       }
+      for (const [key, group] of [...houseGroups.entries()].sort(
+        (left, right) => left[0] - right[0],
+      )) {
+        if (group.mask === fullMask) {
+          candidateGroups.push({ exitKind: "house", key, group });
+        }
+      }
+      if (candidateGroups.length === 0) continue;
 
-      for (let a = 0; a < burr.nodes.length - 1; a++) {
-        for (let b = a + 1; b < burr.nodes.length; b++) {
-          if (solvedBoard && burr.kind !== "aals") {
-            let trueNode = null;
-            if (burr.kind === "cell") {
-              const id = burr.cells[0];
-              const solvedDigit = solvedBoard[Math.floor(id / 9)][id % 9];
-              trueNode = burr.nodes.find(
-                (node) => node.digits[0] === solvedDigit,
-              );
-            } else {
-              const trueCell = burr.cells.find(
-                (id) =>
-                  solvedBoard[Math.floor(id / 9)][id % 9] === burr.digits[0],
-              );
-              trueNode = burr.nodes.find((node) => node.cells[0] === trueCell);
-            }
-            if (
-              trueNode &&
-              burr.nodes[a] !== trueNode &&
-              burr.nodes[b] !== trueNode
-            ) {
-              continue;
+      let branchRuns = null;
+      const ensureBranchRuns = () => {
+        if (branchRuns) return branchRuns;
+        branchRuns = [];
+        for (let entryIndex = 0; entryIndex < branchCount; entryIndex++) {
+          const startIndex = candidateNode[burr.candidates[entryIndex]];
+          const runId = runForcingChain(startIndex);
+          branchRuns.push({
+            startIndex,
+            runId,
+            parentOn: Int32Array.from(parentOn),
+            parentOff: Int32Array.from(parentOff),
+            stampOn: Int32Array.from(stampOn),
+            stampOff: Int32Array.from(stampOff),
+          });
+        }
+        return branchRuns;
+      };
+
+      for (const { exitKind, key, group } of candidateGroups) {
+        const adjacency = group.byEntry.map((options) => {
+          const bestByNode = new Map();
+          for (const option of options) {
+            const existing = bestByNode.get(option.nodeIndex);
+            if (!existing || existing.depth > option.depth) {
+              bestByNode.set(option.nodeIndex, option);
             }
           }
-          const remaining = burr.nodes.filter(
-            (_, index) => index !== a && index !== b,
+          return [...bestByNode.values()].sort(
+            (left, right) =>
+              left.depth - right.depth || left.nodeIndex - right.nodeIndex,
           );
-          let selected = null;
-          seedFlatMask.fill(0);
-          const mainCandidatePaths = [];
-          const mainCandidateMasks = [];
-          forEachMainPath(
-            burr.nodes[a],
-            burr.nodes[b],
-            burr.nodes,
-            (candidateMain) => {
-              if (candidateMain.length < 4) return;
-              const mainPotentialMask = getMainPotentialMask(candidateMain);
-              for (let d = 0; d < 9; d++) {
-                const parts = mainPotentialMask[d];
-                const base = d * 3;
-                seedFlatMask[base] |= parts[0];
-                seedFlatMask[base + 1] |= parts[1];
-                seedFlatMask[base + 2] |= parts[2];
-              }
-              if (
-                candidateMain.length === 4 &&
-                !blossomAlsLinkRegistry
-                  .get(candidateMain[1])
-                  ?.has(candidateMain[2]) &&
-                candidateMain[1].cells.length === 1 &&
-                candidateMain[2].cells.length === 1
-              ) {
-                return;
-              }
-              mainCandidatePaths.push(candidateMain);
-              mainCandidateMasks.push(mainPotentialMask);
-            },
+        });
+        chosenExits.length = branchCount;
+        if (!assignExits(adjacency, 0, 0, { left: 20000 })) continue;
+        const exitOptions = chosenExits.slice(0, branchCount);
+
+        const runs = ensureBranchRuns();
+        const paths = [];
+        let broken = false;
+        for (let entryIndex = 0; entryIndex < branchCount; entryIndex++) {
+          const run = runs[entryIndex];
+          stampOn.set(run.stampOn);
+          stampOff.set(run.stampOff);
+          parentOn.set(run.parentOn);
+          parentOff.set(run.parentOff);
+          const path = rebuildChain(
+            run.startIndex,
+            exitOptions[entryIndex].nodeIndex,
+            run.runId,
           );
-          if (mainCandidatePaths.length === 0) continue;
-          const seedMask = emptyMask();
-          for (let d = 0; d < 9; d++) {
-            const base = d * 3;
-            seedMask[d][0] = seedFlatMask[base];
-            seedMask[d][1] = seedFlatMask[base + 1];
-            seedMask[d][2] = seedFlatMask[base + 2];
+          if (!path) {
+            broken = true;
+            break;
           }
-          primeChainTable(burr, remaining, seedMask);
+          paths.push(path);
+        }
+        if (broken) continue;
+        let chainedBranches = 0;
+        for (const path of paths) if (path.length >= 3) chainedBranches++;
+        if (chainedBranches < 2) continue;
+        paths.sort((left, right) => right.length - left.length);
 
-          for (let m = 0; m < mainCandidatePaths.length; m++) {
-            const candidateMain = mainCandidatePaths[m];
-            forEachIntegratedBranch(
-              burr,
-              candidateMain,
-              remaining,
-              mainCandidateMasks[m],
-              (branches) => {
-                let hasVisibleBranch = false;
-                for (let i = 0; i < branches.length; i++) {
-                  if (branches[i].length > 1) {
-                    hasVisibleBranch = true;
-                    break;
-                  }
-                }
-                if (!hasVisibleBranch) return false;
-                trialPaths.length = 0;
-                trialPaths.push(candidateMain);
-                for (let i = 0; i < branches.length; i++) {
-                  trialPaths.push(branches[i]);
-                }
-                const mask = evaluateStrictRankZero(burr, trialPaths);
-                if (!mask) return false;
-                const branchCopy = branches.slice();
-                const paths = [candidateMain, ...branchCopy];
-
-                const trialStructureKeys = new Set(burrKeys);
-                for (const path of paths) {
-                  for (const node of path) {
-                    for (const id of node.cells) {
-                      trialStructureKeys.add(candidateCode(id, node.digits[0]));
-                    }
-                  }
-                }
-                if (maskToRemovals(mask, trialStructureKeys).length === 0) {
-                  return false;
-                }
-                selected = {
-                  mainPath: candidateMain,
-                  branches: branchCopy,
-                  removalMask: mask,
-                };
-                return true;
-              },
-            );
-            if (selected) break;
+        resetElims();
+        for (const path of paths) {
+          for (let i = 0; i + 1 < path.length; i++) {
+            addLinkEliminations(path[i], path[i + 1]);
           }
-          if (!selected) continue;
-
-          const { mainPath, branches, removalMask } = selected;
-          const structureKeys = new Set(burrKeys);
-          for (const path of [mainPath, ...branches]) {
-            for (const node of path) {
-              for (const id of node.cells) {
-                structureKeys.add(candidateCode(id, node.digits[0]));
-              }
+          for (let i = 1; i + 1 < path.length; i += 2) {
+            const als = getAlsForLink(path[i], path[i + 1]);
+            if (als) {
+              addAlsLoopEliminations(
+                als,
+                path[i].digits[0],
+                path[i + 1].digits[0],
+              );
             }
           }
-          const removals = maskToRemovals(removalMask, structureKeys);
-          if (removals.length === 0) continue;
-
-          const removalKey = removals
-            .map((el) => `${el.r}:${el.c}:${el.num}`)
-            .join("|");
-          if (resultKeys.has(removalKey)) continue;
-          resultKeys.add(removalKey);
-
-          const burrText =
-            burr.kind === "cell"
-              ? `(${burr.digits.join("")})${getLoc(burr.cells)}`
-              : burr.kind === "region"
-                ? `(${burr.digits[0]})${getLoc(burr.cells)}`
-                : `AALS(${burr.allDigits.join("")})${getLoc(
-                    burr.cells,
-                    burr.unit >= 18,
-                  )}`;
-          const visibleBranches = branches.filter((path) => path.length > 1);
-          const allPaths = [mainPath, ...visibleBranches];
-          const usedAlses = getUsedAlses(allPaths);
-          if (burr.kind === "aals") usedAlses.unshift(burr.als);
-          const eurekaParts = [`[${buildBlossomEureka(mainPath)}]`];
-          if (visibleBranches.length > 1) {
-            eurekaParts.push(
-              buildMultiBurrGate(burr, mainPath, visibleBranches),
-            );
-            for (const path of visibleBranches) {
-              const peers = visibleBranches
-                .map((branch) => branch[0])
-                .filter((root) => root !== path[0]);
-              eurekaParts.push(`[${buildBurrBranchEureka(burr, path, peers)}]`);
+        }
+        addExitEliminations(paths.map((path) => path[path.length - 1]));
+        if (burr.kind === "aals") {
+          const onlyDigits = new Set(burr.digits);
+          for (const digit of burr.allDigits) {
+            if (onlyDigits.has(digit)) continue;
+            for (let id = 0; id < 81; id++) {
+              const part = Math.floor(id / 27);
+              const bit = id % 27;
+              if ((UNIT_BITSETS[burr.unit][part] & (1 << bit)) === 0) continue;
+              addElim(candidateCode(id, digit));
             }
-          } else {
-            eurekaParts.push(
-              ...visibleBranches.map((path) =>
-                buildBurrBranchEureka(burr, path),
-              ),
-            );
           }
-          const eurekaText = `${eurekaParts.join(" + ")}`;
+        }
 
-          const result = {
-            change: true,
-            type: "remove",
-            cells: removals,
-            hint: {
-              name:
-                burr.kind === "cell"
-                  ? t("teks_msg_193")
-                  : burr.kind === "region"
-                    ? t("teks_msg_194")
-                    : t("teks_msg_196"),
-              mainInfo: t("teks_msg_195", burrText),
-              detail: eurekaText,
-            },
-            blossom: {
-              kind: burr.kind,
-              burrText,
-              burr: burr.nodes,
-              mainPath,
-              branches: visibleBranches,
-              alses: usedAlses,
-              rank: 0,
-              validationProof: removalMask.validationProof,
-              validationBranches: globalThis.__BLOSSOM_CAPTURE_PROOFS__
-                ? branches
-                : undefined,
-              validationMainPotential: globalThis.__BLOSSOM_CAPTURE_PROOFS__
-                ? getMainPotentialMask(mainPath)
-                : undefined,
-            },
-            applyVisuals: () =>
-              techniques._applyBlossomVisuals(result.blossom, removals),
-          };
+        const structureKeys = new Set(burr.candidates);
+        if (burr.kind === "aals") {
+          for (const id of burr.cells) {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            for (const digit of pencils[r][c]) {
+              structureKeys.add(candidateCode(id, digit));
+            }
+          }
+        }
+        for (const path of paths) {
+          for (const node of path) {
+            for (const id of node.cells) {
+              structureKeys.add(candidateCode(id, node.digits[0]));
+            }
+          }
+        }
 
-          if (!findAll) return result;
-          results.push(result);
+        const removals = [];
+        for (const code of elimCodes) {
+          if (structureKeys.has(code)) continue;
+          const id = candidateId(code);
+          const digit = candidateDigit(code);
+          if (!actualCandidate(id, digit)) continue;
+          removals.push({ r: Math.floor(id / 9), c: id % 9, num: digit });
+        }
+        if (removals.length === 0) continue;
+        removals.sort((a, b) => a.r - b.r || a.c - b.c || a.num - b.num);
+
+        const removalKey = removals
+          .map((el) => `${el.r}:${el.c}:${el.num}`)
+          .join("|");
+        let weight = 0;
+        let alsLinks = 0;
+        for (const path of paths) {
+          weight += path.length;
+          for (let i = 1; i + 1 < path.length; i += 2) {
+            if (getAlsForLink(path[i], path[i + 1])) alsLinks++;
+          }
+        }
+        const previous = bestByRemoval.get(removalKey);
+        if (!previous) {
+          bestByRemoval.set(removalKey, {
+            order: bestByRemoval.size,
+            burr,
+            paths,
+            removals,
+            weight,
+            alsLinks,
+          });
+        } else if (
+          weight < previous.weight ||
+          (weight === previous.weight && alsLinks < previous.alsLinks)
+        ) {
+          previous.burr = burr;
+          previous.paths = paths;
+          previous.removals = removals;
+          previous.weight = weight;
+          previous.alsLinks = alsLinks;
         }
       }
     }
 
-    return findAll ? results : { change: false };
+    for (const chosen of [...bestByRemoval.values()].sort(
+      (left, right) => left.order - right.order,
+    )) {
+      {
+        const burr = chosen.burr;
+        const paths = chosen.paths;
+        const removals = chosen.removals;
+
+        const burrText =
+          burr.kind === "cell"
+            ? `(${burr.digits.join("")})${getLoc(burr.cells)}`
+            : burr.kind === "region"
+              ? `(${burr.digits[0]})${getLoc(burr.cells)}`
+              : `AALS(${burr.allDigits.join("")})${getLoc(
+                  burr.cells,
+                  burr.unit >= 18,
+                )}`;
+
+        const loopHead = paths[0];
+        const loopTail = paths[paths.length - 1];
+        const mainPath = [...loopHead, ...loopTail.slice().reverse()];
+        const visibleBranches = paths
+          .slice(1, paths.length - 1)
+          .filter((path) => path.length > 1);
+
+        const usedAlses = getUsedAlses([mainPath, ...visibleBranches]);
+        if (burr.kind === "aals") usedAlses.unshift(burr.als);
+
+        const eurekaParts = [`[${buildBlossomEureka(mainPath)}]`];
+        if (visibleBranches.length > 1) {
+          eurekaParts.push(buildMultiBurrGate(burr, mainPath, visibleBranches));
+          for (const path of visibleBranches) {
+            const peers = visibleBranches
+              .map((branch) => branch[0])
+              .filter((root) => root !== path[0]);
+            eurekaParts.push(`[${buildBurrBranchEureka(burr, path, peers)}]`);
+          }
+        } else {
+          eurekaParts.push(
+            ...visibleBranches.map((path) => buildBurrBranchEureka(burr, path)),
+          );
+        }
+        const eurekaText = eurekaParts.join(" + ");
+
+        const result = {
+          change: true,
+          type: "remove",
+          cells: removals,
+          hint: {
+            name:
+              burr.kind === "cell"
+                ? t("teks_msg_193")
+                : burr.kind === "region"
+                  ? t("teks_msg_194")
+                  : t("teks_msg_196"),
+            mainInfo: t("teks_msg_195", burrText),
+            detail: eurekaText,
+          },
+          blossom: {
+            kind: burr.kind,
+            burrText,
+            burr: burr.nodes,
+            mainPath,
+            branches: visibleBranches,
+            alses: usedAlses,
+            rank: 0,
+          },
+          applyVisuals: () =>
+            techniques._applyBlossomVisuals(result.blossom, removals),
+        };
+
+        results.push(result);
+      }
+      if (!findAll) break;
+    }
+
+    return findAll ? results : results[0] || { change: false };
   },
 
   blossomLoop: (board, pencils, findAll = false) => {
