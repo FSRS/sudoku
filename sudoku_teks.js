@@ -35,10 +35,115 @@ window.addCandidateColor = function (r, c, num, color) {
   }
 };
 
+const CELL_PART = new Uint8Array(81);
+const CELL_BIT = new Int32Array(81);
+for (let id = 0; id < 81; id++) {
+  CELL_PART[id] = (id / 27) | 0;
+  CELL_BIT[id] = 1 << id % 27;
+}
+
+const PEER = new Int32Array(81 * 3);
+for (let id = 0; id < 81; id++) {
+  for (let part = 0; part < 3; part++) PEER[id * 3 + part] = PEER_BITSETS[id][part];
+}
+
+const UNIT_POS = new Int32Array(27 * 3);
+for (let u = 0; u < 27; u++) {
+  for (let part = 0; part < 3; part++) UNIT_POS[u * 3 + part] = UNIT_BITSETS[u][part];
+}
+
+const UNIT_IDS = [];
+for (let u = 0; u < 27; u++) {
+  const ids = [];
+  for (let part = 0; part < 3; part++) {
+    let m = UNIT_POS[u * 3 + part];
+    while (m) {
+      ids.push(part * 27 + (31 - Math.clz32(m & -m)));
+      m &= m - 1;
+    }
+  }
+  UNIT_IDS.push(ids);
+}
+
+const UNIT_CELLS = UNIT_IDS.map((ids) => ids.map((id) => [(id / 9) | 0, id % 9]));
+const UNIT_OFFSET = { row: 0, col: 9, box: 18 };
+
+const lowest = (m) => 31 - Math.clz32(m & -m);
+
+const pop = (m) => {
+  let n = 0;
+  while (m) {
+    m &= m - 1;
+    n++;
+  }
+  return n;
+};
+
+const bits9 = (m) => {
+  const out = [];
+  while (m) {
+    out.push(lowest(m));
+    m &= m - 1;
+  }
+  return out;
+};
+
+const boxOf = (r, c) => ((r / 3) | 0) * 3 + ((c / 3) | 0);
+const pointOf = (r, c) => (r % 3) * 3 + (c % 3);
+
+const buildGrid = (pencils) => {
+  const cand = new Uint16Array(81);
+  const row = new Uint16Array(81);
+  const col = new Uint16Array(81);
+  const box = new Uint16Array(81);
+  const pos = new Int32Array(27);
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const set = pencils[r][c];
+      if (!set || set.size === 0) continue;
+      const id = r * 9 + c;
+      const b = boxOf(r, c);
+      const p = pointOf(r, c);
+      const part = CELL_PART[id];
+      const bit = CELL_BIT[id];
+      let cm = 0;
+      for (const d of set) {
+        const k = d - 1;
+        cm |= 1 << k;
+        row[k * 9 + r] |= 1 << c;
+        col[k * 9 + c] |= 1 << r;
+        box[k * 9 + b] |= 1 << p;
+        pos[k * 3 + part] |= bit;
+      }
+      cand[id] = cm;
+    }
+  }
+  return { cand, row, col, box, pos };
+};
+
+const commonPeers = (g, id1, id2, k) => {
+  const out = [];
+  for (let part = 0; part < 3; part++) {
+    let m =
+      PEER[id1 * 3 + part] & PEER[id2 * 3 + part] & g.pos[k * 3 + part];
+    const base = part * 27;
+    while (m) {
+      const b = lowest(m);
+      out.push(base + b);
+      m &= m - 1;
+    }
+  }
+  return out;
+};
+
+const seesId = (id1, id2) =>
+  (PEER[id1 * 3 + CELL_PART[id2]] & CELL_BIT[id2]) !== 0;
+
 const SEES_MATRIX = new Uint8Array(81 * 81);
 for (let id1 = 0; id1 < 81; id1++) {
   for (let id2 = 0; id2 < 81; id2++) {
-    if ((PEER_MAP[id1] & (1n << BigInt(id2))) !== 0n) {
+    if ((PEER[id1 * 3 + CELL_PART[id2]] & CELL_BIT[id2]) !== 0) {
       SEES_MATRIX[id1 * 81 + id2] = 1;
     }
   }
@@ -134,8 +239,8 @@ class AICNode {
 const techniques = {
   _templatingCache: null,
 
-  _getBoxIndex: (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
-  _getPointIndex: (r, c) => Math.floor(r % 3) * 3 + Math.floor(c % 3),
+  _getBoxIndex: (r, c) => boxOf(r, c),
+  _getPointIndex: (r, c) => pointOf(r, c),
 
   _cellToId: (r, c) => r * 9 + c,
   _idToCell: (id) => [Math.floor(id / 9), id % 9],
@@ -150,21 +255,18 @@ const techniques = {
     const id1 = cell1[0] * 9 + cell1[1];
     const id2 = cell2[0] * 9 + cell2[1];
 
-    // Intersection of two peer sets is just a fast bitwise AND
-    const commonMask = PEER_MAP[id1] & PEER_MAP[id2];
-
     const common = [];
-    if (commonMask === 0n) return common;
-
-    // Iterate bits to find enabled cells (0-80)
-    for (let i = 0; i < 81; i++) {
-      if ((commonMask & CELL_MASK[i]) !== 0n) {
-        common.push(techniques._idToCell(i));
+    for (let part = 0; part < 3; part++) {
+      let m = PEER[id1 * 3 + part] & PEER[id2 * 3 + part];
+      const base = part * 27;
+      while (m) {
+        const b = 31 - Math.clz32(m & -m);
+        common.push(techniques._idToCell(base + b));
+        m &= m - 1;
       }
     }
     return common;
   },
-
   _getCommonUnits: (cells) => {
     // Determine which units (row, col, box) contain ALL the provided cells
     if (!cells || cells.length === 0) return [];
@@ -220,35 +322,11 @@ const techniques = {
     }
   },
 
-  _getUnitCells: (unitType, idx) => {
-    const cells = [];
-    if (unitType === "row") for (let c = 0; c < 9; c++) cells.push([idx, c]);
-    else if (unitType === "col")
-      for (let r = 0; r < 9; r++) cells.push([r, idx]);
-    else if (unitType === "box") {
-      const startRow = Math.floor(idx / 3) * 3;
-      const startCol = (idx % 3) * 3;
-      for (let r_offset = 0; r_offset < 3; r_offset++) {
-        for (let c_offset = 0; c_offset < 3; c_offset++) {
-          cells.push([startRow + r_offset, startCol + c_offset]);
-        }
-      }
-    }
-    return cells;
-  },
+  _getUnitCells: (unitType, idx) =>
+    UNIT_CELLS[UNIT_OFFSET[unitType] + idx],
 
   // --- UNIT CACHING ---
-  _unitCache: [],
-  _getUnitCellsCached: (unitIndex) => {
-    if (techniques._unitCache.length === 0) {
-      for (let i = 0; i < 27; i++) {
-        let type = i < 9 ? "row" : i < 18 ? "col" : "box";
-        let idx = i < 9 ? i : i < 18 ? i - 9 : i - 18;
-        techniques._unitCache.push(techniques._getUnitCells(type, idx));
-      }
-    }
-    return techniques._unitCache[unitIndex];
-  },
+  _getUnitCellsCached: (unitIndex) => UNIT_CELLS[unitIndex],
 
   _normalizeCells: (cells) =>
     cells.map((cell) => [
@@ -1128,68 +1206,64 @@ const techniques = {
   },
 
   intersection: (board, pencils, findAll = false) => {
+    const g = buildGrid(pencils);
     const results = [];
+
     for (const is_pointing of [true, false]) {
-      // Pointing: outer loop = box (0-8), inner = row-or-col orientation
-      // Claiming: outer loop = line index (0-8), inner = row-or-col orientation
       for (let primaryIdx = 0; primaryIdx < 9; primaryIdx++) {
         for (let num = 1; num <= 9; num++) {
+          const k = num - 1;
           for (const isRow of [true, false]) {
-            // ── Collect candidates in the "source" unit ──────────────────────
-            let sourceCellsWithNum = [];
-
+            const sourceCellsWithNum = [];
             if (is_pointing) {
-              // Source = box[primaryIdx]; find cells that share a row or col
-              const boxCells = techniques._getUnitCells("box", primaryIdx);
-              for (const [r, c] of boxCells) {
-                if (pencils[r][c].has(num)) sourceCellsWithNum.push([r, c]);
+              let m = g.box[k * 9 + primaryIdx];
+              if (pop(m) < 2) continue;
+              const sr = ((primaryIdx / 3) | 0) * 3;
+              const sc = (primaryIdx % 3) * 3;
+              while (m) {
+                const p = lowest(m);
+                sourceCellsWithNum.push([sr + ((p / 3) | 0), sc + (p % 3)]);
+                m &= m - 1;
               }
             } else {
-              // Source = row or col [primaryIdx]
-              for (let peer = 0; peer < 9; peer++) {
-                const r = isRow ? primaryIdx : peer;
-                const c = isRow ? peer : primaryIdx;
-                if (pencils[r][c].has(num)) sourceCellsWithNum.push([r, c]);
+              let m = isRow ? g.row[k * 9 + primaryIdx] : g.col[k * 9 + primaryIdx];
+              if (pop(m) < 2) continue;
+              while (m) {
+                const j = lowest(m);
+                sourceCellsWithNum.push(isRow ? [primaryIdx, j] : [j, primaryIdx]);
+                m &= m - 1;
               }
             }
 
-            if (sourceCellsWithNum.length < 2) continue;
+            let secMask = 0;
+            for (const [r, c] of sourceCellsWithNum) {
+              secMask |= 1 << (is_pointing ? (isRow ? r : c) : boxOf(r, c));
+            }
+            if (pop(secMask) !== 1) continue;
+            const secondaryIdx = lowest(secMask);
 
-            // ── Check confinement to one "secondary" unit ─────────────────────
-            // Pointing: secondary = row or col  →  check all share same row/col index
-            // Claiming: secondary = box         →  check all share same box index
-            const secondaryIdxs = is_pointing
-              ? new Set(sourceCellsWithNum.map(([r, c]) => (isRow ? r : c)))
-              : new Set(
-                  sourceCellsWithNum.map(
-                    ([r, c]) => Math.floor(r / 3) * 3 + Math.floor(c / 3),
-                  ),
-                );
-
-            if (secondaryIdxs.size !== 1) continue;
-            const secondaryIdx = [...secondaryIdxs][0];
-
-            // ── Collect removals from the "target" unit ───────────────────────
-            // Pointing: eliminate from the row/col OUTSIDE the source box
-            // Claiming: eliminate from the box OUTSIDE the source row/col
             const removals = [];
-
             if (is_pointing) {
-              for (let peer = 0; peer < 9; peer++) {
+              let m = isRow
+                ? g.row[k * 9 + secondaryIdx]
+                : g.col[k * 9 + secondaryIdx];
+              while (m) {
+                const peer = lowest(m);
+                m &= m - 1;
                 const r = isRow ? secondaryIdx : peer;
                 const c = isRow ? peer : secondaryIdx;
-                const cellBoxIdx = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-                if (cellBoxIdx !== primaryIdx && pencils[r][c].has(num)) {
-                  removals.push({ r, c, num });
-                }
+                if (boxOf(r, c) !== primaryIdx) removals.push({ r, c, num });
               }
             } else {
-              const boxCells = techniques._getUnitCells("box", secondaryIdx);
-              for (const [r, c] of boxCells) {
-                const isOutsideLine = isRow
-                  ? r !== primaryIdx
-                  : c !== primaryIdx;
-                if (isOutsideLine && pencils[r][c].has(num)) {
+              let m = g.box[k * 9 + secondaryIdx];
+              const sr = ((secondaryIdx / 3) | 0) * 3;
+              const sc = (secondaryIdx % 3) * 3;
+              while (m) {
+                const p = lowest(m);
+                m &= m - 1;
+                const r = sr + ((p / 3) | 0);
+                const c = sc + (p % 3);
+                if (isRow ? r !== primaryIdx : c !== primaryIdx) {
                   removals.push({ r, c, num });
                 }
               }
@@ -1197,7 +1271,6 @@ const techniques = {
 
             if (removals.length === 0) continue;
 
-            // ── Build hint strings ────────────────────────────────────────────
             const lineName = isRow ? t("teks_msg_14") : t("teks_msg_15");
 
             const hintName = is_pointing ? t("teks_msg_28") : t("teks_msg_29");
@@ -1208,11 +1281,7 @@ const techniques = {
             let cellStr;
             if (is_pointing) {
               const points = [
-                ...new Set(
-                  sourceCellsWithNum.map(
-                    ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                  ),
-                ),
+                ...new Set(sourceCellsWithNum.map(([r, c]) => pointOf(r, c) + 1)),
               ]
                 .sort()
                 .join("");
@@ -1221,9 +1290,7 @@ const techniques = {
               const rows = [...new Set(sourceCellsWithNum.map(([r]) => r + 1))]
                 .sort()
                 .join("");
-              const cols = [
-                ...new Set(sourceCellsWithNum.map(([, c]) => c + 1)),
-              ]
+              const cols = [...new Set(sourceCellsWithNum.map(([, c]) => c + 1))]
                 .sort()
                 .join("");
               cellStr = `r${rows}c${cols}`;
@@ -1247,7 +1314,6 @@ const techniques = {
                   secondaryIdx + 1,
                 );
 
-            // ── Capture loop variables for the closure ────────────────────────
             const _sourceCellsWithNum = sourceCellsWithNum;
             const _primaryIdx = primaryIdx;
             const _secondaryIdx = secondaryIdx;
@@ -1273,8 +1339,6 @@ const techniques = {
                   lineIdx,
                 );
 
-                // Pointing: line is Cell Color 8, box is Cell Color 7
-                // Claiming: box  is Cell Color 8, line is Cell Color 7
                 const [color8Cells, color7Cells] = _is_pointing
                   ? [lineCells, boxCells]
                   : [boxCells, lineCells];
@@ -1287,7 +1351,6 @@ const techniques = {
                   window.addCellColor(cr, cc, cellColorPalette[7]);
                 });
 
-                // Highlight the source candidates
                 _sourceCellsWithNum.forEach(([cr, cc]) => {
                   boardState[cr][cc].pencilColors.set(
                     num,
@@ -1295,7 +1358,6 @@ const techniques = {
                   );
                 });
 
-                // Mark eliminations
                 _removals.forEach((el) =>
                   boardState[el.r][el.c].candSlashes.set(
                     el.num,
@@ -1312,7 +1374,6 @@ const techniques = {
     }
     return findAll ? results : { change: false };
   },
-
   nakedSubset: (board, pencils, size, findAll = false) => {
     const results = [];
 
@@ -1577,117 +1638,116 @@ const techniques = {
   },
 
   fish: (board, pencils, size, findAll = false) => {
+    const g = buildGrid(pencils);
     const results = [];
+
     for (const isRowBased of [true, false]) {
       for (let num = 1; num <= 9; num++) {
+        const k = num - 1;
+        const lineMasks = isRowBased ? g.row : g.col;
+
         const candidatesInDim = [];
         for (let i = 0; i < 9; i++) {
-          const indices = [];
-          for (let j = 0; j < 9; j++) {
-            const [r, c] = isRowBased ? [i, j] : [j, i];
-            if (pencils[r][c].has(num)) indices.push(j);
-          }
-          if (indices.length >= 2 && indices.length <= size) {
-            candidatesInDim.push([i, indices]);
-          }
+          const m = lineMasks[k * 9 + i];
+          const n = pop(m);
+          if (n >= 2 && n <= size) candidatesInDim.push([i, m]);
         }
         if (candidatesInDim.length < size) continue;
 
         for (const lines of techniques.combinations(candidatesInDim, size)) {
-          const allSecondaryIndices = new Set();
-          lines.forEach(([_, indices]) =>
-            indices.forEach((idx) => allSecondaryIndices.add(idx)),
-          );
-          if (allSecondaryIndices.size === size) {
-            const removals = [];
-            const primaryLineIndices = new Set(lines.map(([i, _]) => i));
-            for (const secIdx of allSecondaryIndices) {
-              for (let primIdx = 0; primIdx < 9; primIdx++) {
-                if (!primaryLineIndices.has(primIdx)) {
-                  const [r, c] = isRowBased
-                    ? [primIdx, secIdx]
-                    : [secIdx, primIdx];
-                  if (pencils[r][c].has(num)) removals.push({ r, c, num });
-                }
-              }
-            }
-            if (removals.length > 0) {
-              // --- Build Base and Cover notation strings ---
-              const basePrefix = isRowBased ? "r" : "c";
-              const coverPrefix = isRowBased ? "c" : "r";
+          let coverMask = 0;
+          for (const [, m] of lines) coverMask |= m;
+          if (pop(coverMask) !== size) continue;
 
-              const baseNums = [...primaryLineIndices]
-                .map((i) => i + 1)
-                .sort((a, b) => a - b)
-                .join("");
-              const coverNums = [...allSecondaryIndices]
-                .map((i) => i + 1)
-                .sort((a, b) => a - b)
-                .join("");
+          const coverOrder = bits9(coverMask);
 
-              const baseStr = `${basePrefix}${baseNums}`;
-              const coverStr = `${coverPrefix}${coverNums}`;
+          let baseMask = 0;
+          for (const [i] of lines) baseMask |= 1 << i;
 
-              const res = {
-                change: true,
-                type: "remove",
-                cells: removals,
-                hint: {
-                  name:
-                    size === 2
-                      ? t("teks_msg_47")
-                      : size === 3
-                        ? t("teks_msg_47_1")
-                        : t("teks_msg_47_2"),
-                  mainInfo: t("teks_msg_48", num),
-                  detail: t("teks_msg_162", num, baseStr, coverStr),
-                },
-                applyVisuals: () => {
-                  highlightedDigit = num;
-                  highlightState = 1;
-
-                  // Color base cells over cover (Color 7)
-                  primaryLineIndices.forEach((primIdx) => {
-                    for (let p = 0; p < 9; p++) {
-                      const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
-                      window.addCellColor(cr, cc, cellColorPalette[6]);
-
-                      // FIX: Use boardState.pencils instead of local pencils
-                      if (boardState[cr][cc].pencils.has(num)) {
-                        boardState[cr][cc].pencilColors.set(
-                          num,
-                          candidateColorPalette[6],
-                        ); // Candidate Color 7
-                      }
-                    }
-                  });
-
-                  // Color cover cells first (Color 8)
-                  allSecondaryIndices.forEach((secIdx) => {
-                    for (let p = 0; p < 9; p++) {
-                      const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
-                      window.addCellColor(cr, cc, cellColorPalette[7]);
-                    }
-                  });
-
-                  removals.forEach((el) =>
-                    boardState[el.r][el.c].candSlashes.set(
-                      el.num,
-                      markColorPalette[0],
-                    ),
-                  ); // Color 1
-                },
-              };
-              if (!findAll) return res;
-              results.push(res);
+          const removals = [];
+          for (const secIdx of coverOrder) {
+            let m = (isRowBased ? g.col : g.row)[k * 9 + secIdx] & ~baseMask;
+            while (m) {
+              const primIdx = lowest(m);
+              m &= m - 1;
+              const [r, c] = isRowBased ? [primIdx, secIdx] : [secIdx, primIdx];
+              removals.push({ r, c, num });
             }
           }
+          if (removals.length === 0) continue;
+
+          const primaryLineIndices = new Set(lines.map(([i]) => i));
+          const allSecondaryIndices = new Set(coverOrder);
+
+          const basePrefix = isRowBased ? "r" : "c";
+          const coverPrefix = isRowBased ? "c" : "r";
+
+          const baseNums = [...primaryLineIndices]
+            .map((i) => i + 1)
+            .sort((a, b) => a - b)
+            .join("");
+          const coverNums = [...allSecondaryIndices]
+            .map((i) => i + 1)
+            .sort((a, b) => a - b)
+            .join("");
+
+          const baseStr = `${basePrefix}${baseNums}`;
+          const coverStr = `${coverPrefix}${coverNums}`;
+
+          const res = {
+            change: true,
+            type: "remove",
+            cells: removals,
+            hint: {
+              name:
+                size === 2
+                  ? t("teks_msg_47")
+                  : size === 3
+                    ? t("teks_msg_47_1")
+                    : t("teks_msg_47_2"),
+              mainInfo: t("teks_msg_48", num),
+              detail: t("teks_msg_162", num, baseStr, coverStr),
+            },
+            applyVisuals: () => {
+              highlightedDigit = num;
+              highlightState = 1;
+
+              primaryLineIndices.forEach((primIdx) => {
+                for (let p = 0; p < 9; p++) {
+                  const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
+                  window.addCellColor(cr, cc, cellColorPalette[6]);
+
+                  if (boardState[cr][cc].pencils.has(num)) {
+                    boardState[cr][cc].pencilColors.set(
+                      num,
+                      candidateColorPalette[6],
+                    );
+                  }
+                }
+              });
+
+              allSecondaryIndices.forEach((secIdx) => {
+                for (let p = 0; p < 9; p++) {
+                  const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
+                  window.addCellColor(cr, cc, cellColorPalette[7]);
+                }
+              });
+
+              removals.forEach((el) =>
+                boardState[el.r][el.c].candSlashes.set(
+                  el.num,
+                  markColorPalette[0],
+                ),
+              );
+            },
+          };
+          if (!findAll) return res;
+          results.push(res);
         }
       }
     }
     return findAll ? results : { change: false };
   },
-
   finnedXWing: (board, pencils, findAll = false) => {
     if (!findAll) {
       let result = techniques._findFinnedFish(board, pencils, 2, true, false);
@@ -1724,189 +1784,167 @@ const techniques = {
     }
   },
 
-  _findFinnedFish: (board, pencils, fishSize, isRowBased, findAll = false) => {
-    const results = []; // Add this
+  _findFinnedFish: (
+    board,
+    pencils,
+    fishSize,
+    isRowBased,
+    findAll = false,
+  ) => {
+    const g = buildGrid(pencils);
+    const results = [];
+
     for (let num = 1; num <= 9; num++) {
-      // Step 1: Find all lines that could be part of the pattern
+      const k = num - 1;
+      const lineMasks = isRowBased ? g.row : g.col;
+
       const potentialLines = [];
       for (let i = 0; i < 9; i++) {
-        const candidateLocs = [];
-        for (let j = 0; j < 9; j++) {
-          const r = isRowBased ? i : j;
-          const c = isRowBased ? j : i;
-          if (pencils[r][c].has(num)) {
-            candidateLocs.push(j);
-          }
-        }
-        // A finned fish pattern requires lines with more than 1 candidate
-        // We allow up to fishSize + 1/2 fins for this initial search
-        if (candidateLocs.length >= 1 && candidateLocs.length <= fishSize + 2) {
-          potentialLines.push({ line: i, locs: candidateLocs });
+        const m = lineMasks[k * 9 + i];
+        const n = pop(m);
+        if (n >= 1 && n <= fishSize + 2) {
+          potentialLines.push({ line: i, mask: m, locs: bits9(m) });
         }
       }
-
       if (potentialLines.length < fishSize) continue;
 
-      // Step 2: Generate combinations of 'fishSize' base lines
-      for (const baseLines of techniques.combinations(
-        potentialLines,
-        fishSize,
-      )) {
-        const allCoverIndicesSet = new Set();
-        baseLines.forEach((line) =>
-          line.locs.forEach((loc) => allCoverIndicesSet.add(loc)),
-        );
+      for (const baseLines of techniques.combinations(potentialLines, fishSize)) {
+        let coverAllMask = 0;
+        for (const line of baseLines) coverAllMask |= line.mask;
+        const coverCount = pop(coverAllMask);
+        if (coverCount < fishSize + 1 || coverCount > fishSize + 2) continue;
 
-        // Finned fish have fishSize + 1 or +2 cover locations (with fins in the same box)
-        if (
-          allCoverIndicesSet.size < fishSize + 1 ||
-          allCoverIndicesSet.size > fishSize + 2
-        ) {
-          continue;
-        }
+        const allCoverIndices = bits9(coverAllMask);
 
-        const allCoverIndices = [...allCoverIndicesSet];
-
-        // Step 3: Iterate through all possible sets of 'fishSize' cover lines to be the "base"
         for (const coverBaseIndices of techniques.combinations(
           allCoverIndices,
           fishSize,
         )) {
-          const coverBaseSet = new Set(coverBaseIndices);
+          let coverBaseMask = 0;
+          for (const loc of coverBaseIndices) coverBaseMask |= 1 << loc;
 
-          // Step 4: Identify fins (candidates in base lines but not in cover lines)
           const fins = [];
+          let finBoxMask = 0;
           for (const line of baseLines) {
-            for (const loc of line.locs) {
-              if (!coverBaseSet.has(loc)) {
-                const r = isRowBased ? line.line : loc;
-                const c = isRowBased ? loc : line.line;
-                fins.push([r, c]);
-              }
+            let m = line.mask & ~coverBaseMask;
+            while (m) {
+              const loc = lowest(m);
+              m &= m - 1;
+              const r = isRowBased ? line.line : loc;
+              const c = isRowBased ? loc : line.line;
+              fins.push([r, c]);
+              finBoxMask |= 1 << boxOf(r, c);
             }
           }
 
-          if (fins.empty) continue;
+          if (pop(finBoxMask) !== 1) continue;
+          const finBoxIndex = lowest(finBoxMask);
 
-          // Step 5: Check if all fins are in the same box
-          const finBoxes = new Set(
-            fins.map(([r, c]) => techniques._getBoxIndex(r, c)),
-          );
-          if (finBoxes.size !== 1) continue;
+          let baseLineMask = 0;
+          for (const line of baseLines) baseLineMask |= 1 << line.line;
 
-          // Step 6: Apply eliminations
-          const finBoxIndex = finBoxes.values().next().value;
-          const boxCells = techniques._getUnitCells("box", finBoxIndex);
+          const finIds = new Set(fins.map(([r, c]) => r * 9 + c));
+
           const removals = [];
-          const baseLineIndices = new Set(baseLines.map((line) => line.line));
-          const finSet = new Set(fins.map(JSON.stringify));
-
-          for (const [r_target, c_target] of boxCells) {
+          let m = g.box[k * 9 + finBoxIndex];
+          const sr = ((finBoxIndex / 3) | 0) * 3;
+          const sc = (finBoxIndex % 3) * 3;
+          while (m) {
+            const p = lowest(m);
+            m &= m - 1;
+            const r_target = sr + ((p / 3) | 0);
+            const c_target = sc + (p % 3);
             const base_idx = isRowBased ? r_target : c_target;
             const cover_idx = isRowBased ? c_target : r_target;
-
-            // Elimination conditions:
-            // 1. Must be in a cover line.
-            // 2. Must NOT be in a base line.
-            // 3. Must NOT be a fin itself.
             if (
-              coverBaseSet.has(cover_idx) &&
-              !baseLineIndices.has(base_idx) &&
-              !finSet.has(JSON.stringify([r_target, c_target]))
+              (coverBaseMask & (1 << cover_idx)) !== 0 &&
+              (baseLineMask & (1 << base_idx)) === 0 &&
+              !finIds.has(r_target * 9 + c_target)
             ) {
-              if (pencils[r_target][c_target].has(num)) {
-                removals.push({ r: r_target, c: c_target, num });
-              }
+              removals.push({ r: r_target, c: c_target, num });
             }
           }
 
-          if (removals.length > 0) {
-            // --- Format the Strings for the Hint ---
-            const basePrefix = isRowBased ? "r" : "c";
-            const coverPrefix = isRowBased ? "c" : "r";
+          if (removals.length === 0) continue;
 
-            const baseNums = [...baseLineIndices]
-              .map((i) => i + 1)
-              .sort((a, b) => a - b)
-              .join("");
-            const coverNums = [...coverBaseSet]
-              .map((i) => i + 1)
-              .sort((a, b) => a - b)
-              .join("");
+          const baseLineIndices = new Set(baseLines.map((line) => line.line));
+          const coverBaseSet = new Set(coverBaseIndices);
 
-            const baseStr = `${basePrefix}${baseNums}`;
-            const coverStr = `${coverPrefix}${coverNums}`;
+          const basePrefix = isRowBased ? "r" : "c";
+          const coverPrefix = isRowBased ? "c" : "r";
 
-            // --- Format Fins using Box-Point (bp) Notation ---
-            const finPoints = [
-              ...new Set(
-                fins.map(
-                  ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
+          const baseNums = [...baseLineIndices]
+            .map((i) => i + 1)
+            .sort((a, b) => a - b)
+            .join("");
+          const coverNums = [...coverBaseSet]
+            .map((i) => i + 1)
+            .sort((a, b) => a - b)
+            .join("");
+
+          const baseStr = `${basePrefix}${baseNums}`;
+          const coverStr = `${coverPrefix}${coverNums}`;
+
+          const finPoints = [...new Set(fins.map(([r, c]) => pointOf(r, c) + 1))]
+            .sort((a, b) => a - b)
+            .join("");
+          const finStr = `b${finBoxIndex + 1}p${finPoints}`;
+
+          const resultObj = {
+            change: true,
+            type: "remove",
+            cells: removals,
+            hint: {
+              name: `${t("teks_finned")} ${
+                fishSize === 2
+                  ? t("teks_msg_47")
+                  : fishSize === 3
+                    ? t("teks_msg_47_1")
+                    : t("teks_msg_47_2")
+              }`,
+              mainInfo: t("teks_msg_48", num),
+              detail: t("teks_msg_49", num, baseStr, coverStr, finStr),
+            },
+            applyVisuals: () => {
+              highlightedDigit = num;
+              highlightState = 1;
+              baseLineIndices.forEach((primIdx) => {
+                for (let p = 0; p < 9; p++) {
+                  const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
+                  window.addCellColor(cr, cc, cellColorPalette[6]);
+
+                  if (boardState[cr][cc].pencils.has(num)) {
+                    boardState[cr][cc].pencilColors.set(
+                      num,
+                      candidateColorPalette[6],
+                    );
+                  }
+                }
+              });
+              coverBaseSet.forEach((secIdx) => {
+                for (let p = 0; p < 9; p++) {
+                  const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
+                  window.addCellColor(cr, cc, cellColorPalette[7]);
+                }
+              });
+              fins.forEach(([fr, fc]) =>
+                window.addCellColor(fr, fc, cellColorPalette[5]),
+              );
+              removals.forEach((el) =>
+                boardState[el.r][el.c].candSlashes.set(
+                  el.num,
+                  markColorPalette[0],
                 ),
-              ),
-            ]
-              .sort((a, b) => a - b)
-              .join("");
-            const finStr = `b${finBoxIndex + 1}p${finPoints}`;
-
-            const resultObj = {
-              change: true,
-              type: "remove",
-              cells: removals,
-              hint: {
-                name: `${t("teks_finned")} ${
-                  fishSize === 2
-                    ? t("teks_msg_47")
-                    : fishSize === 3
-                      ? t("teks_msg_47_1")
-                      : t("teks_msg_47_2")
-                }`,
-                mainInfo: t("teks_msg_48", num),
-                detail: t("teks_msg_49", num, baseStr, coverStr, finStr),
-              },
-              applyVisuals: () => {
-                highlightedDigit = num;
-                highlightState = 1;
-                baseLineIndices.forEach((primIdx) => {
-                  for (let p = 0; p < 9; p++) {
-                    const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
-                    window.addCellColor(cr, cc, cellColorPalette[6]); // Base 7
-
-                    // FIX: Use boardState.pencils instead of local pencils
-                    if (boardState[cr][cc].pencils.has(num)) {
-                      boardState[cr][cc].pencilColors.set(
-                        num,
-                        candidateColorPalette[6],
-                      ); // Candidate Color 7
-                    }
-                  }
-                });
-                coverBaseSet.forEach((secIdx) => {
-                  for (let p = 0; p < 9; p++) {
-                    const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
-                    window.addCellColor(cr, cc, cellColorPalette[7]); // Cover 8
-                  }
-                });
-                fins.forEach(([fr, fc]) =>
-                  window.addCellColor(fr, fc, cellColorPalette[5]),
-                );
-                removals.forEach((el) =>
-                  boardState[el.r][el.c].candSlashes.set(
-                    el.num,
-                    markColorPalette[0],
-                  ),
-                ); // Color 1
-              },
-            };
-            if (!findAll) return resultObj;
-            results.push(resultObj);
-          }
+              );
+            },
+          };
+          if (!findAll) return resultObj;
+          results.push(resultObj);
         }
       }
     }
     return findAll ? results : { change: false };
   },
-
   xyWing: (board, pencils, findAll = false) => {
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
@@ -2185,35 +2223,37 @@ const techniques = {
 
   // --- Unified Helper for W-Wing & Grouped W-Wing ---
   _wWingCore: (board, pencils, isGrouped, findAll = false) => {
+    const g = buildGrid(pencils);
     const results = [];
+
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
-        if (pencils[r][c].size === 2) {
-          bivalueCells.push({ r, c, cands: new Set(pencils[r][c]) });
-        }
+        const id = r * 9 + c;
+        if (pop(g.cand[id]) === 2) bivalueCells.push({ r, c, id, mask: g.cand[id] });
       }
     }
     if (bivalueCells.length < 2) return findAll ? results : { change: false };
 
     for (const pair of techniques.combinations(bivalueCells, 2)) {
       const [cell1, cell2] = pair;
-      if (cell1.cands.size !== 2 || cell2.cands.size !== 2) continue;
+      if (cell1.mask !== cell2.mask) continue;
+      if (seesId(cell1.id, cell2.id)) continue;
 
-      const cands1 = [...cell1.cands].sort((a, b) => a - b);
-      const cands2 = [...cell2.cands].sort((a, b) => a - b);
-      if (cands1[0] !== cands2[0] || cands1[1] !== cands2[1]) continue;
-      if (techniques._sees([cell1.r, cell1.c], [cell2.r, cell2.c])) continue;
+      const x = lowest(cell1.mask) + 1;
+      const y = lowest(cell1.mask & (cell1.mask - 1)) + 1;
 
-      const [x, y] = cands1;
+      const wingBits = [0, 0, 0];
+      wingBits[CELL_PART[cell1.id]] |= CELL_BIT[cell1.id];
+      wingBits[CELL_PART[cell2.id]] |= CELL_BIT[cell2.id];
 
-      // Test both possible linking digits
       for (const linkDigit of [x, y]) {
         const elimDigit = linkDigit === x ? y : x;
+        const lk = linkDigit - 1;
+        const ek = elimDigit - 1;
 
-        // Check all 27 units for a (grouped) strong link
         for (let u = 0; u < 27; u++) {
-          let unitType, unitIndex, unit;
+          let unitType, unitIndex;
           if (u < 9) {
             unitType = "row";
             unitIndex = u;
@@ -2224,168 +2264,140 @@ const techniques = {
             unitType = "box";
             unitIndex = u - 18;
           }
-          unit = techniques._getUnitCells(unitType, unitIndex);
 
-          // The linking unit must not contain either of the base cells
           if (
-            unit.some(
-              ([r, c]) =>
-                (r === cell1.r && c === cell1.c) ||
-                (r === cell2.r && c === cell2.c),
-            )
+            (UNIT_POS[u * 3] & wingBits[0]) !== 0 ||
+            (UNIT_POS[u * 3 + 1] & wingBits[1]) !== 0 ||
+            (UNIT_POS[u * 3 + 2] & wingBits[2]) !== 0
           ) {
             continue;
           }
 
-          const x_cells_in_unit = unit.filter(([r, c]) =>
-            pencils[r][c].has(linkDigit),
-          );
+          const x_cells_in_unit = [];
+          for (const id of UNIT_IDS[u]) {
+            if ((g.cand[id] & (1 << lk)) !== 0) x_cells_in_unit.push(id);
+          }
           if (x_cells_in_unit.length === 0) continue;
-
-          // If not grouped, we strictly require exactly 2 candidates forming the link
           if (!isGrouped && x_cells_in_unit.length !== 2) continue;
+
           const group1 = [];
           const group2 = [];
           let isValid = true;
 
-          for (const [r, c] of x_cells_in_unit) {
-            const sees1 = techniques._sees([r, c], [cell1.r, cell1.c]);
-            const sees2 = techniques._sees([r, c], [cell2.r, cell2.c]);
+          for (const id of x_cells_in_unit) {
+            const sees1 = seesId(id, cell1.id);
+            const sees2 = seesId(id, cell2.id);
 
             if (!isGrouped) {
-              // Standard W-Wing: Link cells must see EXACTLY ONE of the wings
               if (sees1 === sees2) {
                 isValid = false;
                 break;
               }
-              if (sees1) group1.push([r, c]);
-              if (sees2) group2.push([r, c]);
-            } else {
-              // Grouped W-Wing: Link cells must see AT LEAST ONE wing
-              if (!sees1 && !sees2) {
-                isValid = false;
-                break;
-              }
-              if (sees1) group1.push([r, c]);
-              if (sees2) group2.push([r, c]);
+            } else if (!sees1 && !sees2) {
+              isValid = false;
+              break;
             }
+            if (sees1) group1.push([(id / 9) | 0, id % 9]);
+            if (sees2) group2.push([(id / 9) | 0, id % 9]);
           }
 
-          // Both groups must be populated with at least one connecting cell
           if (!isValid || group1.length === 0 || group2.length === 0) continue;
 
           const removals = [];
-          const commonPeers = techniques._commonVisibleCells(
-            [cell1.r, cell1.c],
-            [cell2.r, cell2.c],
-          );
-          for (const [r, c] of commonPeers) {
-            if (pencils[r][c].has(elimDigit)) {
-              removals.push({ r, c, num: elimDigit });
+          for (const id of commonPeers(g, cell1.id, cell2.id, ek)) {
+            removals.push({ r: (id / 9) | 0, c: id % 9, num: elimDigit });
+          }
+          if (removals.length === 0) continue;
+
+          const formatGroup = (cells, uType, uIdx) => {
+            if (uType === "box") {
+              const pts = [...new Set(cells.map(([r, c]) => pointOf(r, c) + 1))]
+                .sort((a, b) => a - b)
+                .join("");
+              return `b${uIdx + 1}p${pts}`;
             }
-          }
+            const rs = [...new Set(cells.map(([r]) => r + 1))]
+              .sort((a, b) => a - b)
+              .join("");
+            const cs = [...new Set(cells.map(([, c]) => c + 1))]
+              .sort((a, b) => a - b)
+              .join("");
+            return `r${rs}c${cs}`;
+          };
 
-          if (removals.length > 0) {
-            const formatGroup = (cells, uType, uIdx) => {
-              if (uType === "box") {
-                const pts = [
-                  ...new Set(
-                    cells.map(
-                      ([r, c]) => Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                    ),
-                  ),
-                ]
-                  .sort((a, b) => a - b)
-                  .join("");
-                return `b${uIdx + 1}p${pts}`;
-              } else {
-                const rs = [...new Set(cells.map(([r, c]) => r + 1))]
-                  .sort((a, b) => a - b)
-                  .join("");
-                const cs = [...new Set(cells.map(([r, c]) => c + 1))]
-                  .sort((a, b) => a - b)
-                  .join("");
-                return `r${rs}c${cs}`;
-              }
-            };
+          const linkStr1 = formatGroup(group1, unitType, unitIndex);
+          const linkStr2 = formatGroup(group2, unitType, unitIndex);
+          const strongLinkDetail = `(${linkDigit})(${linkStr1}=${linkStr2})`;
 
-            const linkStr1 = formatGroup(group1, unitType, unitIndex);
-            const linkStr2 = formatGroup(group2, unitType, unitIndex);
-            const strongLinkDetail = `(${linkDigit})(${linkStr1}=${linkStr2})`;
+          const res = {
+            change: true,
+            type: "remove",
+            cells: removals,
+            hint: {
+              name: isGrouped ? t("teks_msg_56") : t("teks_msg_57"),
+              mainInfo: t("teks_msg_58", elimDigit, linkDigit),
+              detail: t(
+                "teks_msg_59",
+                elimDigit,
+                linkDigit,
+                cell1.r + 1,
+                cell1.c + 1,
+                cell2.r + 1,
+                cell2.c + 1,
+                unitType.slice(0, 1),
+                unitIndex + 1,
+                strongLinkDetail,
+              ),
+            },
+            applyVisuals: () => {
+              highlightedDigit = null;
+              highlightState = 2;
 
-            const res = {
-              change: true,
-              type: "remove",
-              cells: removals,
-              hint: {
-                name: isGrouped ? t("teks_msg_56") : t("teks_msg_57"),
-                mainInfo: t("teks_msg_58", elimDigit, linkDigit),
-                detail: t(
-                  "teks_msg_59",
-                  elimDigit,
+              boardState[cell1.r][cell1.c].cellColor = cellColorPalette[6];
+              boardState[cell2.r][cell2.c].cellColor = cellColorPalette[6];
+
+              boardState[cell1.r][cell1.c].pencilColors.set(
+                linkDigit,
+                candidateColorPalette[5],
+              );
+              boardState[cell2.r][cell2.c].pencilColors.set(
+                linkDigit,
+                candidateColorPalette[5],
+              );
+
+              boardState[cell1.r][cell1.c].pencilColors.set(
+                elimDigit,
+                candidateColorPalette[7],
+              );
+              boardState[cell2.r][cell2.c].pencilColors.set(
+                elimDigit,
+                candidateColorPalette[7],
+              );
+
+              [...group1, ...group2].forEach(([r, c]) => {
+                boardState[r][c].cellColor = cellColorPalette[7];
+                boardState[r][c].pencilColors.set(
                   linkDigit,
-                  cell1.r + 1,
-                  cell1.c + 1,
-                  cell2.r + 1,
-                  cell2.c + 1,
-                  unitType.slice(0, 1),
-                  unitIndex + 1,
-                  strongLinkDetail,
+                  candidateColorPalette[4],
+                );
+              });
+
+              removals.forEach((el) =>
+                boardState[el.r][el.c].candSlashes.set(
+                  el.num,
+                  markColorPalette[0],
                 ),
-              },
-              applyVisuals: () => {
-                highlightedDigit = null;
-                highlightState = 2;
+              );
+            },
+          };
 
-                boardState[cell1.r][cell1.c].cellColor = cellColorPalette[6]; // Wing color 7
-                boardState[cell2.r][cell2.c].cellColor = cellColorPalette[6]; // Wing color 7
-
-                // Covered digit on wing cells (Candidate Color 6)
-                boardState[cell1.r][cell1.c].pencilColors.set(
-                  linkDigit,
-                  candidateColorPalette[5],
-                );
-                boardState[cell2.r][cell2.c].pencilColors.set(
-                  linkDigit,
-                  candidateColorPalette[5],
-                );
-
-                // Elimination digit on wing cells (Candidate Color 8)
-                boardState[cell1.r][cell1.c].pencilColors.set(
-                  elimDigit,
-                  candidateColorPalette[7],
-                );
-                boardState[cell2.r][cell2.c].pencilColors.set(
-                  elimDigit,
-                  candidateColorPalette[7],
-                );
-
-                [...group1, ...group2].forEach(([r, c]) => {
-                  boardState[r][c].cellColor = cellColorPalette[7]; // House cell color 8
-                  boardState[r][c].pencilColors.set(
-                    linkDigit,
-                    candidateColorPalette[4],
-                  ); // House cand color 5
-                });
-
-                removals.forEach((el) =>
-                  boardState[el.r][el.c].candSlashes.set(
-                    el.num,
-                    markColorPalette[0],
-                  ),
-                );
-              },
-            };
-
-            if (!findAll) return res;
-            results.push(res);
-          }
+          if (!findAll) return res;
+          results.push(res);
         }
       }
     }
     return findAll ? results : { change: false };
   },
-
   wWing: (board, pencils, findAll = false) => {
     return techniques._wWingCore(board, pencils, false, findAll);
   },
@@ -2535,25 +2547,22 @@ const techniques = {
   },
 
   skyscraper: (board, pencils, findAll = false) => {
+    const g = buildGrid(pencils);
+
     const skyscraperLogic = (isRowBased) => {
-      let results = [];
+      const results = [];
+      const lineMasks = isRowBased ? g.row : g.col;
 
       for (let num = 1; num <= 9; num++) {
+        const k = num - 1;
         const strongLinks = [];
         for (let i = 0; i < 9; i++) {
-          const candidateLocs = [];
-          for (let j = 0; j < 9; j++) {
-            const r = isRowBased ? i : j;
-            const c = isRowBased ? j : i;
-            if (pencils[r][c].has(num)) candidateLocs.push(j);
-          }
-          if (candidateLocs.length === 2) {
-            if (
-              Math.floor(candidateLocs[0] / 3) !==
-              Math.floor(candidateLocs[1] / 3)
-            ) {
-              strongLinks.push({ line: i, locs: candidateLocs });
-            }
+          const m = lineMasks[k * 9 + i];
+          if (pop(m) !== 2) continue;
+          const a = lowest(m);
+          const b = lowest(m & (m - 1));
+          if (((a / 3) | 0) !== ((b / 3) | 0)) {
+            strongLinks.push({ line: i, locs: [a, b] });
           }
         }
         if (strongLinks.length < 2) continue;
@@ -2563,105 +2572,87 @@ const techniques = {
 
           const sharedLocs = new Set(link1.locs);
           const baseLoc = link2.locs.find((loc) => sharedLocs.has(loc));
-
           if (baseLoc === undefined) continue;
 
           const peak1Loc = link1.locs.find((loc) => loc !== baseLoc);
           const peak2Loc = link2.locs.find((loc) => loc !== baseLoc);
 
-          const p1 = isRowBased
-            ? [link1.line, peak1Loc]
-            : [peak1Loc, link1.line];
-          const p2 = isRowBased
-            ? [link2.line, peak2Loc]
-            : [peak2Loc, link2.line];
+          const p1 = isRowBased ? [link1.line, peak1Loc] : [peak1Loc, link1.line];
+          const p2 = isRowBased ? [link2.line, peak2Loc] : [peak2Loc, link2.line];
 
-          if (peak1Loc === peak2Loc) {
-            continue;
-          }
+          if (peak1Loc === peak2Loc) continue;
 
           const removals = [];
-          for (const [r, c] of techniques._commonVisibleCells(p1, p2)) {
-            if (pencils[r][c].has(num)) {
-              removals.push({ r, c, num });
-            }
+          for (const id of commonPeers(g, p1[0] * 9 + p1[1], p2[0] * 9 + p2[1], k)) {
+            removals.push({ r: (id / 9) | 0, c: id % 9, num });
           }
-          if (removals.length > 0) {
-            // --- Format the Chain String ---
-            let link1Str = "";
-            let link2Str = "";
-            if (isRowBased) {
-              link1Str = `r${link1.line + 1}c${peak1Loc + 1}=r${link1.line + 1}c${baseLoc + 1}`;
-              link2Str = `r${link2.line + 1}c${baseLoc + 1}=r${link2.line + 1}c${peak2Loc + 1}`;
-            } else {
-              link1Str = `r${peak1Loc + 1}c${link1.line + 1}=r${baseLoc + 1}c${link1.line + 1}`;
-              link2Str = `r${baseLoc + 1}c${link2.line + 1}=r${peak2Loc + 1}c${link2.line + 1}`;
-            }
+          if (removals.length === 0) continue;
 
-            // Reconstruct the two base coordinate nodes for the visual representation
-            const base1 = isRowBased
-              ? [link1.line, baseLoc]
-              : [baseLoc, link1.line];
-            const base2 = isRowBased
-              ? [link2.line, baseLoc]
-              : [baseLoc, link2.line];
-
-            const resultObj = {
-              change: true,
-              type: "remove",
-              cells: removals,
-              hint: {
-                name: t("teks_msg_63"),
-                mainInfo: t("teks_msg_48", num),
-                detail: `(${num})(${link1Str})-(${link2Str})`,
-              },
-              applyVisuals: () =>
-                techniques._applySingleDigitChainVisuals(
-                  num,
-                  [
-                    { cells: [p1] },
-                    { cells: [base1] },
-                    { cells: [base2] },
-                    { cells: [p2] },
-                  ],
-                  removals,
-                ),
-            };
-            if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
-            results.push(resultObj);
+          let link1Str = "";
+          let link2Str = "";
+          if (isRowBased) {
+            link1Str = `r${link1.line + 1}c${peak1Loc + 1}=r${link1.line + 1}c${baseLoc + 1}`;
+            link2Str = `r${link2.line + 1}c${baseLoc + 1}=r${link2.line + 1}c${peak2Loc + 1}`;
+          } else {
+            link1Str = `r${peak1Loc + 1}c${link1.line + 1}=r${baseLoc + 1}c${link1.line + 1}`;
+            link2Str = `r${baseLoc + 1}c${link2.line + 1}=r${peak2Loc + 1}c${link2.line + 1}`;
           }
+
+          const base1 = isRowBased ? [link1.line, baseLoc] : [baseLoc, link1.line];
+          const base2 = isRowBased ? [link2.line, baseLoc] : [baseLoc, link2.line];
+
+          const resultObj = {
+            change: true,
+            type: "remove",
+            cells: removals,
+            hint: {
+              name: t("teks_msg_63"),
+              mainInfo: t("teks_msg_48", num),
+              detail: `(${num})(${link1Str})-(${link2Str})`,
+            },
+            applyVisuals: () =>
+              techniques._applySingleDigitChainVisuals(
+                num,
+                [
+                  { cells: [p1] },
+                  { cells: [base1] },
+                  { cells: [base2] },
+                  { cells: [p2] },
+                ],
+                removals,
+              ),
+          };
+          if (!findAll) return { change: true, res: resultObj };
+          results.push(resultObj);
         }
       }
       return findAll ? results : { change: false };
     };
 
-    // 5. Update the execution block
     if (!findAll) {
       let result = skyscraperLogic(true);
       if (result.change) return result.res;
       result = skyscraperLogic(false);
       return result.change ? result.res : { change: false };
-    } else {
-      const r1 = skyscraperLogic(true);
-      const r2 = skyscraperLogic(false);
-      return [...r1, ...r2]; // FIXED: Returns the array directly
     }
+    return [...skyscraperLogic(true), ...skyscraperLogic(false)];
   },
-
   twoStringKite: (board, pencils, findAll = false) => {
-    let results = [];
+    const g = buildGrid(pencils);
+    const results = [];
+
     for (let num = 1; num <= 9; num++) {
+      const k = num - 1;
+
       const rowLinks = [];
       for (let r = 0; r < 9; r++) {
-        const locs = [];
-        for (let c = 0; c < 9; c++) if (pencils[r][c].has(num)) locs.push(c);
-        if (locs.length === 2) rowLinks.push({ r, locs });
+        const m = g.row[k * 9 + r];
+        if (pop(m) === 2) rowLinks.push({ r, locs: bits9(m) });
       }
       const colLinks = [];
       for (let c = 0; c < 9; c++) {
-        const locs = [];
-        for (let r = 0; r < 9; r++) if (pencils[r][c].has(num)) locs.push(r);
-        if (locs.length === 2) colLinks.push({ c, locs });
+        const m = g.col[k * 9 + c];
+        if (pop(m) === 2) colLinks.push({ c, locs: bits9(m) });
       }
       if (rowLinks.length === 0 || colLinks.length === 0) continue;
 
@@ -2672,12 +2663,7 @@ const techniques = {
           const c_base = cLink.c;
           const [rA, rB] = cLink.locs;
 
-          if (
-            r_base === rA ||
-            r_base === rB ||
-            c_base === c1 ||
-            c_base === c2
-          ) {
+          if (r_base === rA || r_base === rB || c_base === c1 || c_base === c2) {
             continue;
           }
 
@@ -2693,253 +2679,55 @@ const techniques = {
           for (let i = 0; i < 2; i++) {
             for (let j = 0; j < 2; j++) {
               if (
-                techniques._getBoxIndex(
-                  rowLinkCells[i][0],
-                  rowLinkCells[i][1],
-                ) ===
-                techniques._getBoxIndex(colLinkCells[j][0], colLinkCells[j][1])
+                boxOf(rowLinkCells[i][0], rowLinkCells[i][1]) !==
+                boxOf(colLinkCells[j][0], colLinkCells[j][1])
               ) {
-                const p1 = rowLinkCells[1 - i]; // Outside row cell
-                const p2 = colLinkCells[1 - j]; // Outside col cell
-                const pBox1 = rowLinkCells[i]; // Box intersection cell 1
-                const pBox2 = colLinkCells[j]; // Box intersection cell 2
-
-                if (p1[0] === p2[0] && p1[1] === p2[1]) continue;
-
-                const removals = [];
-                for (const [r, c] of techniques._commonVisibleCells(p1, p2)) {
-                  if (pencils[r][c].has(num)) {
-                    removals.push({ r, c, num });
-                  }
-                }
-                if (removals.length > 0) {
-                  // --- Format the Chain String ---
-                  const link1Str = `r${p1[0] + 1}c${p1[1] + 1}=r${pBox1[0] + 1}c${pBox1[1] + 1}`;
-                  const link2Str = `r${pBox2[0] + 1}c${pBox2[1] + 1}=r${p2[0] + 1}c${p2[1] + 1}`;
-
-                  const resultObj = {
-                    change: true,
-                    type: "remove",
-                    cells: removals,
-                    hint: {
-                      name: t("teks_msg_65"),
-                      mainInfo: t("teks_msg_48", num),
-                      detail: `(${num})(${link1Str})-(${link2Str})`,
-                    },
-                    applyVisuals: () =>
-                      techniques._applySingleDigitChainVisuals(
-                        num,
-                        [
-                          { cells: [p1] },
-                          { cells: [pBox1] },
-                          { cells: [pBox2] },
-                          { cells: [p2] },
-                        ],
-                        removals,
-                      ),
-                  };
-                  if (!findAll) return resultObj; // Note the wrapper
-                  results.push(resultObj);
-                }
+                continue;
               }
-            }
-          }
-        }
-      }
-    }
-    return findAll ? results : { change: false };
-  },
 
-  crane: (board, pencils, findAll = false) => {
-    const turbotLogic = (isRowBased) => {
-      let results = [];
-      for (let num = 1; num <= 9; num++) {
-        for (let b = 0; b < 9; b++) {
-          const boxCells = techniques._getUnitCells("box", b);
-          const boxLocs = boxCells.filter(([r, c]) => pencils[r][c].has(num));
+              const p1 = rowLinkCells[1 - i];
+              const p2 = colLinkCells[1 - j];
+              const pBox1 = rowLinkCells[i];
+              const pBox2 = colLinkCells[j];
 
-          if (boxLocs.length === 2) {
-            const [pA_init, pB_init] = boxLocs;
-            if (pA_init[0] === pB_init[0] || pA_init[1] === pB_init[1])
-              continue;
+              if (p1[0] === p2[0] && p1[1] === p2[1]) continue;
 
-            for (const startNode of [pA_init, pB_init]) {
-              const pA = startNode === pA_init ? pB_init : pA_init;
-              const pB = startNode;
-
-              const weakLinkLine = isRowBased
-                ? techniques._getUnitCells("col", pB[1])
-                : techniques._getUnitCells("row", pB[0]);
-              for (const pC of weakLinkLine) {
-                if (
-                  !pencils[pC[0]][pC[1]].has(num) ||
-                  techniques._getBoxIndex(pC[0], pC[1]) === b
-                )
-                  continue;
-
-                const strongLinkLine = isRowBased
-                  ? techniques._getUnitCells("row", pC[0])
-                  : techniques._getUnitCells("col", pC[1]);
-                const strongLinkLocs = strongLinkLine.filter(([r, c]) =>
-                  pencils[r][c].has(num),
-                );
-
-                if (strongLinkLocs.length === 2) {
-                  const pD = strongLinkLocs.find(
-                    (cell) => cell[0] !== pC[0] || cell[1] !== pC[1],
-                  );
-                  if (!pD) continue;
-
-                  const removals = [];
-                  for (const [r, c] of techniques._commonVisibleCells(pA, pD)) {
-                    if (
-                      pencils[r][c].has(num) &&
-                      !(r === pA[0] && c === pA[1]) &&
-                      !(r === pD[0] && c === pD[1])
-                    ) {
-                      removals.push({ r, c, num });
-                    }
-                  }
-                  if (removals.length > 0) {
-                    // --- Format the Chain String (Mix of bp and rc) ---
-                    const p1BoxIndex =
-                      Math.floor(pA[0] % 3) * 3 + Math.floor(pA[1] % 3) + 1;
-                    const p2BoxIndex =
-                      Math.floor(pB[0] % 3) * 3 + Math.floor(pB[1] % 3) + 1;
-                    const link1Str = `b${b + 1}p${p1BoxIndex}=b${b + 1}p${p2BoxIndex}`;
-                    const link2Str = `r${pC[0] + 1}c${pC[1] + 1}=r${pD[0] + 1}c${pD[1] + 1}`;
-
-                    const resultObj = {
-                      change: true,
-                      type: "remove",
-                      cells: removals,
-                      hint: {
-                        name: t("teks_msg_67"),
-                        mainInfo: t("teks_msg_48", num),
-                        detail: `(${num})(${link1Str})-(${link2Str})`,
-                      },
-                      applyVisuals: () =>
-                        techniques._applySingleDigitChainVisuals(
-                          num,
-                          [
-                            { cells: [pA] },
-                            { cells: [pB] },
-                            { cells: [pC] },
-                            { cells: [pD] },
-                          ],
-                          removals,
-                        ),
-                    };
-                    if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
-                    results.push(resultObj);
-                  }
-                }
+              const removals = [];
+              for (const id of commonPeers(
+                g,
+                p1[0] * 9 + p1[1],
+                p2[0] * 9 + p2[1],
+                k,
+              )) {
+                removals.push({ r: (id / 9) | 0, c: id % 9, num });
               }
-            }
-          }
-        }
-      }
-      return findAll ? results : { change: false };
-    };
+              if (removals.length === 0) continue;
 
-    // 5. Update the execution block
-    if (!findAll) {
-      let result = turbotLogic(true);
-      if (result.change) return result.res;
-      result = turbotLogic(false);
-      return result.change ? result.res : { change: false };
-    } else {
-      const r1 = turbotLogic(true);
-      const r2 = turbotLogic(false);
-      return [...r1, ...r2]; // FIXED: Returns the array directly
-    }
-  },
-
-  groupedKite: (board, pencils, findAll = false) => {
-    let results = [];
-    for (let num = 1; num <= 9; num++) {
-      for (let b = 0; b < 9; b++) {
-        const boxCells = techniques._getUnitCells("box", b);
-        const box_n_cells = boxCells.filter(([r, c]) => pencils[r][c].has(num));
-        const box_rows = new Set(box_n_cells.map((c) => c[0]));
-        const box_cols = new Set(box_n_cells.map((c) => c[1]));
-
-        for (const r1 of box_rows) {
-          const r1_outside_locs = [];
-          for (let c = 0; c < 9; c++) {
-            if (Math.floor(c / 3) !== b % 3 && pencils[r1][c].has(num))
-              r1_outside_locs.push(c);
-          }
-          if (r1_outside_locs.length !== 1) continue;
-          const c2 = r1_outside_locs[0];
-
-          for (const c1 of box_cols) {
-            if (pencils[r1][c1].has(num)) continue;
-
-            const c1_outside_locs = [];
-            for (let r = 0; r < 9; r++) {
-              if (
-                Math.floor(r / 3) !== Math.floor(b / 3) &&
-                pencils[r][c1].has(num)
-              )
-                c1_outside_locs.push(r);
-            }
-            if (c1_outside_locs.length !== 1) continue;
-            const r2 = c1_outside_locs[0];
-
-            // Check group condition
-            const group = box_n_cells.filter(([r, c]) => r === r1 || c === c1);
-
-            if (pencils[r2][c2].has(num)) {
-              // --- Build Grouped bXpY logic ---
-              const rowGroupCols = [
-                ...new Set(
-                  box_n_cells
-                    .filter(([r, c]) => r === r1)
-                    .map(([r, c]) => c + 1),
-                ),
-              ]
-                .sort((a, b) => a - b)
-                .join("");
-              const colGroupRows = [
-                ...new Set(
-                  box_n_cells
-                    .filter(([r, c]) => c === c1)
-                    .map(([r, c]) => r + 1),
-                ),
-              ]
-                .sort((a, b) => a - b)
-                .join("");
-
-              const link1Str = `r${r1 + 1}c${c2 + 1}=r${r1 + 1}c${rowGroupCols}`;
-              const link2Str = `r${colGroupRows}c${c1 + 1}=r${r2 + 1}c${c1 + 1}`;
+              const link1Str = `r${p1[0] + 1}c${p1[1] + 1}=r${pBox1[0] + 1}c${pBox1[1] + 1}`;
+              const link2Str = `r${pBox2[0] + 1}c${pBox2[1] + 1}=r${p2[0] + 1}c${p2[1] + 1}`;
 
               const resultObj = {
                 change: true,
                 type: "remove",
-                cells: [{ r: r2, c: c2, num }],
+                cells: removals,
                 hint: {
-                  name: t("teks_msg_69"),
+                  name: t("teks_msg_65"),
                   mainInfo: t("teks_msg_48", num),
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
-                applyVisuals: () => {
-                  const group1 = box_n_cells.filter(([r, c]) => r === r1);
-                  const group2 = box_n_cells.filter(([r, c]) => c === c1);
+                applyVisuals: () =>
                   techniques._applySingleDigitChainVisuals(
                     num,
                     [
-                      { cells: [[r1, c2]] },
-                      { cells: group1 },
-                      { cells: group2 },
-                      { cells: [[r2, c1]] },
+                      { cells: [p1] },
+                      { cells: [pBox1] },
+                      { cells: [pBox2] },
+                      { cells: [p2] },
                     ],
-                    [{ r: r2, c: c2, num }],
-                    true,
-                  );
-                },
+                    removals,
+                  ),
               };
-              if (!findAll) return resultObj; // Note the wrapper
+              if (!findAll) return resultObj;
               results.push(resultObj);
             }
           }
@@ -2948,22 +2736,227 @@ const techniques = {
     }
     return findAll ? results : { change: false };
   },
+  crane: (board, pencils, findAll = false) => {
+    const g = buildGrid(pencils);
 
-  emptyRectangle: (board, pencils, findAll = false) => {
-    const logic = (isRowVersion) => {
-      let results = [];
+    const turbotLogic = (isRowBased) => {
+      const results = [];
       for (let num = 1; num <= 9; num++) {
+        const k = num - 1;
         for (let b = 0; b < 9; b++) {
-          const boxCells = techniques._getUnitCells("box", b);
-          const box_n_cells = boxCells.filter(([r, c]) =>
-            pencils[r][c].has(num),
+          const bm = g.box[k * 9 + b];
+          if (pop(bm) !== 2) continue;
+
+          const sr = ((b / 3) | 0) * 3;
+          const sc = (b % 3) * 3;
+          const boxLocs = bits9(bm).map((p) => [sr + ((p / 3) | 0), sc + (p % 3)]);
+
+          const [pA_init, pB_init] = boxLocs;
+          if (pA_init[0] === pB_init[0] || pA_init[1] === pB_init[1]) continue;
+
+          for (const startNode of [pA_init, pB_init]) {
+            const pA = startNode === pA_init ? pB_init : pA_init;
+            const pB = startNode;
+
+            const weakIdx = isRowBased ? pB[1] : pB[0];
+            let wm = isRowBased ? g.col[k * 9 + weakIdx] : g.row[k * 9 + weakIdx];
+            while (wm) {
+              const i = lowest(wm);
+              wm &= wm - 1;
+              const pC = isRowBased ? [i, weakIdx] : [weakIdx, i];
+              if (boxOf(pC[0], pC[1]) === b) continue;
+
+              const strongIdx = isRowBased ? pC[0] : pC[1];
+              const sm = isRowBased
+                ? g.row[k * 9 + strongIdx]
+                : g.col[k * 9 + strongIdx];
+              if (pop(sm) !== 2) continue;
+
+              const locs = bits9(sm);
+              const selfLoc = isRowBased ? pC[1] : pC[0];
+              const otherLoc = locs[0] === selfLoc ? locs[1] : locs[0];
+              if (otherLoc === selfLoc) continue;
+              const pD = isRowBased
+                ? [strongIdx, otherLoc]
+                : [otherLoc, strongIdx];
+
+              const removals = [];
+              for (const id of commonPeers(
+                g,
+                pA[0] * 9 + pA[1],
+                pD[0] * 9 + pD[1],
+                k,
+              )) {
+                const r = (id / 9) | 0;
+                const c = id % 9;
+                if (
+                  !(r === pA[0] && c === pA[1]) &&
+                  !(r === pD[0] && c === pD[1])
+                ) {
+                  removals.push({ r, c, num });
+                }
+              }
+              if (removals.length === 0) continue;
+
+              const p1BoxIndex = pointOf(pA[0], pA[1]) + 1;
+              const p2BoxIndex = pointOf(pB[0], pB[1]) + 1;
+              const link1Str = `b${b + 1}p${p1BoxIndex}=b${b + 1}p${p2BoxIndex}`;
+              const link2Str = `r${pC[0] + 1}c${pC[1] + 1}=r${pD[0] + 1}c${pD[1] + 1}`;
+
+              const resultObj = {
+                change: true,
+                type: "remove",
+                cells: removals,
+                hint: {
+                  name: t("teks_msg_67"),
+                  mainInfo: t("teks_msg_48", num),
+                  detail: `(${num})(${link1Str})-(${link2Str})`,
+                },
+                applyVisuals: () =>
+                  techniques._applySingleDigitChainVisuals(
+                    num,
+                    [
+                      { cells: [pA] },
+                      { cells: [pB] },
+                      { cells: [pC] },
+                      { cells: [pD] },
+                    ],
+                    removals,
+                  ),
+              };
+              if (!findAll) return { change: true, res: resultObj };
+              results.push(resultObj);
+            }
+          }
+        }
+      }
+      return findAll ? results : { change: false };
+    };
+
+    if (!findAll) {
+      let result = turbotLogic(true);
+      if (result.change) return result.res;
+      result = turbotLogic(false);
+      return result.change ? result.res : { change: false };
+    }
+    return [...turbotLogic(true), ...turbotLogic(false)];
+  },
+  groupedKite: (board, pencils, findAll = false) => {
+    const g = buildGrid(pencils);
+    const results = [];
+
+    for (let num = 1; num <= 9; num++) {
+      const k = num - 1;
+      for (let b = 0; b < 9; b++) {
+        const bm = g.box[k * 9 + b];
+        if (bm === 0) continue;
+
+        const sr = ((b / 3) | 0) * 3;
+        const sc = (b % 3) * 3;
+        const box_n_cells = bits9(bm).map((p) => [
+          sr + ((p / 3) | 0),
+          sc + (p % 3),
+        ]);
+
+        const box_rows = [...new Set(box_n_cells.map(([r]) => r))].sort(
+          (a, b) => a - b,
+        );
+        const box_cols = [...new Set(box_n_cells.map(([, c]) => c))].sort(
+          (a, b) => a - b,
+        );
+
+        for (const r1 of box_rows) {
+          const stackMask = 0b111 << ((b % 3) * 3);
+          const outside = g.row[k * 9 + r1] & ~stackMask;
+          if (pop(outside) !== 1) continue;
+          const c2 = lowest(outside);
+
+          for (const c1 of box_cols) {
+            if ((g.cand[r1 * 9 + c1] & (1 << k)) !== 0) continue;
+
+            const bandMask = 0b111 << (((b / 3) | 0) * 3);
+            const outsideCol = g.col[k * 9 + c1] & ~bandMask;
+            if (pop(outsideCol) !== 1) continue;
+            const r2 = lowest(outsideCol);
+
+            if ((g.cand[r2 * 9 + c2] & (1 << k)) === 0) continue;
+
+            const rowGroupCols = [
+              ...new Set(
+                box_n_cells.filter(([r]) => r === r1).map(([, c]) => c + 1),
+              ),
+            ]
+              .sort((a, b) => a - b)
+              .join("");
+            const colGroupRows = [
+              ...new Set(
+                box_n_cells.filter(([, c]) => c === c1).map(([r]) => r + 1),
+              ),
+            ]
+              .sort((a, b) => a - b)
+              .join("");
+
+            const link1Str = `r${r1 + 1}c${c2 + 1}=r${r1 + 1}c${rowGroupCols}`;
+            const link2Str = `r${colGroupRows}c${c1 + 1}=r${r2 + 1}c${c1 + 1}`;
+
+            const resultObj = {
+              change: true,
+              type: "remove",
+              cells: [{ r: r2, c: c2, num }],
+              hint: {
+                name: t("teks_msg_69"),
+                mainInfo: t("teks_msg_48", num),
+                detail: `(${num})(${link1Str})-(${link2Str})`,
+              },
+              applyVisuals: () => {
+                const group1 = box_n_cells.filter(([r]) => r === r1);
+                const group2 = box_n_cells.filter(([, c]) => c === c1);
+                techniques._applySingleDigitChainVisuals(
+                  num,
+                  [
+                    { cells: [[r1, c2]] },
+                    { cells: group1 },
+                    { cells: group2 },
+                    { cells: [[r2, c1]] },
+                  ],
+                  [{ r: r2, c: c2, num }],
+                  true,
+                );
+              },
+            };
+            if (!findAll) return resultObj;
+            results.push(resultObj);
+          }
+        }
+      }
+    }
+    return findAll ? results : { change: false };
+  },
+  emptyRectangle: (board, pencils, findAll = false) => {
+    const g = buildGrid(pencils);
+
+    const logic = (isRowVersion) => {
+      const results = [];
+      for (let num = 1; num <= 9; num++) {
+        const k = num - 1;
+        for (let b = 0; b < 9; b++) {
+          const bm = g.box[k * 9 + b];
+          if (pop(bm) < 2) continue;
+
+          const sr = ((b / 3) | 0) * 3;
+          const sc = (b % 3) * 3;
+          const box_n_cells = bits9(bm).map((p) => [
+            sr + ((p / 3) | 0),
+            sc + (p % 3),
+          ]);
+
+          const rows = [...new Set(box_n_cells.map(([r]) => r))].sort(
+            (a, b) => a - b,
           );
-          if (box_n_cells.length < 2) continue;
-
-          const rows = new Set(box_n_cells.map((c) => c[0]));
-          const cols = new Set(box_n_cells.map((c) => c[1]));
-
-          if (rows.size === 1 || cols.size === 1) continue;
+          const cols = [...new Set(box_n_cells.map(([, c]) => c))].sort(
+            (a, b) => a - b,
+          );
+          if (rows.length === 1 || cols.length === 1) continue;
 
           for (const r1 of rows) {
             for (const c1 of cols) {
@@ -2972,105 +2965,81 @@ const techniques = {
               );
               if (!coversAll) continue;
 
-              // --- MERGED LOGIC ---
               for (let idx2 = 0; idx2 < 9; idx2++) {
                 const unit1 = isRowVersion ? r1 : c1;
-                if (Math.floor(idx2 / 3) === Math.floor(unit1 / 3)) continue;
+                if (((idx2 / 3) | 0) === ((unit1 / 3) | 0)) continue;
 
-                // Base of the strong link outside the box
                 const br = isRowVersion ? idx2 : r1;
                 const bc = isRowVersion ? c1 : idx2;
-                if (!pencils[br][bc].has(num)) continue;
+                if ((g.cand[br * 9 + bc] & (1 << k)) === 0) continue;
 
-                // Scan the row (idx2 = r2) or column (idx2 = c2)
-                const locs = [];
-                for (let i = 0; i < 9; i++) {
-                  const tr = isRowVersion ? idx2 : i;
-                  const tc = isRowVersion ? i : idx2;
-                  if (pencils[tr][tc].has(num))
-                    locs.push(isRowVersion ? tc : tr);
-                }
+                const scanMask = isRowVersion
+                  ? g.row[k * 9 + idx2]
+                  : g.col[k * 9 + idx2];
+                if (pop(scanMask) !== 2) continue;
 
                 const expectedBaseLoc = isRowVersion ? c1 : r1;
-                if (locs.length === 2 && locs.includes(expectedBaseLoc)) {
-                  const targetLoc = locs.find((l) => l !== expectedBaseLoc);
-                  if (
-                    Math.floor(targetLoc / 3) ===
-                    Math.floor(expectedBaseLoc / 3)
-                  )
-                    continue;
-
-                  // Resolve absolute r2, c2 coordinates
-                  const r2 = isRowVersion ? idx2 : targetLoc;
-                  const c2 = isRowVersion ? targetLoc : idx2;
-
-                  // Resolve absolute elimination cell
-                  const elimR = isRowVersion ? r1 : r2;
-                  const elimC = isRowVersion ? c2 : c1;
-
-                  if (pencils[elimR][elimC].has(num)) {
-                    // --- Build Grouped bXpY logic ---
-                    const groupCells = box_n_cells.filter(([r, c]) =>
-                      isRowVersion ? r === r1 : c === c1,
-                    );
-                    const baseCells = box_n_cells.filter(([r, c]) =>
-                      isRowVersion ? c === c1 : r === r1,
-                    );
-
-                    const pGroup = [
-                      ...new Set(
-                        groupCells.map(
-                          ([r, c]) =>
-                            Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                        ),
-                      ),
-                    ]
-                      .sort()
-                      .join("");
-                    const pBase = [
-                      ...new Set(
-                        baseCells.map(
-                          ([r, c]) =>
-                            Math.floor(r % 3) * 3 + Math.floor(c % 3) + 1,
-                        ),
-                      ),
-                    ]
-                      .sort()
-                      .join("");
-
-                    const link1Str = `b${b + 1}p${pGroup}=b${b + 1}p${pBase}`;
-                    const link2Str = isRowVersion
-                      ? `r${r2 + 1}c${c1 + 1}=r${r2 + 1}c${c2 + 1}`
-                      : `r${r1 + 1}c${c2 + 1}=r${r2 + 1}c${c2 + 1}`;
-
-                    const resultObj = {
-                      change: true,
-                      type: "remove",
-                      cells: [{ r: elimR, c: elimC, num }],
-                      hint: {
-                        name: t("teks_msg_71"),
-                        mainInfo: t("teks_msg_48", num),
-                        detail: `(${num})(${link1Str})-(${link2Str})`,
-                      },
-                      applyVisuals: () =>
-                        techniques._applySingleDigitChainVisuals(
-                          num,
-                          [
-                            { cells: groupCells },
-                            { cells: baseCells },
-                            {
-                              cells: isRowVersion ? [[r2, c1]] : [[r1, c2]],
-                            },
-                            { cells: [[r2, c2]] },
-                          ],
-                          [{ r: elimR, c: elimC, num }],
-                          true,
-                        ),
-                    };
-                    if (!findAll) return { change: true, res: resultObj }; // Note the wrapper
-                    results.push(resultObj);
-                  }
+                if ((scanMask & (1 << expectedBaseLoc)) === 0) continue;
+                const targetLoc = lowest(scanMask & ~(1 << expectedBaseLoc));
+                if (((targetLoc / 3) | 0) === ((expectedBaseLoc / 3) | 0)) {
+                  continue;
                 }
+
+                const r2 = isRowVersion ? idx2 : targetLoc;
+                const c2 = isRowVersion ? targetLoc : idx2;
+
+                const elimR = isRowVersion ? r1 : r2;
+                const elimC = isRowVersion ? c2 : c1;
+
+                if ((g.cand[elimR * 9 + elimC] & (1 << k)) === 0) continue;
+
+                const groupCells = box_n_cells.filter(([r, c]) =>
+                  isRowVersion ? r === r1 : c === c1,
+                );
+                const baseCells = box_n_cells.filter(([r, c]) =>
+                  isRowVersion ? c === c1 : r === r1,
+                );
+
+                const pGroup = [
+                  ...new Set(groupCells.map(([r, c]) => pointOf(r, c) + 1)),
+                ]
+                  .sort()
+                  .join("");
+                const pBase = [
+                  ...new Set(baseCells.map(([r, c]) => pointOf(r, c) + 1)),
+                ]
+                  .sort()
+                  .join("");
+
+                const link1Str = `b${b + 1}p${pGroup}=b${b + 1}p${pBase}`;
+                const link2Str = isRowVersion
+                  ? `r${r2 + 1}c${c1 + 1}=r${r2 + 1}c${c2 + 1}`
+                  : `r${r1 + 1}c${c2 + 1}=r${r2 + 1}c${c2 + 1}`;
+
+                const resultObj = {
+                  change: true,
+                  type: "remove",
+                  cells: [{ r: elimR, c: elimC, num }],
+                  hint: {
+                    name: t("teks_msg_71"),
+                    mainInfo: t("teks_msg_48", num),
+                    detail: `(${num})(${link1Str})-(${link2Str})`,
+                  },
+                  applyVisuals: () =>
+                    techniques._applySingleDigitChainVisuals(
+                      num,
+                      [
+                        { cells: groupCells },
+                        { cells: baseCells },
+                        { cells: isRowVersion ? [[r2, c1]] : [[r1, c2]] },
+                        { cells: [[r2, c2]] },
+                      ],
+                      [{ r: elimR, c: elimC, num }],
+                      true,
+                    ),
+                };
+                if (!findAll) return { change: true, res: resultObj };
+                results.push(resultObj);
               }
             }
           }
@@ -3084,13 +3053,9 @@ const techniques = {
       if (result.change) return result.res;
       result = logic(false);
       return result.change ? result.res : { change: false };
-    } else {
-      const r1 = logic(true);
-      const r2 = logic(false);
-      return [...r1, ...r2]; // FIXED: Returns the array directly
     }
+    return [...logic(true), ...logic(false)];
   },
-
   bugPlusOne: (board, pencils, findAll = false) => {
     const unsolvedCells = [];
     const bivalueCells = [];
@@ -4485,7 +4450,7 @@ const techniques = {
       for (let c = 0; c < 9; c++) {
         if (board[r][c] !== 0) continue;
         const id = r * 9 + c;
-        const mask = BITS.setToMask(pencils[r][c]);
+        const mask = techniques._bits.maskFromSet(pencils[r][c]);
         candidateMasks[id] = mask;
         for (const digit of pencils[r][c]) {
           candidateCells[digit] |= CELL_MASK[id];
@@ -4583,8 +4548,8 @@ const techniques = {
         }
 
         const extraMask = (petalMask1 | petalMask2) & ~baseMask;
-        if (BITS.popcount(extraMask) !== 2) continue;
-        const [extraDigit1, extraDigit2] = BITS.maskToDigits(extraMask);
+        if (techniques._bits.popcount(extraMask) !== 2) continue;
+        const [extraDigit1, extraDigit2] = techniques._bits.maskToDigits(extraMask);
 
         const sourceMask1 = ids.reduce(
           (mask, id) =>
@@ -4610,8 +4575,8 @@ const techniques = {
         let proof = null;
         for (const branch1 of branchGroup1) {
           const pivotMask = candidateMasks[branch1] & ~(1 << (extraDigit1 - 1));
-          if (BITS.popcount(pivotMask) !== 1) continue;
-          const [pivotDigit] = BITS.maskToDigits(pivotMask);
+          if (techniques._bits.popcount(pivotMask) !== 1) continue;
+          const [pivotDigit] = techniques._bits.maskToDigits(pivotMask);
           const requiredBranch2Mask =
             (1 << (extraDigit2 - 1)) | (1 << (pivotDigit - 1));
 
