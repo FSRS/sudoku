@@ -213,21 +213,29 @@ function formatResultAction(result, separator = ", ") {
  * @param {string} puzzle - The 81-character puzzle string.
  * @returns {boolean} Whether the puzzle is safe to hand to a rating engine.
  */
-function isRatablePuzzle(puzzle) {
-  if (typeof puzzle !== "string" || !/^[.0-9]{81}$/.test(puzzle)) return false;
-  const cached = puzzleValidityCache.get(puzzle);
-  if (cached !== undefined) return cached;
-
+/**
+ * Builds the numeric 9x9 grid the uniqueness checker expects from an
+ * 81-character puzzle string. Blanks ("." or "0") stay 0.
+ */
+function puzzleStringToGrid(puzzle) {
   const board = Array(9)
     .fill(null)
     .map(() => Array(9).fill(0));
   for (let i = 0; i < 81; i++) {
     const char = puzzle[i];
-    if (char !== "." && char !== "0") {
-      board[Math.floor(i / 9)][i % 9] = parseInt(char);
+    if (char >= "1" && char <= "9") {
+      board[Math.floor(i / 9)][i % 9] = parseInt(char, 10);
     }
   }
-  const result = checkPuzzleUniqueness(board).isValid;
+  return board;
+}
+
+function isRatablePuzzle(puzzle) {
+  if (typeof puzzle !== "string" || !/^[.0-9]{81}$/.test(puzzle)) return false;
+  const cached = puzzleValidityCache.get(puzzle);
+  if (cached !== undefined) return cached;
+
+  const result = checkPuzzleUniqueness(puzzleStringToGrid(puzzle)).isValid;
   puzzleValidityCache.set(puzzle, result);
   return result;
 }
@@ -668,29 +676,6 @@ function swapThemeColors() {
     return idx !== -1 && newPal[idx] ? newPal[idx] : color;
   };
 
-  // 4. Map active Board Colors (Cells and Candidates)
-  for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-      const cell = boardState[r][c];
-
-      // Update cell color
-      cell.cellColor = mapColor(cell.cellColor, oldCellPalette, newCellPalette);
-
-      // Update candidate colors
-      for (let [digit, color] of cell.pencilColors.entries()) {
-        cell.pencilColors.set(
-          digit,
-          mapColor(color, oldCandPalette, newCandPalette),
-        );
-      }
-    }
-  }
-
-  // 5. Map Drawn Lines
-  for (let line of drawnLines) {
-    line.color = mapColor(line.color, oldLinePalette, newLinePalette);
-  }
-
   const mapCellColors = (cell) => {
     cell.cellColor = mapColor(cell.cellColor, oldCellPalette, newCellPalette);
     for (let [digit, color] of cell.pencilColors.entries()) {
@@ -716,6 +701,12 @@ function swapThemeColors() {
       line.color = mapColor(line.color, oldLinePalette, newLinePalette);
     }
   };
+
+  // 4. Map active Board Colors (Cells and Candidates)
+  mapBoardColors(boardState);
+
+  // 5. Map Drawn Lines
+  mapLineColors(drawnLines);
 
   // 6. Map Undo/Redo History (prevents old theme colors from reviving on Undo)
   for (let entry of history) {
@@ -898,8 +889,8 @@ function addSudokuCoachLink(puzzleString) {
   attachTooltipEvents(btn);
 }
 
-function initBoardState() {
-  boardState = Array(9)
+function createEmptyBoardState() {
+  return Array(9)
     .fill(null)
     .map(() =>
       Array(9)
@@ -914,6 +905,10 @@ function initBoardState() {
           candSlashes: new Map(),
         })),
     );
+}
+
+function initBoardState() {
+  boardState = createEmptyBoardState();
 }
 
 function createGrid() {
@@ -1108,6 +1103,16 @@ function getCandidateCenter(r, c, n) {
   return center;
 }
 
+/** Re-marks the number pad's color buttons to match selectedColor. */
+function syncColorPadSelection() {
+  document
+    .getElementById("number-pad")
+    .querySelectorAll(".color-btn")
+    .forEach((b) => {
+      b.classList.toggle("selected", b.dataset.color === selectedColor);
+    });
+}
+
 function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
   // Determine active style/color taking right-click overrides into account
   const initStyle = overrideStyle || drawSubMode;
@@ -1126,12 +1131,7 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
     // --- NEW: Temporarily update color pad to reflect active drawing style ---
     if (currentMode === "draw") {
       selectedColor = initColor;
-      const numpadButtons = document
-        .getElementById("number-pad")
-        .querySelectorAll(".color-btn");
-      numpadButtons.forEach((b) => {
-        b.classList.toggle("selected", b.dataset.color === selectedColor);
-      });
+      syncColorPadSelection();
     }
     return;
   }
@@ -1148,12 +1148,7 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
     // --- NEW: Restore original sub-mode color ---
     if (currentMode === "draw") {
       selectedColor = lastUsedColors.draw[drawSubMode] || lineColorPalette[0];
-      const numpadButtons = document
-        .getElementById("number-pad")
-        .querySelectorAll(".color-btn");
-      numpadButtons.forEach((b) => {
-        b.classList.toggle("selected", b.dataset.color === selectedColor);
-      });
+      syncColorPadSelection();
     }
     return;
   }
@@ -1245,12 +1240,27 @@ function handleDrawClick(r, c, n, overrideStyle = null, overrideColor = null) {
 
   if (currentMode === "draw") {
     selectedColor = lastUsedColors.draw[drawSubMode] || lineColorPalette[0];
-    const numpadButtons = document
-      .getElementById("number-pad")
-      .querySelectorAll(".color-btn");
-    numpadButtons.forEach((b) => {
-      b.classList.toggle("selected", b.dataset.color === selectedColor);
-    });
+    syncColorPadSelection();
+  }
+}
+
+/**
+ * Paints a pencil mark with a color from the board state: an array becomes a
+ * clipped gradient, a string a solid color, and a missing value clears both.
+ */
+function applyPencilMarkColor(mark, pColor) {
+  if (Array.isArray(pColor)) {
+    mark.style.background = getGradientBackground(pColor, "to bottom");
+    mark.style.webkitBackgroundClip = "text";
+    mark.style.backgroundClip = "text";
+    mark.style.webkitTextFillColor = "transparent";
+    mark.style.color = "transparent";
+  } else {
+    mark.style.background = "";
+    mark.style.webkitBackgroundClip = "";
+    mark.style.backgroundClip = "";
+    mark.style.webkitTextFillColor = "";
+    mark.style.color = pColor || "";
   }
 }
 
@@ -1396,30 +1406,7 @@ function renderBoard() {
             }
             mark.dataset.wasMulti = isMultiCand ? "true" : "false";
 
-            if (pColor) {
-              if (Array.isArray(pColor)) {
-                mark.style.background = getGradientBackground(
-                  pColor,
-                  "to bottom",
-                ); // Added "to bottom"
-                mark.style.webkitBackgroundClip = "text";
-                mark.style.backgroundClip = "text";
-                mark.style.webkitTextFillColor = "transparent";
-                mark.style.color = "transparent";
-              } else {
-                mark.style.background = ""; // Cleared properly
-                mark.style.webkitBackgroundClip = "";
-                mark.style.backgroundClip = "";
-                mark.style.webkitTextFillColor = "";
-                mark.style.color = pColor;
-              }
-            } else {
-              mark.style.background = "";
-              mark.style.webkitBackgroundClip = "";
-              mark.style.backgroundClip = "";
-              mark.style.webkitTextFillColor = "";
-              mark.style.color = "";
-            }
+            applyPencilMarkColor(mark, pColor);
 
             mark.dataset.currentColor = Array.isArray(pColor)
               ? JSON.stringify(pColor)
@@ -2078,22 +2065,8 @@ function setupEventListeners() {
       }
       if (mark && mark.dataset.num) {
         const num = parseInt(mark.dataset.num);
-        const pColor = cellState.pencilColors.get(num);
-        if (Array.isArray(pColor)) {
-          // Restore gradient
-          mark.style.background = getGradientBackground(pColor, "to bottom");
-          mark.style.webkitBackgroundClip = "text";
-          mark.style.backgroundClip = "text";
-          mark.style.webkitTextFillColor = "transparent";
-          mark.style.color = "transparent";
-        } else {
-          // Restore solid
-          mark.style.background = "";
-          mark.style.webkitBackgroundClip = "";
-          mark.style.backgroundClip = "";
-          mark.style.webkitTextFillColor = "";
-          mark.style.color = pColor || "";
-        }
+        // Restore gradient or solid from the board state
+        applyPencilMarkColor(mark, cellState.pencilColors.get(num));
       }
     }
   });
@@ -2298,31 +2271,14 @@ function setupEventListeners() {
     if (!initialPuzzleString) {
       showMessage(t("ui_msg_68"), "red");
     } else {
-      navigator.clipboard
-        .writeText(initialPuzzleString)
-        .then(() => {
-          showMessage(t("ui_msg_69"), "green");
-        })
-        .catch((err) => {
-          console.error("Copy failed:", err);
-          showMessage(t("ui_msg_70"), "red");
-        });
+      copyTextToClipboard(initialPuzzleString, "ui_msg_69");
     }
     copyModal.classList.add("hidden");
     copyModal.classList.remove("flex");
   });
 
   copyCurrentBtn.addEventListener("click", () => {
-    const asciiBoard = generateAsciiGrid();
-    navigator.clipboard
-      .writeText(asciiBoard)
-      .then(() => {
-        showMessage(t("ui_msg_71"), "green");
-      })
-      .catch((err) => {
-        console.error("Copy failed:", err);
-        showMessage(t("ui_msg_70"), "red");
-      });
+    copyTextToClipboard(generateAsciiGrid(), "ui_msg_71");
     copyModal.classList.add("hidden");
     copyModal.classList.remove("flex");
   });
@@ -2349,15 +2305,7 @@ function setupEventListeners() {
     const raw = this.value.replace(/\s/g, "").replace(/0/g, ".");
 
     if (raw.length > 0 && /^[0-9.]+$/.test(raw)) {
-      const formatted = raw
-        .match(/.{1,27}/g)
-        .map((block) =>
-          block
-            .match(/.{1,9}/g)
-            .map((line) => line.match(/.{1,3}/g).join(" "))
-            .join("\n"),
-        )
-        .join("\n\n");
+      const formatted = formatPuzzleStringForInput(raw);
 
       if (this.value !== formatted) {
         this.value = formatted;
@@ -2673,13 +2621,7 @@ function setupEventListeners() {
       showMessage(t("ui_msg_89"), "green");
       return;
     }
-    let emptyCount = 0;
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        if (boardState[r][c].value === 0) emptyCount++;
-      }
-    }
-    if (emptyCount <= 3) {
+    if (countEmptyCells() <= 3) {
       showMessage(t("ui_msg_90"), "orange");
       return;
     }
@@ -2957,14 +2899,7 @@ function setupEventListeners() {
       const backupHighlightState = highlightState;
       const backupHighlightedDigit = highlightedDigit;
 
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          if (!boardState[r][c].isGiven) {
-            boardState[r][c].value = 0;
-            boardState[r][c].pencils.clear();
-          }
-        }
-      }
+      clearNonGivenCells();
 
       if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
       const evalId = ++currentEvaluationId;
@@ -3000,14 +2935,7 @@ function setupEventListeners() {
       .writeText(shareText)
       .then(() => {
         messageArea.innerHTML = "";
-        const colorClasses = [
-          "text-red-600",
-          "text-green-600",
-          "text-blue-500",
-          "text-gray-600",
-          "text-orange-500",
-        ];
-        messageArea.classList.remove(...colorClasses);
+        messageArea.classList.remove(...MESSAGE_COLOR_CLASSES);
         messageArea.classList.add("text-green-600");
 
         const successText = document.createTextNode(
@@ -3086,6 +3014,20 @@ function handleKeyDown(e) {
   const isAutoPencilOpen =
     autoPencilMod && !autoPencilMod.classList.contains("hidden");
 
+  // One predicate for every modal, so the key paths below cannot disagree
+  // about whether a modal is open.
+  const isAnyModalOpen =
+    isHintOpen ||
+    isSolverFirstOpen ||
+    isSolverConfOpen ||
+    isCopyOpen ||
+    isShareOpen ||
+    isCompShareOpen ||
+    isResetOpen ||
+    isPrefOpen ||
+    isInstallHelpOpen ||
+    isAutoPencilOpen;
+
   if (
     document.activeElement.tagName === "INPUT" ||
     document.activeElement.tagName === "TEXTAREA"
@@ -3162,20 +3104,7 @@ function handleKeyDown(e) {
     // --- NEW: Handle Ctrl+C / Cmd+C inside Solver/VAT Mode ---
     if (isCtrlOrCmd && key_lower === "c") {
       e.preventDefault();
-      if (e.shiftKey) {
-        copyGridAsImage();
-      } else {
-        const asciiBoard = generateAsciiGrid();
-        navigator.clipboard
-          .writeText(asciiBoard)
-          .then(() => {
-            showMessage(t("ui_msg_110"), "green");
-          })
-          .catch((err) => {
-            console.error("Copy failed:", err);
-            showMessage(t("ui_msg_70"), "red");
-          });
-      }
+      copyBoardShortcut(e.shiftKey);
       return;
     }
 
@@ -3186,37 +3115,9 @@ function handleKeyDown(e) {
     return;
   }
 
-  if (
-    isCtrlOrCmd &&
-    key_lower === "c" &&
-    !(
-      isHintOpen ||
-      isSolverFirstOpen ||
-      isSolverConfOpen ||
-      isCopyOpen ||
-      isShareOpen ||
-      isCompShareOpen ||
-      isResetOpen ||
-      isPrefOpen ||
-      isInstallHelpOpen ||
-      isAutoPencilOpen
-    )
-  ) {
+  if (isCtrlOrCmd && key_lower === "c" && !isAnyModalOpen) {
     e.preventDefault();
-    if (e.shiftKey) {
-      copyGridAsImage();
-    } else {
-      const asciiBoard = generateAsciiGrid();
-      navigator.clipboard
-        .writeText(asciiBoard)
-        .then(() => {
-          showMessage(t("ui_msg_110"), "green");
-        })
-        .catch((err) => {
-          console.error("Copy failed:", err);
-          showMessage(t("ui_msg_70"), "red");
-        });
-    }
+    copyBoardShortcut(e.shiftKey);
     return;
   }
   if (e.altKey && key_lower === "w") {
@@ -3288,17 +3189,7 @@ function handleKeyDown(e) {
     return;
   }
 
-  if (
-    isHintOpen ||
-    isSolverFirstOpen ||
-    isSolverConfOpen ||
-    isCopyOpen ||
-    isShareOpen ||
-    isResetOpen ||
-    isPrefOpen ||
-    isInstallHelpOpen ||
-    isAutoPencilOpen
-  ) {
+  if (isAnyModalOpen) {
     // 0. "Esc" to Escape/Cancel
     if (key === "Escape") {
       e.preventDefault();
@@ -3407,18 +3298,7 @@ function handleKeyDown(e) {
   if (key === "Enter") {
     if (selectedCell.row !== null) {
       const cellState = boardState[selectedCell.row][selectedCell.col];
-      if (highlightState === 0 && cellState.pencils.size === 2) {
-        highlightedDigit = null;
-        highlightState = 2;
-      } else if (cellState.value !== 0) {
-        if (highlightedDigit !== cellState.value) {
-          highlightedDigit = cellState.value;
-          highlightState = 1;
-        } else {
-          highlightedDigit = null;
-          highlightState = 0;
-        }
-      }
+      toggleHighlightForCell(cellState);
       onBoardUpdated(true);
     }
     return;
@@ -3555,7 +3435,8 @@ function handleCellClick(e) {
           highlightState = 0;
         }
       } else if (
-        coloringSubMode === "candidate" || isMarkSubMode(coloringSubMode)
+        coloringSubMode === "candidate" ||
+        isMarkSubMode(coloringSubMode)
       ) {
         // On mobile with Experimental Mode off, candidate annotation uses a
         // popup so circle/cross matches the existing candidate-color flow.
@@ -3566,22 +3447,30 @@ function handleCellClick(e) {
       needsRenderOnly = true;
     }
   } else {
-    if (highlightState === 0 && cellState.pencils.size === 2) {
-      highlightedDigit = null;
-      highlightState = 2;
-    } else if (cellState.value !== 0) {
-      if (highlightedDigit !== cellState.value) {
-        highlightedDigit = cellState.value;
-        highlightState = 1;
-      } else {
-        highlightedDigit = null;
-        highlightState = 0;
-      }
-    }
+    toggleHighlightForCell(cellState);
     needsRenderOnly = true;
   }
   if (needsRenderOnly) {
     renderBoard();
+  }
+}
+
+/**
+ * Cycles the digit highlight from a cell: a bi-value cell with no highlight
+ * switches to pair mode, a filled cell toggles its own digit on and off.
+ */
+function toggleHighlightForCell(cellState) {
+  if (highlightState === 0 && cellState.pencils.size === 2) {
+    highlightedDigit = null;
+    highlightState = 2;
+  } else if (cellState.value !== 0) {
+    if (highlightedDigit !== cellState.value) {
+      highlightedDigit = cellState.value;
+      highlightState = 1;
+    } else {
+      highlightedDigit = null;
+      highlightState = 0;
+    }
   }
 }
 
@@ -4031,6 +3920,22 @@ async function populateSelectors() {
  * Decompresses a puzzle string by converting letters a-z back into dots.
  * a = 1 dot, b = 2 dots, ... z = 26 dots.
  */
+/**
+ * Lays an 81-character puzzle string out for the textarea: groups of three,
+ * nine per line, a blank line between bands.
+ */
+function formatPuzzleStringForInput(raw) {
+  return raw
+    .match(/.{1,27}/g) // 1. Split into blocks of 27 characters (3 rows)
+    .map((block) =>
+      block
+        .match(/.{1,9}/g) // 2. Split each block into rows of 9 characters
+        .map((line) => line.match(/.{1,3}/g).join(" ")) // 3. Add space every 3 characters
+        .join("\n"),
+    ) // 4. Join the 3 rows together with a standard line break
+    .join("\n\n"); // 5. Join the larger blocks together with a double line break
+}
+
 function decompressPuzzleString(str) {
   if (!str) return "";
   // Check if string needs decompression (contains letters)
@@ -4043,14 +3948,7 @@ function decompressPuzzleString(str) {
 }
 
 async function loadSavedDailyPuzzle(date, level) {
-  let allSaves = [];
-  try {
-    const savedData = localStorage.getItem("sudokuSaves");
-    if (savedData) allSaves = JSON.parse(savedData);
-  } catch {
-    return false;
-  }
-  if (!Array.isArray(allSaves)) return false;
+  const allSaves = readAllSaves();
 
   const savedGame = allSaves.find(
     (save) => save.date === date && save.level === level && save.puzzle,
@@ -4080,13 +3978,7 @@ async function findAndLoadSelectedPuzzle() {
     let level = parseInt(levelSelect.value, 10);
 
     // CHECK FOR SAVED GAME
-    let allSaves = [];
-    try {
-      const savedData = localStorage.getItem("sudokuSaves");
-      if (savedData) allSaves = JSON.parse(savedData);
-    } catch (e) {}
-
-    const savedGame = allSaves.find(
+    const savedGame = readAllSaves().find(
       (s) => s.date === "unlimited" && s.level === level,
     );
 
@@ -4098,6 +3990,19 @@ async function findAndLoadSelectedPuzzle() {
       if (candidateModal) {
         candidateModal.classList.add("hidden");
       }
+
+      const resumeSavedUnlimited = () => {
+        puzzleStringInput.value = savedGame.puzzle;
+        loadPuzzle(savedGame.puzzle, {
+          date: "unlimited",
+          level: level,
+          score: 0,
+          puzzle: savedGame.puzzle,
+        });
+        if (typeof puzzleLevelEl !== "undefined" && puzzleLevelEl) {
+          puzzleLevelEl.textContent = t("ui_msg_139", level);
+        }
+      };
 
       // Show Resume Modal
       const modal = document.getElementById("resume-modal");
@@ -4122,17 +4027,7 @@ async function findAndLoadSelectedPuzzle() {
         modal.classList.add("flex");
       } else {
         // Fallback: If no modal, just load the saved game automatically.
-        puzzleStringInput.value = savedGame.puzzle;
-        const unlimitedData = {
-          date: "unlimited",
-          level: level,
-          score: 0,
-          puzzle: savedGame.puzzle,
-        };
-        loadPuzzle(savedGame.puzzle, unlimitedData);
-        if (typeof puzzleLevelEl !== "undefined" && puzzleLevelEl) {
-          puzzleLevelEl.textContent = t("ui_msg_139", level);
-        }
+        resumeSavedUnlimited();
         return;
       }
 
@@ -4142,19 +4037,7 @@ async function findAndLoadSelectedPuzzle() {
           e.stopPropagation(); // STOP PROPAGATION
           modal.classList.add("hidden");
           modal.classList.remove("flex");
-          puzzleStringInput.value = savedGame.puzzle;
-
-          const unlimitedData = {
-            date: "unlimited",
-            level: level,
-            score: 0,
-            puzzle: savedGame.puzzle,
-          };
-
-          loadPuzzle(savedGame.puzzle, unlimitedData);
-          if (typeof puzzleLevelEl !== "undefined" && puzzleLevelEl) {
-            puzzleLevelEl.textContent = t("ui_msg_139", level);
-          }
+          resumeSavedUnlimited();
         };
       }
 
@@ -4549,6 +4432,27 @@ function showCandidatePopup(row, col) {
   candidateModal.classList.add("flex");
 }
 
+function clearNonGivenCells() {
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      if (!boardState[r][c].isGiven) {
+        boardState[r][c].value = 0;
+        boardState[r][c].pencils.clear();
+      }
+    }
+  }
+}
+
+function countEmptyCells() {
+  let count = 0;
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      if (boardState[r][c].value === 0) count++;
+    }
+  }
+  return count;
+}
+
 function clearColorAnnotations() {
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -4650,16 +4554,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
 
   const rawInput = puzzleString.replace(/\s/g, "");
   if (rawInput.length === 81 && /^[0-9.]+$/.test(rawInput)) {
-    puzzleStringInput.value = rawInput
-      .match(/.{1,27}/g) // 1. Split into blocks of 27 characters (3 rows)
-      .map(
-        (block) =>
-          block
-            .match(/.{1,9}/g) // 2. Split each block into rows of 9 characters
-            .map((line) => line.match(/.{1,3}/g).join(" ")) // 3. Add space every 3 characters
-            .join("\n"), // 4. Join the 3 rows together with a standard line break
-      )
-      .join("\n\n"); // 5. Join the larger blocks together with a double line break
+    puzzleStringInput.value = formatPuzzleStringForInput(rawInput);
   }
 
   // Force textbox height recalculation to trigger the new vertical scrollbar
@@ -4790,15 +4685,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     }
   }
 
-  const boardForValidation = Array(9)
-    .fill(null)
-    .map(() => Array(9).fill(0));
-  for (let i = 0; i < 81; i++) {
-    const char = initialPuzzleString[i];
-    if (char >= "1" && char <= "9") {
-      boardForValidation[Math.floor(i / 9)][i % 9] = parseInt(char, 10);
-    }
-  }
+  const boardForValidation = puzzleStringToGrid(initialPuzzleString);
 
   let savedTime = 0;
   let wasSaveLoaded = false;
@@ -4955,14 +4842,7 @@ function clearUserBoard() {
   });
   activeTooltipElement = null;
 
-  for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-      if (!boardState[r][c].isGiven) {
-        boardState[r][c].value = 0;
-        boardState[r][c].pencils.clear();
-      }
-    }
-  }
+  clearNonGivenCells();
   techniqueResultCache.clear();
   lampTimestamps = {};
   previousLampColor = null;
@@ -4979,6 +4859,22 @@ function clearUserBoard() {
   evaluateBoardDifficulty();
 }
 // --- ADD Progress Save/Load Functions ---
+
+/**
+ * Reads the saved-games array out of localStorage.
+ * @returns {Array} The stored saves, or [] when missing/corrupt.
+ */
+function readAllSaves() {
+  try {
+    const savedData = localStorage.getItem("sudokuSaves");
+    if (!savedData) return [];
+    const parsed = JSON.parse(savedData);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error("Failed to parse saved Sudoku data:", e);
+    return [];
+  }
+}
 
 /**
  * Converts the current user progress on the board into a serializable array.
@@ -5073,17 +4969,7 @@ function savePuzzleProgress() {
     if (hasUserInput) break;
   }
 
-  let allSaves = [];
-  try {
-    const savedData = localStorage.getItem("sudokuSaves");
-    if (savedData) {
-      allSaves = JSON.parse(savedData);
-      if (!Array.isArray(allSaves)) allSaves = [];
-    }
-  } catch (e) {
-    console.error("Failed to parse saved Sudoku data:", e);
-    allSaves = [];
-  }
+  const allSaves = readAllSaves();
 
   // Find existing save for this specific Date + Level
   const existingSaveIndex = allSaves.findIndex(
@@ -5142,16 +5028,7 @@ function removeCurrentPuzzleSave() {
   if ((!selectedDate && selectedDate !== "unlimited") || isNaN(selectedLevel))
     return;
 
-  let allSaves = [];
-  try {
-    const savedData = localStorage.getItem("sudokuSaves");
-    if (savedData) {
-      allSaves = JSON.parse(savedData);
-      if (!Array.isArray(allSaves)) allSaves = [];
-    }
-  } catch (e) {
-    return;
-  }
+  const allSaves = readAllSaves();
 
   const existingSaveIndex = allSaves.findIndex(
     (s) => s.date === selectedDate && s.level === selectedLevel,
@@ -5168,14 +5045,7 @@ function removeCurrentPuzzleSave() {
  * @param {object} puzzleData - The metadata for the daily puzzle being loaded.
  */
 function applySavedProgress(puzzleData) {
-  let allSaves = [];
-  try {
-    const savedData = localStorage.getItem("sudokuSaves");
-    if (savedData) allSaves = JSON.parse(savedData);
-    else return 0;
-  } catch (e) {
-    return 0;
-  }
+  const allSaves = readAllSaves();
 
   const savedGameIndex = allSaves.findIndex(
     (s) => s.date === puzzleData.date && s.level === puzzleData.level,
@@ -5348,12 +5218,7 @@ async function solve() {
     return;
   }
 
-  let emptyCount = 0;
-  for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-      if (boardState[r][c].value === 0) emptyCount++;
-    }
-  }
+  const emptyCount = countEmptyCells();
 
   // If fully solved correctly: skip popups, do NOT lose star, and start from beginning
   if (emptyCount === 0 && isBoardIdenticalToSolution()) {
@@ -5364,14 +5229,7 @@ async function solve() {
     const backupPrevLamp = previousLampColor;
     const backupLastValid = lastValidLampColor;
 
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        if (!boardState[r][c].isGiven) {
-          boardState[r][c].value = 0;
-          boardState[r][c].pencils.clear();
-        }
-      }
-    }
+    clearNonGivenCells();
 
     if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
     const evalId = ++currentEvaluationId;
@@ -5635,13 +5493,7 @@ async function refreshSolverAfterLanguageChange() {
     vatSearchRunId++;
     vatSelectedHint = null;
 
-    const searchBtn = document.getElementById("vat-search-next-btn");
-    if (searchBtn) {
-      searchBtn.textContent = t("ui_msg_179");
-      searchBtn.disabled = true;
-      searchBtn.classList.remove("hidden");
-      searchBtn.classList.add("opacity-50", "cursor-wait");
-    }
+    markVatSearchButtonBusy(document.getElementById("vat-search-next-btn"));
   }
 
   try {
@@ -5710,14 +5562,7 @@ async function applyVatAndReevaluate() {
   }
 
   // 2. Clear current step drawings/colors
-  for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-      boardState[r][c].cellColor = null;
-      boardState[r][c].pencilColors.clear();
-      boardState[r][c].candCircles.clear();
-      boardState[r][c].candSlashes.clear();
-    }
-  }
+  clearColorAnnotations();
   drawnLines = [];
   drawingState = null;
 
@@ -5741,47 +5586,14 @@ async function applyVatAndReevaluate() {
 
 // Inside sudoku_ui.js
 
-async function buildViewAllTechniquesList(step) {
-  const list = document.getElementById("solver-summary-list");
-  list.innerHTML = ""; // Clear current summary
-
-  const board = step.board;
-  const pencils = step.pencils;
-  const activeTechniques = getActiveTechniques();
-  let allHints = [];
-
-  // 1. Gather all hints from techniques
-  for (const tech of activeTechniques) {
-    if (typeof tech.func === "function") {
-      // Pass true for the findAll parameter
-      const results = getBlossomWorkerKind(tech.func)
-        ? await runBlossomTechniqueInWorker(tech.func, board, pencils, true)
-        : tech.func(board, pencils, true);
-
-      if (Array.isArray(results) && results.length > 0) {
-        results.forEach((res) => {
-          allHints.push({ tech: tech, result: res });
-        });
-      } else if (results && results.change && !Array.isArray(results)) {
-        allHints.push({ tech: tech, result: results });
-      }
-    }
-  }
-
-  if (allHints.length === 0) {
-    const msg = document.createElement("div");
-    msg.className = "p-2 text-sm text-gray-500 italic text-center";
-    msg.textContent = t("ui_msg_177");
-    list.appendChild(msg);
-    return;
-  }
-
-  const isDark = document.documentElement.classList.contains("dark");
-
-  // 2. First Level Grouping: Group by Technique Name + Action String
+/**
+ * Groups Find-All results by technique and resulting action, so several chains
+ * that eliminate the same candidates collapse into one expandable row.
+ */
+function groupVatHints(hints) {
   const groupedHints = new Map();
 
-  allHints.forEach((item) => {
+  hints.forEach((item) => {
     // Format the action string to serve as part of the group key
     const actionStr = formatResultAction(item.result, " | ");
     const displayName = item.result.hint?.name || item.tech.name;
@@ -5799,7 +5611,15 @@ async function buildViewAllTechniquesList(step) {
     groupedHints.get(groupKey).items.push(item);
   });
 
-  // 3. Render the grouped Level 1 and Level 2 lists
+  return groupedHints;
+}
+
+/**
+ * Renders the two-level View All Techniques accordion into `list`.
+ * `getBoardSource` is read at click time and returns the [board, pencils] a
+ * sub-row restores before painting its own visuals.
+ */
+function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
   groupedHints.forEach((group) => {
     // --- LEVEL 1: Parent Group (Technique + Action) ---
     const parentRow = document.createElement("div");
@@ -5854,6 +5674,7 @@ async function buildViewAllTechniquesList(step) {
     subListContainer.style.marginTop = "4px";
     subListContainer.style.paddingLeft = "8px";
     subListContainer.style.borderLeft = `2px solid ${getThemeColor(group.tech.level)}`;
+
     group.items.forEach((subItem, index) => {
       const childRow = document.createElement("div");
       childRow.className =
@@ -5871,8 +5692,8 @@ async function buildViewAllTechniquesList(step) {
       }
 
       // Show the specific chain detail, fallback to variation number
-      childRow.textContent =
-        subItem.result.hint.detail || `Path variation ${index + 1}`;
+      const detail = subItem.result.hint?.detail || "";
+      childRow.textContent = detail || `Path variation ${index + 1}`;
 
       // Click on sub-item applies visuals
       childRow.addEventListener("click", (e) => {
@@ -5882,7 +5703,8 @@ async function buildViewAllTechniquesList(step) {
         updateSolverToggleButton();
 
         // Reset board visuals
-        boardState = cloneToBoardState(board, pencils);
+        const [srcBoard, srcPencils] = getBoardSource();
+        boardState = cloneToBoardState(srcBoard, srcPencils);
         drawnLines = [];
         clearAllColors();
 
@@ -5891,11 +5713,15 @@ async function buildViewAllTechniquesList(step) {
           subItem.result.applyVisuals();
         }
 
-        // Highlight active sub-row globally
-        Array.from(list.querySelectorAll(".active-sub-row")).forEach((c) => {
-          c.classList.remove("active-sub-row");
-          c.style.backgroundColor = "transparent";
-        });
+        // Highlight active sub-row globally. Rows may have been built in a
+        // detached container, so query the list that is actually on screen.
+        const activeList = document.getElementById("solver-summary-list");
+        Array.from(activeList.querySelectorAll(".active-sub-row")).forEach(
+          (c) => {
+            c.classList.remove("active-sub-row");
+            c.style.backgroundColor = "transparent";
+          },
+        );
 
         childRow.classList.add("active-sub-row");
         childRow.style.backgroundColor = isDark
@@ -5903,7 +5729,7 @@ async function buildViewAllTechniquesList(step) {
           : "rgba(0,0,0,0.08)";
 
         showMessage(
-          `${group.displayName}: ${subItem.result.hint.detail || ""} => ${group.actionStr}`,
+          `${group.displayName}: ${detail} => ${group.actionStr}`,
           "blue",
         );
         renderBoard();
@@ -5956,6 +5782,59 @@ async function buildViewAllTechniquesList(step) {
   });
 }
 
+/** Puts the VAT "search next level" button into its busy state. */
+function markVatSearchButtonBusy(searchBtn) {
+  if (!searchBtn) return;
+  searchBtn.textContent = t("ui_msg_179");
+  searchBtn.disabled = true;
+  searchBtn.classList.remove("hidden");
+  searchBtn.classList.add("opacity-50", "cursor-wait");
+}
+
+async function buildViewAllTechniquesList(step) {
+  const list = document.getElementById("solver-summary-list");
+  list.innerHTML = ""; // Clear current summary
+
+  const board = step.board;
+  const pencils = step.pencils;
+  const activeTechniques = getActiveTechniques();
+  let allHints = [];
+
+  // 1. Gather all hints from techniques
+  for (const tech of activeTechniques) {
+    if (typeof tech.func === "function") {
+      // Pass true for the findAll parameter
+      const results = getBlossomWorkerKind(tech.func)
+        ? await runBlossomTechniqueInWorker(tech.func, board, pencils, true)
+        : tech.func(board, pencils, true);
+
+      if (Array.isArray(results) && results.length > 0) {
+        results.forEach((res) => {
+          allHints.push({ tech: tech, result: res });
+        });
+      } else if (results && results.change && !Array.isArray(results)) {
+        allHints.push({ tech: tech, result: results });
+      }
+    }
+  }
+
+  if (allHints.length === 0) {
+    const msg = document.createElement("div");
+    msg.className = "p-2 text-sm text-gray-500 italic text-center";
+    msg.textContent = t("ui_msg_177");
+    list.appendChild(msg);
+    return;
+  }
+
+  const isDark = document.documentElement.classList.contains("dark");
+
+  // 2. First Level Grouping: Group by Technique Name + Action String
+  const groupedHints = groupVatHints(allHints);
+
+  // 3. Render the grouped Level 1 and Level 2 lists
+  renderVatHintGroups(list, groupedHints, isDark, () => [board, pencils]);
+}
+
 async function searchAndAppendVatLevel(
   levelToSearch,
   includeEliminate = false,
@@ -5992,13 +5871,7 @@ async function searchAndAppendVatLevel(
 
   // 3. UPDATE UI BEFORE LOCKING THREAD
   const searchBtn = document.getElementById("vat-search-next-btn");
-
-  if (searchBtn) {
-    searchBtn.textContent = t("ui_msg_179");
-    searchBtn.disabled = true;
-    searchBtn.classList.remove("hidden");
-    searchBtn.classList.add("opacity-50", "cursor-wait");
-  }
+  markVatSearchButtonBusy(searchBtn);
 
   const vatTextEl = document.getElementById("vat-mode-text");
   if (vatTextEl) {
@@ -6074,179 +5947,13 @@ async function searchAndAppendVatLevel(
     if (noMsg) noMsg.remove();
 
     // --- 1. First Level Grouping: Group by Technique Name + Action String ---
-    const groupedHints = new Map();
-
-    newHints.forEach((item) => {
-      const actionStr = formatResultAction(item.result, " | ");
-      const displayName = item.result.hint?.name || item.tech.name;
-
-      const groupKey = `${item.tech.id || item.tech.name}::${displayName}::${actionStr}`;
-
-      if (!groupedHints.has(groupKey)) {
-        groupedHints.set(groupKey, {
-          tech: item.tech,
-          displayName,
-          actionStr: actionStr,
-          items: [],
-        });
-      }
-      groupedHints.get(groupKey).items.push(item);
-    });
+    const groupedHints = groupVatHints(newHints);
 
     // --- 2. Render the grouped Level 1 and Level 2 lists ---
-    groupedHints.forEach((group) => {
-      // LEVEL 1: Parent Group (Technique + Action)
-      const parentRow = document.createElement("div");
-      parentRow.className =
-        "hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
-      parentRow.style.display = "flex";
-      parentRow.style.flexDirection = "column";
-      parentRow.style.gap = "2px";
-      parentRow.style.padding = "6px";
-      parentRow.style.borderBottom = isDark
-        ? "1px solid #374151"
-        : "1px solid #e5e7eb";
-      parentRow.style.cursor = "pointer";
-
-      const headerDiv = document.createElement("div");
-      headerDiv.style.display = "flex";
-      headerDiv.style.justifyContent = "space-between";
-      headerDiv.style.alignItems = "center";
-
-      const techInfoDiv = document.createElement("div");
-      const techNameEl = document.createElement("div");
-      techNameEl.style.color = getThemeColor(group.tech.level);
-      techNameEl.style.fontWeight = "bold";
-      techNameEl.style.fontSize = "12px";
-      techNameEl.textContent = group.displayName;
-
-      const actionEl = document.createElement("div");
-      actionEl.style.fontSize = "11px";
-      actionEl.style.opacity = "0.9";
-      actionEl.textContent = group.actionStr;
-
-      techInfoDiv.appendChild(techNameEl);
-      techInfoDiv.appendChild(actionEl);
-
-      const toggleIcon = document.createElement("div");
-      toggleIcon.style.fontSize = "10px";
-      toggleIcon.style.opacity = "0.6";
-      toggleIcon.textContent = `▼ (${group.items.length})`;
-
-      headerDiv.appendChild(techInfoDiv);
-      headerDiv.appendChild(toggleIcon);
-      parentRow.appendChild(headerDiv);
-
-      // LEVEL 2: Sub-list Container (Specific Chains/Paths)
-      const subListContainer = document.createElement("div");
-      subListContainer.style.display = "none";
-      subListContainer.style.flexDirection = "column";
-      subListContainer.style.gap = "4px";
-      subListContainer.style.marginTop = "4px";
-      subListContainer.style.paddingLeft = "8px";
-      subListContainer.style.borderLeft = `2px solid ${getThemeColor(group.tech.level)}`;
-
-      group.items.forEach((subItem, index) => {
-        const childRow = document.createElement("div");
-        childRow.className =
-          "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors";
-        childRow.style.fontSize = "10px";
-        childRow.style.opacity = "0.85";
-        childRow.style.padding = "4px";
-        childRow.style.borderRadius = "3px";
-        childRow.style.cursor = "pointer";
-
-        // Hide items beyond the first 3
-        if (index >= 3) {
-          childRow.style.display = "none";
-          childRow.classList.add("vat-extra-item");
-        }
-
-        childRow.textContent =
-          (subItem.result.hint && subItem.result.hint.detail) ||
-          `Path variation ${index + 1}`;
-
-        childRow.addEventListener("click", (e) => {
-          e.stopPropagation();
-
-          vatSelectedHint = subItem.result;
-          updateSolverToggleButton();
-          // Note: Use VAT specific board states here
-          boardState = cloneToBoardState(vatCurrentBoard, vatCurrentPencils);
-          drawnLines = [];
-          clearAllColors();
-
-          if (subItem.result.applyVisuals) {
-            subItem.result.applyVisuals();
-          }
-
-          const activeList = document.getElementById("solver-summary-list");
-          Array.from(activeList.querySelectorAll(".active-sub-row")).forEach(
-            (c) => {
-              c.classList.remove("active-sub-row");
-              c.style.backgroundColor = "transparent";
-            },
-          );
-
-          childRow.classList.add("active-sub-row");
-          childRow.style.backgroundColor = isDark
-            ? "rgba(255,255,255,0.15)"
-            : "rgba(0,0,0,0.08)";
-
-          const detail = subItem.result.hint
-            ? subItem.result.hint.detail || ""
-            : "";
-          showMessage(
-            `${group.displayName}: ${detail} => ${group.actionStr}`,
-            "blue",
-          );
-          renderBoard();
-          renderLines();
-        });
-
-        subListContainer.appendChild(childRow);
-      });
-
-      // Add Show More button if there are more than 3 items
-      if (group.items.length > 3) {
-        const showMoreBtn = document.createElement("div");
-        showMoreBtn.className =
-          "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-blue-600 dark:text-blue-400 font-semibold text-center";
-        showMoreBtn.style.fontSize = "10px";
-        showMoreBtn.style.padding = "4px";
-        showMoreBtn.style.borderRadius = "3px";
-        showMoreBtn.style.cursor = "pointer";
-        showMoreBtn.textContent = t("ui_msg_178", group.items.length - 3);
-
-        showMoreBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const extraItems =
-            subListContainer.querySelectorAll(".vat-extra-item");
-          extraItems.forEach((item) => {
-            item.style.display = "block";
-          });
-          showMoreBtn.remove(); // Remove the button after expanding
-        });
-
-        subListContainer.appendChild(showMoreBtn);
-      }
-
-      parentRow.appendChild(subListContainer);
-
-      parentRow.addEventListener("click", () => {
-        const isHidden = subListContainer.style.display === "none";
-        subListContainer.style.display = isHidden ? "flex" : "none";
-        toggleIcon.textContent = isHidden
-          ? `▲ (${group.items.length})`
-          : `▼ (${group.items.length})`;
-
-        if (isHidden && group.items.length === 1) {
-          subListContainer.firstChild.click();
-        }
-      });
-
-      list.appendChild(parentRow);
-    });
+    renderVatHintGroups(list, groupedHints, isDark, () => [
+      vatCurrentBoard,
+      vatCurrentPencils,
+    ]);
   }
 
   // Update the UI Button for the next level search
@@ -6323,6 +6030,20 @@ function buildSolverTimeline() {
     segment.style.backgroundColor = bgColor;
     timeline.appendChild(segment);
   });
+}
+
+/**
+ * Writes the score readout, preferring the puzzle's published score, then the
+ * locally evaluated one, and falling back to `fallback` when neither exists.
+ */
+function setPuzzleScoreText(suffix, fallback) {
+  if (currentPuzzleScore > 0) {
+    puzzleScoreEl.textContent = `~${currentPuzzleScore}${suffix}`;
+  } else if (customScoreEvaluated > 0) {
+    puzzleScoreEl.textContent = `~${customScoreEvaluated}${suffix}`;
+  } else {
+    puzzleScoreEl.textContent = fallback;
+  }
 }
 
 function renderSolverStep(index) {
@@ -6453,23 +6174,11 @@ function renderSolverStep(index) {
     }
     msgColor = "green";
 
-    if (currentPuzzleScore > 0) {
-      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore}${star})`;
-    } else if (customScoreEvaluated > 0) {
-      puzzleScoreEl.textContent = `~${customScoreEvaluated} (${lastValidScore}${star})`;
-    } else {
-      puzzleScoreEl.textContent = `${star}`;
-    }
+    setPuzzleScoreText(` (${lastValidScore}${star})`, `${star}`);
   } else if (step.type === "done") {
     msg = t("ui_msg_185");
     msgColor = "green";
-    if (currentPuzzleScore > 0) {
-      puzzleScoreEl.textContent = `~${currentPuzzleScore} (0${star})`;
-    } else if (customScoreEvaluated > 0) {
-      puzzleScoreEl.textContent = `~${customScoreEvaluated} (0${star})`;
-    } else {
-      puzzleScoreEl.textContent = `(0${star})`;
-    }
+    setPuzzleScoreText(` (0${star})`, `(0${star})`);
   } else if (step.type === "bruteforce") {
     msg = t("ui_msg_186");
     msgColor = "red";
@@ -6477,13 +6186,7 @@ function renderSolverStep(index) {
     const h = step.result.hint;
 
     const displayScore = step.cumulativeScore ?? lastValidScore;
-    if (currentPuzzleScore > 0) {
-      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore - displayScore}${star})`;
-    } else if (customScoreEvaluated > 0) {
-      puzzleScoreEl.textContent = `~${customScoreEvaluated} (${lastValidScore - displayScore}${star})`;
-    } else {
-      puzzleScoreEl.textContent = `${star}`;
-    }
+    setPuzzleScoreText(` (${lastValidScore - displayScore}${star})`, `${star}`);
 
     const actionStr = formatResultAction(step.result);
     msg = `${h.name}: ${h.detail || ""} => ${actionStr}`;
@@ -6703,21 +6406,7 @@ function buildSolverSummary() {
 }
 
 function cloneToBoardState(vBoard, vPencils) {
-  const newState = Array(9)
-    .fill(null)
-    .map(() =>
-      Array(9)
-        .fill(null)
-        .map(() => ({
-          value: 0,
-          isGiven: false,
-          pencils: new Set(),
-          cellColor: null,
-          pencilColors: new Map(),
-          candCircles: new Map(),
-          candSlashes: new Map(),
-        })),
-    );
+  const newState = createEmptyBoardState();
 
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -7190,20 +6879,8 @@ function rebuildHistorySnapshot(targetIndex) {
 function getHistoryEntryDescription(entry) {
   let actionDesc = t("ui_msg_191");
   if (entry.boardChanges?.length) {
-    const createEmptyBoard = () =>
-      Array.from({ length: 9 }, () =>
-        Array.from({ length: 9 }, () => ({
-          value: 0,
-          isGiven: false,
-          pencils: new Set(),
-          cellColor: null,
-          pencilColors: new Map(),
-          candCircles: new Map(),
-          candSlashes: new Map(),
-        })),
-      );
-    const before = createEmptyBoard();
-    const after = createEmptyBoard();
+    const before = createEmptyBoardState();
+    const after = createEmptyBoardState();
     for (const change of entry.boardChanges) {
       before[change.r][change.c] = change.before;
       after[change.r][change.c] = change.after;
@@ -7453,27 +7130,28 @@ function hasLogicChanged(stateA, stateB) {
   return false;
 }
 
-function undo() {
-  if (historyIndex <= 0) return;
-
-  const currentEntry = history[historyIndex];
-  const finalDesc = getHistoryEntryDescription(currentEntry);
+/**
+ * Walks one entry backward ("undo") or forward ("redo") through the history.
+ * Undo replays the entry it is leaving; redo replays the entry it moves onto.
+ */
+function applyHistoryStep(direction, messageKey) {
+  const isUndo = direction === "undo";
+  const entry = history[isUndo ? historyIndex : historyIndex + 1];
+  const finalDesc = getHistoryEntryDescription(entry);
 
   if (!historyCurrentSnapshot) {
     historyCurrentSnapshot = rebuildHistorySnapshot(historyIndex);
   }
 
-  applyHistoryEntryToState({ boardState, drawnLines }, currentEntry, "undo");
-  applyHistoryEntryToState(historyCurrentSnapshot, currentEntry, "undo");
+  applyHistoryEntryToState({ boardState, drawnLines }, entry, direction);
+  applyHistoryEntryToState(historyCurrentSnapshot, entry, direction);
 
-  // Move backward in history.
-  historyIndex--;
-
-  const historyEntry = history[historyIndex];
+  // Move through history.
+  historyIndex += isUndo ? -1 : 1;
 
   // Restore the score, lamp, hint, and evaluation metadata
   // stored in this history entry.
-  restoreHistoryEvaluationState(historyEntry);
+  restoreHistoryEvaluationState(history[historyIndex]);
 
   // Render and validate only.
   // The stored evaluation result must be displayed without reevaluation.
@@ -7482,39 +7160,17 @@ function undo() {
   updateUndoRedoButtons();
   schedulePuzzleProgressSave();
 
-  showMessage(t("ui_msg_192", finalDesc), "gray");
+  showMessage(t(messageKey, finalDesc), "gray");
+}
+
+function undo() {
+  if (historyIndex <= 0) return;
+  applyHistoryStep("undo", "ui_msg_192");
 }
 
 function redo() {
   if (historyIndex >= history.length - 1) return;
-
-  const nextEntry = history[historyIndex + 1];
-  const finalDesc = getHistoryEntryDescription(nextEntry);
-
-  if (!historyCurrentSnapshot) {
-    historyCurrentSnapshot = rebuildHistorySnapshot(historyIndex);
-  }
-
-  applyHistoryEntryToState({ boardState, drawnLines }, nextEntry, "redo");
-  applyHistoryEntryToState(historyCurrentSnapshot, nextEntry, "redo");
-
-  // Move forward in history.
-  historyIndex++;
-
-  const historyEntry = history[historyIndex];
-
-  // Restore the score, lamp, hint, and evaluation metadata
-  // stored in this history entry.
-  restoreHistoryEvaluationState(historyEntry);
-
-  // Render and validate only.
-  // The stored evaluation result must be displayed without reevaluation.
-  onBoardUpdated(true);
-
-  updateUndoRedoButtons();
-  schedulePuzzleProgressSave();
-
-  showMessage(t("ui_msg_194", finalDesc), "gray");
+  applyHistoryStep("redo", "ui_msg_194");
 }
 
 function updateUndoRedoButtons() {
@@ -7624,15 +7280,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     return;
   }
 
-  const initialBoardForValidation = Array(9)
-    .fill(null)
-    .map(() => Array(9).fill(0));
-  for (let i = 0; i < 81; i++) {
-    const char = initialPuzzleString[i];
-    if (char !== "." && char !== "0") {
-      initialBoardForValidation[Math.floor(i / 9)][i % 9] = parseInt(char);
-    }
-  }
+  const initialBoardForValidation = puzzleStringToGrid(initialPuzzleString);
   if (!checkPuzzleUniqueness(initialBoardForValidation).isValid) {
     updateLamp("gray");
     syncCurrentHistoryEvaluationState(myEvaluationId);
@@ -7662,20 +7310,13 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   );
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
-      if (
-        virtualBoard[r][c] !== 0 &&
-        virtualBoard[r][c] !== solutionBoard[r][c]
-      ) {
-        updateLamp("black");
-        vagueHintMessage = "";
-        syncCurrentHistoryEvaluationState(myEvaluationId);
-        return;
-      }
-      if (
-        virtualBoard[r][c] === 0 &&
-        startingPencils[r][c].size > 0 &&
-        !startingPencils[r][c].has(solutionBoard[r][c])
-      ) {
+      // Wrong digit entered, or the solution's candidate pencilled away.
+      const contradicted =
+        virtualBoard[r][c] !== 0
+          ? virtualBoard[r][c] !== solutionBoard[r][c]
+          : startingPencils[r][c].size > 0 &&
+            !startingPencils[r][c].has(solutionBoard[r][c]);
+      if (contradicted) {
         updateLamp("black");
         vagueHintMessage = "";
         syncCurrentHistoryEvaluationState(myEvaluationId);
@@ -7701,13 +7342,10 @@ async function runBoardDifficultyEvaluation(opts = {}) {
       isCustomDifficultyEvaluated = true;
     }
 
-    if (currentPuzzleScore > 0) {
-      puzzleScoreEl.textContent = `~${currentPuzzleScore} (${lastValidScore}${star})`;
-    } else if (customScoreEvaluated > 0) {
-      puzzleScoreEl.textContent = `~${customScoreEvaluated} (${lastValidScore}${star})`;
-    } else {
-      puzzleScoreEl.textContent = `(${lastValidScore}${star})`;
-    }
+    setPuzzleScoreText(
+      ` (${lastValidScore}${star})`,
+      `(${lastValidScore}${star})`,
+    );
 
     syncCurrentHistoryEvaluationState(myEvaluationId);
     return;
@@ -8696,23 +8334,11 @@ function openPreferencesModal() {
     });
     defaultTechs.forEach((t) => {
       if (!currentOrder.find((c) => c.id === t.id)) {
-        currentOrder.push({
-          ...t,
-          enabled: t.defaultEnabled,
-          origLevel: t.level,
-          origScore: t.score,
-          currentScore: t.score,
-        });
+        currentOrder.push(defaultPrefRow(t));
       }
     });
   } else {
-    currentOrder = defaultTechs.map((t) => ({
-      ...t,
-      enabled: t.defaultEnabled,
-      origLevel: t.level,
-      origScore: t.score,
-      currentScore: t.score,
-    }));
+    currentOrder = defaultTechs.map(defaultPrefRow);
   }
 
   // Force Mandatory Techniques to the top of the UI list
@@ -8856,6 +8482,17 @@ function openPreferencesModal() {
 
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+}
+
+/** A preferences row for a technique the user has never customized. */
+function defaultPrefRow(tech) {
+  return {
+    ...tech,
+    enabled: tech.defaultEnabled,
+    origLevel: tech.level,
+    origScore: tech.score,
+    currentScore: tech.score,
+  };
 }
 
 function getDragAfterElement(container, y) {
@@ -9101,6 +8738,28 @@ function generateAsciiGrid() {
 }
 
 // --- Image Grid Generation ---
+/**
+ * Writes text to the clipboard and toasts either the caller's success message
+ * or the shared failure message.
+ */
+function copyTextToClipboard(text, successKey) {
+  navigator.clipboard
+    .writeText(text)
+    .then(() => {
+      showMessage(t(successKey), "green");
+    })
+    .catch((err) => {
+      console.error("Copy failed:", err);
+      showMessage(t("ui_msg_70"), "red");
+    });
+}
+
+/** Ctrl+C copies the grid as text, Ctrl+Shift+C as an image. */
+function copyBoardShortcut(asImage) {
+  if (asImage) copyGridAsImage();
+  else copyTextToClipboard(generateAsciiGrid(), "ui_msg_110");
+}
+
 function copyGridAsImage() {
   const size = 900; // High-res 900x900 output
   const cellSize = size / 9;
