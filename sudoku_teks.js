@@ -13099,7 +13099,6 @@ const techniques = {
 
   bivalueOddagon: (board, pencils, findAll = false) => {
     const results = [];
-    const MAX_LOOPS = 100;
 
     const getHouse = (cell, type) => {
       const r = Math.floor(cell / 9);
@@ -13280,7 +13279,6 @@ const techniques = {
         const comparer = (1 << (d1 - 1)) | (1 << (d2 - 1));
         const resultLoops = [];
         const seenLoopKeys = new Set();
-        let loopsCount = 0;
 
         const dfs = (
           startCell,
@@ -13291,8 +13289,6 @@ const techniques = {
           extraCells,
           extraDigitsMask,
         ) => {
-          if (loopsCount >= MAX_LOOPS) return;
-
           for (let houseType = 0; houseType < 3; houseType++) {
             const nextHouse = getHouse(previousCell, houseType);
             if (nextHouse === previousHouse) continue;
@@ -13346,7 +13342,6 @@ const techniques = {
                     .join(",");
                   if (!seenLoopKeys.has(sortedLoop)) {
                     seenLoopKeys.add(sortedLoop);
-                    loopsCount++;
                     resultLoops.push({
                       loop: [...loopArr],
                       extraCells: [...extraCells],
