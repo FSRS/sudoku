@@ -668,13 +668,17 @@ html.dark .offline-cache-dot {
   flex-direction: column;
 }
 
-/* Force the list container to shrink and scroll */
-#technique-list-container {
+/* Scroll all preference fields together while keeping the actions visible. */
+#preferences-scroll-container {
   flex: 1 1 0%;
   min-height: 0;
   overflow-y: auto;
-  margin-bottom: 1rem;
+  overscroll-behavior: contain;
   padding-right: 0.5rem;
+}
+
+#technique-list-container {
+  margin-bottom: 1rem;
 }
 
 /* Make the score input boxes more round */

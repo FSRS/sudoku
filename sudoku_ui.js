@@ -7659,7 +7659,20 @@ const getUniquenessTechniques = () => [
   t("ui_msg_345"),
   t("ui_msg_285"),
 ];
-const getMandatoryTechniques = () => [t("ui_msg_195"), t("ui_msg_210")];
+const getMandatoryTechniques = () => [t("ui_msg_210"), t("ui_msg_195")];
+
+function orderMandatoryTechniquesFirst(techniques) {
+  const mandatoryNames = getMandatoryTechniques();
+  const mandatorySet = new Set(mandatoryNames);
+  const mandatoryTechniques = mandatoryNames
+    .map((name) => techniques.find((technique) => technique.name === name))
+    .filter(Boolean);
+
+  return [
+    ...mandatoryTechniques,
+    ...techniques.filter((technique) => !mandatorySet.has(technique.name)),
+  ];
+}
 const getTechniqueHierarchies = () => [
   [t("ui_msg_211"), t("ui_msg_212"), t("ui_msg_213")],
   [t("ui_msg_214"), t("ui_msg_215"), t("ui_msg_213")],
@@ -8125,7 +8138,9 @@ function getActiveTechniques() {
   const savedPrefs = JSON.parse(localStorage.getItem("sudokuTechniquePrefs"));
 
   if (!savedPrefs) {
-    return defaults.filter((t) => t.defaultEnabled);
+    return orderMandatoryTechniquesFirst(
+      defaults.filter((t) => t.defaultEnabled),
+    );
   }
 
   const active = [];
@@ -8149,7 +8164,7 @@ function getActiveTechniques() {
       if (t.defaultEnabled) active.push(t);
     }
   });
-  return active;
+  return orderMandatoryTechniquesFirst(active);
 }
 
 // Scans the DOM list top-to-bottom to calculate which level section an item is currently under
@@ -8249,8 +8264,17 @@ function updateListLabels() {
   }
 }
 
+function getTechniqueListScrollTop(scrollContainer, listContainer) {
+  const scrollRect = scrollContainer.getBoundingClientRect();
+  const listRect = listContainer.getBoundingClientRect();
+  return listRect.top - scrollRect.top + scrollContainer.scrollTop;
+}
+
 function openPreferencesModal() {
   const modal = document.getElementById("preferences-modal");
+  const scrollContainer = document.getElementById(
+    "preferences-scroll-container",
+  );
   const listContainer = document.getElementById("technique-list-container");
   listContainer.innerHTML = "";
   ensureDifficultyEnginePreference();
@@ -8259,17 +8283,19 @@ function openPreferencesModal() {
     isExperimentalMode;
 
   // Native overscroll handles bounce and momentum perfectly
-  listContainer.style.overscrollBehavior = "contain";
-  listContainer.style.scrollBehavior = "auto";
+  scrollContainer.scrollTop = 0;
+  scrollContainer.style.scrollBehavior = "auto";
 
   // --- Edge Auto-Scroll during Drag & Drop ---
   let dragScrollAnimation = null;
   let currentDragY = 0;
+  let dragMinScrollTop = 0;
+  let techniqueListScrollTop = 0;
 
   const startDragScroll = () => {
     if (dragScrollAnimation) return;
     const scrollStep = () => {
-      const rect = listContainer.getBoundingClientRect();
+      const rect = scrollContainer.getBoundingClientRect();
       const edgeSize = 45; // Height of the auto-scroll trigger zone (px)
 
       // Decrease this number to make the maximum scroll speed slower
@@ -8290,8 +8316,21 @@ function openPreferencesModal() {
         }
       }
 
+      // Once techniques fill the scroll region, keep the settings hidden for
+      // the remainder of this drag—even if they were visible at drag start.
+      if (scrollContainer.scrollTop >= techniqueListScrollTop) {
+        dragMinScrollTop = techniqueListScrollTop;
+      }
+
+      if (scrollContainer.scrollTop < dragMinScrollTop) {
+        scrollContainer.scrollTop = dragMinScrollTop;
+      }
+
       if (scrollAmount !== 0) {
-        listContainer.scrollTop += scrollAmount;
+        scrollContainer.scrollTop = Math.max(
+          dragMinScrollTop,
+          scrollContainer.scrollTop + scrollAmount,
+        );
 
         // Dynamically re-evaluate item placement as the list scrolls
         const afterElement = getDragAfterElement(listContainer, currentDragY);
@@ -8341,15 +8380,8 @@ function openPreferencesModal() {
     currentOrder = defaultTechs.map(defaultPrefRow);
   }
 
-  // Force Mandatory Techniques to the top of the UI list
-  const topOrder = [];
-  const restOrder = [];
-  for (const techObj of currentOrder) {
-    if (techObj.name === t("ui_msg_210")) topOrder[0] = techObj;
-    else if (techObj.name === t("ui_msg_195")) topOrder[1] = techObj;
-    else restOrder.push(techObj);
-  }
-  currentOrder = [...topOrder.filter(Boolean), ...restOrder];
+  // Mandatory techniques form the fixed boundary at the top of the list.
+  currentOrder = orderMandatoryTechniquesFirst(currentOrder);
 
   // 1. Build Static Level Headers
   const headers = [];
@@ -8447,6 +8479,14 @@ function openPreferencesModal() {
     item.addEventListener("dragstart", (e) => {
       item.classList.add("dragging");
       e.dataTransfer.effectAllowed = "move";
+      techniqueListScrollTop = getTechniqueListScrollTop(
+        scrollContainer,
+        listContainer,
+      );
+      dragMinScrollTop = Math.min(
+        scrollContainer.scrollTop,
+        techniqueListScrollTop,
+      );
       startDragScroll(); // <-- Start auto-scrolling engine
     });
     item.addEventListener("dragend", () => {
@@ -8497,11 +8537,23 @@ function defaultPrefRow(tech) {
 
 function getDragAfterElement(container, y) {
   // Allow evaluating headers and draggable items to drop correctly in between segments
-  const draggableElements = [
+  let draggableElements = [
     ...container.querySelectorAll(
       ".sortable-item:not(.dragging):not(.locked-item), .sortable-level-header",
     ),
   ];
+
+  // Nothing may be inserted before the two mandatory techniques.
+  const lockedItems = [...container.querySelectorAll(".locked-item")];
+  const lastLockedItem = lockedItems.at(-1);
+  if (lastLockedItem) {
+    const children = [...container.children];
+    const boundaryIndex = children.indexOf(lastLockedItem);
+    draggableElements = draggableElements.filter(
+      (element) => children.indexOf(element) > boundaryIndex,
+    );
+  }
+
   return draggableElements.reduce(
     (closest, child) => {
       const box = child.getBoundingClientRect();
@@ -8525,27 +8577,29 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("pref-save-btn")
     .addEventListener("click", async () => {
       const items = document.querySelectorAll(".sortable-item");
-      const prefs = Array.from(items).map((item) => {
-        const defaultScore = parseInt(
-          item.querySelector(".tech-score-input").dataset.defaultScore,
-          10,
-        );
-        const parsedScore = parseInt(
-          item.querySelector(".tech-score-input").value,
-          10,
-        );
-        const score =
-          Number.isInteger(parsedScore) && parsedScore >= 0
-            ? parsedScore
-            : defaultScore;
-        return {
-          id: item.dataset.techId,
-          name: item.dataset.name,
-          enabled: item.querySelector("input[type='checkbox']").checked,
-          level: parseInt(item.dataset.currentLevel, 10),
-          score: score,
-        };
-      });
+      const prefs = orderMandatoryTechniquesFirst(
+        Array.from(items).map((item) => {
+          const defaultScore = parseInt(
+            item.querySelector(".tech-score-input").dataset.defaultScore,
+            10,
+          );
+          const parsedScore = parseInt(
+            item.querySelector(".tech-score-input").value,
+            10,
+          );
+          const score =
+            Number.isInteger(parsedScore) && parsedScore >= 0
+              ? parsedScore
+              : defaultScore;
+          return {
+            id: item.dataset.techId,
+            name: item.dataset.name,
+            enabled: item.querySelector("input[type='checkbox']").checked,
+            level: parseInt(item.dataset.currentLevel, 10),
+            score: score,
+          };
+        }),
+      );
 
       // 1. Save the exact dragged order and toggle states to local cache
       localStorage.setItem("sudokuTechniquePrefs", JSON.stringify(prefs));
