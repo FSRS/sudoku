@@ -54,6 +54,7 @@ const difficultyEngineLabels = {
 };
 
 let vagueHintMessage = "";
+let puzzleLevelLabel = null;
 let currentPuzzleScore = 0;
 let lastValidScore = 0;
 let isClearStoragePending = false;
@@ -278,6 +279,49 @@ function getDifficultyRatingText(puzzle, onReady) {
     );
   }
   return pendingText;
+}
+
+/**
+ * Stores what the bottom-left level label should say and paints it. Solver
+ * Mode replaces the descriptive suffix ("ELITE", "Unlimited") with the rating
+ * engine's number, and the pending text is localized, so the label is rebuilt
+ * from these inputs on every mode, rating and language change.
+ * @param {?{kind: string, level: number, star: string}} label
+ */
+function setPuzzleLevelLabel(label) {
+  puzzleLevelLabel = label;
+  renderPuzzleLevelLabel();
+}
+
+function renderPuzzleLevelLabel() {
+  if (!puzzleLevelLabel) {
+    puzzleLevelEl.textContent = "";
+    return;
+  }
+
+  const { kind, level, star } = puzzleLevelLabel;
+
+  if (isSolverMode && initialPuzzleString) {
+    const rating = getDifficultyRatingText(
+      initialPuzzleString,
+      renderPuzzleLevelLabel,
+    );
+    // An engine that cannot rate this puzzle leaves the normal label alone.
+    if (rating) {
+      puzzleLevelEl.textContent = `Lv. ${level}${star}${rating}`;
+      return;
+    }
+  }
+
+  if (kind === "daily") {
+    puzzleLevelEl.textContent = `Lv. ${level} (${difficultyWords[level]})`;
+  } else if (kind === "unlimited") {
+    puzzleLevelEl.textContent = t("ui_msg_139", level);
+  } else if (kind === "bruteforce") {
+    puzzleLevelEl.textContent = t("ui_msg_201", star);
+  } else {
+    puzzleLevelEl.textContent = t("ui_msg_200", level, star);
+  }
 }
 
 function ensureDifficultyEnginePreference() {
@@ -4000,7 +4044,7 @@ async function findAndLoadSelectedPuzzle() {
           puzzle: savedGame.puzzle,
         });
         if (typeof puzzleLevelEl !== "undefined" && puzzleLevelEl) {
-          puzzleLevelEl.textContent = t("ui_msg_139", level);
+          setPuzzleLevelLabel({ kind: "unlimited", level, star: "" });
         }
       };
 
@@ -4117,7 +4161,7 @@ async function findAndLoadSelectedPuzzle() {
     initBoardState();
     onBoardUpdated();
     showMessage(t("ui_msg_142"), "red");
-    puzzleLevelEl.textContent = "";
+    setPuzzleLevelLabel(null);
     puzzleScoreEl.textContent = "";
     puzzleTimerEl.textContent = "";
     stopTimer();
@@ -4297,7 +4341,7 @@ async function fetchAndLoadUnlimitedPuzzle(level) {
 
     loadPuzzle(puzzleStr, unlimitedData);
 
-    puzzleLevelEl.textContent = t("ui_msg_139", level);
+    setPuzzleLevelLabel({ kind: "unlimited", level, star: "" });
     puzzleScoreEl.textContent = "";
     showMessage(t("ui_msg_146"), "green");
   } catch (err) {
@@ -4746,7 +4790,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     currentPuzzleScore = 0;
 
     if (!isUnlimited) {
-      puzzleLevelEl.textContent = `Lv. ${puzzleData.level} (${difficultyWords[puzzleData.level]})`;
+      setPuzzleLevelLabel({ kind: "daily", level: puzzleData.level, star: "" });
     }
 
     puzzleScoreEl.textContent =
@@ -4755,7 +4799,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     levelSelect.value = puzzleData.level; // Keep dropdown synced
   } else {
     currentPuzzleScore = 0;
-    puzzleLevelEl.textContent = "";
+    setPuzzleLevelLabel(null);
     puzzleScoreEl.textContent = "";
     dateSelect.value = "";
     levelSelect.value = "";
@@ -5187,6 +5231,7 @@ function enterSolverModeUI() {
 
   isSolverMode = true;
   updateSolverToggleButton();
+  renderPuzzleLevelLabel();
 
   document.getElementById("action-buttons-container").classList.add("hidden");
   document.getElementById("solver-bar-container").classList.remove("hidden");
@@ -5326,6 +5371,7 @@ function exitSolverMode() {
   isViewAllTechniquesMode = false;
   isSolverMode = false;
   vatSelectedHint = null;
+  renderPuzzleLevelLabel();
 
   document
     .getElementById("action-buttons-container")
@@ -6144,37 +6190,15 @@ function renderSolverStep(index) {
     const isBruteForce =
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
-    let difficultyRatingText = "";
-    if (typeof initialPuzzleString !== "undefined" && initialPuzzleString) {
-      difficultyRatingText = getDifficultyRatingText(
-        initialPuzzleString,
-        () => {
-          if (
-            isSolverMode &&
-            currentSolverStep === index &&
-            solverSteps[index]?.type === "summary"
-          ) {
-            renderSolverStep(index);
-          }
-        },
-      );
-    }
-
     if (isBruteForce) {
-      msg = t("ui_msg_183", star, difficultyRatingText, star);
+      msg = t("ui_msg_183", star, star);
     } else {
-      msg = t(
-        "ui_msg_184",
-        step.level,
-        star,
-        difficultyRatingText,
-        step.score,
-        star,
-      );
+      msg = t("ui_msg_184", step.level, star, step.score, star);
     }
     msgColor = "green";
 
-    setPuzzleScoreText(` (${lastValidScore}${star})`, `${star}`);
+    // Level 12 records no score, and a lone star would annotate nothing.
+    setPuzzleScoreText(` (${lastValidScore}${star})`, "");
   } else if (step.type === "done") {
     msg = t("ui_msg_185");
     msgColor = "green";
@@ -6186,7 +6210,7 @@ function renderSolverStep(index) {
     const h = step.result.hint;
 
     const displayScore = step.cumulativeScore ?? lastValidScore;
-    setPuzzleScoreText(` (${lastValidScore - displayScore}${star})`, `${star}`);
+    setPuzzleScoreText(` (${lastValidScore - displayScore}${star})`, "");
 
     const actionStr = formatResultAction(step.result);
     msg = `${h.name}: ${h.detail || ""} => ${actionStr}`;
@@ -7335,7 +7359,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     // so capture the browser score here.
     if (!isCustomDifficultyEvaluated) {
       if (isCustomPuzzle && dateSelect.value !== "unlimited") {
-        puzzleLevelEl.textContent = t("ui_msg_200", 0, star);
+        setPuzzleLevelLabel({ kind: "custom", level: 0, star });
       }
 
       customScoreEvaluated = lastValidScore;
@@ -7552,7 +7576,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
         // Only user-entered custom puzzles should have their level label replaced.
         // Daily puzzles keep the level supplied by the daily JSON metadata.
         if (isCustomPuzzle && dateSelect.value !== "unlimited") {
-          puzzleLevelEl.textContent = t("ui_msg_200", maxDifficulty, star);
+          setPuzzleLevelLabel({ kind: "custom", level: maxDifficulty, star });
         }
 
         customScoreEvaluated = evaluatedScore;
@@ -7600,7 +7624,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     if (!isCustomDifficultyEvaluated) {
       // Do not overwrite the JSON level label for daily puzzles.
       if (isCustomPuzzle && dateSelect.value !== "unlimited") {
-        puzzleLevelEl.textContent = t("ui_msg_201", star);
+        setPuzzleLevelLabel({ kind: "bruteforce", level: 12, star });
       }
 
       isCustomDifficultyEvaluated = true;

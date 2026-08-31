@@ -423,8 +423,8 @@ const TRANSLATIONS = {
     ui_msg_180: "No standard techniques found.",
     ui_msg_181: "Show {0} more...",
     ui_msg_182: "Search Lv. {0}",
-    ui_msg_183: "Done? Evaluated Level 12{0}{1}, Score: ?{2}",
-    ui_msg_184: "Done! Evaluated Level {0}{1}{2}, Score: {3}{4}",
+    ui_msg_183: "Done? Evaluated Level 12{0}, Score: ?{1}",
+    ui_msg_184: "Done! Evaluated Level {0}{1}, Score: {2}{3}",
     ui_msg_185: "Puzzle Fully Solved!",
     ui_msg_186:
       "Sorry! Built-in techniques failed to solve this. Showing Solution.",
@@ -1264,8 +1264,8 @@ const TRANSLATIONS = {
     ui_msg_180: "적용할 수 있는 기술을 찾지 못했습니다.",
     ui_msg_181: "{0}개 더 보기...",
     ui_msg_182: "Lv. {0} 검색",
-    ui_msg_183: "완료? 평가된 레벨 12{0}{1}, 점수: ?{2}",
-    ui_msg_184: "완료! 평가된 레벨 {0}{1}{2}, 점수: {3}{4}",
+    ui_msg_183: "완료? 평가된 레벨 12{0}, 점수: ?{1}",
+    ui_msg_184: "완료! 평가된 레벨 {0}{1}, 점수: {2}{3}",
     ui_msg_185: "퍼즐 완벽히 해결됨!",
     ui_msg_186:
       "내장된 기술로는 이 퍼즐을 풀지 못했습니다. 무작위 대입을 이용한 해답을 표시합니다.",
@@ -1771,6 +1771,8 @@ function setupLanguageSwitcher() {
       if (typeof updateSolverToggleButton === "function")
         updateSolverToggleButton();
       if (typeof updateControls === "function") updateControls();
+      if (typeof renderPuzzleLevelLabel === "function")
+        renderPuzzleLevelLabel();
       if (typeof populateSelectors === "function") {
         const ds = document.getElementById("date-select");
         const ls = document.getElementById("level-select");
