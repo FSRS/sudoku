@@ -8157,6 +8157,35 @@ function hasCustomPreferences() {
   }
 }
 
+/**
+ * Splices techniques shipped after the user last saved their preferences into
+ * the slot the defaults define, rather than appending them at the end. The
+ * anchor is the nearest preceding default the list already holds, so a dragged
+ * order survives while a new technique still lands among its peers instead of
+ * running last - behind every Level 10/11 search.
+ * @param {Array<{id: string}>} list - Saved-order list, spliced in place.
+ * @param {Array<{id: string}>} defaults - getDefaultTechniques(), file order.
+ * @param {Set<string>} knownIds - Ids the saved preferences already covered.
+ * @param {function(Object): ?Object} buildEntry - Entry to splice, or null.
+ */
+function insertMissingDefaultsInOrder(list, defaults, knownIds, buildEntry) {
+  defaults.forEach((tech, defaultIndex) => {
+    if (knownIds.has(tech.id)) return;
+    const entry = buildEntry(tech);
+    if (!entry) return;
+
+    let insertAt = 0;
+    for (let i = defaultIndex - 1; i >= 0; i--) {
+      const anchor = list.findIndex((item) => item.id === defaults[i].id);
+      if (anchor !== -1) {
+        insertAt = anchor + 1;
+        break;
+      }
+    }
+    list.splice(insertAt, 0, entry);
+  });
+}
+
 function getActiveTechniques() {
   const defaults = getDefaultTechniques();
   const savedPrefs = JSON.parse(localStorage.getItem("sudokuTechniquePrefs"));
@@ -8183,11 +8212,9 @@ function getActiveTechniques() {
   });
 
   // Catch any new features pushed in a codebase update
-  defaults.forEach((t) => {
-    if (!savedTechniqueIds.has(t.id)) {
-      if (t.defaultEnabled) active.push(t);
-    }
-  });
+  insertMissingDefaultsInOrder(active, defaults, savedTechniqueIds, (tech) =>
+    tech.defaultEnabled ? tech : null,
+  );
   return orderMandatoryTechniquesFirst(active);
 }
 
@@ -8395,11 +8422,12 @@ function openPreferencesModal() {
         });
       }
     });
-    defaultTechs.forEach((t) => {
-      if (!currentOrder.find((c) => c.id === t.id)) {
-        currentOrder.push(defaultPrefRow(t));
-      }
-    });
+    insertMissingDefaultsInOrder(
+      currentOrder,
+      defaultTechs,
+      new Set(currentOrder.map((c) => c.id)),
+      defaultPrefRow,
+    );
   } else {
     currentOrder = defaultTechs.map(defaultPrefRow);
   }
