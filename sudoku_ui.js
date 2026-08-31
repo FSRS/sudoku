@@ -286,7 +286,7 @@ function getDifficultyRatingText(puzzle, onReady) {
  * Mode replaces the descriptive suffix ("ELITE", "Unlimited") with the rating
  * engine's number, and the pending text is localized, so the label is rebuilt
  * from these inputs on every mode, rating and language change.
- * @param {?{kind: string, level: number, star: string}} label
+ * @param {?{kind: string, level: number}} label
  */
 function setPuzzleLevelLabel(label) {
   puzzleLevelLabel = label;
@@ -299,7 +299,10 @@ function renderPuzzleLevelLabel() {
     return;
   }
 
-  const { kind, level, star } = puzzleLevelLabel;
+  const { kind, level } = puzzleLevelLabel;
+  // Customized techniques mark every evaluated number in the UI, so the level
+  // carries the star too, whichever puzzle kind produced it.
+  const star = hasCustomPreferences() ? "*" : "";
 
   if (isSolverMode && initialPuzzleString) {
     const rating = getDifficultyRatingText(
@@ -314,9 +317,9 @@ function renderPuzzleLevelLabel() {
   }
 
   if (kind === "daily") {
-    puzzleLevelEl.textContent = `Lv. ${level} (${difficultyWords[level]})`;
+    puzzleLevelEl.textContent = `Lv. ${level}${star} (${difficultyWords[level]})`;
   } else if (kind === "unlimited") {
-    puzzleLevelEl.textContent = t("ui_msg_139", level);
+    puzzleLevelEl.textContent = t("ui_msg_139", level, star);
   } else if (kind === "bruteforce") {
     puzzleLevelEl.textContent = t("ui_msg_201", star);
   } else {
@@ -4044,7 +4047,7 @@ async function findAndLoadSelectedPuzzle() {
           puzzle: savedGame.puzzle,
         });
         if (typeof puzzleLevelEl !== "undefined" && puzzleLevelEl) {
-          setPuzzleLevelLabel({ kind: "unlimited", level, star: "" });
+          setPuzzleLevelLabel({ kind: "unlimited", level });
         }
       };
 
@@ -4341,7 +4344,7 @@ async function fetchAndLoadUnlimitedPuzzle(level) {
 
     loadPuzzle(puzzleStr, unlimitedData);
 
-    setPuzzleLevelLabel({ kind: "unlimited", level, star: "" });
+    setPuzzleLevelLabel({ kind: "unlimited", level });
     puzzleScoreEl.textContent = "";
     showMessage(t("ui_msg_146"), "green");
   } catch (err) {
@@ -4790,11 +4793,14 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     currentPuzzleScore = 0;
 
     if (!isUnlimited) {
-      setPuzzleLevelLabel({ kind: "daily", level: puzzleData.level, star: "" });
+      setPuzzleLevelLabel({ kind: "daily", level: puzzleData.level });
     }
 
+    const customPrefsStar = hasCustomPreferences() ? "*" : "";
     puzzleScoreEl.textContent =
-      customScoreEvaluated > 0 ? `~${customScoreEvaluated}` : "";
+      customScoreEvaluated > 0
+        ? `~${customScoreEvaluated}${customPrefsStar}`
+        : "";
 
     levelSelect.value = puzzleData.level; // Keep dropdown synced
   } else {
@@ -7359,7 +7365,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     // so capture the browser score here.
     if (!isCustomDifficultyEvaluated) {
       if (isCustomPuzzle && dateSelect.value !== "unlimited") {
-        setPuzzleLevelLabel({ kind: "custom", level: 0, star });
+        setPuzzleLevelLabel({ kind: "custom", level: 0 });
       }
 
       customScoreEvaluated = lastValidScore;
@@ -7576,7 +7582,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
         // Only user-entered custom puzzles should have their level label replaced.
         // Daily puzzles keep the level supplied by the daily JSON metadata.
         if (isCustomPuzzle && dateSelect.value !== "unlimited") {
-          setPuzzleLevelLabel({ kind: "custom", level: maxDifficulty, star });
+          setPuzzleLevelLabel({ kind: "custom", level: maxDifficulty });
         }
 
         customScoreEvaluated = evaluatedScore;
@@ -7624,7 +7630,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     if (!isCustomDifficultyEvaluated) {
       // Do not overwrite the JSON level label for daily puzzles.
       if (isCustomPuzzle && dateSelect.value !== "unlimited") {
-        setPuzzleLevelLabel({ kind: "bruteforce", level: 12, star });
+        setPuzzleLevelLabel({ kind: "bruteforce", level: 12 });
       }
 
       isCustomDifficultyEvaluated = true;
@@ -8671,6 +8677,7 @@ document.addEventListener("DOMContentLoaded", () => {
         !arePencilsHidden;
       saveExperimentalModePreference();
       updateControls();
+      renderPuzzleLevelLabel();
       renderBoard();
       invalidateCandidateGeometry();
       renderLines();
@@ -8720,6 +8727,7 @@ document.addEventListener("DOMContentLoaded", () => {
       saveExperimentalModePreference();
 
       updateControls();
+      renderPuzzleLevelLabel();
       renderBoard();
 
       // 4. Close the modal
