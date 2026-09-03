@@ -4652,16 +4652,66 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
-  _findHiddenRectangles: (pencils, requireBivalueFloor = true) => {
+  _getAvoidableFilledValues: (board) => {
+    const hasInitialString =
+      typeof initialPuzzleString === "string" &&
+      initialPuzzleString.length >= 81;
+    const hasGivenGrid =
+      typeof boardState !== "undefined" &&
+      Array.isArray(boardState) &&
+      boardState.length === 9;
+    if (!hasInitialString && !hasGivenGrid) return null;
+
+    const isInitialGiven = (r, c) => {
+      if (hasInitialString) {
+        const ch = initialPuzzleString[r * 9 + c];
+        return ch >= "1" && ch <= "9";
+      }
+      return !!(boardState[r] && boardState[r][c] && boardState[r][c].isGiven);
+    };
+
+    const values = new Uint8Array(81);
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] !== 0 && !isInitialGiven(r, c)) {
+          values[r * 9 + c] = board[r][c];
+        }
+      }
+    }
+    return values;
+  },
+
+  /**
+   * @param {Uint8Array|null} filledValues - when supplied, a cell already
+   *   holding a digit counts as carrying that digit, so rectangles may span
+   *   solved cells.  Cells left at 0 fall back to their pencil marks, which
+   *   keeps givens (no pencils, no entry here) out of every rectangle.
+   */
+  _findHiddenRectangles: (
+    pencils,
+    requireBivalueFloor = true,
+    filledValues = null,
+  ) => {
     const rects = [];
+    const cellHas = filledValues
+      ? (r, c, digit) => {
+          const value = filledValues[r * 9 + c];
+          return value === 0 ? pencils[r][c].has(digit) : value === digit;
+        }
+      : (r, c, digit) => pencils[r][c].has(digit);
+    const canFormPattern = (r1, r2, c1, c2, x, y) =>
+      cellHas(r1, c1, x) &&
+      cellHas(r1, c2, y) &&
+      cellHas(r2, c1, y) &&
+      cellHas(r2, c2, x);
     for (let d1 = 1; d1 <= 8; d1++) {
       for (let d2 = d1 + 1; d2 <= 9; d2++) {
         for (let r1 = 0; r1 < 8; r1++) {
           for (let r2 = r1 + 1; r2 < 9; r2++) {
             const cols = [];
             for (let c = 0; c < 9; c++) {
-              const r1_has = pencils[r1][c].has(d1) || pencils[r1][c].has(d2);
-              const r2_has = pencils[r2][c].has(d1) || pencils[r2][c].has(d2);
+              const r1_has = cellHas(r1, c, d1) || cellHas(r1, c, d2);
+              const r2_has = cellHas(r2, c, d1) || cellHas(r2, c, d2);
               if (r1_has && r2_has) {
                 cols.push(c);
               }
@@ -4678,32 +4728,12 @@ const techniques = {
               )
                 continue;
 
-              // --- START: REVISED RESTRICTION (PER USER FEEDBACK) ---
-              // Check that d1 & d2 are present across the HR cells in each of the four houses.
-              const r1_cands = new Set([
-                ...pencils[r1][c1],
-                ...pencils[r1][c2],
-              ]);
-              if (!r1_cands.has(d1) || !r1_cands.has(d2)) continue;
-
-              const r2_cands = new Set([
-                ...pencils[r2][c1],
-                ...pencils[r2][c2],
-              ]);
-              if (!r2_cands.has(d1) || !r2_cands.has(d2)) continue;
-
-              const c1_cands = new Set([
-                ...pencils[r1][c1],
-                ...pencils[r2][c1],
-              ]);
-              if (!c1_cands.has(d1) || !c1_cands.has(d2)) continue;
-
-              const c2_cands = new Set([
-                ...pencils[r1][c2],
-                ...pencils[r2][c2],
-              ]);
-              if (!c2_cands.has(d1) || !c2_cands.has(d2)) continue;
-              // --- END: REVISED RESTRICTION ---
+              if (
+                !canFormPattern(r1, r2, c1, c2, d1, d2) &&
+                !canFormPattern(r1, r2, c1, c2, d2, d1)
+              ) {
+                continue;
+              }
 
               const currentCells = [
                 [r1, c1],
@@ -6816,9 +6846,19 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
-  uniquenessExternalTest: (board, pencils, findAll = false) => {
+  uniquenessExternalTest: (board, pencils, findAll = false) =>
+    techniques._uniquenessExternalTest(board, pencils, findAll, false),
+
+  avoidableUniquenessExternalTest: (board, pencils, findAll = false) =>
+    techniques._uniquenessExternalTest(board, pencils, findAll, true),
+
+  _uniquenessExternalTest: (board, pencils, findAll, avoidable) => {
     const results = [];
     const emitted = new Set();
+    // Type 2, Type 3, Type 3h, + XY-Wing.
+    const [type2Key, type3Key, type3hKey, xyWingKey] = avoidable
+      ? ["teks_msg_343", "teks_msg_344", "teks_msg_345", "teks_msg_346"]
+      : ["teks_msg_200", "teks_msg_201", "teks_msg_202", "teks_msg_203"];
     const cellKey = (r, c) => r + "," + c;
     const cellId = techniques._cellToId;
     const idToCell = techniques._idToCell;
@@ -6985,11 +7025,24 @@ const techniques = {
       return null;
     };
 
+    const filledValues = avoidable
+      ? techniques._getAvoidableFilledValues(board)
+      : null;
+    if (avoidable && !filledValues)
+      return findAll ? results : { change: false };
+
     const bodies = techniques
-      ._findHiddenRectangles(pencils, false)
-      .flatMap(({ cells, digits: [d1, d2] }) =>
-        cells.some(([r, c]) => board[r][c] !== 0) ? [] : [{ d1, d2, cells }],
-      );
+      ._findHiddenRectangles(pencils, false, filledValues)
+      .flatMap(({ cells, digits: [d1, d2] }) => {
+        const placed = cells.filter(([r, c]) => board[r][c] !== 0);
+        if (placed.length > 0 !== avoidable) return [];
+        const usable = placed.every(
+          ([r, c]) =>
+            filledValues[r * 9 + c] !== 0 &&
+            (board[r][c] === d1 || board[r][c] === d2),
+        );
+        return usable ? [{ d1, d2, cells }] : [];
+      });
 
     const unsolved = [];
     for (let r = 0; r < 9; r++) {
@@ -7023,7 +7076,11 @@ const techniques = {
         const hasPlacedDeadlyDigit = family.indices.some((index) =>
           techniques
             ._getUnitCells(family.type, index)
-            .some(([r, c]) => board[r][c] === d1 || board[r][c] === d2),
+            .some(
+              ([r, c]) =>
+                !bodySet.has(cellKey(r, c)) &&
+                (board[r][c] === d1 || board[r][c] === d2),
+            ),
         );
         if (hasPlacedDeadlyDigit) continue;
 
@@ -7090,7 +7147,7 @@ const techniques = {
             }
           });
           const result = publish(
-            "teks_msg_200",
+            type2Key,
             body,
             d1,
             d2,
@@ -7172,7 +7229,7 @@ const techniques = {
                 });
               });
               const result = publish(
-                "teks_msg_202",
+                type3hKey,
                 body,
                 d1,
                 d2,
@@ -7193,7 +7250,6 @@ const techniques = {
           }
         }
 
-        // The cover must fit in one house for the Type 3 capacity proof.
         if (guardians.length > 4) continue;
         const carrier = houses.find(({ cells }) => {
           const local = new Set(cells.map(([r, c]) => cellKey(r, c)));
@@ -7209,8 +7265,7 @@ const techniques = {
             !guardianSet.has(cellKey(r, c)),
         );
 
-        // Type 3: a real naked subset built from guardians and up to three
-        // additional cells.  Cardinality is checked directly before removal.
+        // Type 3
         const maxSelected = Math.min(4 - guardians.length, available.length);
         for (let count = 0; count <= maxSelected; count++) {
           for (const selected of techniques.combinations(available, count)) {
@@ -7237,7 +7292,7 @@ const techniques = {
               });
             });
             const result = publish(
-              "teks_msg_201",
+              type3Key,
               body,
               d1,
               d2,
@@ -7296,7 +7351,7 @@ const techniques = {
               }
             });
             const result = publish(
-              "teks_msg_203",
+              xyWingKey,
               body,
               d1,
               d2,
@@ -10955,9 +11010,8 @@ const techniques = {
       cache.BasicNodeByCandidate = new Array(81 * 9);
       for (const node of allNodes) {
         if (node.cells.length === 1 && node.digits.length === 1) {
-          cache.BasicNodeByCandidate[
-            node.cells[0] * 9 + node.digits[0] - 1
-          ] = node;
+          cache.BasicNodeByCandidate[node.cells[0] * 9 + node.digits[0] - 1] =
+            node;
         }
       }
     }
@@ -10965,8 +11019,7 @@ const techniques = {
     const getNode = (cells, digits) => {
       const dArr = Array.isArray(digits) ? digits : [digits];
       if (cells.length === 1 && dArr.length === 1) {
-        const basic =
-          cache.BasicNodeByCandidate[cells[0] * 9 + dArr[0] - 1];
+        const basic = cache.BasicNodeByCandidate[cells[0] * 9 + dArr[0] - 1];
         if (basic) return basic;
       }
       const key = `${dArr.join(",")}_${cells
@@ -11053,7 +11106,11 @@ const techniques = {
       let live = false;
 
       // 4. Collect NandNodes and NandOrNodes
-      for (let branchIndex = 0; branchIndex < startNodes.length; branchIndex++) {
+      for (
+        let branchIndex = 0;
+        branchIndex < startNodes.length;
+        branchIndex++
+      ) {
         const s = startNodes[branchIndex];
         const reachable = [{ node: s, path: [s] }];
         for (let d = 0; d < 9; d++) {

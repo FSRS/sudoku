@@ -7687,6 +7687,7 @@ const getUniquenessTechniques = () => [
   t("ui_msg_208"),
   t("ui_msg_344"),
   t("ui_msg_345"),
+  t("ui_msg_358"),
   t("ui_msg_285"),
   t("ui_msg_355"),
   t("ui_msg_356"),
@@ -7973,6 +7974,12 @@ function getDefaultTechniques() {
       func: techniques.avoidableRectangle,
       level: 5,
       score: 120,
+    },
+    {
+      nameKey: "ui_msg_358",
+      func: techniques.avoidableUniquenessExternalTest,
+      level: 5,
+      score: 140,
     },
     {
       nameKey: "ui_msg_286",

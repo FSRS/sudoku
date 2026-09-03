@@ -599,6 +599,7 @@ const TRANSLATIONS = {
     ui_msg_355: "GSP",
     ui_msg_356: "Anti-GSP",
     ui_msg_357: "Trivalue Oddagon",
+    ui_msg_358: "Avoidable UET",
     teks_msg_1: "Eliminate Candidates",
     teks_msg_2: "at r{0}c{1}",
     teks_msg_3: "Concrete number ({0})r{1}c{2}",
@@ -868,6 +869,10 @@ const TRANSLATIONS = {
     teks_msg_340: "Trivalue Oddagon XZ Rule",
     teks_msg_341: "using Digits ({0}{1}{2})",
     teks_msg_342: "({0}{1}{2}){3}, Guardians {4}, ALS ({5}){6}",
+    teks_msg_343: "Avoidable Uniqueness External Test Type 2",
+    teks_msg_344: "Avoidable Uniqueness External Test Type 3",
+    teks_msg_345: "Avoidable Uniqueness External Test Type 3h",
+    teks_msg_346: "Avoidable Uniqueness External Test + XY-Wing",
   },
 
   ko: {
@@ -1462,6 +1467,7 @@ const TRANSLATIONS = {
     ui_msg_355: "거스의 대칭 배치",
     ui_msg_356: "거스의 비대칭 배치",
     ui_msg_357: "삼중값 홀수각형",
+    ui_msg_358: "회피 가능한 외부 수호자 논법",
     teks_msg_1: "후보수 제거",
     teks_msg_2: "r{0}c{1}에서",
     teks_msg_3: "확정된 숫자 ({0}) r{1}c{2}에 의해",
@@ -1732,6 +1738,10 @@ const TRANSLATIONS = {
     teks_msg_340: "삼중값 홀수각형 XZ",
     teks_msg_341: "숫자 ({0}{1}{2}) 사용",
     teks_msg_342: "({0}{1}{2}){3}, 수호자 {4}, 거의 드러난 집합 ({5}){6}",
+    teks_msg_343: "회피 가능한 외부 수호자 논법 유형 2",
+    teks_msg_344: "회피 가능한 외부 수호자 논법 유형 3",
+    teks_msg_345: "회피 가능한 외부 수호자 논법 유형 3h",
+    teks_msg_346: "회피 가능한 외부 수호자 논법 + XY-윙",
   },
 };
 
