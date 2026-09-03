@@ -8035,6 +8035,23 @@ const techniques = {
             if (bitCount(unionMask) < 4) continue;
 
             const allDigits = maskToDigits(unionMask);
+            const pivotPairs = [
+              [map[0], map[3]],
+              [map[1], map[2]],
+            ];
+            const pivotData = pivotPairs.map(([pivot1, pivot2]) => {
+              const other1 = pivot1 === map[0] ? map[1] : map[0];
+              const other2 = pivot1 === map[0] ? map[2] : map[3];
+              return {
+                pivot1,
+                pivot2,
+                other1,
+                other2,
+                satisfied1: getFireworkDigits(other1, other2, pivot1),
+                satisfied2: getFireworkDigits(other1, other2, pivot2),
+              };
+            });
+
             for (const digits of techniques.combinations(allDigits, 4)) {
               const cases = [
                 [
@@ -8063,21 +8080,17 @@ const techniques = {
                 ],
               ];
 
-              const pivotPairs = [
-                [map[0], map[3]],
-                [map[1], map[2]],
-              ];
-
-              for (const [pivot1, pivot2] of pivotPairs) {
-                const other1 = pivot1 === map[0] ? map[1] : map[0];
-                const other2 = pivot1 === map[0] ? map[2] : map[3];
-
+              for (const {
+                pivot1,
+                pivot2,
+                other1,
+                other2,
+                satisfied1,
+                satisfied2,
+              } of pivotData) {
                 for (const [[d1, d2], [d3, d4]] of cases) {
                   const pair1Mask = bitFor(d1) | bitFor(d2);
                   const pair2Mask = bitFor(d3) | bitFor(d4);
-
-                  const satisfied1 = getFireworkDigits(other1, other2, pivot1);
-                  const satisfied2 = getFireworkDigits(other1, other2, pivot2);
 
                   if (
                     (satisfied1 & pair1Mask) !== pair1Mask ||
@@ -9168,6 +9181,7 @@ const techniques = {
     signature: null,
     AllNodes: [],
     NodeCache: new Map(),
+    BasicNodeByCandidate: null,
     BivalueOrMap: new Map(),
     BilocationOrMap: new Map(),
     GroupedOrMap: new Map(),
@@ -9177,6 +9191,8 @@ const techniques = {
     GroupedLinkRegistry: new Map(),
     AlsLinkRegistry: new Map(),
     FishLinkRegistry: new Map(),
+    DeathBlossomOrMap: null,
+    NandSubsetMemo: null,
     BlossomSearchCache: null,
     AlmostAicGraph: null,
   },
@@ -9365,6 +9381,7 @@ const techniques = {
 
       AllNodes: [],
       NodeCache: new Map(),
+      BasicNodeByCandidate: null,
       BivalueOrMap: new Map(),
       BilocationOrMap: new Map(),
       GroupedOrMap: new Map(),
@@ -9374,6 +9391,8 @@ const techniques = {
       GroupedLinkRegistry: new Map(),
       AlsLinkRegistry: new Map(),
       FishLinkRegistry: new Map(),
+      DeathBlossomOrMap: null,
+      NandSubsetMemo: null,
       BlossomSearchCache: null,
       AlmostAicGraph: null,
     };
@@ -10932,9 +10951,24 @@ const techniques = {
 
     const allNodes = cache.AllNodes;
     const nodeCache = cache.NodeCache;
+    if (!cache.BasicNodeByCandidate) {
+      cache.BasicNodeByCandidate = new Array(81 * 9);
+      for (const node of allNodes) {
+        if (node.cells.length === 1 && node.digits.length === 1) {
+          cache.BasicNodeByCandidate[
+            node.cells[0] * 9 + node.digits[0] - 1
+          ] = node;
+        }
+      }
+    }
 
     const getNode = (cells, digits) => {
       const dArr = Array.isArray(digits) ? digits : [digits];
+      if (cells.length === 1 && dArr.length === 1) {
+        const basic =
+          cache.BasicNodeByCandidate[cells[0] * 9 + dArr[0] - 1];
+        if (basic) return basic;
+      }
       const key = `${dArr.join(",")}_${cells
         .slice()
         .sort((a, b) => a - b)
@@ -10947,12 +10981,9 @@ const techniques = {
     };
 
     // 1. Prepare OR Gate Maps (Only Bivalue and ALS)
-    let orMap = new Map();
-
     if (cache.BivalueOrMap.size === 0) {
       cache.BivalueOrMap = techniques.buildBivalueOrMap(allNodes);
     }
-    orMap = techniques.mergeOrMaps(orMap, cache.BivalueOrMap);
 
     let alsLinkRegistry = cache.AlsLinkRegistry;
     if (cache.AlsMap.size === 0) {
@@ -10964,7 +10995,13 @@ const techniques = {
         false,
       );
     }
-    orMap = techniques.mergeOrMaps(orMap, cache.AlsMap);
+    if (!cache.DeathBlossomOrMap) {
+      cache.DeathBlossomOrMap = techniques.mergeOrMaps(
+        cache.BivalueOrMap,
+        cache.AlsMap,
+      );
+    }
+    const orMap = cache.DeathBlossomOrMap;
 
     // Helper for location string
     const getLoc = techniques._formatAicLocation;
@@ -10977,6 +11014,33 @@ const techniques = {
       6,
       5,
     );
+    // Start candidates repeat across stems and across the three Blossom
+    // variants. The bitset subset test depends only on the start node, so
+    // cache it for the lifetime of this position's shared AIC graph.
+    let memoStore = cache.NandSubsetMemo;
+    if (
+      !memoStore ||
+      memoStore.nodes !== allNodes ||
+      memoStore.length !== allNodes.length
+    ) {
+      memoStore = { nodes: allNodes, length: allNodes.length, map: new Map() };
+      cache.NandSubsetMemo = memoStore;
+    }
+    const scanNandSubset = (startNode) => {
+      let hits = memoStore.map.get(startNode);
+      if (hits !== undefined) return hits;
+      hits = allNodes.filter(
+        (node) =>
+          node !== startNode &&
+          techniques.isBitsetSubset(node.NodeBitset, startNode.NandBitset),
+      );
+      memoStore.map.set(startNode, hits);
+      return hits;
+    };
+
+    const branchMask = Array.from({ length: 9 }, () => [0, 0, 0]);
+    const commonMask = Array.from({ length: 9 }, () => [0, 0, 0]);
+
     // 3. Iterate through sorted stem cells/regions
     for (const stem of potentialStems) {
       const startNodes = isCell
@@ -10986,19 +11050,24 @@ const techniques = {
           : stem.startCandidates.map(({ id, digit }) => getNode([id], [digit]));
 
       const reachMap = new Map();
+      let live = false;
 
       // 4. Collect NandNodes and NandOrNodes
-      for (const s of startNodes) {
+      for (let branchIndex = 0; branchIndex < startNodes.length; branchIndex++) {
+        const s = startNodes[branchIndex];
         const reachable = [{ node: s, path: [s] }];
+        for (let d = 0; d < 9; d++) {
+          branchMask[d][0] = s.NandBitset[d][0];
+          branchMask[d][1] = s.NandBitset[d][1];
+          branchMask[d][2] = s.NandBitset[d][2];
+        }
 
         // Evaluate NandNodes via NandBitset
-        const nandNodes = allNodes.filter((n) => {
-          if (n === s) return false;
-
+        for (const n of scanNandSubset(s)) {
           // Preserve the existing Cell/Region exclusion for a different
           // candidate in the same start cell.
           if (!isAals && n.cells.length === 1 && n.cells[0] === s.cells[0]) {
-            return false;
+            continue;
           }
 
           // Exclude the digit from the different cell of the stem house (Applies to Region only)
@@ -11009,7 +11078,7 @@ const techniques = {
             n.cells.length === 1 &&
             stem.cells.includes(n.cells[0])
           )
-            return false;
+            continue;
 
           // AALS start candidates belong to the same OR gate, so a branch
           // cannot use another start candidate as its first NAND node.
@@ -11018,45 +11087,39 @@ const techniques = {
             n.cells.length === 1 &&
             stem.startCandidateKeys.has(`${n.cells[0]}:${n.digits[0]}`)
           ) {
-            return false;
+            continue;
           }
 
-          return techniques.isBitsetSubset(n.NodeBitset, s.NandBitset);
-        });
-
-        for (const n of nandNodes) {
-          if (orMap.has(n)) {
-            // Evaluate OR nodes of NandNodes -> NandOrNodes
-            for (const o of orMap.get(n)) {
+          const orNodes = orMap.get(n);
+          if (orNodes) {
+            for (const o of orNodes) {
               reachable.push({ node: o, path: [s, n, o] });
+              for (let d = 0; d < 9; d++) {
+                branchMask[d][0] |= o.NandBitset[d][0];
+                branchMask[d][1] |= o.NandBitset[d][1];
+                branchMask[d][2] |= o.NandBitset[d][2];
+              }
             }
           }
         }
         reachMap.set(s, reachable);
-      }
 
-      const branchMasks = startNodes.map((s) => {
-        const mask = Array.from({ length: 9 }, () => [0, 0, 0]);
-        for (const { node } of reachMap.get(s)) {
-          for (let d = 0; d < 9; d++) {
-            for (let p = 0; p < 3; p++) {
-              mask[d][p] |= node.NandBitset[d][p]; // Union of branch eliminations
-            }
+        live = false;
+        for (let d = 0; d < 9; d++) {
+          for (let p = 0; p < 3; p++) {
+            const bits =
+              branchIndex === 0
+                ? branchMask[d][p]
+                : commonMask[d][p] & branchMask[d][p];
+            commonMask[d][p] = bits;
+            if (bits !== 0) live = true;
           }
         }
-        return mask;
-      });
-
-      const commonMask = Array.from({ length: 9 }, () => [0, 0, 0]);
-      for (let d = 0; d < 9; d++) {
-        for (let p = 0; p < 3; p++) {
-          let res = branchMasks[0][d][p];
-          for (let i = 1; i < branchMasks.length; i++) {
-            res &= branchMasks[i][d][p]; // Intersection of all branches
-          }
-          commonMask[d][p] = res;
-        }
+        // Intersections can only lose bits, so later branches cannot revive
+        // an empty common mask.
+        if (!live) break;
       }
+      if (!live) continue;
 
       // 6. Extract eliminations
       const maskToElims = (mask) => {
