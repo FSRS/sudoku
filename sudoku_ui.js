@@ -8013,6 +8013,12 @@ function getDefaultTechniques() {
       score: 220,
     },
     {
+      nameKey: "ui_msg_357",
+      func: techniques.trivalueOddagon,
+      level: 6,
+      score: 230,
+    },
+    {
       nameKey: "ui_msg_224",
       func: techniques.firework,
       level: 6,

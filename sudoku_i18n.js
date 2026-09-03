@@ -598,6 +598,7 @@ const TRANSLATIONS = {
     ui_msg_354: "BUG+n",
     ui_msg_355: "GSP",
     ui_msg_356: "Anti-GSP",
+    ui_msg_357: "Trivalue Oddagon",
     teks_msg_1: "Eliminate Candidates",
     teks_msg_2: "at r{0}c{1}",
     teks_msg_3: "Concrete number ({0})r{1}c{2}",
@@ -861,6 +862,12 @@ const TRANSLATIONS = {
     teks_msg_334: "Anti Gurth's Symmetrical Placement",
     teks_msg_335: "Puzzle cannot have {0} symmetry",
     teks_msg_336: "Mapping required for {0} symmetry: {1}",
+    teks_msg_337: "Trivalue Oddagon Type 1",
+    teks_msg_338: "using Digits ({0}{1}{2})",
+    teks_msg_339: "({0}{1}{2}){3}, Guardians {4}",
+    teks_msg_340: "Trivalue Oddagon XZ Rule",
+    teks_msg_341: "using Digits ({0}{1}{2})",
+    teks_msg_342: "({0}{1}{2}){3}, Guardians {4}, ALS ({5}){6}",
   },
 
   ko: {
@@ -1454,6 +1461,7 @@ const TRANSLATIONS = {
     ui_msg_354: "BUG+n",
     ui_msg_355: "거스의 대칭 배치",
     ui_msg_356: "거스의 비대칭 배치",
+    ui_msg_357: "삼중값 홀수각형",
     teks_msg_1: "후보수 제거",
     teks_msg_2: "r{0}c{1}에서",
     teks_msg_3: "확정된 숫자 ({0}) r{1}c{2}에 의해",
@@ -1718,6 +1726,12 @@ const TRANSLATIONS = {
     teks_msg_334: "거스의 비대칭 배치",
     teks_msg_335: "{0} 배치가 불가능한 퍼즐",
     teks_msg_336: "{0} 배치가 되려면 필요한 대응: {1}",
+    teks_msg_337: "삼중값 홀수각형 유형 1",
+    teks_msg_338: "숫자 ({0}{1}{2}) 사용",
+    teks_msg_339: "({0}{1}{2}){3}, 수호자 {4}",
+    teks_msg_340: "삼중값 홀수각형 XZ",
+    teks_msg_341: "숫자 ({0}{1}{2}) 사용",
+    teks_msg_342: "({0}{1}{2}){3}, 수호자 {4}, 거의 드러난 집합 ({5}){6}",
   },
 };
 
