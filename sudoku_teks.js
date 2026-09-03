@@ -14799,11 +14799,6 @@ const techniques = {
   brokenWing: (board, pencils, findAll = false) => {
     const results = [];
 
-    // --- 3x27 Bitset Helpers ---
-    const bitAnd = techniques._cellBitsetAnd;
-    const setBit = techniques._setCellBit;
-    const getBits = techniques._getCellBits;
-
     const getCompactLoc = (cellIds) => {
       if (cellIds.length === 0) return "";
       if (cellIds.length === 1)
