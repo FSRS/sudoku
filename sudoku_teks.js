@@ -39,17 +39,19 @@ const CELL_PART = new Uint8Array(81);
 const CELL_BIT = new Int32Array(81);
 for (let id = 0; id < 81; id++) {
   CELL_PART[id] = (id / 27) | 0;
-  CELL_BIT[id] = 1 << id % 27;
+  CELL_BIT[id] = 1 << (id % 27);
 }
 
 const PEER = new Int32Array(81 * 3);
 for (let id = 0; id < 81; id++) {
-  for (let part = 0; part < 3; part++) PEER[id * 3 + part] = PEER_BITSETS[id][part];
+  for (let part = 0; part < 3; part++)
+    PEER[id * 3 + part] = PEER_BITSETS[id][part];
 }
 
 const UNIT_POS = new Int32Array(27 * 3);
 for (let u = 0; u < 27; u++) {
-  for (let part = 0; part < 3; part++) UNIT_POS[u * 3 + part] = UNIT_BITSETS[u][part];
+  for (let part = 0; part < 3; part++)
+    UNIT_POS[u * 3 + part] = UNIT_BITSETS[u][part];
 }
 
 const UNIT_IDS = [];
@@ -65,7 +67,9 @@ for (let u = 0; u < 27; u++) {
   UNIT_IDS.push(ids);
 }
 
-const UNIT_CELLS = UNIT_IDS.map((ids) => ids.map((id) => [(id / 9) | 0, id % 9]));
+const UNIT_CELLS = UNIT_IDS.map((ids) =>
+  ids.map((id) => [(id / 9) | 0, id % 9]),
+);
 const UNIT_OFFSET = { row: 0, col: 9, box: 18 };
 
 const lowest = (m) => 31 - Math.clz32(m & -m);
@@ -125,8 +129,7 @@ const buildGrid = (pencils) => {
 const commonPeers = (g, id1, id2, k) => {
   const out = [];
   for (let part = 0; part < 3; part++) {
-    let m =
-      PEER[id1 * 3 + part] & PEER[id2 * 3 + part] & g.pos[k * 3 + part];
+    let m = PEER[id1 * 3 + part] & PEER[id2 * 3 + part] & g.pos[k * 3 + part];
     const base = part * 27;
     while (m) {
       const b = lowest(m);
@@ -322,8 +325,7 @@ const techniques = {
     }
   },
 
-  _getUnitCells: (unitType, idx) =>
-    UNIT_CELLS[UNIT_OFFSET[unitType] + idx],
+  _getUnitCells: (unitType, idx) => UNIT_CELLS[UNIT_OFFSET[unitType] + idx],
 
   // --- UNIT CACHING ---
   _getUnitCellsCached: (unitIndex) => UNIT_CELLS[unitIndex],
@@ -1226,11 +1228,15 @@ const techniques = {
                 m &= m - 1;
               }
             } else {
-              let m = isRow ? g.row[k * 9 + primaryIdx] : g.col[k * 9 + primaryIdx];
+              let m = isRow
+                ? g.row[k * 9 + primaryIdx]
+                : g.col[k * 9 + primaryIdx];
               if (pop(m) < 2) continue;
               while (m) {
                 const j = lowest(m);
-                sourceCellsWithNum.push(isRow ? [primaryIdx, j] : [j, primaryIdx]);
+                sourceCellsWithNum.push(
+                  isRow ? [primaryIdx, j] : [j, primaryIdx],
+                );
                 m &= m - 1;
               }
             }
@@ -1281,7 +1287,9 @@ const techniques = {
             let cellStr;
             if (is_pointing) {
               const points = [
-                ...new Set(sourceCellsWithNum.map(([r, c]) => pointOf(r, c) + 1)),
+                ...new Set(
+                  sourceCellsWithNum.map(([r, c]) => pointOf(r, c) + 1),
+                ),
               ]
                 .sort()
                 .join("");
@@ -1290,7 +1298,9 @@ const techniques = {
               const rows = [...new Set(sourceCellsWithNum.map(([r]) => r + 1))]
                 .sort()
                 .join("");
-              const cols = [...new Set(sourceCellsWithNum.map(([, c]) => c + 1))]
+              const cols = [
+                ...new Set(sourceCellsWithNum.map(([, c]) => c + 1)),
+              ]
                 .sort()
                 .join("");
               cellStr = `r${rows}c${cols}`;
@@ -1784,13 +1794,7 @@ const techniques = {
     }
   },
 
-  _findFinnedFish: (
-    board,
-    pencils,
-    fishSize,
-    isRowBased,
-    findAll = false,
-  ) => {
+  _findFinnedFish: (board, pencils, fishSize, isRowBased, findAll = false) => {
     const g = buildGrid(pencils);
     const results = [];
 
@@ -1808,7 +1812,10 @@ const techniques = {
       }
       if (potentialLines.length < fishSize) continue;
 
-      for (const baseLines of techniques.combinations(potentialLines, fishSize)) {
+      for (const baseLines of techniques.combinations(
+        potentialLines,
+        fishSize,
+      )) {
         let coverAllMask = 0;
         for (const line of baseLines) coverAllMask |= line.mask;
         const coverCount = pop(coverAllMask);
@@ -1885,7 +1892,9 @@ const techniques = {
           const baseStr = `${basePrefix}${baseNums}`;
           const coverStr = `${coverPrefix}${coverNums}`;
 
-          const finPoints = [...new Set(fins.map(([r, c]) => pointOf(r, c) + 1))]
+          const finPoints = [
+            ...new Set(fins.map(([r, c]) => pointOf(r, c) + 1)),
+          ]
             .sort((a, b) => a - b)
             .join("");
           const finStr = `b${finBoxIndex + 1}p${finPoints}`;
@@ -2230,7 +2239,8 @@ const techniques = {
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         const id = r * 9 + c;
-        if (pop(g.cand[id]) === 2) bivalueCells.push({ r, c, id, mask: g.cand[id] });
+        if (pop(g.cand[id]) === 2)
+          bivalueCells.push({ r, c, id, mask: g.cand[id] });
       }
     }
     if (bivalueCells.length < 2) return findAll ? results : { change: false };
@@ -2577,13 +2587,22 @@ const techniques = {
           const peak1Loc = link1.locs.find((loc) => loc !== baseLoc);
           const peak2Loc = link2.locs.find((loc) => loc !== baseLoc);
 
-          const p1 = isRowBased ? [link1.line, peak1Loc] : [peak1Loc, link1.line];
-          const p2 = isRowBased ? [link2.line, peak2Loc] : [peak2Loc, link2.line];
+          const p1 = isRowBased
+            ? [link1.line, peak1Loc]
+            : [peak1Loc, link1.line];
+          const p2 = isRowBased
+            ? [link2.line, peak2Loc]
+            : [peak2Loc, link2.line];
 
           if (peak1Loc === peak2Loc) continue;
 
           const removals = [];
-          for (const id of commonPeers(g, p1[0] * 9 + p1[1], p2[0] * 9 + p2[1], k)) {
+          for (const id of commonPeers(
+            g,
+            p1[0] * 9 + p1[1],
+            p2[0] * 9 + p2[1],
+            k,
+          )) {
             removals.push({ r: (id / 9) | 0, c: id % 9, num });
           }
           if (removals.length === 0) continue;
@@ -2598,8 +2617,12 @@ const techniques = {
             link2Str = `r${baseLoc + 1}c${link2.line + 1}=r${peak2Loc + 1}c${link2.line + 1}`;
           }
 
-          const base1 = isRowBased ? [link1.line, baseLoc] : [baseLoc, link1.line];
-          const base2 = isRowBased ? [link2.line, baseLoc] : [baseLoc, link2.line];
+          const base1 = isRowBased
+            ? [link1.line, baseLoc]
+            : [baseLoc, link1.line];
+          const base2 = isRowBased
+            ? [link2.line, baseLoc]
+            : [baseLoc, link2.line];
 
           const resultObj = {
             change: true,
@@ -2663,7 +2686,12 @@ const techniques = {
           const c_base = cLink.c;
           const [rA, rB] = cLink.locs;
 
-          if (r_base === rA || r_base === rB || c_base === c1 || c_base === c2) {
+          if (
+            r_base === rA ||
+            r_base === rB ||
+            c_base === c1 ||
+            c_base === c2
+          ) {
             continue;
           }
 
@@ -2749,7 +2777,10 @@ const techniques = {
 
           const sr = ((b / 3) | 0) * 3;
           const sc = (b % 3) * 3;
-          const boxLocs = bits9(bm).map((p) => [sr + ((p / 3) | 0), sc + (p % 3)]);
+          const boxLocs = bits9(bm).map((p) => [
+            sr + ((p / 3) | 0),
+            sc + (p % 3),
+          ]);
 
           const [pA_init, pB_init] = boxLocs;
           if (pA_init[0] === pB_init[0] || pA_init[1] === pB_init[1]) continue;
@@ -2759,7 +2790,9 @@ const techniques = {
             const pB = startNode;
 
             const weakIdx = isRowBased ? pB[1] : pB[0];
-            let wm = isRowBased ? g.col[k * 9 + weakIdx] : g.row[k * 9 + weakIdx];
+            let wm = isRowBased
+              ? g.col[k * 9 + weakIdx]
+              : g.row[k * 9 + weakIdx];
             while (wm) {
               const i = lowest(wm);
               wm &= wm - 1;
@@ -3056,6 +3089,266 @@ const techniques = {
     }
     return [...logic(true), ...logic(false)];
   },
+
+  // Gurth's Symmetrical Placement
+  _gspSymmetries: {
+    diagonal: {
+      partner: (r, c) => [c, r],
+      axis: Array.from({ length: 9 }, (_, i) => [i, i]),
+      maxSelfPaired: 3,
+      dirKey: "teks_msg_326",
+      labelKey: "teks_msg_329",
+    },
+    antiDiagonal: {
+      partner: (r, c) => [8 - c, 8 - r],
+      axis: Array.from({ length: 9 }, (_, i) => [i, 8 - i]),
+      maxSelfPaired: 3,
+      dirKey: "teks_msg_327",
+      labelKey: "teks_msg_330",
+    },
+    xAxis: {
+      partner: (r, c) => [8 - r, c],
+      axis: Array.from({ length: 9 }, (_, i) => [4, i]),
+      maxSelfPaired: 0,
+      dirKey: null,
+      labelKey: "teks_msg_331",
+    },
+    yAxis: {
+      partner: (r, c) => [r, 8 - c],
+      axis: Array.from({ length: 9 }, (_, i) => [i, 4]),
+      maxSelfPaired: 0,
+      dirKey: null,
+      labelKey: "teks_msg_332",
+    },
+    central: {
+      partner: (r, c) => [8 - r, 8 - c],
+      axis: [[4, 4]],
+      maxSelfPaired: 1,
+      dirKey: null,
+      labelKey: "teks_msg_333",
+    },
+  },
+
+  _gspBuildMapping: (board, partner, broken = null) => {
+    const mapping = new Array(10).fill(0);
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const [pr, pc] = partner(r, c);
+        if (r * 9 + c >= pr * 9 + pc) continue;
+        const d1 = board[r][c];
+        const d2 = board[pr][pc];
+        if ((d1 === 0) !== (d2 === 0)) {
+          if (!broken || broken.length) return null;
+          broken.push({ r, c }, { r: pr, c: pc });
+          continue;
+        }
+        if (d1 === 0) continue;
+        if (d1 === d2) {
+          if (mapping[d1] === 0) mapping[d1] = d1;
+          else if (mapping[d1] !== d1) return null;
+        } else {
+          if ((mapping[d1] === 0) !== (mapping[d2] === 0)) return null;
+          if (mapping[d1] === 0) {
+            mapping[d1] = d2;
+            mapping[d2] = d1;
+          } else if (mapping[d1] !== d2 || mapping[d2] !== d1) return null;
+        }
+      }
+    }
+    return mapping;
+  },
+
+  _gspSelfPairedDigits: (mapping) => {
+    const selfPaired = new Set();
+    for (let d = 1; d <= 9; d++) {
+      if (mapping[d] === 0 || mapping[d] === d) selfPaired.add(d);
+    }
+    return selfPaired;
+  },
+
+  _gspMappingText: (mapping) => {
+    const seen = new Set();
+    const parts = [];
+    for (let d = 1; d <= 9; d++) {
+      if (seen.has(d)) continue;
+      const other = mapping[d] === 0 ? d : mapping[d];
+      parts.push(`${d}<=>${other}`);
+      seen.add(d);
+      seen.add(other);
+    }
+    return parts.join(" ");
+  },
+
+  _gspCellGroups: (board, mapping) => {
+    const groupOf = new Array(10).fill(-1);
+    let groups = 0;
+    for (let d = 1; d <= 9; d++) {
+      if (groupOf[d] !== -1) continue;
+      groupOf[d] = groups;
+      if (mapping[d] !== 0 && mapping[d] !== d) groupOf[mapping[d]] = groups;
+      groups++;
+    }
+    const cells = [];
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] !== 0)
+          cells.push({ r, c, group: groupOf[board[r][c]] });
+      }
+    }
+    return cells;
+  },
+
+  _applyGspVisuals: (cellGroups, kept, removals) => {
+    highlightedDigit = null;
+    highlightState = 0;
+    cellGroups.forEach((el) => {
+      boardState[el.r][el.c].cellColor = cellColorPalette[el.group];
+    });
+    kept.forEach((el) =>
+      boardState[el.r][el.c].pencilColors.set(el.num, candidateColorPalette[4]),
+    );
+    removals.forEach((el) =>
+      boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
+    );
+  },
+
+  gurthSymmetricalPlacement: (board, pencils, findAll = false) => {
+    const results = [];
+
+    for (const key of ["diagonal", "antiDiagonal", "central"]) {
+      const symmetry = techniques._gspSymmetries[key];
+      const mapping = techniques._gspBuildMapping(board, symmetry.partner);
+      if (!mapping) continue;
+      const selfPaired = techniques._gspSelfPairedDigits(mapping);
+      const removals = [];
+      const kept = [];
+      let axisHolds = true;
+      for (const [r, c] of symmetry.axis) {
+        if (board[r][c] !== 0) {
+          if (!selfPaired.has(board[r][c])) axisHolds = false;
+          if (!axisHolds) break;
+          continue;
+        }
+        let hasSelfPaired = false;
+        for (const num of pencils[r][c]) {
+          if (selfPaired.has(num)) {
+            hasSelfPaired = true;
+            kept.push({ r, c, num });
+          } else {
+            removals.push({ r, c, num });
+          }
+        }
+        if (!hasSelfPaired) {
+          axisHolds = false;
+          break;
+        }
+      }
+      if (!axisHolds || removals.length === 0) continue;
+
+      const cellGroups = techniques._gspCellGroups(board, mapping);
+      const result = {
+        change: true,
+        type: "remove",
+        cells: removals,
+        hint: {
+          name: t("teks_msg_323"),
+          mainInfo: symmetry.dirKey
+            ? t("teks_msg_324", t(symmetry.dirKey))
+            : t("teks_msg_325"),
+          detail: t(
+            "teks_msg_328",
+            t(symmetry.labelKey),
+            techniques._gspMappingText(mapping),
+          ),
+        },
+        applyVisuals: () =>
+          techniques._applyGspVisuals(cellGroups, kept, removals),
+      };
+      if (!findAll) return result;
+      results.push(result);
+    }
+
+    return findAll ? results : { change: false };
+  },
+
+  antiGurthSymmetricalPlacement: (board, pencils, findAll = false) => {
+    const results = [];
+
+    for (const key of [
+      "diagonal",
+      "antiDiagonal",
+      "xAxis",
+      "yAxis",
+      "central",
+    ]) {
+      const symmetry = techniques._gspSymmetries[key];
+      const broken = [];
+      const mapping = techniques._gspBuildMapping(
+        board,
+        symmetry.partner,
+        broken,
+      );
+      if (!mapping || broken.length === 0) continue;
+
+      const empty =
+        board[broken[0].r][broken[0].c] === 0 ? broken[0] : broken[1];
+      const filled = empty === broken[0] ? broken[1] : broken[0];
+      const num = mapping[board[filled.r][filled.c]];
+      if (num === 0) continue;
+
+      const selfPaired = techniques._gspSelfPairedDigits(mapping);
+      let axisHolds = true;
+      let axisRulesOutSymmetry = false;
+      for (const [r, c] of symmetry.axis) {
+        if (board[r][c] !== 0) {
+          if (!selfPaired.has(board[r][c])) {
+            axisHolds = false;
+            break;
+          }
+          continue;
+        }
+        let hasSelfPaired = false;
+        for (const candidate of pencils[r][c]) {
+          if (selfPaired.has(candidate)) {
+            hasSelfPaired = true;
+            break;
+          }
+        }
+        if (!hasSelfPaired) axisRulesOutSymmetry = true;
+      }
+      if (!axisHolds) continue;
+
+      if (selfPaired.size <= symmetry.maxSelfPaired && !axisRulesOutSymmetry) {
+        continue;
+      }
+
+      if (!pencils[empty.r][empty.c].has(num)) continue;
+
+      const removals = [{ r: empty.r, c: empty.c, num }];
+      const cellGroups = techniques._gspCellGroups(board, mapping);
+      const result = {
+        change: true,
+        type: "remove",
+        cells: removals,
+        hint: {
+          name: t("teks_msg_334"),
+          mainInfo: t("teks_msg_335", t(symmetry.labelKey)),
+          detail: t(
+            "teks_msg_336",
+            t(symmetry.labelKey),
+            techniques._gspMappingText(mapping),
+          ),
+        },
+        applyVisuals: () =>
+          techniques._applyGspVisuals(cellGroups, [], removals),
+      };
+      if (!findAll) return result;
+      results.push(result);
+    }
+
+    return findAll ? results : { change: false };
+  },
+
   bugPlusOne: (board, pencils, findAll = false) => {
     const unsolvedCells = [];
     const bivalueCells = [];
@@ -4549,7 +4842,8 @@ const techniques = {
 
         const extraMask = (petalMask1 | petalMask2) & ~baseMask;
         if (techniques._bits.popcount(extraMask) !== 2) continue;
-        const [extraDigit1, extraDigit2] = techniques._bits.maskToDigits(extraMask);
+        const [extraDigit1, extraDigit2] =
+          techniques._bits.maskToDigits(extraMask);
 
         const sourceMask1 = ids.reduce(
           (mask, id) =>

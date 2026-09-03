@@ -7688,6 +7688,8 @@ const getUniquenessTechniques = () => [
   t("ui_msg_344"),
   t("ui_msg_345"),
   t("ui_msg_285"),
+  t("ui_msg_355"),
+  t("ui_msg_356"),
 ];
 const getMandatoryTechniques = () => [t("ui_msg_210"), t("ui_msg_195")];
 
@@ -7839,6 +7841,12 @@ function getDefaultTechniques() {
       score: 110,
     },
     {
+      nameKey: "ui_msg_355",
+      func: techniques.gurthSymmetricalPlacement,
+      level: 4,
+      score: 100,
+    },
+    {
       nameKey: "ui_msg_204",
       func: (b, p, findAll) => techniques.bugPlusOne(b, p, findAll),
       level: 4,
@@ -7880,6 +7888,12 @@ function getDefaultTechniques() {
       func: (b, p, findAll) => techniques.uniqueRectangle(b, p, findAll),
       level: 4,
       score: 100,
+    },
+    {
+      nameKey: "ui_msg_356",
+      func: techniques.antiGurthSymmetricalPlacement,
+      level: 5,
+      score: 110,
     },
     {
       nameKey: "ui_msg_354",
