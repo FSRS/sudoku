@@ -4595,13 +4595,105 @@ function autoPencil(skipConfirm = false) {
   }, 2000);
 }
 
+function parseLibraryBoardField(field) {
+  const values = Array(81).fill(0);
+  const givens = Array(81).fill(false);
+  let index = 0;
+  let userPlaced = false;
+
+  for (const char of field) {
+    if (char === "+") {
+      userPlaced = true;
+      continue;
+    }
+    if (/\s/.test(char)) continue;
+    if (index >= 81) return null;
+    if (char >= "1" && char <= "9") {
+      values[index] = parseInt(char, 10);
+      givens[index] = !userPlaced;
+    } else if (char !== "." && char !== "0") {
+      return null;
+    }
+    userPlaced = false;
+    index++;
+  }
+
+  return index === 81 ? { values, givens } : null;
+}
+
+function parseLibrarySukakuField(field) {
+  const compact = field.replace(/[^0-9.]/g, "");
+  if (compact.length !== 729) return null;
+
+  return Array.from({ length: 81 }, (unused, index) => {
+    const universe = new Set();
+    for (let slot = 0; slot < 9; slot++) {
+      const digit = parseInt(compact[index * 9 + slot], 10);
+      if (digit >= 1 && digit <= 9) universe.add(digit);
+    }
+    return universe;
+  });
+}
+
+function parseLibraryPuzzleString(text) {
+  const fields = String(text || "")
+    .trim()
+    .split(":");
+  if (fields.length < 3) return null;
+
+  let boardIndex = 0;
+  let board = null;
+  while (boardIndex < fields.length && !board) {
+    board = parseLibraryBoardField(fields[boardIndex]);
+    if (!board) boardIndex++;
+  }
+  if (!board) return null;
+
+  const universe =
+    boardIndex > 0 ? parseLibrarySukakuField(fields[boardIndex - 1]) : null;
+  const placedGrid = puzzleStringToGrid(
+    board.values.map((value) => (value === 0 ? "." : String(value))).join(""),
+  );
+
+  const pencils = Array.from({ length: 81 }, () => new Set());
+  for (let index = 0; index < 81; index++) {
+    if (board.values[index] !== 0) continue;
+    const row = Math.floor(index / 9);
+    const col = index % 9;
+    for (let num = 1; num <= 9; num++) {
+      if (universe && !universe[index].has(num)) continue;
+      if (isValid(placedGrid, row, col, num)) pencils[index].add(num);
+    }
+  }
+
+  const eliminations = (fields[boardIndex + 1] || "").match(/\d+/g) || [];
+  for (const token of eliminations) {
+    if (token.length !== 3) continue;
+    const [num, row, col] = [...token].map(Number);
+    if (num < 1 || row < 1 || row > 9 || col < 1 || col > 9) continue;
+    pencils[(row - 1) * 9 + (col - 1)].delete(num);
+  }
+
+  return {
+    values: board.values,
+    givens: board.values
+      .map((value, index) => (board.givens[index] ? String(value) : "."))
+      .join(""),
+    pencils,
+  };
+}
+
 async function loadPuzzle(puzzleString, puzzleData = null) {
   flushScheduledPuzzleProgress();
-  puzzleString = puzzleString.replace(/0/g, ".");
 
-  const rawInput = puzzleString.replace(/\s/g, "");
-  if (rawInput.length === 81 && /^[0-9.]+$/.test(rawInput)) {
-    puzzleStringInput.value = formatPuzzleStringForInput(rawInput);
+  const libraryState = parseLibraryPuzzleString(puzzleString);
+  if (!libraryState) {
+    puzzleString = puzzleString.replace(/0/g, ".");
+
+    const rawInput = puzzleString.replace(/\s/g, "");
+    if (rawInput.length === 81 && /^[0-9.]+$/.test(rawInput)) {
+      puzzleStringInput.value = formatPuzzleStringForInput(rawInput);
+    }
   }
 
   // Force textbox height recalculation to trigger the new vertical scrollbar
@@ -4660,7 +4752,15 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   drawingState = null;
   renderLines();
 
-  if (parsedGridCells) {
+  if (libraryState) {
+    initialPuzzleString = libraryState.givens;
+    for (let i = 0; i < 81; i++) {
+      const cellState = boardState[Math.floor(i / 9)][i % 9];
+      cellState.value = libraryState.values[i];
+      cellState.isGiven = libraryState.givens[i] !== ".";
+      libraryState.pencils[i].forEach((num) => cellState.pencils.add(num));
+    }
+  } else if (parsedGridCells) {
     const getPeers = (idx) => {
       const peers = new Set();
       const r = Math.floor(idx / 9);
@@ -4780,6 +4880,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   historyIndex = -1;
   historyCurrentSnapshot = null;
   if (!wasSaveLoaded) hasUsedAutoPencil = false;
+  if (libraryState) hasUsedAutoPencil = true;
   isAutoPencilPending = false;
   isSolvePending = false;
   isClearStoragePending = false;
@@ -8116,13 +8217,13 @@ function getDefaultTechniques() {
       level: 10,
       score: 390,
     },
-    /*{
+    {
       nameKey: "ui_msg_352",
       aliases: ["ui_msg_340", "ui_msg_341", "ui_msg_342"],
       func: techniques.blossomLoop,
       level: 10,
       score: 400,
-    },*/
+    },
     {
       nameKey: "ui_msg_299",
       func: techniques.complexAic,

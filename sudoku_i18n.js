@@ -50,7 +50,8 @@ const TRANSLATIONS = {
     // === Puzzle string area ===
     btn_load: "Load",
     btn_copy: "Copy",
-    placeholder_puzzle: "Enter 81 characters \nor ASCII Grid...",
+    placeholder_puzzle:
+      "Enter 81 characters, ASCII Grid, \nor YZF Library string...",
     tooltip_load: "Load a custom 81-character puzzle string.",
     tooltip_copy: "Copy puzzle data to clipboard.",
 
@@ -922,7 +923,7 @@ const TRANSLATIONS = {
     // === Puzzle string area ===
     btn_load: "불러오기",
     btn_copy: "복사하기",
-    placeholder_puzzle: "81자 또는 ASCII 그리드 입력...",
+    placeholder_puzzle: "81자, ASCII 그리드, \nYZF Library 문자열 입력...",
     tooltip_load: "사용자 지정 81자 퍼즐 문자열을 불러옵니다.",
     tooltip_copy: "현재 퍼즐을 클립보드로 복사합니다.",
 
