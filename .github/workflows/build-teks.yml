@@ -1,0 +1,86 @@
+name: Build and deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-teks-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Reject direct edits to sudoku_teks.js
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git cat-file -e "${BASE_SHA}:teks/core.js" 2>/dev/null &&
+            ! git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- sudoku_teks.js; then
+            echo "::error::Do not edit sudoku_teks.js directly; edit files under teks/."
+            exit 1
+          fi
+
+      - name: Build sudoku_teks.js
+        run: node scripts/build-teks.cjs
+
+      - name: Verify generated bundle
+        run: node scripts/build-teks.cjs --check
+
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Prepare Pages artifact
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          mkdir _site
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='backups/' \
+            --exclude='scripts/' \
+            --exclude='teks/' \
+            --exclude='_site/' \
+            ./ _site/
+
+      - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build-teks-bundle
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -411,8 +411,6 @@ function hydrateBlossomWorkerResult(result) {
         ? t("teks_msg_194")
         : t("teks_msg_196");
   result.hint.mainInfo = t("teks_msg_195", result.blossom.burrText);
-  result.applyVisuals = () =>
-    techniques._applyBlossomVisuals(result.blossom, result.cells);
   return result;
 }
 
@@ -2640,8 +2638,7 @@ function setupEventListeners() {
           drawingState = null;
           clearAllColors();
           renderLines();
-          if (currentHintData.applyVisuals) {
-            currentHintData.applyVisuals();
+          if (techniques._applyResultVisuals(currentHintData)) {
             renderBoard();
             renderLines();
           }
@@ -5862,9 +5859,7 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
         clearAllColors();
 
         // Apply this specific hint's visuals
-        if (subItem.result.applyVisuals) {
-          subItem.result.applyVisuals();
-        }
+        techniques._applyResultVisuals(subItem.result);
 
         // Highlight active sub-row globally. Rows may have been built in a
         // detached container, so query the list that is actually on screen.
@@ -6321,7 +6316,7 @@ function renderSolverStep(index) {
 
     const actionStr = formatResultAction(step.result);
     msg = `${h.name}: ${h.detail || ""} => ${actionStr}`;
-    if (step.result.applyVisuals) step.result.applyVisuals();
+    techniques._applyResultVisuals(step.result);
   }
 
   showMessage(msg, msgColor);

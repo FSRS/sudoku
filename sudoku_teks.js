@@ -1,3 +1,5 @@
+// GENERATED FILE. DO NOT EDIT DIRECTLY.
+// Edit files under teks and run: node scripts/build-teks.cjs
 let _memoComplexFish = {
   franken: new Set(),
   mutant: new Set(),
@@ -239,7 +241,10 @@ class AICNode {
   }
 }
 
-const techniques = {
+
+const techniques = {};
+
+Object.assign(techniques, {
   _templatingCache: null,
 
   _getBoxIndex: (r, c) => boxOf(r, c),
@@ -504,35 +509,73 @@ const techniques = {
     return ids;
   },
 
-  _applySingleDigitChainVisuals: (digit, nodes, removals, grouped = false) => {
-    highlightedDigit = digit;
-    highlightState = 1;
+});
 
-    nodes.forEach((node, index) => {
-      node.cells.forEach(([r, c]) => {
-        const colorIndex = index % 2 === 0 ? 5 : 4;
-        boardState[r][c].pencilColors.set(
-          digit,
-          candidateColorPalette[colorIndex],
-        );
+Object.assign(techniques, {
+  _applyVisualPlan: (plan) => {
+    if (!plan) return false;
+
+    if (plan.highlight) {
+      highlightedDigit = plan.highlight.digit;
+      highlightState = plan.highlight.state;
+    }
+
+    for (const { r, c, color, mode } of plan.cellColors || []) {
+      if (mode === "add") {
+        window.addCellColor(r, c, cellColorPalette[color]);
+      } else {
+        boardState[r][c].cellColor = cellColorPalette[color];
+      }
+    }
+
+    for (const { r, c, num, color, mode } of plan.candidateColors || []) {
+      if (mode === "add") {
+        window.addCandidateColor(r, c, num, candidateColorPalette[color]);
+      } else {
+        boardState[r][c].pencilColors.set(num, candidateColorPalette[color]);
+      }
+    }
+
+    for (const { r, c, num, marker, color } of plan.candidateMarks || []) {
+      const target =
+        marker === "circle"
+          ? boardState[r][c].candCircles
+          : boardState[r][c].candSlashes;
+      target.set(num, markColorPalette[color]);
+    }
+
+    for (const link of plan.links || []) {
+      drawnLines.push({
+        ...link,
+        color: lineColorPalette[link.color],
       });
-    });
-    removals.forEach(({ r, c, num }) => {
-      boardState[r][c].candSlashes.set(num, markColorPalette[0]);
-    });
+    }
 
+    return true;
+  },
+
+  _applyResultVisuals: (result) =>
+    techniques._applyVisualPlan(result?.visualPlan),
+
+  _buildSingleDigitChainVisualPlan: (
+    digit,
+    nodes,
+    removals,
+    grouped = false,
+  ) => {
+    const links = [];
     const drawGroup = (node, index) => {
       if (!grouped || node.cells.length <= 1) return;
       const colorIndex = index % 2 === 0 ? 5 : 4;
       for (let i = 0; i < node.cells.length - 1; i++) {
-        drawnLines.push({
+        links.push({
           r1: node.cells[i][0],
           c1: node.cells[i][1],
           n1: digit,
           r2: node.cells[i + 1][0],
           c2: node.cells[i + 1][1],
           n2: digit,
-          color: lineColorPalette[colorIndex],
+          color: colorIndex,
           style: "solid",
         });
       }
@@ -565,65 +608,123 @@ const techniques = {
       const [from, to] = grouped
         ? closestCells(left, right)
         : [left.cells[0], right.cells[0]];
-      drawnLines.push({
+      links.push({
         r1: from[0],
         c1: from[1],
         n1: digit,
         r2: to[0],
         c2: to[1],
         n2: digit,
-        color: lineColorPalette[0],
+        color: 0,
         style: i % 2 === 0 ? "solid" : "dash",
       });
     }
+
+    return {
+      highlight: { digit, state: 1 },
+      candidateColors: nodes.flatMap((node, index) =>
+        node.cells.map(([r, c]) => ({
+          r,
+          c,
+          num: digit,
+          color: index % 2 === 0 ? 5 : 4,
+        })),
+      ),
+      candidateMarks: removals.map(({ r, c, num }) => ({
+        r,
+        c,
+        num,
+        marker: "slash",
+        color: 0,
+      })),
+      links,
+    };
   },
 
-  _applyDeadlyPatternBaseVisuals: (type, cells, digits, extraData) => {
-    highlightState = type === 4 || type === 6 ? 1 : 0;
-    highlightedDigit =
-      type === 4 || type === 6 ? extraData.restrictedDigit : null;
+  _applySingleDigitChainVisuals: (digit, nodes, removals, grouped = false) => {
+    techniques._applyVisualPlan(
+      techniques._buildSingleDigitChainVisualPlan(
+        digit,
+        nodes,
+        removals,
+        grouped,
+      ),
+    );
+  },
 
+  _buildDeadlyPatternBaseVisualPlan: (
+    type,
+    cells,
+    digits,
+    extraData,
+    sourcePencils,
+  ) => {
     const coreDigits = new Set(digits);
-    cells.forEach(([r, c]) => {
-      boardState[r][c].cellColor = cellColorPalette[7];
-      boardState[r][c].pencils.forEach((candidate) => {
-        boardState[r][c].pencilColors.set(
-          candidate,
-          coreDigits.has(candidate)
-            ? candidateColorPalette[7]
-            : candidateColorPalette[3],
-        );
-      });
-    });
+    const cellColors = cells.map(([r, c]) => ({ r, c, color: 7 }));
+    const candidateColors = cells.flatMap(([r, c]) =>
+      Array.from(sourcePencils[r][c], (num) => ({
+        r,
+        c,
+        num,
+        color: coreDigits.has(num) ? 7 : 3,
+      })),
+    );
+    const links = [];
 
     if (type === 3) {
-      extraData.subsetCells.forEach(([r, c]) => {
-        boardState[r][c].cellColor = cellColorPalette[6];
-        boardState[r][c].pencils.forEach((candidate) => {
-          if (extraData.subsetCands.has(candidate)) {
-            boardState[r][c].pencilColors.set(
-              candidate,
-              candidateColorPalette[4],
-            );
+      for (const [r, c] of extraData.subsetCells) {
+        cellColors.push({ r, c, color: 6 });
+        for (const num of sourcePencils[r][c]) {
+          if (extraData.subsetCands.has(num)) {
+            candidateColors.push({ r, c, num, color: 4 });
           }
-        });
-      });
+        }
+      }
     }
 
     if (type === 4) {
-      drawnLines.push({
+      links.push({
         r1: extraData.e1[0],
         c1: extraData.e1[1],
         n1: extraData.restrictedDigit,
         r2: extraData.e2[0],
         c2: extraData.e2[1],
         n2: extraData.restrictedDigit,
-        color: lineColorPalette[0],
+        color: 0,
         style: "solid",
       });
     }
+
+    return {
+      highlight: {
+        digit:
+          type === 4 || type === 6 ? extraData.restrictedDigit : null,
+        state: type === 4 || type === 6 ? 1 : 0,
+      },
+      cellColors,
+      candidateColors,
+      links,
+    };
   },
 
+  _applyDeadlyPatternBaseVisuals: (type, cells, digits, extraData) => {
+    const sourcePencils = boardState.map((row) =>
+      row.map((cell) => cell.pencils),
+    );
+    techniques._applyVisualPlan(
+      techniques._buildDeadlyPatternBaseVisualPlan(
+        type,
+        cells,
+        digits,
+        extraData,
+        sourcePencils,
+      ),
+    );
+  },
+
+});
+
+Object.assign(techniques, {
   _collectBlossomStems: (
     board,
     pencils,
@@ -770,6 +871,9 @@ const techniques = {
     return stems;
   },
 
+});
+
+Object.assign(techniques, {
   eliminateCandidates: (board, pencils, findAll = false) => {
     // Initialize Cache
     techniques._resetAICCache();
@@ -816,14 +920,16 @@ const techniques = {
           mainInfo: t("teks_msg_2", newpr + 1, newpc + 1),
           detail: t("teks_msg_3", newd, newr, newc),
         },
-        applyVisuals: () => {
-          highlightedDigit = null;
-          highlightState = 0;
-
-          boardState[newr][newc].cellColor = cellColorPalette[7]; // Color 8
-          uniqueRemovals.forEach((el) =>
-            boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
-          ); // Color 1
+        visualPlan: {
+          highlight: { digit: null, state: 0 },
+          cellColors: [{ r: newr, c: newc, color: 7 }],
+          candidateMarks: uniqueRemovals.map(({ r, c, num }) => ({
+            r,
+            c,
+            num,
+            marker: "slash",
+            color: 0,
+          })),
         },
       };
       return findAll ? [res] : res;
@@ -854,6 +960,8 @@ const techniques = {
           emptyCol,
           solvedMask,
           t("teks_msg_4", r + 1),
+          "row",
+          r,
         );
         if (!findAll) return res;
         results.push(res);
@@ -881,6 +989,8 @@ const techniques = {
           c,
           solvedMask,
           t("teks_msg_5", c + 1),
+          "col",
+          c,
         );
         if (!findAll) return res;
         results.push(res);
@@ -914,6 +1024,8 @@ const techniques = {
           emptyCell.c,
           solvedMask,
           t("teks_msg_6", b + 1),
+          "box",
+          b,
         );
         if (!findAll) return res;
         results.push(res);
@@ -923,7 +1035,7 @@ const techniques = {
   },
 
   // Helper to calculate missing digit and format the return object
-  _resolveFullHouse: (r, c, solvedMask, unitName) => {
+  _resolveFullHouse: (r, c, solvedMask, unitName, unitType, unitIndex) => {
     let missingNum = 0;
     // Find which bit is 0 in the mask (111111111)
     for (let d = 1; d <= 9; d++) {
@@ -949,15 +1061,12 @@ const techniques = {
         mainInfo: unitName,
         detail,
       },
-      applyVisuals: () => {
-        highlightedDigit = missingNum;
-        highlightState = 1;
-        const type = unitName.substring(0, 3).toLowerCase();
-        const idx = parseInt(unitName.match(/\d+/)[0]) - 1;
-        techniques._getUnitCells(type, idx).forEach(([ur, uc]) => {
-          boardState[ur][uc].cellColor = cellColorPalette[7]; // House cell color 8
-        });
-        boardState[r][c].pencilColors.set(missingNum, candidateColorPalette[3]);
+      visualPlan: {
+        highlight: { digit: missingNum, state: 1 },
+        cellColors: techniques
+          ._getUnitCells(unitType, unitIndex)
+          .map(([ur, uc]) => ({ r: ur, c: uc, color: 7 })),
+        candidateColors: [{ r, c, num: missingNum, color: 3 }],
       },
     };
   },
@@ -979,11 +1088,10 @@ const techniques = {
               mainInfo: t("teks_msg_11", r + 1, c + 1),
               detail: t("teks_msg_12", num, r + 1, c + 1),
             },
-            applyVisuals: () => {
-              highlightedDigit = null;
-              highlightState = 0;
-              boardState[r][c].cellColor = cellColorPalette[7]; // Cell color 8
-              boardState[r][c].pencilColors.set(num, candidateColorPalette[3]);
+            visualPlan: {
+              highlight: { digit: null, state: 0 },
+              cellColors: [{ r, c, color: 7 }],
+              candidateColors: [{ r, c, num, color: 3 }],
             },
           };
           if (!findAll) return res;
@@ -1037,23 +1145,13 @@ const techniques = {
                 mainInfo: unitLabel,
                 detail,
               },
-              applyVisuals: () => {
-                highlightedDigit = num;
-                highlightState = 1;
-
-                // Color the entire unit (house)
-                unit.forEach(([ur, uc]) => {
-                  boardState[ur][uc].cellColor = cellColorPalette[7]; // House color 8
-                });
-
-                // Highlight the specific target cell distinctly over the house
-                boardState[r][c].cellColor = cellColorPalette[6]; // Target cell color 7
-
-                // Highlight the placed candidate
-                boardState[r][c].pencilColors.set(
-                  num,
-                  candidateColorPalette[3],
-                );
+              visualPlan: {
+                highlight: { digit: num, state: 1 },
+                cellColors: [
+                  ...unit.map(([ur, uc]) => ({ r: ur, c: uc, color: 7 })),
+                  { r, c, color: 6 },
+                ],
+                candidateColors: [{ r, c, num, color: 3 }],
               },
             };
             if (!findAll) return res;
@@ -1174,26 +1272,21 @@ const techniques = {
                       b + 1,
                     ),
                   },
-                  applyVisuals: () => {
-                    highlightedDigit = null;
-                    highlightState = 0;
-                    combo.forEach(([cr, cc]) => {
-                      boardState[cr][cc].cellColor = cellColorPalette[6]; // Subset cell color 7
-                      union.forEach((cand) => {
-                        if (pencils[cr][cc].has(cand)) {
-                          boardState[cr][cc].pencilColors.set(
-                            cand,
-                            candidateColorPalette[4],
-                          ); // Subset cand color 5
-                        }
-                      });
-                    });
-                    removals.forEach((el) =>
-                      boardState[el.r][el.c].candSlashes.set(
-                        el.num,
-                        markColorPalette[0],
-                      ),
-                    ); // Color 1
+                  visualPlan: {
+                    highlight: { digit: null, state: 0 },
+                    cellColors: combo.map(([r, c]) => ({ r, c, color: 6 })),
+                    candidateColors: combo.flatMap(([r, c]) =>
+                      [...union]
+                        .filter((num) => pencils[r][c].has(num))
+                        .map((num) => ({ r, c, num, color: 4 })),
+                    ),
+                    candidateMarks: removals.map(({ r, c, num }) => ({
+                      r,
+                      c,
+                      num,
+                      marker: "slash",
+                      color: 0,
+                    })),
                   },
                 };
                 if (!findAll) return res;
@@ -1324,56 +1417,51 @@ const techniques = {
                   secondaryIdx + 1,
                 );
 
-            const _sourceCellsWithNum = sourceCellsWithNum;
-            const _primaryIdx = primaryIdx;
-            const _secondaryIdx = secondaryIdx;
-            const _isRow = isRow;
-            const _is_pointing = is_pointing;
-            const _removals = removals;
+            const boxIdx = is_pointing ? primaryIdx : secondaryIdx;
+            const lineIdx = is_pointing ? secondaryIdx : primaryIdx;
+            const boxCells = techniques._getUnitCells("box", boxIdx);
+            const lineCells = techniques._getUnitCells(
+              isRow ? "row" : "col",
+              lineIdx,
+            );
+            const [color8Cells, color7Cells] = is_pointing
+              ? [lineCells, boxCells]
+              : [boxCells, lineCells];
 
             const res = {
               change: true,
               type: "remove",
               cells: removals,
               hint: { name: hintName, mainInfo, detail },
-              applyVisuals: () => {
-                highlightedDigit = num;
-                highlightState = 1;
-
-                const boxIdx = _is_pointing ? _primaryIdx : _secondaryIdx;
-                const lineIdx = _is_pointing ? _secondaryIdx : _primaryIdx;
-
-                const boxCells = techniques._getUnitCells("box", boxIdx);
-                const lineCells = techniques._getUnitCells(
-                  _isRow ? "row" : "col",
-                  lineIdx,
-                );
-
-                const [color8Cells, color7Cells] = _is_pointing
-                  ? [lineCells, boxCells]
-                  : [boxCells, lineCells];
-
-                color7Cells.forEach(([cr, cc]) => {
-                  window.addCellColor(cr, cc, cellColorPalette[6]);
-                });
-
-                color8Cells.forEach(([cr, cc]) => {
-                  window.addCellColor(cr, cc, cellColorPalette[7]);
-                });
-
-                _sourceCellsWithNum.forEach(([cr, cc]) => {
-                  boardState[cr][cc].pencilColors.set(
-                    num,
-                    candidateColorPalette[4],
-                  );
-                });
-
-                _removals.forEach((el) =>
-                  boardState[el.r][el.c].candSlashes.set(
-                    el.num,
-                    markColorPalette[0],
-                  ),
-                );
+              visualPlan: {
+                highlight: { digit: num, state: 1 },
+                cellColors: [
+                  ...color7Cells.map(([r, c]) => ({
+                    r,
+                    c,
+                    color: 6,
+                    mode: "add",
+                  })),
+                  ...color8Cells.map(([r, c]) => ({
+                    r,
+                    c,
+                    color: 7,
+                    mode: "add",
+                  })),
+                ],
+                candidateColors: sourceCellsWithNum.map(([r, c]) => ({
+                  r,
+                  c,
+                  num,
+                  color: 4,
+                })),
+                candidateMarks: removals.map(({ r, c, num: removalNum }) => ({
+                  r,
+                  c,
+                  num: removalNum,
+                  marker: "slash",
+                  color: 0,
+                })),
               },
             };
             if (!findAll) return res;
@@ -1490,26 +1578,25 @@ const techniques = {
                     unitName,
                   ),
                 },
-                applyVisuals: () => {
-                  highlightedDigit = null;
-                  highlightState = 0;
-                  cellGroup.forEach(([cr, cc]) => {
-                    boardState[cr][cc].cellColor = cellColorPalette[6]; // Subset cell color 7
-                    union.forEach((cand) => {
-                      if (boardState[cr][cc].pencils.has(cand)) {
-                        boardState[cr][cc].pencilColors.set(
-                          cand,
-                          candidateColorPalette[4],
-                        ); // Subset cand color 5
-                      }
-                    });
-                  });
-                  removals.forEach((el) =>
-                    boardState[el.r][el.c].candSlashes.set(
-                      el.num,
-                      markColorPalette[0],
-                    ),
-                  ); // Color 1
+                visualPlan: {
+                  highlight: { digit: null, state: 0 },
+                  cellColors: cellGroup.map(([r, c]) => ({
+                    r,
+                    c,
+                    color: 6,
+                  })),
+                  candidateColors: cellGroup.flatMap(([r, c]) =>
+                    [...union]
+                      .filter((num) => pencils[r][c].has(num))
+                      .map((num) => ({ r, c, num, color: 4 })),
+                  ),
+                  candidateMarks: removals.map(({ r, c, num }) => ({
+                    r,
+                    c,
+                    num,
+                    marker: "slash",
+                    color: 0,
+                  })),
                 },
               };
               if (!findAll) return res;
@@ -1615,26 +1702,21 @@ const techniques = {
                   mainInfo: `${unitName}`,
                   detail: t("teks_msg_46", digitsStr, unitName, cellStr),
                 },
-                applyVisuals: () => {
-                  highlightedDigit = null;
-                  highlightState = 0;
-                  cells.forEach(([cr, cc]) => {
-                    boardState[cr][cc].cellColor = cellColorPalette[6]; // Subset cell color 7
-                    numGroupSet.forEach((cand) => {
-                      if (boardState[cr][cc].pencils.has(cand)) {
-                        boardState[cr][cc].pencilColors.set(
-                          cand,
-                          candidateColorPalette[4],
-                        ); // Subset cand color 5
-                      }
-                    });
-                  });
-                  removals.forEach((el) =>
-                    boardState[el.r][el.c].candSlashes.set(
-                      el.num,
-                      markColorPalette[0],
-                    ),
-                  ); // Color 1
+                visualPlan: {
+                  highlight: { digit: null, state: 0 },
+                  cellColors: cells.map(([r, c]) => ({ r, c, color: 6 })),
+                  candidateColors: cells.flatMap(([r, c]) =>
+                    [...numGroupSet]
+                      .filter((num) => pencils[r][c].has(num))
+                      .map((num) => ({ r, c, num, color: 4 })),
+                  ),
+                  candidateMarks: removals.map(({ r, c, num }) => ({
+                    r,
+                    c,
+                    num,
+                    marker: "slash",
+                    color: 0,
+                  })),
                 },
               };
               if (!findAll) return res;
@@ -1718,37 +1800,36 @@ const techniques = {
               mainInfo: t("teks_msg_48", num),
               detail: t("teks_msg_162", num, baseStr, coverStr),
             },
-            applyVisuals: () => {
-              highlightedDigit = num;
-              highlightState = 1;
-
-              primaryLineIndices.forEach((primIdx) => {
-                for (let p = 0; p < 9; p++) {
-                  const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
-                  window.addCellColor(cr, cc, cellColorPalette[6]);
-
-                  if (boardState[cr][cc].pencils.has(num)) {
-                    boardState[cr][cc].pencilColors.set(
-                      num,
-                      candidateColorPalette[6],
-                    );
-                  }
-                }
-              });
-
-              allSecondaryIndices.forEach((secIdx) => {
-                for (let p = 0; p < 9; p++) {
-                  const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
-                  window.addCellColor(cr, cc, cellColorPalette[7]);
-                }
-              });
-
-              removals.forEach((el) =>
-                boardState[el.r][el.c].candSlashes.set(
-                  el.num,
-                  markColorPalette[0],
+            visualPlan: {
+              highlight: { digit: num, state: 1 },
+              cellColors: [
+                ...[...primaryLineIndices].flatMap((primIdx) =>
+                  Array.from({ length: 9 }, (_, p) => {
+                    const [r, c] = isRowBased ? [primIdx, p] : [p, primIdx];
+                    return { r, c, color: 6, mode: "add" };
+                  }),
                 ),
-              );
+                ...[...allSecondaryIndices].flatMap((secIdx) =>
+                  Array.from({ length: 9 }, (_, p) => {
+                    const [r, c] = isRowBased ? [p, secIdx] : [secIdx, p];
+                    return { r, c, color: 7, mode: "add" };
+                  }),
+                ),
+              ],
+              candidateColors: [...primaryLineIndices].flatMap((primIdx) =>
+                Array.from({ length: 9 }, (_, p) =>
+                  isRowBased ? [primIdx, p] : [p, primIdx],
+                )
+                  .filter(([r, c]) => pencils[r][c].has(num))
+                  .map(([r, c]) => ({ r, c, num, color: 6 })),
+              ),
+              candidateMarks: removals.map(({ r, c, num: removalNum }) => ({
+                r,
+                c,
+                num: removalNum,
+                marker: "slash",
+                color: 0,
+              })),
             },
           };
           if (!findAll) return res;
@@ -1914,37 +1995,42 @@ const techniques = {
               mainInfo: t("teks_msg_48", num),
               detail: t("teks_msg_49", num, baseStr, coverStr, finStr),
             },
-            applyVisuals: () => {
-              highlightedDigit = num;
-              highlightState = 1;
-              baseLineIndices.forEach((primIdx) => {
-                for (let p = 0; p < 9; p++) {
-                  const [cr, cc] = isRowBased ? [primIdx, p] : [p, primIdx];
-                  window.addCellColor(cr, cc, cellColorPalette[6]);
-
-                  if (boardState[cr][cc].pencils.has(num)) {
-                    boardState[cr][cc].pencilColors.set(
-                      num,
-                      candidateColorPalette[6],
-                    );
-                  }
-                }
-              });
-              coverBaseSet.forEach((secIdx) => {
-                for (let p = 0; p < 9; p++) {
-                  const [cr, cc] = isRowBased ? [p, secIdx] : [secIdx, p];
-                  window.addCellColor(cr, cc, cellColorPalette[7]);
-                }
-              });
-              fins.forEach(([fr, fc]) =>
-                window.addCellColor(fr, fc, cellColorPalette[5]),
-              );
-              removals.forEach((el) =>
-                boardState[el.r][el.c].candSlashes.set(
-                  el.num,
-                  markColorPalette[0],
+            visualPlan: {
+              highlight: { digit: num, state: 1 },
+              cellColors: [
+                ...[...baseLineIndices].flatMap((primIdx) =>
+                  Array.from({ length: 9 }, (_, p) => {
+                    const [r, c] = isRowBased ? [primIdx, p] : [p, primIdx];
+                    return { r, c, color: 6, mode: "add" };
+                  }),
                 ),
-              );
+                ...[...coverBaseSet].flatMap((secIdx) =>
+                  Array.from({ length: 9 }, (_, p) => {
+                    const [r, c] = isRowBased ? [p, secIdx] : [secIdx, p];
+                    return { r, c, color: 7, mode: "add" };
+                  }),
+                ),
+                ...fins.map(([r, c]) => ({
+                  r,
+                  c,
+                  color: 5,
+                  mode: "add",
+                })),
+              ],
+              candidateColors: [...baseLineIndices].flatMap((primIdx) =>
+                Array.from({ length: 9 }, (_, p) =>
+                  isRowBased ? [primIdx, p] : [p, primIdx],
+                )
+                  .filter(([r, c]) => pencils[r][c].has(num))
+                  .map(([r, c]) => ({ r, c, num, color: 6 })),
+              ),
+              candidateMarks: removals.map(({ r, c, num: removalNum }) => ({
+                r,
+                c,
+                num: removalNum,
+                marker: "slash",
+                color: 0,
+              })),
             },
           };
           if (!findAll) return resultObj;
@@ -1954,6 +2040,9 @@ const techniques = {
     }
     return findAll ? results : { change: false };
   },
+});
+
+Object.assign(techniques, {
   xyWing: (board, pencils, findAll = false) => {
     const bivalueCells = [];
     for (let r = 0; r < 9; r++) {
@@ -2022,53 +2111,28 @@ const techniques = {
                     pincer2.c + 1,
                   ),
                 },
-                applyVisuals: () => {
-                  highlightedDigit = null;
-                  highlightState = 2;
-
-                  // Color the cells
-                  boardState[pivot.r][pivot.c].cellColor = cellColorPalette[6]; // Cell Color 7
-                  boardState[pincer1.r][pincer1.c].cellColor =
-                    cellColorPalette[7]; // Cell Color 8
-                  boardState[pincer2.r][pincer2.c].cellColor =
-                    cellColorPalette[7]; // Cell Color 8
-
-                  // Elimination candidate (z) in wings -> Candidate Color 8
-                  boardState[pincer1.r][pincer1.c].pencilColors.set(
-                    z,
-                    candidateColorPalette[7],
-                  );
-                  boardState[pincer2.r][pincer2.c].pencilColors.set(
-                    z,
-                    candidateColorPalette[7],
-                  );
-
-                  // First other digit (x) -> Candidate Color 5
-                  boardState[pivot.r][pivot.c].pencilColors.set(
-                    x,
-                    candidateColorPalette[4],
-                  );
-                  boardState[pincer1.r][pincer1.c].pencilColors.set(
-                    x,
-                    candidateColorPalette[4],
-                  );
-
-                  // Second other digit (y) -> Candidate Color 6
-                  boardState[pivot.r][pivot.c].pencilColors.set(
-                    y,
-                    candidateColorPalette[5],
-                  );
-                  boardState[pincer2.r][pincer2.c].pencilColors.set(
-                    y,
-                    candidateColorPalette[5],
-                  );
-
-                  removals.forEach((el) =>
-                    boardState[el.r][el.c].candSlashes.set(
-                      el.num,
-                      markColorPalette[0],
-                    ),
-                  );
+                visualPlan: {
+                  highlight: { digit: null, state: 2 },
+                  cellColors: [
+                    { r: pivot.r, c: pivot.c, color: 6 },
+                    { r: pincer1.r, c: pincer1.c, color: 7 },
+                    { r: pincer2.r, c: pincer2.c, color: 7 },
+                  ],
+                  candidateColors: [
+                    { r: pincer1.r, c: pincer1.c, num: z, color: 7 },
+                    { r: pincer2.r, c: pincer2.c, num: z, color: 7 },
+                    { r: pivot.r, c: pivot.c, num: x, color: 4 },
+                    { r: pincer1.r, c: pincer1.c, num: x, color: 4 },
+                    { r: pivot.r, c: pivot.c, num: y, color: 5 },
+                    { r: pincer2.r, c: pincer2.c, num: y, color: 5 },
+                  ],
+                  candidateMarks: removals.map(({ r, c, num }) => ({
+                    r,
+                    c,
+                    num,
+                    marker: "slash",
+                    color: 0,
+                  })),
                 },
               };
               if (!findAll) return res;
@@ -2144,6 +2208,8 @@ const techniques = {
           }
           if (removals.length > 0) {
             const pivotCands = [...pivot.cands].sort().join("");
+            const x = [...wing1.cands].find((candidate) => candidate !== z);
+            const y = [...wing2.cands].find((candidate) => candidate !== z);
             const resultObj = {
               change: true,
               type: "remove",
@@ -2162,63 +2228,37 @@ const techniques = {
                   wing2.c + 1,
                 ),
               },
-              applyVisuals: () => {
-                highlightedDigit = null;
-                highlightState = 2;
-
-                // Color the cells
-                boardState[pivot.r][pivot.c].cellColor = cellColorPalette[6]; // Cell Color 7
-                boardState[wing1.r][wing1.c].cellColor = cellColorPalette[7]; // Cell Color 8
-                boardState[wing2.r][wing2.c].cellColor = cellColorPalette[7]; // Cell Color 8
-
-                // Find the other two digits distinct from 'z'
-                const x = [...wing1.cands].find((c) => c !== z);
-                const y = [...wing2.cands].find((c) => c !== z);
-
-                // Elimination candidate (z) in pivot and wings -> Candidate Color 8
-                boardState[pivot.r][pivot.c].pencilColors.set(
-                  z,
-                  candidateColorPalette[7],
-                );
-                boardState[wing1.r][wing1.c].pencilColors.set(
-                  z,
-                  candidateColorPalette[7],
-                );
-                boardState[wing2.r][wing2.c].pencilColors.set(
-                  z,
-                  candidateColorPalette[7],
-                );
-
-                // First other digit (x) -> Candidate Color 5
-                if (x !== undefined) {
-                  boardState[pivot.r][pivot.c].pencilColors.set(
-                    x,
-                    candidateColorPalette[4],
-                  );
-                  boardState[wing1.r][wing1.c].pencilColors.set(
-                    x,
-                    candidateColorPalette[4],
-                  );
-                }
-
-                // Second other digit (y) -> Candidate Color 6
-                if (y !== undefined) {
-                  boardState[pivot.r][pivot.c].pencilColors.set(
-                    y,
-                    candidateColorPalette[5],
-                  );
-                  boardState[wing2.r][wing2.c].pencilColors.set(
-                    y,
-                    candidateColorPalette[5],
-                  );
-                }
-
-                removals.forEach((el) =>
-                  boardState[el.r][el.c].candSlashes.set(
-                    el.num,
-                    markColorPalette[0],
-                  ),
-                );
+              visualPlan: {
+                highlight: { digit: null, state: 2 },
+                cellColors: [
+                  { r: pivot.r, c: pivot.c, color: 6 },
+                  { r: wing1.r, c: wing1.c, color: 7 },
+                  { r: wing2.r, c: wing2.c, color: 7 },
+                ],
+                candidateColors: [
+                  { r: pivot.r, c: pivot.c, num: z, color: 7 },
+                  { r: wing1.r, c: wing1.c, num: z, color: 7 },
+                  { r: wing2.r, c: wing2.c, num: z, color: 7 },
+                  ...(x === undefined
+                    ? []
+                    : [
+                        { r: pivot.r, c: pivot.c, num: x, color: 4 },
+                        { r: wing1.r, c: wing1.c, num: x, color: 4 },
+                      ]),
+                  ...(y === undefined
+                    ? []
+                    : [
+                        { r: pivot.r, c: pivot.c, num: y, color: 5 },
+                        { r: wing2.r, c: wing2.c, num: y, color: 5 },
+                      ]),
+                ],
+                candidateMarks: removals.map(({ r, c, num }) => ({
+                  r,
+                  c,
+                  num,
+                  marker: "slash",
+                  color: 0,
+                })),
               },
             };
             if (!findAll) return resultObj;
@@ -2359,45 +2399,36 @@ const techniques = {
                 strongLinkDetail,
               ),
             },
-            applyVisuals: () => {
-              highlightedDigit = null;
-              highlightState = 2;
-
-              boardState[cell1.r][cell1.c].cellColor = cellColorPalette[6];
-              boardState[cell2.r][cell2.c].cellColor = cellColorPalette[6];
-
-              boardState[cell1.r][cell1.c].pencilColors.set(
-                linkDigit,
-                candidateColorPalette[5],
-              );
-              boardState[cell2.r][cell2.c].pencilColors.set(
-                linkDigit,
-                candidateColorPalette[5],
-              );
-
-              boardState[cell1.r][cell1.c].pencilColors.set(
-                elimDigit,
-                candidateColorPalette[7],
-              );
-              boardState[cell2.r][cell2.c].pencilColors.set(
-                elimDigit,
-                candidateColorPalette[7],
-              );
-
-              [...group1, ...group2].forEach(([r, c]) => {
-                boardState[r][c].cellColor = cellColorPalette[7];
-                boardState[r][c].pencilColors.set(
-                  linkDigit,
-                  candidateColorPalette[4],
-                );
-              });
-
-              removals.forEach((el) =>
-                boardState[el.r][el.c].candSlashes.set(
-                  el.num,
-                  markColorPalette[0],
-                ),
-              );
+            visualPlan: {
+              highlight: { digit: null, state: 2 },
+              cellColors: [
+                { r: cell1.r, c: cell1.c, color: 6 },
+                { r: cell2.r, c: cell2.c, color: 6 },
+                ...[...group1, ...group2].map(([r, c]) => ({
+                  r,
+                  c,
+                  color: 7,
+                })),
+              ],
+              candidateColors: [
+                { r: cell1.r, c: cell1.c, num: linkDigit, color: 5 },
+                { r: cell2.r, c: cell2.c, num: linkDigit, color: 5 },
+                { r: cell1.r, c: cell1.c, num: elimDigit, color: 7 },
+                { r: cell2.r, c: cell2.c, num: elimDigit, color: 7 },
+                ...[...group1, ...group2].map(([r, c]) => ({
+                  r,
+                  c,
+                  num: linkDigit,
+                  color: 4,
+                })),
+              ],
+              candidateMarks: removals.map(({ r, c, num }) => ({
+                r,
+                c,
+                num,
+                marker: "slash",
+                color: 0,
+              })),
             },
           };
 
@@ -2502,32 +2533,27 @@ const techniques = {
                   mainInfo: t("teks_msg_61", pair[0], pair[1]),
                   detail: t("teks_msg_62", pair[0], pair[1], pathStr),
                 },
-                applyVisuals: () => {
-                  highlightedDigit = null;
-                  highlightState = 2;
-                  path.forEach((node, idx) => {
-                    const r = node[0];
-                    const c = node[1];
-                    const isEven = idx % 2 === 0;
-                    // Alternate Cell Color 7 and 8
-                    boardState[r][c].cellColor =
-                      cellColorPalette[isEven ? 6 : 7];
-                    // Opposite alternate Candidate Color 5 and 6
-                    boardState[r][c].pencilColors.set(
-                      pair[0],
-                      candidateColorPalette[isEven ? 4 : 5],
-                    );
-                    boardState[r][c].pencilColors.set(
-                      pair[1],
-                      candidateColorPalette[isEven ? 5 : 4],
-                    );
-                  });
-                  removals.forEach((el) =>
-                    boardState[el.r][el.c].candSlashes.set(
-                      el.num,
-                      markColorPalette[0],
-                    ),
-                  );
+                visualPlan: {
+                  highlight: { digit: null, state: 2 },
+                  cellColors: path.map(([r, c], index) => ({
+                    r,
+                    c,
+                    color: index % 2 === 0 ? 6 : 7,
+                  })),
+                  candidateColors: path.flatMap(([r, c], index) => {
+                    const isEven = index % 2 === 0;
+                    return [
+                      { r, c, num: pair[0], color: isEven ? 4 : 5 },
+                      { r, c, num: pair[1], color: isEven ? 5 : 4 },
+                    ];
+                  }),
+                  candidateMarks: removals.map(({ r, c, num }) => ({
+                    r,
+                    c,
+                    num,
+                    marker: "slash",
+                    color: 0,
+                  })),
                 },
               };
               if (!findAll) return res;
@@ -2633,17 +2659,16 @@ const techniques = {
               mainInfo: t("teks_msg_48", num),
               detail: `(${num})(${link1Str})-(${link2Str})`,
             },
-            applyVisuals: () =>
-              techniques._applySingleDigitChainVisuals(
-                num,
-                [
-                  { cells: [p1] },
-                  { cells: [base1] },
-                  { cells: [base2] },
-                  { cells: [p2] },
-                ],
-                removals,
-              ),
+            visualPlan: techniques._buildSingleDigitChainVisualPlan(
+              num,
+              [
+                { cells: [p1] },
+                { cells: [base1] },
+                { cells: [base2] },
+                { cells: [p2] },
+              ],
+              removals,
+            ),
           };
           if (!findAll) return { change: true, res: resultObj };
           results.push(resultObj);
@@ -2743,17 +2768,16 @@ const techniques = {
                   mainInfo: t("teks_msg_48", num),
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
-                applyVisuals: () =>
-                  techniques._applySingleDigitChainVisuals(
-                    num,
-                    [
-                      { cells: [p1] },
-                      { cells: [pBox1] },
-                      { cells: [pBox2] },
-                      { cells: [p2] },
-                    ],
-                    removals,
-                  ),
+                visualPlan: techniques._buildSingleDigitChainVisualPlan(
+                  num,
+                  [
+                    { cells: [p1] },
+                    { cells: [pBox1] },
+                    { cells: [pBox2] },
+                    { cells: [p2] },
+                  ],
+                  removals,
+                ),
               };
               if (!findAll) return resultObj;
               results.push(resultObj);
@@ -2845,17 +2869,16 @@ const techniques = {
                   mainInfo: t("teks_msg_48", num),
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
-                applyVisuals: () =>
-                  techniques._applySingleDigitChainVisuals(
-                    num,
-                    [
-                      { cells: [pA] },
-                      { cells: [pB] },
-                      { cells: [pC] },
-                      { cells: [pD] },
-                    ],
-                    removals,
-                  ),
+                visualPlan: techniques._buildSingleDigitChainVisualPlan(
+                  num,
+                  [
+                    { cells: [pA] },
+                    { cells: [pB] },
+                    { cells: [pC] },
+                    { cells: [pD] },
+                  ],
+                  removals,
+                ),
               };
               if (!findAll) return { change: true, res: resultObj };
               results.push(resultObj);
@@ -2931,6 +2954,8 @@ const techniques = {
 
             const link1Str = `r${r1 + 1}c${c2 + 1}=r${r1 + 1}c${rowGroupCols}`;
             const link2Str = `r${colGroupRows}c${c1 + 1}=r${r2 + 1}c${c1 + 1}`;
+            const group1 = box_n_cells.filter(([r]) => r === r1);
+            const group2 = box_n_cells.filter(([, c]) => c === c1);
 
             const resultObj = {
               change: true,
@@ -2941,21 +2966,17 @@ const techniques = {
                 mainInfo: t("teks_msg_48", num),
                 detail: `(${num})(${link1Str})-(${link2Str})`,
               },
-              applyVisuals: () => {
-                const group1 = box_n_cells.filter(([r]) => r === r1);
-                const group2 = box_n_cells.filter(([, c]) => c === c1);
-                techniques._applySingleDigitChainVisuals(
-                  num,
-                  [
-                    { cells: [[r1, c2]] },
-                    { cells: group1 },
-                    { cells: group2 },
-                    { cells: [[r2, c1]] },
-                  ],
-                  [{ r: r2, c: c2, num }],
-                  true,
-                );
-              },
+              visualPlan: techniques._buildSingleDigitChainVisualPlan(
+                num,
+                [
+                  { cells: [[r1, c2]] },
+                  { cells: group1 },
+                  { cells: group2 },
+                  { cells: [[r2, c1]] },
+                ],
+                [{ r: r2, c: c2, num }],
+                true,
+              ),
             };
             if (!findAll) return resultObj;
             results.push(resultObj);
@@ -3058,18 +3079,17 @@ const techniques = {
                     mainInfo: t("teks_msg_48", num),
                     detail: `(${num})(${link1Str})-(${link2Str})`,
                   },
-                  applyVisuals: () =>
-                    techniques._applySingleDigitChainVisuals(
-                      num,
-                      [
-                        { cells: groupCells },
-                        { cells: baseCells },
-                        { cells: isRowVersion ? [[r2, c1]] : [[r1, c2]] },
-                        { cells: [[r2, c2]] },
-                      ],
-                      [{ r: elimR, c: elimC, num }],
-                      true,
-                    ),
+                  visualPlan: techniques._buildSingleDigitChainVisualPlan(
+                    num,
+                    [
+                      { cells: groupCells },
+                      { cells: baseCells },
+                      { cells: isRowVersion ? [[r2, c1]] : [[r1, c2]] },
+                      { cells: [[r2, c2]] },
+                    ],
+                    [{ r: elimR, c: elimC, num }],
+                    true,
+                  ),
                 };
                 if (!findAll) return { change: true, res: resultObj };
                 results.push(resultObj);
@@ -3091,6 +3111,9 @@ const techniques = {
   },
 
   // Gurth's Symmetrical Placement
+});
+
+Object.assign(techniques, {
   _gspSymmetries: {
     diagonal: {
       partner: (r, c) => [c, r],
@@ -3198,17 +3221,31 @@ const techniques = {
     return cells;
   },
 
+  _buildGspVisualPlan: (cellGroups, kept, removals) => ({
+    highlight: { digit: null, state: 0 },
+    cellColors: cellGroups.map(({ r, c, group }) => ({
+      r,
+      c,
+      color: group,
+    })),
+    candidateColors: kept.map(({ r, c, num }) => ({
+      r,
+      c,
+      num,
+      color: 4,
+    })),
+    candidateMarks: removals.map(({ r, c, num }) => ({
+      r,
+      c,
+      num,
+      marker: "slash",
+      color: 0,
+    })),
+  }),
+
   _applyGspVisuals: (cellGroups, kept, removals) => {
-    highlightedDigit = null;
-    highlightState = 0;
-    cellGroups.forEach((el) => {
-      boardState[el.r][el.c].cellColor = cellColorPalette[el.group];
-    });
-    kept.forEach((el) =>
-      boardState[el.r][el.c].pencilColors.set(el.num, candidateColorPalette[4]),
-    );
-    removals.forEach((el) =>
-      boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
+    techniques._applyVisualPlan(
+      techniques._buildGspVisualPlan(cellGroups, kept, removals),
     );
   },
 
@@ -3261,8 +3298,11 @@ const techniques = {
             techniques._gspMappingText(mapping),
           ),
         },
-        applyVisuals: () =>
-          techniques._applyGspVisuals(cellGroups, kept, removals),
+        visualPlan: techniques._buildGspVisualPlan(
+          cellGroups,
+          kept,
+          removals,
+        ),
       };
       if (!findAll) return result;
       results.push(result);
@@ -3339,8 +3379,7 @@ const techniques = {
             techniques._gspMappingText(mapping),
           ),
         },
-        applyVisuals: () =>
-          techniques._applyGspVisuals(cellGroups, [], removals),
+        visualPlan: techniques._buildGspVisualPlan(cellGroups, [], removals),
       };
       if (!findAll) return result;
       results.push(result);
@@ -3419,24 +3458,19 @@ const techniques = {
               mainInfo: t("teks_msg_74", r_plus1 + 1, c_plus1 + 1),
               detail: t("teks_msg_75", num, r_plus1 + 1, c_plus1 + 1),
             },
-            applyVisuals: () => {
-              highlightedDigit = null;
-              highlightState = 2; // Highlight bivalue cells
-
-              // Color trivalue cell and its target candidate
-              boardState[r_plus1][c_plus1].cellColor = cellColorPalette[7]; // Color 8
-              boardState[r_plus1][c_plus1].pencilColors.set(
-                num,
-                candidateColorPalette[3],
-              ); // Color 4
-
-              // Removable candidates in color 1
-              removals.forEach((el) =>
-                boardState[el.r][el.c].candSlashes.set(
-                  el.num,
-                  markColorPalette[0],
-                ),
-              );
+            visualPlan: {
+              highlight: { digit: null, state: 2 },
+              cellColors: [{ r: r_plus1, c: c_plus1, color: 7 }],
+              candidateColors: [
+                { r: r_plus1, c: c_plus1, num, color: 3 },
+              ],
+              candidateMarks: removals.map(({ r, c, num: removalNum }) => ({
+                r,
+                c,
+                num: removalNum,
+                marker: "slash",
+                color: 0,
+              })),
             },
           };
         }
@@ -3596,52 +3630,67 @@ const techniques = {
     if (trueCandidates.length < 2) return findAll ? [] : { change: false };
     const guardiansStr = formatCandidates(trueCandidates);
 
-    const makeVisuals =
-      (removals, extra = {}) =>
-      () => {
-        highlightState = extra.conjugate ? 1 : 2;
-        highlightedDigit = extra.conjugate ? extra.conjugate.num : null;
-        for (const candidate of trueCandidates) {
-          boardState[candidate.r][candidate.c].cellColor = cellColorPalette[7];
-          boardState[candidate.r][candidate.c].pencilColors.set(
-            candidate.num,
-            candidateColorPalette[3],
-          );
-        }
-        for (const cell of extra.subsetCells || []) {
-          boardState[cell.r][cell.c].cellColor = cellColorPalette[6];
-          for (const num of cell.digits) {
-            boardState[cell.r][cell.c].pencilColors.set(
-              num,
-              candidateColorPalette[4],
-            );
-          }
-        }
-        if (extra.conjugate) {
-          const { cell1, cell2, num } = extra.conjugate;
-          boardState[cell1.r][cell1.c].pencilColors.set(
+    const makeVisualPlan = (removals, extra = {}) => {
+      const conjugate = extra.conjugate;
+      return {
+        highlight: {
+          digit: conjugate ? conjugate.num : null,
+          state: conjugate ? 1 : 2,
+        },
+        cellColors: [
+          ...trueCandidates.map(({ r, c }) => ({ r, c, color: 7 })),
+          ...(extra.subsetCells || []).map(({ r, c }) => ({ r, c, color: 6 })),
+        ],
+        candidateColors: [
+          ...trueCandidates.map(({ r, c, num }) => ({
+            r,
+            c,
             num,
-            candidateColorPalette[4],
-          );
-          boardState[cell2.r][cell2.c].pencilColors.set(
-            num,
-            candidateColorPalette[4],
-          );
-          drawnLines.push({
-            r1: cell1.r,
-            c1: cell1.c,
-            n1: num,
-            r2: cell2.r,
-            c2: cell2.c,
-            n2: num,
-            color: lineColorPalette[0],
-            style: "solid",
-          });
-        }
-        for (const { r, c, num } of removals) {
-          boardState[r][c].candSlashes.set(num, markColorPalette[0]);
-        }
+            color: 3,
+          })),
+          ...(extra.subsetCells || []).flatMap(({ r, c, digits }) =>
+            digits.map((num) => ({ r, c, num, color: 4 })),
+          ),
+          ...(conjugate
+            ? [
+                {
+                  r: conjugate.cell1.r,
+                  c: conjugate.cell1.c,
+                  num: conjugate.num,
+                  color: 4,
+                },
+                {
+                  r: conjugate.cell2.r,
+                  c: conjugate.cell2.c,
+                  num: conjugate.num,
+                  color: 4,
+                },
+              ]
+            : []),
+        ],
+        candidateMarks: removals.map(({ r, c, num }) => ({
+          r,
+          c,
+          num,
+          marker: "slash",
+          color: 0,
+        })),
+        links: conjugate
+          ? [
+              {
+                r1: conjugate.cell1.r,
+                c1: conjugate.cell1.c,
+                n1: conjugate.num,
+                r2: conjugate.cell2.r,
+                c2: conjugate.cell2.c,
+                n2: conjugate.num,
+                color: 0,
+                style: "solid",
+              },
+            ]
+          : [],
       };
+    };
 
     const addResult = (name, detail, removals, extra = {}) => {
       const uniqueRemovals = _getUniqueRemovals(removals);
@@ -3655,7 +3704,7 @@ const techniques = {
           mainInfo: t("teks_msg_318", guardiansStr),
           detail,
         },
-        applyVisuals: makeVisuals(uniqueRemovals, extra),
+        visualPlan: makeVisualPlan(uniqueRemovals, extra),
       };
       if (!findAll) return result;
       results.push(result);
@@ -3829,6 +3878,9 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
+});
+
+Object.assign(techniques, {
   _findCommonPeers: (cells, rectCells, board, pencils) => {
     // returns array of [r,c] that see every cell in `cells`
     // exclude any cells that are inside rectCells (or equal to any in cells),
@@ -3871,86 +3923,87 @@ const techniques = {
       techniques._formatGuardianExtras(extraCells, new Set([d1, d2]), pencils);
     const getBasePosStr = techniques._formatRectangleBounds;
 
-    const getURVisuals = (type, cells, d1, d2, removals, extraData = {}) => {
-      return () => {
-        highlightState = type === 4 || type === 6 ? 1 : 0;
-        highlightedDigit =
-          type === 4 || type === 6 ? extraData.restrictedDigit : null;
+    const getURVisualPlan = (type, cells, d1, d2, removals, extraData = {}) => {
+      const candidateColors = cells.flatMap(([r, c]) =>
+        Array.from(pencils[r][c], (num) => ({
+          r,
+          c,
+          num,
+          color: num === d1 || num === d2 ? 7 : 3,
+        })),
+      );
+      const cellColors = cells.map(([r, c]) => ({ r, c, color: 7 }));
+      const links = [];
 
-        cells.forEach(([cr, cc]) => {
-          boardState[cr][cc].cellColor = cellColorPalette[7];
-          if (boardState[cr][cc].pencils.has(d1))
-            boardState[cr][cc].pencilColors.set(d1, candidateColorPalette[7]);
-          if (boardState[cr][cc].pencils.has(d2))
-            boardState[cr][cc].pencilColors.set(d2, candidateColorPalette[7]);
-          boardState[cr][cc].pencils.forEach((cand) => {
-            if (cand !== d1 && cand !== d2)
-              boardState[cr][cc].pencilColors.set(
-                cand,
-                candidateColorPalette[3],
-              );
-          });
+      if (type === 3) {
+        for (const [r, c] of extraData.subsetCells) {
+          cellColors.push({ r, c, color: 6 });
+          for (const num of pencils[r][c]) {
+            if (extraData.subsetCands.has(num)) {
+              candidateColors.push({ r, c, num, color: 4 });
+            }
+          }
+        }
+      }
+
+      if (type === 4) {
+        links.push({
+          r1: extraData.e1[0],
+          c1: extraData.e1[1],
+          n1: extraData.restrictedDigit,
+          r2: extraData.e2[0],
+          c2: extraData.e2[1],
+          n2: extraData.restrictedDigit,
+          color: 0,
+          style: "solid",
         });
+      }
 
-        if (type === 3) {
-          extraData.subsetCells.forEach(([cr, cc]) => {
-            boardState[cr][cc].cellColor = cellColorPalette[6];
-            boardState[cr][cc].pencils.forEach((cand) => {
-              if (extraData.subsetCands.has(cand))
-                boardState[cr][cc].pencilColors.set(
-                  cand,
-                  candidateColorPalette[4],
-                );
-            });
-          });
-        }
+      if (type === 6) {
+        const u = extraData.restrictedDigit;
+        const rows = [...new Set(cells.map((c) => c[0]))];
+        const cols = [...new Set(cells.map((c) => c[1]))];
+        links.push({
+          r1: rows[0],
+          c1: cols[0],
+          n1: u,
+          r2: rows[0],
+          c2: cols[1],
+          n2: u,
+          color: 0,
+          style: "solid",
+        });
+        links.push({
+          r1: rows[1],
+          c1: cols[0],
+          n1: u,
+          r2: rows[1],
+          c2: cols[1],
+          n2: u,
+          color: 0,
+          style: "solid",
+        });
+      }
 
-        if (type === 4) {
-          drawnLines.push({
-            r1: extraData.e1[0],
-            c1: extraData.e1[1],
-            n1: extraData.restrictedDigit,
-            r2: extraData.e2[0],
-            c2: extraData.e2[1],
-            n2: extraData.restrictedDigit,
-            color: lineColorPalette[0],
-            style: "solid",
-          });
-        }
-
-        if (type === 6) {
-          const u = extraData.restrictedDigit;
-          const rows = [...new Set(cells.map((c) => c[0]))];
-          const cols = [...new Set(cells.map((c) => c[1]))];
-          drawnLines.push({
-            r1: rows[0],
-            c1: cols[0],
-            n1: u,
-            r2: rows[0],
-            c2: cols[1],
-            n2: u,
-            color: lineColorPalette[0],
-            style: "solid",
-          });
-          drawnLines.push({
-            r1: rows[1],
-            c1: cols[0],
-            n1: u,
-            r2: rows[1],
-            c2: cols[1],
-            n2: u,
-            color: lineColorPalette[0],
-            style: "solid",
-          });
-        }
-
-        removals.forEach((el) =>
-          boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
-        );
+      return {
+        highlight: {
+          digit: type === 4 || type === 6 ? extraData.restrictedDigit : null,
+          state: type === 4 || type === 6 ? 1 : 0,
+        },
+        cellColors,
+        candidateColors,
+        candidateMarks: removals.map(({ r, c, num }) => ({
+          r,
+          c,
+          num,
+          marker: "slash",
+          color: 0,
+        })),
+        links,
       };
     };
 
-    const getURXyWingVisuals = (
+    const getURXyWingVisualPlan = (
       cells,
       d1,
       d2,
@@ -3959,41 +4012,38 @@ const techniques = {
       extraDigits,
       removals,
     ) => {
-      return () => {
-        highlightState = 0;
-        highlightedDigit = null;
-
-        cells.forEach(([r, c]) => {
-          boardState[r][c].cellColor = cellColorPalette[7];
-          boardState[r][c].pencils.forEach((digit) => {
-            boardState[r][c].pencilColors.set(
-              digit,
-              digit === d1 || digit === d2
-                ? candidateColorPalette[7]
-                : digit === extraDigits[1]
-                  ? candidateColorPalette[5]
-                  : candidateColorPalette[4],
-            );
-          });
-        });
-
-        wings.forEach(([r, c], index) => {
-          boardState[r][c].cellColor = cellColorPalette[6];
-          boardState[r][c].pencils.forEach((digit) => {
-            boardState[r][c].pencilColors.set(
-              digit,
-              digit === pivotDigit
-                ? candidateColorPalette[6]
-                : index === 0
-                  ? candidateColorPalette[4]
-                  : candidateColorPalette[5],
-            );
-          });
-        });
-
-        removals.forEach(({ r, c, num }) => {
-          boardState[r][c].candSlashes.set(num, markColorPalette[0]);
-        });
+      return {
+        highlight: { digit: null, state: 0 },
+        cellColors: [
+          ...cells.map(([r, c]) => ({ r, c, color: 7 })),
+          ...wings.map(([r, c]) => ({ r, c, color: 6 })),
+        ],
+        candidateColors: [
+          ...cells.flatMap(([r, c]) =>
+            Array.from(pencils[r][c], (num) => ({
+              r,
+              c,
+              num,
+              color:
+                num === d1 || num === d2 ? 7 : num === extraDigits[1] ? 5 : 4,
+            })),
+          ),
+          ...wings.flatMap(([r, c], index) =>
+            Array.from(pencils[r][c], (num) => ({
+              r,
+              c,
+              num,
+              color: num === pivotDigit ? 6 : index === 0 ? 4 : 5,
+            })),
+          ),
+        ],
+        candidateMarks: removals.map(({ r, c, num }) => ({
+          r,
+          c,
+          num,
+          marker: "slash",
+          color: 0,
+        })),
       };
     };
 
@@ -4027,7 +4077,7 @@ const techniques = {
                 getGuardiansStr(extraCells, d1, d2),
               ),
             },
-            applyVisuals: getURVisuals(
+            visualPlan: getURVisualPlan(
               1,
               cells,
               d1,
@@ -4094,7 +4144,7 @@ const techniques = {
                     getGuardiansStr(extraCells, d1, d2),
                   ),
                 },
-                applyVisuals: getURVisuals(
+                visualPlan: getURVisualPlan(
                   guardiansShareHouse ? 2 : 5,
                   cells,
                   d1,
@@ -4207,7 +4257,7 @@ const techniques = {
                     subsetStr,
                   ),
                 },
-                applyVisuals: getURVisuals(
+                visualPlan: getURVisualPlan(
                   3,
                   cells,
                   d1,
@@ -4282,7 +4332,7 @@ const techniques = {
                       lineStr,
                     ),
                   },
-                  applyVisuals: getURVisuals(
+                  visualPlan: getURVisualPlan(
                     4,
                     cells,
                     d1,
@@ -4339,7 +4389,7 @@ const techniques = {
                       u,
                     ),
                   },
-                  applyVisuals: getURVisuals(
+                  visualPlan: getURVisualPlan(
                     6,
                     cells,
                     d1,
@@ -4383,10 +4433,9 @@ const techniques = {
             proof.branches[0][1] + 1,
             proof.branches[1][0] + 1,
             proof.branches[1][1] + 1,
-            proof.pivotDigit,
           ),
         },
-        applyVisuals: getURXyWingVisuals(
+        visualPlan: getURXyWingVisualPlan(
           proof.cells,
           proof.d1,
           proof.d2,
@@ -4503,7 +4552,7 @@ const techniques = {
             r2: idx,
             c2: p2,
             n2: d,
-            color: lineColorPalette[0],
+            color: 0,
             style: "solid",
           });
         } else {
@@ -4514,7 +4563,7 @@ const techniques = {
             r2: p2,
             c2: idx,
             n2: d,
-            color: lineColorPalette[0],
+            color: 0,
             style: "solid",
           });
         }
@@ -4600,46 +4649,25 @@ const techniques = {
               ),
             },
 
-            // Existing applyVisuals structure preserved
-            applyVisuals: () => {
-              highlightState = 0;
-              highlightedDigit = null;
-
-              cells.forEach(([cr, cc]) => {
-                boardState[cr][cc].cellColor = cellColorPalette[7];
-
-                if (boardState[cr][cc].pencils.has(d1)) {
-                  boardState[cr][cc].pencilColors.set(
-                    d1,
-                    candidateColorPalette[7],
-                  );
-                }
-
-                if (boardState[cr][cc].pencils.has(d2)) {
-                  boardState[cr][cc].pencilColors.set(
-                    d2,
-                    candidateColorPalette[7],
-                  );
-                }
-
-                boardState[cr][cc].pencils.forEach((cand) => {
-                  if (cand !== d1 && cand !== d2) {
-                    boardState[cr][cc].pencilColors.set(
-                      cand,
-                      candidateColorPalette[3],
-                    );
-                  }
-                });
-              });
-
-              visualLinks.forEach((link) => drawnLines.push(link));
-
-              uniqueRemovals.forEach((el) =>
-                boardState[el.r][el.c].candSlashes.set(
-                  el.num,
-                  markColorPalette[0],
-                ),
-              );
+            visualPlan: {
+              highlight: { digit: null, state: 0 },
+              cellColors: cells.map(([r, c]) => ({ r, c, color: 7 })),
+              candidateColors: cells.flatMap(([r, c]) =>
+                Array.from(pencils[r][c], (num) => ({
+                  r,
+                  c,
+                  num,
+                  color: num === d1 || num === d2 ? 7 : 3,
+                })),
+              ),
+              candidateMarks: uniqueRemovals.map(({ r, c, num }) => ({
+                r,
+                c,
+                num,
+                marker: "slash",
+                color: 0,
+              })),
+              links: visualLinks,
             },
           };
 
@@ -4651,7 +4679,9 @@ const techniques = {
 
     return findAll ? results : { change: false };
   },
+});
 
+Object.assign(techniques, {
   _getAvoidableFilledValues: (board) => {
     const hasInitialString =
       typeof initialPuzzleString === "string" &&
@@ -5024,7 +5054,10 @@ const techniques = {
         dMask === (bit(d1) | bit(d2) | bit(z))
       ) {
         caseId = "single-d2-extra";
-      } else if (dMask === (bit(d1) | bit(x)) || dMask === (bit(d1) | bit(z))) {
+      } else if (
+        dMask === (bit(d1) | bit(x)) ||
+        dMask === (bit(d1) | bit(z))
+      ) {
         caseId = "single-extra";
       } else if (dMask === (bit(d1) | bit(d2))) {
         caseId = "single-d2";
@@ -5182,7 +5215,9 @@ const techniques = {
 
     return proofs;
   },
+});
 
+Object.assign(techniques, {
   avoidableRectangle: (board, pencils, findAll = false) => {
     const results = [];
     const seenResults = new Set();
@@ -5371,7 +5406,6 @@ const techniques = {
           extraData.wings[0][1] + 1,
           extraData.wings[1][0] + 1,
           extraData.wings[1][1] + 1,
-          extraData.pivotDigit,
         );
       } else if (extraData.subsetCells && extraData.subsetCands) {
         const subsetStr =
@@ -5413,61 +5447,56 @@ const techniques = {
           detail,
         },
 
-        applyVisuals: () => {
-          highlightState = 0;
-          highlightedDigit = null;
-          rectCells.forEach(([cr, cc]) => {
-            boardState[cr][cc].cellColor = cellColorPalette[7];
-
-            if (boardState[cr][cc].value === 0) {
-              boardState[cr][cc].pencils.forEach((cand) => {
-                boardState[cr][cc].pencilColors.set(
-                  cand,
-                  cand === d1 || cand === d2
-                    ? candidateColorPalette[7]
-                    : candidateColorPalette[3],
-                );
-              });
-            }
-          });
-          filledCells.forEach(([cr, cc]) => {
-            boardState[cr][cc].cellColor = cellColorPalette[6];
-          });
-          if (extraData.subsetCells && extraData.subsetCands) {
-            extraData.subsetCells.forEach(([cr, cc]) => {
-              boardState[cr][cc].cellColor = cellColorPalette[6];
-
-              boardState[cr][cc].pencils.forEach((cand) => {
-                if (extraData.subsetCands.has(cand)) {
-                  boardState[cr][cc].pencilColors.set(
-                    cand,
-                    candidateColorPalette[4],
-                  );
-                }
-              });
-            });
-          }
-          if (extraData.wings) {
-            extraData.wings.forEach(([cr, cc], index) => {
-              boardState[cr][cc].cellColor = cellColorPalette[6];
-              boardState[cr][cc].pencils.forEach((cand) => {
-                boardState[cr][cc].pencilColors.set(
-                  cand,
-                  cand === extraData.pivotDigit
-                    ? candidateColorPalette[6]
-                    : index === 0
-                      ? candidateColorPalette[4]
-                      : candidateColorPalette[5],
-                );
-              });
-            });
-          }
-          if (extraData.visualLinks) {
-            extraData.visualLinks.forEach((link) => drawnLines.push(link));
-          }
-          uniqueRemovals.forEach((el) => {
-            boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
-          });
+        visualPlan: {
+          highlight: { digit: null, state: 0 },
+          cellColors: [
+            ...rectCells.map(([r, c]) => ({ r, c, color: 7 })),
+            ...filledCells.map(([r, c]) => ({ r, c, color: 6 })),
+            ...(extraData.subsetCells || []).map(([r, c]) => ({
+              r,
+              c,
+              color: 6,
+            })),
+            ...(extraData.wings || []).map(([r, c]) => ({
+              r,
+              c,
+              color: 6,
+            })),
+          ],
+          candidateColors: [
+            ...rectCells.flatMap(([r, c]) =>
+              board[r][c] === 0
+                ? [...pencils[r][c]].map((num) => ({
+                    r,
+                    c,
+                    num,
+                    color: num === d1 || num === d2 ? 7 : 3,
+                  }))
+                : [],
+            ),
+            ...(extraData.subsetCells || []).flatMap(([r, c]) =>
+              [...pencils[r][c]]
+                .filter((num) => extraData.subsetCands.has(num))
+                .map((num) => ({ r, c, num, color: 4 })),
+            ),
+            ...(extraData.wings || []).flatMap(([r, c], index) =>
+              [...pencils[r][c]].map((num) => ({
+                r,
+                c,
+                num,
+                color:
+                  num === extraData.pivotDigit ? 6 : index === 0 ? 4 : 5,
+              })),
+            ),
+          ],
+          candidateMarks: uniqueRemovals.map(({ r, c, num }) => ({
+            r,
+            c,
+            num,
+            marker: "slash",
+            color: 0,
+          })),
+          links: extraData.visualLinks || [],
         },
       };
     };
@@ -5835,7 +5864,7 @@ const techniques = {
                       r2: or,
                       c2: oc,
                       n2: linkDigit,
-                      color: lineColorPalette[0],
+                      color: 0,
                       style: "solid",
                     },
                     {
@@ -5845,7 +5874,7 @@ const techniques = {
                       r2: or,
                       c2: oc,
                       n2: linkDigit,
-                      color: lineColorPalette[0],
+                      color: 0,
                       style: "solid",
                     },
                   ];
@@ -5891,7 +5920,9 @@ const techniques = {
       );
 
       for (const proof of xyWingProofs) {
-        const filledCells = proof.cells.filter(([r, c]) => board[r][c] !== 0);
+        const filledCells = proof.cells.filter(
+          ([r, c]) => board[r][c] !== 0,
+        );
         const guardiansStr = proof.guardianCells
           .flatMap(([r, c]) => {
             const extras = [...pencils[r][c]]
@@ -5950,6 +5981,9 @@ const techniques = {
     return rectangles;
   },
 
+});
+
+Object.assign(techniques, {
   _isStrongLink: (pencils, num, unitType, unitIndex, loc1, loc2) => {
     const unitCells = techniques._getUnitCells(unitType, unitIndex);
     const candidateLocs = [];
@@ -6078,68 +6112,78 @@ const techniques = {
     const getGuardiansStr = (extraCells, coreDigits, sourcePencils) =>
       techniques._formatGuardianExtras(extraCells, coreDigits, sourcePencils);
 
-    const getEURVisuals = (type, cells, digits, removals, extraData = {}) => {
-      return () => {
-        techniques._applyDeadlyPatternBaseVisuals(
-          type,
-          cells,
-          digits,
-          extraData,
-        );
+    const getEURVisualPlan = (
+      type,
+      cells,
+      digits,
+      removals,
+      extraData = {},
+    ) => {
+      const plan = techniques._buildDeadlyPatternBaseVisualPlan(
+        type,
+        cells,
+        digits,
+        extraData,
+        pencils,
+      );
 
-        if (type === 6) {
-          const u = extraData.restrictedDigit;
-          const [e1r, e1c] = extraData.e1;
-          const [e2r, e2c] = extraData.e2;
-          if (extraData.is_nx2) {
-            drawnLines.push({
+      if (type === 6) {
+        const u = extraData.restrictedDigit;
+        const [e1r, e1c] = extraData.e1;
+        const [e2r, e2c] = extraData.e2;
+        if (extraData.is_nx2) {
+          plan.links.push({
               r1: e1r,
               c1: e1c,
               n1: u,
               r2: e2r,
               c2: e1c,
               n2: u,
-              color: lineColorPalette[0],
+              color: 0,
               style: "solid",
-            });
-            drawnLines.push({
+          });
+          plan.links.push({
               r1: e1r,
               c1: e2c,
               n1: u,
               r2: e2r,
               c2: e2c,
               n2: u,
-              color: lineColorPalette[0],
+              color: 0,
               style: "solid",
-            });
-          } else {
-            drawnLines.push({
+          });
+        } else {
+          plan.links.push({
               r1: e1r,
               c1: e1c,
               n1: u,
               r2: e1r,
               c2: e2c,
               n2: u,
-              color: lineColorPalette[0],
+              color: 0,
               style: "solid",
-            });
-            drawnLines.push({
+          });
+          plan.links.push({
               r1: e2r,
               c1: e1c,
               n1: u,
               r2: e2r,
               c2: e2c,
               n2: u,
-              color: lineColorPalette[0],
+              color: 0,
               style: "solid",
-            });
-          }
+          });
         }
+      }
 
-        removals.forEach((el) =>
-          boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
-        );
-      };
+      plan.candidateMarks = removals.map(({ r, c, num }) => ({
+        r,
+        c,
+        num,
+        marker: "slash",
+        color: 0,
+      }));
+      return plan;
     };
 
     for (const er of ers) {
@@ -6175,7 +6219,7 @@ const techniques = {
               mainInfo: t("teks_msg_99", baseDigitsStr),
               detail: detailPrefix,
             },
-            applyVisuals: getEURVisuals(
+            visualPlan: getEURVisualPlan(
               1,
               cells,
               digits,
@@ -6241,7 +6285,7 @@ const techniques = {
                 mainInfo: t("teks_msg_99", baseDigitsStr),
                 detail: detailPrefix,
               },
-              applyVisuals: getEURVisuals(
+              visualPlan: getEURVisualPlan(
                 guardiansShareHouse ? 2 : 5,
                 cells,
                 digits,
@@ -6346,7 +6390,7 @@ const techniques = {
                   mainInfo: t("teks_msg_99", baseDigitsStr),
                   detail: t("teks_msg_104", detailPrefix, subsetStr),
                 },
-                applyVisuals: getEURVisuals(
+                visualPlan: getEURVisualPlan(
                   3,
                   cells,
                   digits,
@@ -6442,7 +6486,7 @@ const techniques = {
                       restrictedCellsStr,
                     ),
                   },
-                  applyVisuals: getEURVisuals(
+                  visualPlan: getEURVisualPlan(
                     4,
                     cells,
                     digits,
@@ -6517,7 +6561,7 @@ const techniques = {
                     mainInfo: t("teks_msg_99", baseDigitsStr),
                     detail: t("teks_msg_110", detailPrefix, d),
                   },
-                  applyVisuals: getEURVisuals(
+                  visualPlan: getEURVisualPlan(
                     6,
                     cells,
                     digits,
@@ -6542,6 +6586,9 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
+});
+
+Object.assign(techniques, {
   _findUniqueLoops: function (pencils) {
     const bivalue_cells_by_pair = new Map();
 
@@ -6715,42 +6762,46 @@ const techniques = {
     const getGuardiansStr = (extraCells, digitSet, sourcePencils) =>
       techniques._formatGuardianExtras(extraCells, digitSet, sourcePencils);
 
-    const getULVisuals = (type, cells, digits, removals, extraData = {}) => {
-      return () => {
-        techniques._applyDeadlyPatternBaseVisuals(
-          type,
-          cells,
-          digits,
-          extraData,
-        );
+    const getULVisualPlan = (type, cells, digits, removals, extraData = {}) => {
+      const plan = techniques._buildDeadlyPatternBaseVisualPlan(
+        type,
+        cells,
+        digits,
+        extraData,
+        pencils,
+      );
 
-        if (type === 6) {
-          const u = extraData.restrictedDigit;
-          const rows = [...new Set(cells.map((c) => c[0]))];
-          rows.forEach((r) => {
-            const req_locs = cells
-              .filter((cell) => cell[0] === r)
-              .map((cell) => cell[1])
-              .sort((a, b) => a - b);
-            if (req_locs.length === 2) {
-              drawnLines.push({
-                r1: r,
-                c1: req_locs[0],
-                n1: u,
-                r2: r,
-                c2: req_locs[1],
-                n2: u,
-                color: lineColorPalette[0],
-                style: "solid",
-              });
-            }
-          });
-        }
+      if (type === 6) {
+        const u = extraData.restrictedDigit;
+        const rows = [...new Set(cells.map((c) => c[0]))];
+        rows.forEach((r) => {
+          const req_locs = cells
+            .filter((cell) => cell[0] === r)
+            .map((cell) => cell[1])
+            .sort((a, b) => a - b);
+          if (req_locs.length === 2) {
+            plan.links.push({
+              r1: r,
+              c1: req_locs[0],
+              n1: u,
+              r2: r,
+              c2: req_locs[1],
+              n2: u,
+              color: 0,
+              style: "solid",
+            });
+          }
+        });
+      }
 
-        removals.forEach((el) =>
-          boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]),
-        );
-      };
+      plan.candidateMarks = removals.map(({ r, c, num }) => ({
+        r,
+        c,
+        num,
+        marker: "slash",
+        color: 0,
+      }));
+      return plan;
     };
 
     for (const ul of loops) {
@@ -6788,7 +6839,7 @@ const techniques = {
               mainInfo: t("teks_msg_113", baseDigitsStr),
               detail: detailPrefix,
             },
-            applyVisuals: getULVisuals(
+            visualPlan: getULVisualPlan(
               1,
               cells,
               digits,
@@ -6852,7 +6903,7 @@ const techniques = {
                 mainInfo: t("teks_msg_113", baseDigitsStr),
                 detail: detailPrefix,
               },
-              applyVisuals: getULVisuals(
+              visualPlan: getULVisualPlan(
                 guardiansShareHouse ? 2 : 5,
                 cells,
                 digits,
@@ -6950,7 +7001,7 @@ const techniques = {
                   mainInfo: t("teks_msg_113", baseDigitsStr),
                   detail: t("teks_msg_104", detailPrefix, subsetStr),
                 },
-                applyVisuals: getULVisuals(
+                visualPlan: getULVisualPlan(
                   3,
                   cells,
                   digits,
@@ -7032,7 +7083,7 @@ const techniques = {
                       restrictedCellsStr,
                     ),
                   },
-                  applyVisuals: getULVisuals(
+                  visualPlan: getULVisualPlan(
                     4,
                     cells,
                     digits,
@@ -7126,7 +7177,7 @@ const techniques = {
                 mainInfo: t("teks_msg_113", baseDigitsStr),
                 detail: t("teks_msg_122", detailPrefix, u),
               },
-              applyVisuals: getULVisuals(6, cells, digits, uniqueRemovals, {
+              visualPlan: getULVisualPlan(6, cells, digits, uniqueRemovals, {
                 restrictedDigit: u,
               }),
             };
@@ -7139,6 +7190,9 @@ const techniques = {
     return findAll ? results : { change: false };
   },
 
+});
+
+Object.assign(techniques, {
   uniquenessExternalTest: (board, pencils, findAll = false) =>
     techniques._uniquenessExternalTest(board, pencils, findAll, false),
 
@@ -7206,73 +7260,55 @@ const techniques = {
     const formatHouse = (type, index) =>
       `${type === "row" ? "r" : type === "col" ? "c" : "b"}${index + 1}`;
 
-    const makeVisuals =
-      (body, d1, d2, guardians, removals, extra = {}) =>
-      () => {
-        highlightedDigit = null;
-        highlightState = 0;
-        body.forEach(([r, c]) => {
-          boardState[r][c].cellColor = cellColorPalette[7];
-          [d1, d2].forEach((digit) => {
-            if (boardState[r][c].pencils.has(digit)) {
-              boardState[r][c].pencilColors.set(
-                digit,
-                candidateColorPalette[7],
-              );
+    const makeVisualPlan = (body, d1, d2, guardians, removals, extra = {}) => {
+      const cellColors = [];
+      const candidateColors = [];
+      const paint = (cells, digits, color) => {
+        for (const [r, c] of cells) {
+          cellColors.push({ r, c, color });
+          for (const num of digits) {
+            if (pencils[r][c].has(num)) {
+              candidateColors.push({ r, c, num, color });
             }
-          });
-        });
-        uniqueCells(guardians).forEach(([r, c]) => {
-          boardState[r][c].cellColor = cellColorPalette[6];
-          [d1, d2].forEach((digit) => {
-            if (boardState[r][c].pencils.has(digit)) {
-              boardState[r][c].pencilColors.set(
-                digit,
-                candidateColorPalette[6],
-              );
-            }
-          });
-        });
-        (extra.subsetCells || []).forEach(([r, c]) => {
-          boardState[r][c].cellColor = cellColorPalette[5];
-          (extra.subsetDigits || []).forEach((digit) => {
-            if (boardState[r][c].pencils.has(digit)) {
-              boardState[r][c].pencilColors.set(
-                digit,
-                candidateColorPalette[5],
-              );
-            }
-          });
-        });
-        const guardianKeys = new Set(
-          uniqueCells(guardians).map(([r, c]) => cellKey(r, c)),
-        );
-        (extra.ahsCells || []).forEach(([r, c]) => {
-          const isGuardian = guardianKeys.has(cellKey(r, c));
-          const colorIndex = isGuardian ? 6 : 5;
-          const digits = isGuardian
-            ? new Set([d1, d2, ...(extra.ahsDigits || [])])
-            : extra.ahsDigits || [];
-          boardState[r][c].cellColor = cellColorPalette[colorIndex];
-          digits.forEach((digit) => {
-            if (boardState[r][c].pencils.has(digit)) {
-              boardState[r][c].pencilColors.set(
-                digit,
-                candidateColorPalette[colorIndex],
-              );
-            }
-          });
-        });
-        (extra.wings || []).forEach(([r, c]) => {
-          boardState[r][c].cellColor = cellColorPalette[4];
-          boardState[r][c].pencils.forEach((digit) =>
-            boardState[r][c].pencilColors.set(digit, candidateColorPalette[4]),
-          );
-        });
-        removals.forEach(({ r, c, num }) =>
-          boardState[r][c].candSlashes.set(num, markColorPalette[0]),
-        );
+          }
+        }
       };
+
+      paint(body, [d1, d2], 7);
+      const uniqueGuardians = uniqueCells(guardians);
+      paint(uniqueGuardians, [d1, d2], 6);
+      paint(extra.subsetCells || [], extra.subsetDigits || [], 5);
+
+      const guardianKeys = new Set(
+        uniqueGuardians.map(([r, c]) => cellKey(r, c)),
+      );
+      for (const [r, c] of extra.ahsCells || []) {
+        const isGuardian = guardianKeys.has(cellKey(r, c));
+        paint(
+          [[r, c]],
+          isGuardian
+            ? new Set([d1, d2, ...(extra.ahsDigits || [])])
+            : extra.ahsDigits || [],
+          isGuardian ? 6 : 5,
+        );
+      }
+      for (const [r, c] of extra.wings || []) {
+        paint([[r, c]], pencils[r][c], 4);
+      }
+
+      return {
+        highlight: { digit: null, state: 0 },
+        cellColors,
+        candidateColors,
+        candidateMarks: removals.map(({ r, c, num }) => ({
+          r,
+          c,
+          num,
+          marker: "slash",
+          color: 0,
+        })),
+      };
+    };
 
     const publish = (
       nameKey,
@@ -7311,7 +7347,7 @@ const techniques = {
           mainInfo: t("teks_msg_204", "" + d1 + d2),
           detail,
         },
-        applyVisuals: makeVisuals(body, d1, d2, guardians, cells, extra),
+        visualPlan: makeVisualPlan(body, d1, d2, guardians, cells, extra),
       };
       if (!findAll) return result;
       results.push(result);
@@ -7650,7 +7686,16 @@ const techniques = {
               d2,
               guardians,
               removals,
-              detail,
+              t(
+                "teks_msg_349",
+                "" + d1 + d2,
+                formatBody(body),
+                formatGuardians(guardians, d1, d2),
+                ar + 1,
+                ac + 1,
+                br + 1,
+                bc + 1,
+              ),
               { wings: [wingA, wingB] },
             );
             if (result) return result;
@@ -7660,7 +7705,9 @@ const techniques = {
     }
     return findAll ? results : { change: false };
   },
+});
 
+Object.assign(techniques, {
   // --- Unified Helper for Almost Locked Pair & Triple ---
   _almostLockedSets: (board, pencils, size, findAll = false) => {
     const results = [];
@@ -7860,51 +7907,42 @@ const techniques = {
                         outStr,
                       ),
                     },
-                    applyVisuals: () => {
-                      highlightedDigit = null;
-                      highlightState = 0;
-                      const digits = [...V];
-
-                      baseCells.forEach(([cr, cc]) => {
-                        window.addCellColor(cr, cc, cellColorPalette[6]);
-                        digits.forEach((d) => {
-                          if (boardState[cr][cc].pencils.has(d))
-                            boardState[cr][cc].pencilColors.set(
-                              d,
-                              candidateColorPalette[4],
-                            );
-                        });
-                      });
-
-                      inIntersection.forEach(({ r: cr, c: cc }) => {
-                        window.addCellColor(cr, cc, cellColorPalette[6]);
-                        window.addCellColor(cr, cc, cellColorPalette[7]);
-                        digits.forEach((d) => {
-                          if (boardState[cr][cc].pencils.has(d))
-                            boardState[cr][cc].pencilColors.set(
-                              d,
-                              candidateColorPalette[4],
-                            );
-                        });
-                      });
-
-                      outsideIntersection.forEach(({ r: cr, c: cc }) => {
-                        window.addCellColor(cr, cc, cellColorPalette[7]);
-                        digits.forEach((d) => {
-                          if (boardState[cr][cc].pencils.has(d))
-                            boardState[cr][cc].pencilColors.set(
-                              d,
-                              candidateColorPalette[4],
-                            );
-                        });
-                      });
-
-                      uniqueElims.forEach((el) =>
-                        boardState[el.r][el.c].candSlashes.set(
-                          el.num,
-                          markColorPalette[0],
-                        ),
-                      );
+                    visualPlan: {
+                      highlight: { digit: null, state: 0 },
+                      cellColors: [
+                        ...baseCells.map(([r, c]) => ({
+                          r,
+                          c,
+                          color: 6,
+                          mode: "add",
+                        })),
+                        ...inIntersection.flatMap(({ r, c }) => [
+                          { r, c, color: 6, mode: "add" },
+                          { r, c, color: 7, mode: "add" },
+                        ]),
+                        ...outsideIntersection.map(({ r, c }) => ({
+                          r,
+                          c,
+                          color: 7,
+                          mode: "add",
+                        })),
+                      ],
+                      candidateColors: [
+                        ...baseCells,
+                        ...inIntersection.map(({ r, c }) => [r, c]),
+                        ...outsideIntersection.map(({ r, c }) => [r, c]),
+                      ].flatMap(([r, c]) =>
+                        [...V]
+                          .filter((num) => pencils[r][c].has(num))
+                          .map((num) => ({ r, c, num, color: 4 })),
+                      ),
+                      candidateMarks: uniqueElims.map(({ r, c, num }) => ({
+                        r,
+                        c,
+                        num,
+                        marker: "slash",
+                        color: 0,
+                      })),
                     },
                   };
                   if (!findAll) return resultObj;
@@ -8144,6 +8182,24 @@ const techniques = {
                         );
                       }
 
+                      const lineOnlyMask = A.mask & ~overlapMask;
+                      const boxOnlyMask = B.mask & ~overlapMask;
+                      const intOnlyMask = V_mask & ~(A.mask | B.mask);
+                      const allPatternCells = [...C, ...aCells, ...bCells];
+                      const candidateColors = [
+                        [overlapMask, 2],
+                        [lineOnlyMask, 6],
+                        [boxOnlyMask, 4],
+                        [intOnlyMask, 5],
+                      ].flatMap(([mask, color]) =>
+                        allPatternCells.flatMap(([r, c]) =>
+                          techniques._bits
+                            .maskToDigits(mask)
+                            .filter((num) => pencils[r][c].has(num))
+                            .map((num) => ({ r, c, num, color })),
+                        ),
+                      );
+
                       const resultObj = {
                         change: true,
                         type: "remove",
@@ -8158,77 +8214,30 @@ const techniques = {
                           ),
                           detail: detailStr,
                         },
-                        applyVisuals: () => {
-                          highlightedDigit = null;
-                          highlightState = 0;
-
-                          // 1. Color pattern cells using multi-coloring
-                          // Line cells (Intersection + Off-intersection line)
-                          C.forEach(([r, c]) =>
-                            window.addCellColor(r, c, cellColorPalette[7]),
-                          );
-                          aCells.forEach(([r, c]) =>
-                            window.addCellColor(r, c, cellColorPalette[7]),
-                          );
-
-                          // Box cells (Intersection + Off-intersection box)
-                          C.forEach(([r, c]) =>
-                            window.addCellColor(r, c, cellColorPalette[6]),
-                          );
-                          bCells.forEach(([r, c]) =>
-                            window.addCellColor(r, c, cellColorPalette[6]),
-                          );
-
-                          // 2. Identify candidate digit subsets
-                          const lineOnlyMask = A.mask & ~overlapMask;
-                          const boxOnlyMask = B.mask & ~overlapMask;
-                          const intOnlyMask = V_mask & ~(A.mask | B.mask);
-
-                          const overlapDigits =
-                            techniques._bits.maskToDigits(overlapMask);
-                          const lineOnlyDigits =
-                            techniques._bits.maskToDigits(lineOnlyMask);
-                          const boxOnlyDigits =
-                            techniques._bits.maskToDigits(boxOnlyMask);
-                          const intOnlyDigits =
-                            techniques._bits.maskToDigits(intOnlyMask);
-
-                          const allPatternCells = [...C, ...aCells, ...bCells];
-
-                          const colorCellCands = (
-                            cells,
-                            digits,
-                            colorIndex,
-                          ) => {
-                            cells.forEach(([r, c]) => {
-                              digits.forEach((d) => {
-                                if (boardState[r][c].pencils.has(d)) {
-                                  boardState[r][c].pencilColors.set(
-                                    d,
-                                    candidateColorPalette[colorIndex],
-                                  );
-                                }
-                              });
-                            });
-                          };
-
-                          // 3. Color candidates within pattern
-                          // Both line and box off-intersection (Candidate Color 3)
-                          colorCellCands(allPatternCells, overlapDigits, 2);
-                          // Only in line off-intersection (Candidate Color 7)
-                          colorCellCands(allPatternCells, lineOnlyDigits, 6);
-                          // Only in box off-intersection (Candidate Color 5)
-                          colorCellCands(allPatternCells, boxOnlyDigits, 4);
-                          // Only in intersection (Candidate Color 6)
-                          colorCellCands(allPatternCells, intOnlyDigits, 5);
-
-                          // 4. Color Eliminations (Candidate Color 1)
-                          eliminations.forEach((el) =>
-                            boardState[el.r][el.c].candSlashes.set(
-                              el.num,
-                              markColorPalette[0],
-                            ),
-                          );
+                        visualPlan: {
+                          highlight: { digit: null, state: 0 },
+                          cellColors: [
+                            ...[...C, ...aCells].map(([r, c]) => ({
+                              r,
+                              c,
+                              color: 7,
+                              mode: "add",
+                            })),
+                            ...[...C, ...bCells].map(([r, c]) => ({
+                              r,
+                              c,
+                              color: 6,
+                              mode: "add",
+                            })),
+                          ],
+                          candidateColors,
+                          candidateMarks: eliminations.map(({ r, c, num }) => ({
+                            r,
+                            c,
+                            num,
+                            marker: "slash",
+                            color: 0,
+                          })),
                         },
                       };
                       if (!findAll) return resultObj;
@@ -8484,10 +8493,31 @@ const techniques = {
                   }
 
                   if (eliminations.length > 0) {
+                    const buildPairVisuals = (pivot, mask, color) => {
+                      const cellColors = [];
+                      const candidateColors = [];
+                      for (let r = 0; r < 9; r++) {
+                        for (let c = 0; c < 9; c++) {
+                          if (r !== pivot[0] && c !== pivot[1]) continue;
+                          const candidates = maskToDigits(mask).filter((num) =>
+                            pencils[r][c].has(num),
+                          );
+                          if (candidates.length === 0) continue;
+                          cellColors.push({ r, c, color, mode: "add" });
+                          candidateColors.push(
+                            ...candidates.map((num) => ({ r, c, num, color })),
+                          );
+                        }
+                      }
+                      return { cellColors, candidateColors };
+                    };
+                    const pair1Visuals = buildPairVisuals(pivot1, pair1Mask, 5);
+                    const pair2Visuals = buildPairVisuals(pivot2, pair2Mask, 6);
+                    const resultEliminations = [...eliminations];
                     const res = {
                       change: true,
                       type: "remove",
-                      cells: [...eliminations],
+                      cells: resultEliminations,
                       hint: {
                         name: t("teks_msg_133_2"),
                         mainInfo: t(
@@ -8507,58 +8537,25 @@ const techniques = {
                           boxIndex(pivot2[0], pivot2[1]) + 1,
                         ),
                       },
-                      applyVisuals: () => {
-                        highlightedDigit = null;
-                        highlightState = 0;
-
-                        const paintCand = (r, c, mask, color) => {
-                          let hasPairCandidate = false;
-                          for (let d = 1; d <= 9; d++) {
-                            if (
-                              mask & bitFor(d) &&
-                              boardState[r][c].pencils.has(d)
-                            ) {
-                              hasPairCandidate = true;
-                              boardState[r][c].pencilColors.set(d, color);
-                            }
-                          }
-                          return hasPairCandidate;
-                        };
-
-                        const paintPairLines = (pivot, mask, colorIndex) => {
-                          for (let r = 0; r < 9; r++) {
-                            for (let c = 0; c < 9; c++) {
-                              if (r !== pivot[0] && c !== pivot[1]) continue;
-                              if (
-                                paintCand(
-                                  r,
-                                  c,
-                                  mask,
-                                  candidateColorPalette[colorIndex],
-                                )
-                              ) {
-                                window.addCellColor(
-                                  r,
-                                  c,
-                                  cellColorPalette[colorIndex],
-                                );
-                              }
-                            }
-                          }
-                        };
-
-                        // Highlight every occurrence of each pair along the
-                        // row and column of its Firework pivot. Shared cells
-                        // retain both colors.
-                        paintPairLines(pivot1, pair1Mask, 5);
-                        paintPairLines(pivot2, pair2Mask, 6);
-
-                        res.cells.forEach((el) => {
-                          boardState[el.r][el.c].candSlashes.set(
-                            el.num,
-                            markColorPalette[0],
-                          );
-                        });
+                      visualPlan: {
+                        highlight: { digit: null, state: 0 },
+                        cellColors: [
+                          ...pair1Visuals.cellColors,
+                          ...pair2Visuals.cellColors,
+                        ],
+                        candidateColors: [
+                          ...pair1Visuals.candidateColors,
+                          ...pair2Visuals.candidateColors,
+                        ],
+                        candidateMarks: resultEliminations.map(
+                          ({ r, c, num }) => ({
+                            r,
+                            c,
+                            num,
+                            marker: "slash",
+                            color: 0,
+                          }),
+                        ),
                       },
                     };
                     if (!findAll) return res;
@@ -8792,6 +8789,13 @@ const techniques = {
                                 if (eliminations.length) {
                                   const ahsDigitArr = maskToDigits(candMask);
                                   const ahsDigits = ahsDigitArr.join("");
+                                  const ahsCells = [
+                                    ...new Map(
+                                      [...rowAhsCells, ...colAhsCells].map(
+                                        ([r, c]) => [`${r},${c}`, [r, c]],
+                                      ),
+                                    ).values(),
+                                  ];
 
                                   const resultObj = {
                                     change: true,
@@ -8808,39 +8812,36 @@ const techniques = {
                                         boxIdx + 1,
                                       ),
                                     },
-                                    applyVisuals: () => {
-                                      highlightedDigit = null;
-                                      highlightState = 0;
-
-                                      // Every AHS cell uses Cell Color 6.
-                                      const ahsCells = new Map();
-                                      [...rowAhsCells, ...colAhsCells].forEach(
+                                    visualPlan: {
+                                      highlight: { digit: null, state: 0 },
+                                      cellColors: ahsCells.map(([r, c]) => ({
+                                        r,
+                                        c,
+                                        color: 5,
+                                        mode: "add",
+                                      })),
+                                      candidateColors: ahsCells.flatMap(
                                         ([r, c]) =>
-                                          ahsCells.set(`${r},${c}`, [r, c]),
-                                      );
-                                      ahsCells.forEach(([r, c]) => {
-                                        window.addCellColor(
+                                          ahsDigitArr
+                                            .filter((num) =>
+                                              pencils[r][c].has(num),
+                                            )
+                                            .map((num) => ({
+                                              r,
+                                              c,
+                                              num,
+                                              color: 5,
+                                            })),
+                                      ),
+                                      candidateMarks: eliminations.map(
+                                        ({ r, c, num }) => ({
                                           r,
                                           c,
-                                          cellColorPalette[5],
-                                        );
-                                        ahsDigitArr.forEach((d) => {
-                                          if (boardState[r][c].pencils.has(d)) {
-                                            boardState[r][c].pencilColors.set(
-                                              d,
-                                              candidateColorPalette[5],
-                                            ); // AHS candidate Color 6
-                                          }
-                                        });
-                                      });
-
-                                      // Color Eliminations (Candidate Color 1)
-                                      eliminations.forEach((el) => {
-                                        boardState[el.r][el.c].candSlashes.set(
-                                          el.num,
-                                          markColorPalette[0],
-                                        );
-                                      });
+                                          num,
+                                          marker: "slash",
+                                          color: 0,
+                                        }),
+                                      ),
                                     },
                                   };
                                   if (!findAll) return resultObj;
@@ -8863,6 +8864,9 @@ const techniques = {
   /**
    * Constructs the base 9x81 bitset representing all current pencil marks
    */
+});
+
+Object.assign(techniques, {
   buildCandidateBitsets: (board, pencils) => {
     // 9 arrays, each with 3 integers (representing 27 bits each)
     const candidateBitsets = Array.from({ length: 9 }, () => [0, 0, 0]);
@@ -9771,6 +9775,9 @@ const techniques = {
     return result;
   },
 
+});
+
+Object.assign(techniques, {
   _findAic: (board, pencils, config, findAll = false) => {
     const results = [];
     const {
@@ -10305,6 +10312,128 @@ const techniques = {
         }
       }
 
+      const candidateColors = [];
+      path.forEach((node, idx) => {
+        if (fishNodes.has(node)) return;
+        const color = idx % 2 === 0 ? 5 : 4;
+        for (const id of node.cells) {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          for (const num of node.digits) {
+            if (pencils[r][c].has(num)) {
+              candidateColors.push({ r, c, num, color });
+            }
+          }
+        }
+      });
+
+      const cellColors = [];
+      const candidateMarks = removals.map(({ r, c, num }) => ({
+        r,
+        c,
+        num,
+        marker: "slash",
+        color: 0,
+      }));
+      const colorCodes = [6, 7, 2, 3, 4, 1, 8];
+      let colorCount = -1;
+
+      if (useAls) {
+        for (const cells of usedAlses) {
+          colorCount++;
+          const color = colorCodes[colorCount % 8];
+          for (const [r, c] of cells) {
+            cellColors.push({ r, c, color, mode: "add" });
+          }
+        }
+      }
+
+      if (useFish) {
+        for (const fish of usedFishes) {
+          colorCount++;
+          const color = colorCodes[colorCount % colorCodes.length];
+          for (const id of fish.allCells) {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            if (pencils[r][c].has(fish.d)) {
+              candidateMarks.push({
+                r,
+                c,
+                num: fish.d,
+                marker: "circle",
+                color,
+              });
+            }
+          }
+        }
+      }
+
+      const links = [];
+      const getClosestCells = (nodeA, nodeB) => {
+        let minD = Infinity;
+        let bestA = nodeA.cells[0],
+          bestB = nodeB.cells[0];
+        for (const a of nodeA.cells) {
+          const ar = Math.floor(a / 9),
+            ac = a % 9;
+          for (const b of nodeB.cells) {
+            const br = Math.floor(b / 9),
+              bc = b % 9;
+            const distance = Math.abs(ar - br) + Math.abs(ac - bc);
+            if (distance < minD) {
+              minD = distance;
+              bestA = a;
+              bestB = b;
+            }
+          }
+        }
+        return [
+          [Math.floor(bestA / 9), bestA % 9],
+          [Math.floor(bestB / 9), bestB % 9],
+        ];
+      };
+      const drawGroup = (node, idx) => {
+        if (fishNodes.has(node) || node.cells.length < 2) return;
+        const color = idx % 2 === 0 ? 5 : 4;
+        for (let i = 0; i < node.cells.length - 1; i++) {
+          links.push({
+            r1: Math.floor(node.cells[i] / 9),
+            c1: node.cells[i] % 9,
+            n1: node.digits[0],
+            r2: Math.floor(node.cells[i + 1] / 9),
+            c2: node.cells[i + 1] % 9,
+            n2: node.digits[0],
+            color,
+            style: "solid",
+          });
+        }
+      };
+
+      for (let i = 0; i < fullVisualChain.length - 1; i++) {
+        const u = fullVisualChain[i];
+        const v = fullVisualChain[i + 1];
+        if (i === 0) drawGroup(u, 0);
+        if (i < path.length) drawGroup(v, (i + 1) % path.length);
+
+        const skipLine =
+          useFish &&
+          i % 2 === 0 &&
+          activeFishLinkRegistry.get(u)?.get(v);
+        if (!skipLine) {
+          const [cA, cB] = getClosestCells(u, v);
+          links.push({
+            r1: cA[0],
+            c1: cA[1],
+            n1: u.digits[0],
+            r2: cB[0],
+            c2: cB[1],
+            n2: v.digits[0],
+            color: 0,
+            style: i % 2 === 0 ? "solid" : "dash",
+          });
+        }
+      }
+
       return {
         change: true,
         type: "remove",
@@ -10315,155 +10444,15 @@ const techniques = {
           mainInfo: t("teks_msg_138", eurekaStr.split("-")[0]),
           detail: `[${path.length}] ${eurekaStr}`,
         },
-        applyVisuals: () => {
-          if (singleDigit) {
-            highlightedDigit = path[0].digits[0];
-            highlightState = 1;
-          } else if (bivalueOnly) {
-            highlightedDigit = null;
-            highlightState = 2;
-          } else {
-            highlightedDigit = null;
-            highlightState = 0;
-          }
-
-          path.forEach((node, idx) => {
-            if (fishNodes.has(node)) return;
-
-            node.cells.forEach((id) => {
-              const cr = Math.floor(id / 9);
-              const cc = id % 9;
-              const colorIdx = idx % 2 === 0 ? 5 : 4;
-              node.digits.forEach((d) => {
-                if (boardState[cr][cc].pencils.has(d)) {
-                  boardState[cr][cc].pencilColors.set(
-                    d,
-                    candidateColorPalette[colorIdx],
-                  );
-                }
-              });
-            });
-          });
-
-          removals.forEach((el) => {
-            boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
-          });
-
-          let colorCodes = [6, 7, 2, 3, 4, 1, 8];
-          let colorCount = -1;
-
-          if (useAls && usedAlses.length > 0) {
-            usedAlses.forEach((cells, idx) => {
-              colorCount++;
-              const colorCode = colorCodes[colorCount % 8];
-              cells.forEach(([r, c]) => {
-                if (window.addCellColor)
-                  window.addCellColor(r, c, cellColorPalette[colorCode]);
-                else boardState[r][c].cellColor = cellColorPalette[colorCode];
-              });
-            });
-          }
-
-          if (useFish && usedFishes.length > 0) {
-            // A fish only circles its own candidates: no cell tint and no
-            // internal lines, so the chain drawn on top stays readable.
-            usedFishes.forEach((fish) => {
-              colorCount++;
-              const fishColor = colorCodes[colorCount % colorCodes.length];
-
-              fish.allCells.forEach((id) => {
-                const r = Math.floor(id / 9);
-                const c = id % 9;
-                if (!boardState[r][c].pencils.has(fish.d)) return;
-                if (window.addCandidateCircle)
-                  window.addCandidateCircle(
-                    r,
-                    c,
-                    fish.d,
-                    markColorPalette[fishColor],
-                  );
-                else
-                  boardState[r][c].candCircles.set(
-                    fish.d,
-                    markColorPalette[fishColor],
-                  );
-              });
-            });
-          }
-
-          const getClosestCells = (nodeA, nodeB) => {
-            let minD = Infinity;
-            let bestA = nodeA.cells[0],
-              bestB = nodeB.cells[0];
-            for (const a of nodeA.cells) {
-              const ar = Math.floor(a / 9),
-                ac = a % 9;
-              for (const b of nodeB.cells) {
-                const br = Math.floor(b / 9),
-                  bc = b % 9;
-                const d = Math.abs(ar - br) + Math.abs(ac - bc);
-                if (d < minD) {
-                  minD = d;
-                  bestA = a;
-                  bestB = b;
-                }
-              }
-            }
-            return [
-              [Math.floor(bestA / 9), bestA % 9],
-              [Math.floor(bestB / 9), bestB % 9],
-            ];
-          };
-
-          const drawGroup = (node, idx) => {
-            if (fishNodes.has(node)) return; // Circled instead
-            if (node.cells.length > 1) {
-              const colorIdx = idx % 2 === 0 ? 5 : 4;
-              for (let i = 0; i < node.cells.length - 1; i++) {
-                const r1 = Math.floor(node.cells[i] / 9),
-                  c1 = node.cells[i] % 9;
-                const r2 = Math.floor(node.cells[i + 1] / 9),
-                  c2 = node.cells[i + 1] % 9;
-                drawnLines.push({
-                  r1,
-                  c1,
-                  n1: node.digits[0],
-                  r2,
-                  c2,
-                  n2: node.digits[0],
-                  color: lineColorPalette[colorIdx],
-                  style: "solid",
-                });
-              }
-            }
-          };
-
-          for (let i = 0; i < fullVisualChain.length - 1; i++) {
-            const u = fullVisualChain[i];
-            const v = fullVisualChain[i + 1];
-
-            if (i === 0) drawGroup(u, 0);
-            if (i < path.length) drawGroup(v, (i + 1) % path.length);
-
-            let skipLine = false;
-            // Fish OR links sit on the even steps; the circles already show them.
-            if (useFish && i % 2 === 0 && activeFishLinkRegistry.get(u)?.get(v))
-              skipLine = true;
-
-            if (!skipLine) {
-              const [cA, cB] = getClosestCells(u, v);
-              drawnLines.push({
-                r1: cA[0],
-                c1: cA[1],
-                n1: u.digits[0],
-                r2: cB[0],
-                c2: cB[1],
-                n2: v.digits[0],
-                color: lineColorPalette[0],
-                style: i % 2 === 0 ? "solid" : "dash",
-              });
-            }
-          }
+        visualPlan: {
+          highlight: {
+            digit: singleDigit ? path[0].digits[0] : null,
+            state: singleDigit ? 1 : bivalueOnly ? 2 : 0,
+          },
+          cellColors,
+          candidateColors,
+          candidateMarks,
+          links,
         },
       };
     };
@@ -11106,6 +11095,9 @@ const techniques = {
   },
 
   // --- ALS COLLECTION ENGINE ---
+});
+
+Object.assign(techniques, {
   _calculateALSHash: (cells) => {
     if (cells.length === 0) return 0;
 
@@ -11268,7 +11260,9 @@ const techniques = {
     alses = Array.from(uniqueALS.values()).sort((a, b) => a.hash - b.hash);
     return alses;
   },
+});
 
+Object.assign(techniques, {
   _deathBlossomCore: (
     board,
     pencils,
@@ -11615,6 +11609,100 @@ const techniques = {
             ? t("teks_msg_157", stem.digit, stem.houseName)
             : t("teks_msg_158", stem.r + 1, stem.c + 1);
 
+        const cellColors = [];
+        const candidateColors = [];
+        const links = [];
+        if (isAals) {
+          for (const id of stem.cells) {
+            cellColors.push({
+              r: Math.floor(id / 9),
+              c: id % 9,
+              color: 5,
+              mode: "add",
+            });
+          }
+        }
+
+        chosenPaths.forEach((path, branchIdx) => {
+          const branchColor = [6, 7, 2, 3, 4, 8][branchIdx % 6];
+          if (path.length !== 3) return;
+          const [u, v, w] = path;
+          if (isCell) {
+            candidateColors.push({
+              r: stem.r,
+              c: stem.c,
+              num: u.digits[0],
+              color: branchColor,
+            });
+          } else {
+            candidateColors.push({
+              r: Math.floor(u.cells[0] / 9),
+              c: u.cells[0] % 9,
+              num: isRegion ? stem.digit : u.digits[0],
+              color: branchColor,
+            });
+          }
+
+          const als = alsLinkRegistry.get(v)?.get(w);
+          const coloredCells = als
+            ? als.cells
+            : v.cells.map((id) => [Math.floor(id / 9), id % 9]);
+          for (const [r, c] of coloredCells) {
+            cellColors.push({ r, c, color: branchColor, mode: "add" });
+          }
+
+          for (const node of [v, w]) {
+            for (const id of node.cells) {
+              const r = Math.floor(id / 9);
+              const c = id % 9;
+              if (pencils[r][c].has(node.digits[0])) {
+                candidateColors.push({
+                  r,
+                  c,
+                  num: node.digits[0],
+                  color: branchColor,
+                  mode: "add",
+                });
+              }
+            }
+          }
+
+          links.push({
+            r1: Math.floor(u.cells[0] / 9),
+            c1: u.cells[0] % 9,
+            n1: u.digits[0],
+            r2: Math.floor(v.cells[0] / 9),
+            c2: v.cells[0] % 9,
+            n2: v.digits[0],
+            color: 1,
+            style: "dash",
+          });
+          links.push({
+            r1: Math.floor(v.cells[0] / 9),
+            c1: v.cells[0] % 9,
+            n1: v.digits[0],
+            r2: Math.floor(w.cells[0] / 9),
+            c2: w.cells[0] % 9,
+            n2: w.digits[0],
+            color: 0,
+            style: "solid",
+          });
+          for (const node of [v, w]) {
+            for (let i = 0; i < node.cells.length - 1; i++) {
+              links.push({
+                r1: Math.floor(node.cells[i] / 9),
+                c1: node.cells[i] % 9,
+                n1: node.digits[0],
+                r2: Math.floor(node.cells[i + 1] / 9),
+                c2: node.cells[i + 1] % 9,
+                n2: node.digits[0],
+                color: branchColor,
+                style: "solid",
+              });
+            }
+          }
+        });
+
         const resultObj = {
           change: true,
           type: "remove",
@@ -11624,152 +11712,18 @@ const techniques = {
             mainInfo: mainInfoStr,
             detail: chainStrs.join(", "),
           },
-          applyVisuals: () => {
-            highlightedDigit = null;
-            highlightState = 0;
-
-            // AALS gets a dedicated cyan cell color before branch colors are
-            // layered on top, keeping the stem visibly distinct from chains.
-            if (isAals) {
-              stem.cells.forEach((id) => {
-                const r = Math.floor(id / 9);
-                const c = id % 9;
-                if (window.addCellColor) {
-                  window.addCellColor(r, c, cellColorPalette[5]);
-                } else {
-                  boardState[r][c].cellColor = cellColorPalette[5];
-                }
-              });
-            }
-
-            chosenPaths.forEach((path, branchIdx) => {
-              const branchColor = [6, 7, 2, 3, 4, 8][branchIdx % 6]; // Unique color per stem candidate chain
-
-              if (path.length === 3) {
-                const u = path[0]; // Stem candidate
-                const v = path[1]; // NAND node
-                const w = path[2]; // OR node
-
-                // 1. Color stem cell candidate matching the branch color
-                if (isCell) {
-                  boardState[stem.r][stem.c].pencilColors.set(
-                    u.digits[0],
-                    candidateColorPalette[branchColor],
-                  );
-                } else {
-                  const ur = Math.floor(u.cells[0] / 9),
-                    uc = u.cells[0] % 9;
-                  boardState[ur][uc].pencilColors.set(
-                    isRegion ? stem.digit : u.digits[0],
-                    candidateColorPalette[branchColor],
-                  );
-                }
-
-                // 2. Color bivalue cell or ALS cell matching the branch color
-                const als = alsLinkRegistry.get(v)?.get(w);
-                if (als) {
-                  als.cells.forEach(([ar, ac]) => {
-                    if (window.addCellColor)
-                      window.addCellColor(
-                        ar,
-                        ac,
-                        cellColorPalette[branchColor],
-                      );
-                    else
-                      boardState[ar][ac].cellColor =
-                        cellColorPalette[branchColor];
-                  });
-                } else {
-                  v.cells.forEach((id) => {
-                    const vr = Math.floor(id / 9),
-                      vc = id % 9;
-                    if (window.addCellColor)
-                      window.addCellColor(
-                        vr,
-                        vc,
-                        cellColorPalette[branchColor],
-                      );
-                    else
-                      boardState[vr][vc].cellColor =
-                        cellColorPalette[branchColor];
-                  });
-                }
-
-                // 3. Highlight candidates for the branch nodes
-                [v, w].forEach((node) => {
-                  node.cells.forEach((id) => {
-                    const nr = Math.floor(id / 9),
-                      nc = id % 9;
-                    if (boardState[nr][nc].pencils.has(node.digits[0])) {
-                      if (window.addCandidateColor)
-                        window.addCandidateColor(
-                          nr,
-                          nc,
-                          node.digits[0],
-                          candidateColorPalette[branchColor],
-                        );
-                      else
-                        boardState[nr][nc].pencilColors.set(
-                          node.digits[0],
-                          candidateColorPalette[branchColor],
-                        );
-                    }
-                  });
-                });
-
-                // 4. NAND gate (Dash line)
-                drawnLines.push({
-                  r1: Math.floor(u.cells[0] / 9),
-                  c1: u.cells[0] % 9,
-                  n1: u.digits[0],
-                  r2: Math.floor(v.cells[0] / 9),
-                  c2: v.cells[0] % 9,
-                  n2: v.digits[0],
-                  color: lineColorPalette[1],
-                  style: "dash",
-                });
-
-                // 5. OR gate (Solid Red line)
-                drawnLines.push({
-                  r1: Math.floor(v.cells[0] / 9),
-                  c1: v.cells[0] % 9,
-                  n1: v.digits[0],
-                  r2: Math.floor(w.cells[0] / 9),
-                  c2: w.cells[0] % 9,
-                  n2: w.digits[0],
-                  color: lineColorPalette[0],
-                  style: "solid",
-                });
-
-                // 6. Note grouped node in ALS as solid line following the node color
-                const drawGroupedNode = (node) => {
-                  if (node.cells.length > 1) {
-                    for (let i = 0; i < node.cells.length - 1; i++) {
-                      drawnLines.push({
-                        r1: Math.floor(node.cells[i] / 9),
-                        c1: node.cells[i] % 9,
-                        n1: node.digits[0],
-                        r2: Math.floor(node.cells[i + 1] / 9),
-                        c2: node.cells[i + 1] % 9,
-                        n2: node.digits[0],
-                        color: lineColorPalette[branchColor],
-                        style: "solid",
-                      });
-                    }
-                  }
-                };
-                drawGroupedNode(v);
-                drawGroupedNode(w);
-              }
-            });
-
-            // Eliminations
-            elims.forEach((el) => {
-              boardState[el.r][el.c].candSlashes.set(
-                el.num,
-                markColorPalette[0],
-              );
-            });
+          visualPlan: {
+            highlight: { digit: null, state: 0 },
+            cellColors,
+            candidateColors,
+            candidateMarks: elims.map(({ r, c, num }) => ({
+              r,
+              c,
+              num,
+              marker: "slash",
+              color: 0,
+            })),
+            links,
           },
         };
 
@@ -11809,6 +11763,9 @@ const techniques = {
   },
 
   // --- Almost AIC ---
+});
+
+Object.assign(techniques, {
   _almostAicMaxBranchNodes: 16,
   _buildAlmostAicGraph: (board, pencils) => {
     techniques._useSharedAICCache(board, pencils);
@@ -12526,6 +12483,124 @@ const techniques = {
           ? t("teks_msg_157", stem.digit, stem.houseName)
           : t("teks_msg_158", stem.r + 1, stem.c + 1);
 
+      const cellColors = [];
+      const candidateColors = [];
+      const candidateMarks = [];
+      const links = [];
+      if (isAals) {
+        for (const id of stem.cells) {
+          cellColors.push({
+            r: Math.floor(id / 9),
+            c: id % 9,
+            color: 5,
+            mode: "add",
+          });
+        }
+      }
+
+      const colorCodes = [6, 7, 2, 3, 4, 1, 8];
+      let colorCount = -1;
+      for (const cells of usedAlses) {
+        colorCount++;
+        const color = colorCodes[colorCount % colorCodes.length];
+        for (const [r, c] of cells) {
+          cellColors.push({ r, c, color, mode: "add" });
+        }
+      }
+      for (const fish of usedFishes) {
+        colorCount++;
+        const color = colorCodes[colorCount % colorCodes.length];
+        for (const id of fish.allCells) {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (pencils[r][c].has(fish.d)) {
+            candidateMarks.push({
+              r,
+              c,
+              num: fish.d,
+              marker: "circle",
+              color,
+            });
+          }
+        }
+      }
+
+      for (const path of chosenPaths) {
+        path.forEach((node, index) => {
+          if (fishNodes.has(node)) return;
+          const color = index % 2 === 0 ? 4 : 5;
+          for (const id of node.cells) {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            for (const num of node.digits) {
+              if (pencils[r][c].has(num)) {
+                candidateColors.push({ r, c, num, color });
+              }
+            }
+          }
+        });
+
+        path.forEach((node, index) => {
+          if (fishNodes.has(node) || node.cells.length < 2) return;
+          const color = index % 2 === 0 ? 4 : 5;
+          for (let i = 0; i < node.cells.length - 1; i++) {
+            links.push({
+              r1: Math.floor(node.cells[i] / 9),
+              c1: node.cells[i] % 9,
+              n1: node.digits[0],
+              r2: Math.floor(node.cells[i + 1] / 9),
+              c2: node.cells[i + 1] % 9,
+              n2: node.digits[0],
+              color,
+              style: "solid",
+            });
+          }
+        });
+
+        for (let i = 0; i < path.length - 1; i++) {
+          if (
+            i % 2 === 1 &&
+            fishLinkRegistry.get(path[i])?.get(path[i + 1])
+          ) {
+            continue;
+          }
+          const [from, to] = getClosestCells(path[i], path[i + 1]);
+          links.push({
+            r1: from[0],
+            c1: from[1],
+            n1: path[i].digits[0],
+            r2: to[0],
+            c2: to[1],
+            n2: path[i + 1].digits[0],
+            color: 0,
+            style: i % 2 === 0 ? "dash" : "solid",
+          });
+        }
+      }
+
+      for (let i = 0; i < startNodes.length - 1; i++) {
+        const [from, to] = getClosestCells(startNodes[i], startNodes[i + 1]);
+        links.push({
+          r1: from[0],
+          c1: from[1],
+          n1: startNodes[i].digits[0],
+          r2: to[0],
+          c2: to[1],
+          n2: startNodes[i + 1].digits[0],
+          color: 1,
+          style: "solid",
+        });
+      }
+      candidateMarks.push(
+        ...elims.map(({ r, c, num }) => ({
+          r,
+          c,
+          num,
+          marker: "slash",
+          color: 0,
+        })),
+      );
+
       const resultObj = {
         change: true,
         type: "remove",
@@ -12535,140 +12610,12 @@ const techniques = {
           mainInfo: mainInfoStr,
           detail: eurekaStr,
         },
-        applyVisuals: () => {
-          highlightedDigit = null;
-          highlightState = 0;
-
-          if (isAals) {
-            stem.cells.forEach((id) => {
-              const r = Math.floor(id / 9);
-              const c = id % 9;
-              if (window.addCellColor) {
-                window.addCellColor(r, c, cellColorPalette[5]);
-              } else {
-                boardState[r][c].cellColor = cellColorPalette[5];
-              }
-            });
-          }
-
-          const colorCodes = [6, 7, 2, 3, 4, 1, 8];
-          let colorCount = -1;
-
-          usedAlses.forEach((cells) => {
-            colorCount++;
-            const colorCode = colorCodes[colorCount % colorCodes.length];
-            cells.forEach(([r, c]) => {
-              if (window.addCellColor) {
-                window.addCellColor(r, c, cellColorPalette[colorCode]);
-              } else {
-                boardState[r][c].cellColor = cellColorPalette[colorCode];
-              }
-            });
-          });
-
-          usedFishes.forEach((fish) => {
-            colorCount++;
-            const colorCode = colorCodes[colorCount % colorCodes.length];
-            fish.allCells.forEach((id) => {
-              const r = Math.floor(id / 9);
-              const c = id % 9;
-              if (!boardState[r][c].pencils.has(fish.d)) return;
-              if (window.addCandidateCircle) {
-                window.addCandidateCircle(
-                  r,
-                  c,
-                  fish.d,
-                  markColorPalette[colorCode],
-                );
-              } else {
-                boardState[r][c].candCircles.set(
-                  fish.d,
-                  markColorPalette[colorCode],
-                );
-              }
-            });
-          });
-
-          chosenPaths.forEach((path) => {
-            path.forEach((node, index) => {
-              if (fishNodes.has(node)) return;
-              // Even positions are the TRUE nodes of the branch.
-              const colorIdx = index % 2 === 0 ? 4 : 5;
-              node.cells.forEach((id) => {
-                const r = Math.floor(id / 9);
-                const c = id % 9;
-                node.digits.forEach((d) => {
-                  if (boardState[r][c].pencils.has(d)) {
-                    boardState[r][c].pencilColors.set(
-                      d,
-                      candidateColorPalette[colorIdx],
-                    );
-                  }
-                });
-              });
-            });
-
-            path.forEach((node, index) => {
-              if (fishNodes.has(node)) return; // Circled instead
-              if (node.cells.length < 2) return;
-              const colorIdx = index % 2 === 0 ? 4 : 5;
-              for (let i = 0; i + 1 < node.cells.length; i++) {
-                drawnLines.push({
-                  r1: Math.floor(node.cells[i] / 9),
-                  c1: node.cells[i] % 9,
-                  n1: node.digits[0],
-                  r2: Math.floor(node.cells[i + 1] / 9),
-                  c2: node.cells[i + 1] % 9,
-                  n2: node.digits[0],
-                  color: lineColorPalette[colorIdx],
-                  style: "solid",
-                });
-              }
-            });
-
-            for (let i = 0; i + 1 < path.length; i++) {
-              // Fish OR links sit on the odd steps; the circles already show them.
-              if (
-                i % 2 === 1 &&
-                fishLinkRegistry.get(path[i])?.get(path[i + 1])
-              )
-                continue;
-              const [from, to] = getClosestCells(path[i], path[i + 1]);
-              drawnLines.push({
-                r1: from[0],
-                c1: from[1],
-                n1: path[i].digits[0],
-                r2: to[0],
-                c2: to[1],
-                n2: path[i + 1].digits[0],
-                color: lineColorPalette[0],
-                // Branches leave a TRUE node weakly, so even links are dashed.
-                style: i % 2 === 0 ? "dash" : "solid",
-              });
-            }
-          });
-
-          // The stem OR gate holding every branch together.
-          for (let i = 0; i + 1 < startNodes.length; i++) {
-            const [from, to] = getClosestCells(
-              startNodes[i],
-              startNodes[i + 1],
-            );
-            drawnLines.push({
-              r1: from[0],
-              c1: from[1],
-              n1: startNodes[i].digits[0],
-              r2: to[0],
-              c2: to[1],
-              n2: startNodes[i + 1].digits[0],
-              color: lineColorPalette[1],
-              style: "solid",
-            });
-          }
-
-          elims.forEach((el) => {
-            boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
-          });
+        visualPlan: {
+          highlight: { digit: null, state: 0 },
+          cellColors,
+          candidateColors,
+          candidateMarks,
+          links,
         },
       };
 
@@ -12732,7 +12679,9 @@ const techniques = {
       seenEliminations,
     );
   },
+});
 
+Object.assign(techniques, {
   _complexFishCore: (board, pencils, fishSize, isMutant, findAll = false) => {
     const results = [];
     const U_ROW = 0,
@@ -12979,63 +12928,46 @@ const techniques = {
           detailStr += t("teks_msg_163", formatFins(allFinsMask));
         }
 
-        const resultBaseUnits = baseUnits.slice();
-        const resultCoverUnits = coverUnits.slice();
-        const resultFinsMask = allFinsMask;
-        const resultElims = elims;
-        const resultNum = num;
+        const uTypeToName = (type) =>
+          type === U_ROW ? "row" : type === U_COL ? "col" : "box";
+        const baseCells = baseUnits.flatMap((unit) =>
+          techniques._getUnitCells(uTypeToName(unit.type), unit.index),
+        );
+        const coverCells = coverUnits.flatMap((unit) =>
+          techniques._getUnitCells(uTypeToName(unit.type), unit.index),
+        );
 
         return {
           change: true,
           type: "remove",
-          cells: resultElims,
+          cells: elims,
           hint: {
             name: fishName,
-            mainInfo: t("teks_msg_48", resultNum),
+            mainInfo: t("teks_msg_48", num),
             detail: detailStr,
           },
-          applyVisuals: () => {
-            highlightedDigit = resultNum;
-            highlightState = 1;
-            const uTypeToName = (type) =>
-              type === U_ROW ? "row" : type === U_COL ? "col" : "box";
-
-            resultBaseUnits.forEach((unit) => {
-              techniques
-                ._getUnitCells(uTypeToName(unit.type), unit.index)
-                .forEach(([r, c]) => {
-                  window.addCellColor(r, c, cellColorPalette[6]);
-                  if (boardState[r][c].pencils.has(resultNum)) {
-                    boardState[r][c].pencilColors.set(
-                      resultNum,
-                      candidateColorPalette[6],
-                    );
-                  }
-                });
-            });
-
-            resultCoverUnits.forEach((unit) => {
-              techniques
-                ._getUnitCells(uTypeToName(unit.type), unit.index)
-                .forEach(([r, c]) => {
-                  window.addCellColor(r, c, cellColorPalette[7]);
-                });
-            });
-
-            getBits(resultFinsMask).forEach((id) => {
-              window.addCellColor(
-                Math.floor(id / 9),
-                id % 9,
-                cellColorPalette[5],
-              );
-            });
-
-            resultElims.forEach((el) =>
-              boardState[el.r][el.c].candSlashes.set(
-                el.num,
-                markColorPalette[0],
-              ),
-            );
+          visualPlan: {
+            highlight: { digit: num, state: 1 },
+            cellColors: [
+              ...baseCells.map(([r, c]) => ({ r, c, color: 6, mode: "add" })),
+              ...coverCells.map(([r, c]) => ({ r, c, color: 7, mode: "add" })),
+              ...getBits(allFinsMask).map((id) => ({
+                r: Math.floor(id / 9),
+                c: id % 9,
+                color: 5,
+                mode: "add",
+              })),
+            ],
+            candidateColors: baseCells
+              .filter(([r, c]) => pencils[r][c].has(num))
+              .map(([r, c]) => ({ r, c, num, color: 6 })),
+            candidateMarks: elims.map(({ r, c, num: removalNum }) => ({
+              r,
+              c,
+              num: removalNum,
+              marker: "slash",
+              color: 0,
+            })),
           },
         };
       };
@@ -13281,6 +13213,9 @@ const techniques = {
   },
 
   // --- Unified Coloring / Medusa Helper ---
+});
+
+Object.assign(techniques, {
 
   // Helper: Convert cell coordinates and digit into a unique 0-728 ID
   _getCandId: (r, c, n) => (r * 9 + c) * 9 + (n - 1),
@@ -13667,111 +13602,96 @@ const techniques = {
             detail += t("teks_msg_180", sources);
           }
 
-          // Snapshot graph component and colors to guarantee closure safety for visuals
-          const visualComponent = [...component];
-          const visualColoring = new Int8Array(coloring);
+          const cellColors = [];
+          const candidateColors = [];
+          for (const id of component) {
+            const { r, c, n } = techniques._parseCandId(id);
+            const colorVal = coloring[id];
+            if (singleDigit !== null) {
+              cellColors.push({
+                r,
+                c,
+                color: colorVal === 1 ? 6 : 7,
+                mode: "add",
+              });
+            }
+            if (pencils[r][c].has(n)) {
+              candidateColors.push({
+                r,
+                c,
+                num: n,
+                color: colorVal === 1 ? 4 : 5,
+                mode: "add",
+              });
+            }
+          }
+
+          const links = [];
+          if (result.rule === "B_Cell") {
+            const { r, c } = result.data;
+            cellColors.push({ r, c, color: 1, mode: "add" });
+            for (const d of pencils[r][c]) {
+              let foundSource = null;
+              for (const id of component) {
+                if (coloring[id] !== result.targetColor) continue;
+                const source = techniques._parseCandId(id);
+                if (source.r === r && source.c === c && source.n !== d) {
+                  foundSource = source;
+                  break;
+                }
+                if (
+                  source.n === d &&
+                  (source.r === r ||
+                    source.c === c ||
+                    (Math.floor(source.r / 3) === Math.floor(r / 3) &&
+                      Math.floor(source.c / 3) === Math.floor(c / 3)))
+                ) {
+                  foundSource = source;
+                  break;
+                }
+              }
+              if (foundSource) {
+                links.push({
+                  r1: r,
+                  c1: c,
+                  n1: d,
+                  r2: foundSource.r,
+                  c2: foundSource.c,
+                  n2: foundSource.n,
+                  color: 1,
+                  style: "dash",
+                });
+              }
+            }
+          } else if (result.rule === "B_House") {
+            for (const [r, c] of techniques._getUnitCells(
+              result.data.unitType,
+              result.data.idx,
+            )) {
+              cellColors.push({ r, c, color: 1, mode: "add" });
+            }
+          }
 
           const resObj = {
             change: true,
             type: "remove",
             cells: uniqueElims,
             hint: { name, mainInfo: info, detail },
-            applyVisuals: () => {
-              highlightedDigit = singleDigit;
-              highlightState = singleDigit !== null ? 1 : 2;
-
-              visualComponent.forEach((id) => {
-                const { r, c, n } = techniques._parseCandId(id);
-                const colorVal = visualColoring[id];
-
-                // Color 1 => Candidate Palette 4, Color 2 => Candidate Palette 5
-                const candColor =
-                  colorVal === 1
-                    ? candidateColorPalette[4]
-                    : candidateColorPalette[5];
-
-                // Only apply cell background coloring for Simple Coloring (singleDigit is not null)
-                if (singleDigit !== null) {
-                  const cellBgColor =
-                    colorVal === 1 ? cellColorPalette[6] : cellColorPalette[7];
-                  window.addCellColor(r, c, cellBgColor);
-                }
-
-                if (boardState[r][c].pencils.has(n)) {
-                  window.addCandidateColor(r, c, n, candColor);
-                }
-              });
-
-              // Highlight Removed Candidates in Color 1
-              uniqueElims.forEach((el) => {
-                boardState[el.r][el.c].candSlashes.set(
-                  el.num,
-                  markColorPalette[0],
-                );
-              });
-
-              // --- Highlight contradiction locations and draw dashed lines ---
-              if (result.rule === "B_Cell") {
-                // B_Cell: Highlight the target cell that became empty due to contradiction with error color (index 1)
-                window.addCellColor(
-                  result.data.r,
-                  result.data.c,
-                  cellColorPalette[1],
-                );
-
-                const targetColor = result.targetColor;
-                const r = result.data.r;
-                const c = result.data.c;
-
-                // Connect all candidates in the cell to the color node that caused the contradiction with a dashed line
-                for (const d of boardState[r][c].pencils) {
-                  let foundSource = null;
-
-                  for (const id of visualComponent) {
-                    if (visualColoring[id] !== targetColor) continue;
-                    const src = techniques._parseCandId(id);
-
-                    // 1) 3D Medusa: Different digit in the same cell (Intra-cell)
-                    if (src.r === r && src.c === c && src.n !== d) {
-                      foundSource = src;
-                      break;
-                    }
-                    // 2) Peer: Same digit seeing each other in row/col/box
-                    if (
-                      src.n === d &&
-                      (src.r === r ||
-                        src.c === c ||
-                        (Math.floor(src.r / 3) === Math.floor(r / 3) &&
-                          Math.floor(src.c / 3) === Math.floor(c / 3)))
-                    ) {
-                      foundSource = src;
-                      break;
-                    }
-                  }
-
-                  if (foundSource) {
-                    drawnLines.push({
-                      r1: r,
-                      c1: c,
-                      n1: d,
-                      r2: foundSource.r,
-                      c2: foundSource.c,
-                      n2: foundSource.n,
-                      color: lineColorPalette[1], // Line color representing error/contradiction (index 1)
-                      style: "dash",
-                    });
-                  }
-                }
-              } else if (result.rule === "B_House") {
-                // B_House: Highlight the entire house that became empty due to contradiction with error color (index 1)
-                const houseCells = techniques._getUnitCells(
-                  result.data.unitType,
-                  result.data.idx,
-                );
-                for (const [hr, hc] of houseCells) {
-                  window.addCellColor(hr, hc, cellColorPalette[1]);
-                }
-              }
+            visualPlan: {
+              highlight: {
+                digit: singleDigit,
+                state: singleDigit !== null ? 1 : 2,
+              },
+              cellColors,
+              candidateColors,
+              candidateMarks: uniqueElims.map(({ r, c, num }) => ({
+                r,
+                c,
+                num,
+                marker: "slash",
+                color: 0,
+              })),
+              links,
             },
           };
 
@@ -13805,6 +13725,65 @@ const techniques = {
   medusa3D: (board, pencils, findAll = false) => {
     return techniques._solveColoring(board, pencils, null, findAll);
   },
+
+});
+
+Object.assign(techniques, {
+  _buildBivalueOddagonVisualPlan: (
+    loop,
+    extraCells,
+    d1,
+    d2,
+    removals,
+    pencils,
+    subsetCells = [],
+  ) => ({
+    highlight: { digit: null, state: 0 },
+    cellColors: [
+      ...loop.map((id) => ({
+        r: Math.floor(id / 9),
+        c: id % 9,
+        color: 7,
+        mode: "add",
+      })),
+      ...subsetCells.map((id) => ({
+        r: Math.floor(id / 9),
+        c: id % 9,
+        color: 6,
+        mode: "add",
+      })),
+    ],
+    candidateColors: [
+      ...loop.flatMap((id) => {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        return [d1, d2]
+          .filter((num) => pencils[r][c].has(num))
+          .map((num) => ({ r, c, num, color: 7 }));
+      }),
+      ...extraCells.flatMap((id) => {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        return [...pencils[r][c]]
+          .filter((num) => num !== d1 && num !== d2)
+          .map((num) => ({ r, c, num, color: 3 }));
+      }),
+      ...subsetCells.flatMap((id) => {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        return [...pencils[r][c]]
+          .filter((num) => num !== d1 && num !== d2)
+          .map((num) => ({ r, c, num, color: 4 }));
+      }),
+    ],
+    candidateMarks: removals.map(({ r, c, num }) => ({
+      r,
+      c,
+      num,
+      marker: "slash",
+      color: 0,
+    })),
+  }),
 
   bivalueOddagon: (board, pencils, findAll = false) => {
     const results = [];
@@ -14165,44 +14144,14 @@ const techniques = {
                     pathStr,
                   ),
                 },
-                applyVisuals: () => {
-                  highlightedDigit = null;
-                  highlightState = 0;
-                  loop.forEach((id) => {
-                    window.addCellColor(
-                      Math.floor(id / 9),
-                      id % 9,
-                      cellColorPalette[7],
-                    );
-                    if (boardState[Math.floor(id / 9)][id % 9].pencils.has(d1))
-                      boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
-                        d1,
-                        candidateColorPalette[7],
-                      );
-                    if (boardState[Math.floor(id / 9)][id % 9].pencils.has(d2))
-                      boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
-                        d2,
-                        candidateColorPalette[7],
-                      );
-                  });
-                  extraCells.forEach((id) => {
-                    boardState[Math.floor(id / 9)][id % 9].pencils.forEach(
-                      (cand) => {
-                        if (cand !== d1 && cand !== d2) {
-                          boardState[Math.floor(id / 9)][
-                            id % 9
-                          ].pencilColors.set(cand, candidateColorPalette[3]);
-                        }
-                      },
-                    );
-                  });
-                  elimMap.forEach((el) =>
-                    boardState[el.r][el.c].candSlashes.set(
-                      el.num,
-                      markColorPalette[0],
-                    ),
-                  );
-                },
+                visualPlan: techniques._buildBivalueOddagonVisualPlan(
+                  loop,
+                  extraCells,
+                  d1,
+                  d2,
+                  elimMap,
+                  pencils,
+                ),
               };
             }
             return null;
@@ -14330,72 +14279,15 @@ const techniques = {
                           subsetStr,
                         ),
                       },
-                      applyVisuals: () => {
-                        highlightedDigit = null;
-                        highlightState = 0;
-
-                        // Oddagon loop
-                        loop.forEach((id) => {
-                          const r = Math.floor(id / 9);
-                          const c = id % 9;
-
-                          window.addCellColor(r, c, cellColorPalette[7]);
-
-                          if (boardState[r][c].pencils.has(d1)) {
-                            boardState[r][c].pencilColors.set(
-                              d1,
-                              candidateColorPalette[7],
-                            );
-                          }
-
-                          if (boardState[r][c].pencils.has(d2)) {
-                            boardState[r][c].pencilColors.set(
-                              d2,
-                              candidateColorPalette[7],
-                            );
-                          }
-                        });
-
-                        // Oddagon extra candidates
-                        extraCells.forEach((id) => {
-                          const r = Math.floor(id / 9);
-                          const c = id % 9;
-
-                          boardState[r][c].pencils.forEach((cand) => {
-                            if (cand !== d1 && cand !== d2) {
-                              boardState[r][c].pencilColors.set(
-                                cand,
-                                candidateColorPalette[3],
-                              );
-                            }
-                          });
-                        });
-
-                        // ALS cells
-                        combo.forEach((id) => {
-                          const r = Math.floor(id / 9);
-                          const c = id % 9;
-
-                          window.addCellColor(r, c, cellColorPalette[6]);
-
-                          boardState[r][c].pencils.forEach((cand) => {
-                            if (cand !== d1 && cand !== d2) {
-                              boardState[r][c].pencilColors.set(
-                                cand,
-                                candidateColorPalette[4],
-                              );
-                            }
-                          });
-                        });
-
-                        // Eliminations
-                        elimMap.forEach((el) => {
-                          boardState[el.r][el.c].candSlashes.set(
-                            el.num,
-                            markColorPalette[0],
-                          );
-                        });
-                      },
+                      visualPlan: techniques._buildBivalueOddagonVisualPlan(
+                        loop,
+                        extraCells,
+                        d1,
+                        d2,
+                        elimMap,
+                        pencils,
+                        combo,
+                      ),
                     };
                     if (!findAll) return result;
                     type3Results.push(result);
@@ -14523,44 +14415,14 @@ const techniques = {
                     pathStr,
                   ),
                 },
-                applyVisuals: () => {
-                  highlightState = 0;
-                  loop.forEach((id) => {
-                    window.addCellColor(
-                      Math.floor(id / 9),
-                      id % 9,
-                      cellColorPalette[7],
-                    );
-
-                    if (boardState[Math.floor(id / 9)][id % 9].pencils.has(d1))
-                      boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
-                        d1,
-                        candidateColorPalette[7],
-                      );
-                    if (boardState[Math.floor(id / 9)][id % 9].pencils.has(d2))
-                      boardState[Math.floor(id / 9)][id % 9].pencilColors.set(
-                        d2,
-                        candidateColorPalette[7],
-                      );
-                  });
-                  extraCells.forEach((id) => {
-                    boardState[Math.floor(id / 9)][id % 9].pencils.forEach(
-                      (cand) => {
-                        if (cand !== d1 && cand !== d2) {
-                          boardState[Math.floor(id / 9)][
-                            id % 9
-                          ].pencilColors.set(cand, candidateColorPalette[3]);
-                        }
-                      },
-                    );
-                  });
-                  elims.forEach((el) =>
-                    boardState[el.r][el.c].candSlashes.set(
-                      el.num,
-                      markColorPalette[0],
-                    ),
-                  );
-                },
+                visualPlan: techniques._buildBivalueOddagonVisualPlan(
+                  loop,
+                  extraCells,
+                  d1,
+                  d2,
+                  elims,
+                  pencils,
+                ),
               };
             }
             return null;
@@ -14592,6 +14454,9 @@ const techniques = {
   },
 
   // Trivalue Oddagon
+});
+
+Object.assign(techniques, {
   _trivalueOddagonPlacements: [
     [0, 10, 20],
     [1, 11, 18],
@@ -14765,28 +14630,32 @@ const techniques = {
                             guardiansStr,
                           ),
                         },
-                        applyVisuals: () => {
-                          highlightedDigit = null;
-                          highlightState = 0;
-
-                          patternCells.forEach(({ r, c }) => {
-                            window.addCellColor(r, c, cellColorPalette[7]);
-                            boardState[r][c].pencils.forEach((cand) => {
-                              boardState[r][c].pencilColors.set(
-                                cand,
-                                cand === d1 || cand === d2 || cand === d3
-                                  ? candidateColorPalette[7]
-                                  : candidateColorPalette[3],
-                              );
-                            });
-                          });
-
-                          elimCells.forEach((el) =>
-                            boardState[el.r][el.c].candSlashes.set(
-                              el.num,
-                              markColorPalette[0],
-                            ),
-                          );
+                        visualPlan: {
+                          highlight: { digit: null, state: 0 },
+                          cellColors: patternCells.map(({ r, c }) => ({
+                            r,
+                            c,
+                            color: 7,
+                            mode: "add",
+                          })),
+                          candidateColors: patternCells.flatMap(({ r, c }) =>
+                            [...pencils[r][c]].map((num) => ({
+                              r,
+                              c,
+                              num,
+                              color:
+                                num === d1 || num === d2 || num === d3
+                                  ? 7
+                                  : 3,
+                            })),
+                          ),
+                          candidateMarks: elimCells.map(({ r, c, num }) => ({
+                            r,
+                            c,
+                            num,
+                            marker: "slash",
+                            color: 0,
+                          })),
                         },
                       };
 
@@ -14908,6 +14777,139 @@ const techniques = {
                                 r: Math.floor(id / 9),
                                 c: id % 9,
                               }));
+                              const cellColors = [
+                                ...patternCells.map(({ r, c }) => ({
+                                  r,
+                                  c,
+                                  color: 7,
+                                  mode: "add",
+                                })),
+                                ...als.cells.map(([r, c]) => ({
+                                  r,
+                                  c,
+                                  color: 6,
+                                  mode: "add",
+                                })),
+                              ];
+                              const candidateColors = [
+                                ...patternCells.flatMap(({ r, c }) =>
+                                  [...pencils[r][c]].flatMap((num) => {
+                                    if (baseDigits.includes(num)) {
+                                      return [{ r, c, num, color: 7 }];
+                                    }
+                                    if (extraDigits.includes(num)) {
+                                      return [
+                                        {
+                                          r,
+                                          c,
+                                          num,
+                                          color:
+                                            num === restrictedDigit ? 4 : 5,
+                                        },
+                                      ];
+                                    }
+                                    return [];
+                                  }),
+                                ),
+                                ...als.cells.flatMap(([r, c]) =>
+                                  [...pencils[r][c]].map((num) => ({
+                                    r,
+                                    c,
+                                    num,
+                                    color:
+                                      num === restrictedDigit
+                                        ? 5
+                                        : num === otherDigit
+                                          ? 4
+                                          : 3,
+                                  })),
+                                ),
+                              ];
+                              const links = [];
+                              const addCandidateGroup = (
+                                ids,
+                                digit,
+                                color,
+                              ) => {
+                                for (let i = 0; i < ids.length - 1; i++) {
+                                  links.push({
+                                    r1: Math.floor(ids[i] / 9),
+                                    c1: ids[i] % 9,
+                                    n1: digit,
+                                    r2: Math.floor(ids[i + 1] / 9),
+                                    c2: ids[i + 1] % 9,
+                                    n2: digit,
+                                    color,
+                                    style: "solid",
+                                  });
+                                }
+                              };
+                              const addClosestLink = (
+                                leftIds,
+                                leftDigit,
+                                rightIds,
+                                rightDigit,
+                                style,
+                              ) => {
+                                let closest = [leftIds[0], rightIds[0]];
+                                let closestDistance = Infinity;
+                                for (const left of leftIds) {
+                                  for (const right of rightIds) {
+                                    const distance =
+                                      Math.abs(
+                                        Math.floor(left / 9) -
+                                          Math.floor(right / 9),
+                                      ) + Math.abs((left % 9) - (right % 9));
+                                    if (distance < closestDistance) {
+                                      closestDistance = distance;
+                                      closest = [left, right];
+                                    }
+                                  }
+                                }
+                                links.push({
+                                  r1: Math.floor(closest[0] / 9),
+                                  c1: closest[0] % 9,
+                                  n1: leftDigit,
+                                  r2: Math.floor(closest[1] / 9),
+                                  c2: closest[1] % 9,
+                                  n2: rightDigit,
+                                  color: 0,
+                                  style,
+                                });
+                              };
+                              addCandidateGroup(
+                                restrictedGuardians,
+                                restrictedDigit,
+                                4,
+                              );
+                              addCandidateGroup(otherGuardians, otherDigit, 5);
+                              addCandidateGroup(
+                                restrictedAlsIds,
+                                restrictedDigit,
+                                5,
+                              );
+                              addCandidateGroup(otherAlsIds, otherDigit, 4);
+                              addClosestLink(
+                                restrictedGuardians,
+                                restrictedDigit,
+                                otherGuardians,
+                                otherDigit,
+                                "solid",
+                              );
+                              addClosestLink(
+                                restrictedAlsIds,
+                                restrictedDigit,
+                                otherAlsIds,
+                                otherDigit,
+                                "solid",
+                              );
+                              addClosestLink(
+                                restrictedGuardians,
+                                restrictedDigit,
+                                restrictedAlsIds,
+                                restrictedDigit,
+                                "dash",
+                              );
 
                               const result = {
                                 change: true,
@@ -14925,150 +14927,20 @@ const techniques = {
                                     alsCellsStr,
                                   ),
                                 },
-                                applyVisuals: () => {
-                                  highlightedDigit = null;
-                                  highlightState = 0;
-
-                                  patternCells.forEach(({ r, c }) => {
-                                    window.addCellColor(
+                                visualPlan: {
+                                  highlight: { digit: null, state: 0 },
+                                  cellColors,
+                                  candidateColors,
+                                  candidateMarks: elimCells.map(
+                                    ({ r, c, num }) => ({
                                       r,
                                       c,
-                                      cellColorPalette[7],
-                                    );
-                                    boardState[r][c].pencils.forEach((cand) => {
-                                      if (baseDigits.includes(cand)) {
-                                        boardState[r][c].pencilColors.set(
-                                          cand,
-                                          candidateColorPalette[7],
-                                        );
-                                      } else if (extraDigits.includes(cand)) {
-                                        boardState[r][c].pencilColors.set(
-                                          cand,
-                                          cand === restrictedDigit
-                                            ? candidateColorPalette[4]
-                                            : candidateColorPalette[5],
-                                        );
-                                      }
-                                    });
-                                  });
-
-                                  als.cells.forEach(([r, c]) => {
-                                    window.addCellColor(
-                                      r,
-                                      c,
-                                      cellColorPalette[6],
-                                    );
-                                    boardState[r][c].pencils.forEach((cand) => {
-                                      boardState[r][c].pencilColors.set(
-                                        cand,
-                                        cand === restrictedDigit
-                                          ? candidateColorPalette[5]
-                                          : cand === otherDigit
-                                            ? candidateColorPalette[4]
-                                            : candidateColorPalette[3],
-                                      );
-                                    });
-                                  });
-                                  const drawCandidateGroup = (
-                                    ids,
-                                    digit,
-                                    colorIndex,
-                                  ) => {
-                                    for (let i = 0; i < ids.length - 1; i++) {
-                                      drawnLines.push({
-                                        r1: Math.floor(ids[i] / 9),
-                                        c1: ids[i] % 9,
-                                        n1: digit,
-                                        r2: Math.floor(ids[i + 1] / 9),
-                                        c2: ids[i + 1] % 9,
-                                        n2: digit,
-                                        color: lineColorPalette[colorIndex],
-                                        style: "solid",
-                                      });
-                                    }
-                                  };
-                                  const drawClosestLink = (
-                                    leftIds,
-                                    leftDigit,
-                                    rightIds,
-                                    rightDigit,
-                                    style,
-                                  ) => {
-                                    let closest = [leftIds[0], rightIds[0]];
-                                    let closestDistance = Infinity;
-                                    for (const left of leftIds) {
-                                      for (const right of rightIds) {
-                                        const distance =
-                                          Math.abs(
-                                            Math.floor(left / 9) -
-                                              Math.floor(right / 9),
-                                          ) +
-                                          Math.abs((left % 9) - (right % 9));
-                                        if (distance < closestDistance) {
-                                          closestDistance = distance;
-                                          closest = [left, right];
-                                        }
-                                      }
-                                    }
-                                    drawnLines.push({
-                                      r1: Math.floor(closest[0] / 9),
-                                      c1: closest[0] % 9,
-                                      n1: leftDigit,
-                                      r2: Math.floor(closest[1] / 9),
-                                      c2: closest[1] % 9,
-                                      n2: rightDigit,
-                                      color: lineColorPalette[0],
-                                      style,
-                                    });
-                                  };
-
-                                  drawCandidateGroup(
-                                    restrictedGuardians,
-                                    restrictedDigit,
-                                    4,
-                                  );
-                                  drawCandidateGroup(
-                                    otherGuardians,
-                                    otherDigit,
-                                    5,
-                                  );
-                                  drawCandidateGroup(
-                                    restrictedAlsIds,
-                                    restrictedDigit,
-                                    5,
-                                  );
-                                  drawCandidateGroup(
-                                    otherAlsIds,
-                                    otherDigit,
-                                    4,
-                                  );
-                                  drawClosestLink(
-                                    restrictedGuardians,
-                                    restrictedDigit,
-                                    otherGuardians,
-                                    otherDigit,
-                                    "solid",
-                                  );
-                                  drawClosestLink(
-                                    restrictedAlsIds,
-                                    restrictedDigit,
-                                    otherAlsIds,
-                                    otherDigit,
-                                    "solid",
-                                  );
-                                  drawClosestLink(
-                                    restrictedGuardians,
-                                    restrictedDigit,
-                                    restrictedAlsIds,
-                                    restrictedDigit,
-                                    "dash",
-                                  );
-                                  elimCells.forEach((el) =>
-                                    boardState[el.r][el.c].candSlashes.set(
-                                      el.num,
-                                      markColorPalette[0],
-                                    ),
-                                  );
+                                      num,
+                                      marker: "slash",
+                                      color: 0,
+                                    }),
+                                  ),
+                                  links,
                                 },
                               };
 
@@ -15090,7 +14962,9 @@ const techniques = {
 
     return findAll ? results : { change: false };
   },
+});
 
+Object.assign(techniques, {
   brokenWing: (board, pencils, findAll = false) => {
     const results = [];
 
@@ -15243,37 +15117,43 @@ const techniques = {
                         mainInfo: t("teks_msg_191", num),
                         detail: t("teks_msg_192", num, pathStr, guardStr),
                       },
-                      applyVisuals: () => {
-                        highlightedDigit = num;
-                        highlightState = 1;
-                        path.forEach((id) => {
-                          const r = Math.floor(id / 9),
-                            c = id % 9;
-                          // A guardian can also belong to the loop, so retain
-                          // both roles in the cell's multi-color annotation.
-                          window.addCellColor(r, c, cellColorPalette[6]);
-                          boardState[r][c].pencilColors.set(
+                      visualPlan: {
+                        highlight: { digit: num, state: 1 },
+                        cellColors: [
+                          ...path.map((id) => ({
+                            r: Math.floor(id / 9),
+                            c: id % 9,
+                            color: 6,
+                            mode: "add",
+                          })),
+                          ...guardCells.map(([r, c]) => ({
+                            r,
+                            c,
+                            color: 4,
+                            mode: "add",
+                          })),
+                        ],
+                        candidateColors: [
+                          ...path.map((id) => ({
+                            r: Math.floor(id / 9),
+                            c: id % 9,
                             num,
-                            candidateColorPalette[4],
-                          );
-                        });
-                        guardCells.forEach((cell) => {
-                          window.addCellColor(
-                            cell[0],
-                            cell[1],
-                            cellColorPalette[4],
-                          );
-                          boardState[cell[0]][cell[1]].pencilColors.set(
+                            color: 4,
+                          })),
+                          ...guardCells.map(([r, c]) => ({
+                            r,
+                            c,
                             num,
-                            candidateColorPalette[3],
-                          );
-                        });
-                        removals.forEach((el) =>
-                          boardState[el.r][el.c].candSlashes.set(
-                            num,
-                            markColorPalette[0],
-                          ),
-                        );
+                            color: 3,
+                          })),
+                        ],
+                        candidateMarks: removals.map(({ r, c }) => ({
+                          r,
+                          c,
+                          num,
+                          marker: "slash",
+                          color: 0,
+                        })),
                       },
                     };
 
@@ -15316,30 +15196,21 @@ const techniques = {
     }
     return findAll ? results : { change: false };
   },
+});
 
-  _applyBlossomVisuals: (blossom, removals) => {
-    highlightedDigit = null;
-    highlightState = 0;
+Object.assign(techniques, {
+  _buildBlossomVisualPlan: (blossom, removals, pencils) => {
     const usedAlses = blossom.alses;
     const burrNodes = blossom.burr;
     const paths = [blossom.mainPath, ...blossom.branches];
     const alsColorIndices = [6, 7, 2, 3, 4, 5, 8, 1];
+    const cellColors = [];
+    const candidateColors = [];
+    const links = [];
     usedAlses.forEach((als, index) => {
-      const color =
-        cellColorPalette[alsColorIndices[index % alsColorIndices.length]];
+      const color = alsColorIndices[index % alsColorIndices.length];
       for (const [r, c] of als.cells) {
-        if (window.addCellColor) {
-          window.addCellColor(r, c, color);
-        } else {
-          const existing = boardState[r][c].cellColor;
-          boardState[r][c].cellColor = existing
-            ? Array.isArray(existing)
-              ? [...new Set([...existing, color])]
-              : existing === color
-                ? existing
-                : [existing, color]
-            : color;
-        }
+        cellColors.push({ r, c, color, mode: "add" });
       }
     });
 
@@ -15347,13 +15218,14 @@ const techniques = {
       for (const id of node.cells) {
         const r = Math.floor(id / 9);
         const c = id % 9;
-        if (boardState[r][c].pencils.has(node.digits[0])) {
-          window.addCandidateColor?.(
+        if (pencils[r][c].has(node.digits[0])) {
+          candidateColors.push({
             r,
             c,
-            node.digits[0],
-            candidateColorPalette[6],
-          );
+            num: node.digits[0],
+            color: 6,
+            mode: "add",
+          });
         }
       }
     }
@@ -15378,22 +15250,23 @@ const techniques = {
 
     paths.forEach((path, pathIndex) => {
       const isBurringLoop = pathIndex === 0;
-      const candidateColors = isBurringLoop ? [4, 2] : [7, 5, 8, 3];
+      const pathColorIndices = isBurringLoop ? [4, 2] : [7, 5, 8, 3];
       const lineColorIndex = isBurringLoop
         ? 0
-        : 1 + ((pathIndex - 1) % Math.max(1, lineColorPalette.length - 1));
+        : 1 + ((pathIndex - 1) % 8);
       path.forEach((node, nodeIndex) => {
-        const color = candidateColors[nodeIndex % candidateColors.length];
+        const color = pathColorIndices[nodeIndex % pathColorIndices.length];
         for (const id of node.cells) {
           const r = Math.floor(id / 9);
           const c = id % 9;
-          if (boardState[r][c].pencils.has(node.digits[0])) {
-            window.addCandidateColor?.(
+          if (pencils[r][c].has(node.digits[0])) {
+            candidateColors.push({
               r,
               c,
-              node.digits[0],
-              candidateColorPalette[color],
-            );
+              num: node.digits[0],
+              color,
+              mode: "add",
+            });
           }
         }
       });
@@ -15410,14 +15283,14 @@ const techniques = {
         for (let i = 0; i + 1 < node.cells.length; i++) {
           const left = node.cells[i];
           const right = node.cells[i + 1];
-          drawnLines.push({
+          links.push({
             r1: Math.floor(left / 9),
             c1: left % 9,
             n1: node.digits[0],
             r2: Math.floor(right / 9),
             c2: right % 9,
             n2: node.digits[0],
-            color: lineColorPalette[groupLineColorIndex],
+            color: groupLineColorIndex,
             style: "solid",
             role: isBurringLoop ? "blossom-main-group" : "blossom-branch-group",
           });
@@ -15425,23 +15298,33 @@ const techniques = {
       });
       for (let i = 0; i + 1 < path.length; i++) {
         const [x, y] = closest(path[i], path[i + 1]);
-        drawnLines.push({
+        links.push({
           r1: Math.floor(x / 9),
           c1: x % 9,
           n1: path[i].digits[0],
           r2: Math.floor(y / 9),
           c2: y % 9,
           n2: path[i + 1].digits[0],
-          color: lineColorPalette[lineColorIndex],
+          color: lineColorIndex,
           style: i % 2 === 0 ? "dash" : "solid",
           role: isBurringLoop ? "blossom-main" : "blossom-branch",
         });
       }
     });
 
-    for (const el of removals) {
-      boardState[el.r][el.c].candSlashes.set(el.num, markColorPalette[0]);
-    }
+    return {
+      highlight: { digit: null, state: 0 },
+      cellColors,
+      candidateColors,
+      candidateMarks: removals.map(({ r, c, num }) => ({
+        r,
+        c,
+        num,
+        marker: "slash",
+        color: 0,
+      })),
+      links,
+    };
   },
 
   _blossomLoopCore: (
@@ -16495,6 +16378,15 @@ const techniques = {
           );
         }
         const eurekaText = eurekaParts.join(" + ");
+        const blossom = {
+          kind: burr.kind,
+          burrText,
+          burr: burr.nodes,
+          mainPath,
+          branches: visibleBranches,
+          alses: usedAlses,
+          rank: 0,
+        };
 
         const result = {
           change: true,
@@ -16510,17 +16402,12 @@ const techniques = {
             mainInfo: t("teks_msg_195", burrText),
             detail: eurekaText,
           },
-          blossom: {
-            kind: burr.kind,
-            burrText,
-            burr: burr.nodes,
-            mainPath,
-            branches: visibleBranches,
-            alses: usedAlses,
-            rank: 0,
-          },
-          applyVisuals: () =>
-            techniques._applyBlossomVisuals(result.blossom, removals),
+          blossom,
+          visualPlan: techniques._buildBlossomVisualPlan(
+            blossom,
+            removals,
+            pencils,
+          ),
         };
 
         results.push(result);
@@ -16557,4 +16444,4 @@ const techniques = {
   aalsBlossomLoop: (board, pencils, findAll = false) => {
     return techniques._blossomLoopCore(board, pencils, false, findAll, "aals");
   },
-};
+});

@@ -816,7 +816,7 @@ const TRANSLATIONS = {
     teks_msg_202: "Uniqueness External Test Type 3h",
     teks_msg_203: "Uniqueness External Test + XY-Wing",
     teks_msg_204: "using Digits ({0})",
-    teks_msg_205: "Base ({0}) in {1}, Guardians: {2}",
+    teks_msg_205: "Base ({0}) in {1}, Guardians {2}",
     teks_msg_206:
       "Base ({0}) in {1}, Guardians {2}, Extra cells for virtual naked subset {3}",
     teks_msg_207:
@@ -834,7 +834,7 @@ const TRANSLATIONS = {
       "Base ({0}{1}) in {2}, Filled cell {3}, Unfilled cells {4}, Conjugate pairs {5}",
     teks_msg_307: "Unique Rectangle + XY-Wing",
     teks_msg_308:
-      "Base ({0}{1}) in {2}, Guardians {3}, Wings r{4}c{5} and r{6}c{7}, Virtual pivot ({8})",
+      "Base ({0}{1}) in {2}, Guardians {3}, Wings r{4}c{5} and r{6}c{7}",
     teks_msg_309: "Mutant Jellyfish",
     teks_msg_310: "Franken Jellyfish",
     teks_msg_311: "Cell Almost AIC",
@@ -876,7 +876,9 @@ const TRANSLATIONS = {
     teks_msg_346: "Avoidable Uniqueness External Test + XY-Wing",
     teks_msg_347: "Avoidable Unique Rectangle + XY-Wing",
     teks_msg_348:
-      "Base ({0}{1}) in {2}, Filled cells {3}, Unfilled cells {4}, Guardians {5}, Wings r{6}c{7} and r{8}c{9}, Virtual pivot ({10})",
+      "Base ({0}{1}) in {2}, Filled cells {3}, Unfilled cells {4}, Guardians {5}, Wings r{6}c{7} and r{8}c{9}",
+    teks_msg_349:
+      "Base ({0}) in {1}, Guardians {2}, Wings r{3}c{4} and r{5}c{6}",
   },
 
   ko: {
@@ -1689,7 +1691,7 @@ const TRANSLATIONS = {
     teks_msg_202: "외부 수호자 논법 유형 3h",
     teks_msg_203: "외부 수호자 논법 + XY-윙",
     teks_msg_204: "숫자 ({0}) 사용",
-    teks_msg_205: "{1}의 기반 숫자 ({0}), 수호자: {2}",
+    teks_msg_205: "{1}의 기반 숫자 ({0}), 수호자 {2}",
     teks_msg_206:
       "{1}의 기반 숫자 ({0}), 수호자 {2}, 가상의 드러난 부분집합을 위한 추가 칸 {3}",
     teks_msg_207:
@@ -1707,7 +1709,7 @@ const TRANSLATIONS = {
       "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 이중 위치 {5}",
     teks_msg_307: "유일한 직사각형 + XY-윙",
     teks_msg_308:
-      "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 윙 r{4}c{5}, r{6}c{7}, 가상의 피벗 ({8})",
+      "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 윙 r{4}c{5}, r{6}c{7}",
     teks_msg_309: "변이된 해파리",
     teks_msg_310: "조작된 해파리",
     teks_msg_311: "거의 완성된 교대 추론 사슬 (칸)",
@@ -1748,7 +1750,9 @@ const TRANSLATIONS = {
     teks_msg_346: "회피 가능한 외부 수호자 논법 + XY-윙",
     teks_msg_347: "회피 가능한 유일한 직사각형 + XY-윙",
     teks_msg_348:
-      "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 수호자 {5}, 윙 r{6}c{7}, r{8}c{9}, 가상의 피벗 ({10})",
+      "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 수호자 {5}, 윙 r{6}c{7}, r{8}c{9}",
+    teks_msg_349:
+      "{1}의 기반 숫자 ({0}), 수호자 {2}, 윙 r{3}c{4}, r{5}c{6}",
   },
 };
 
