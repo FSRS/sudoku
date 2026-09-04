@@ -3857,7 +3857,7 @@ const techniques = {
 
   uniqueRectangle: (board, pencils, findAll = false) => {
     let results = [];
-    const rects = techniques._findHiddenRectangles(pencils);
+    const rects = techniques._findUniquenessRectangles(pencils);
     if (!rects || rects.length === 0) return { change: false };
 
     const isExactPair = (r, c, d1, d2) =>
@@ -4405,7 +4405,7 @@ const techniques = {
 
   hiddenRectangle: (board, pencils, findAll = false) => {
     const results = [];
-    const rectangles = techniques._findHiddenRectangles(pencils);
+    const rectangles = techniques._findUniquenessRectangles(pencils);
     if (rectangles.length === 0) return { change: false };
 
     const getBasePosStr = (cells) => {
@@ -4687,7 +4687,7 @@ const techniques = {
    *   solved cells.  Cells left at 0 fall back to their pencil marks, which
    *   keeps givens (no pencils, no entry here) out of every rectangle.
    */
-  _findHiddenRectangles: (
+  _findUniquenessRectangles: (
     pencils,
     requireBivalueFloor = true,
     filledValues = null,
@@ -4763,7 +4763,8 @@ const techniques = {
   },
 
   _findUniqueRectangleXyWings: (board, pencils, rectangles = null) => {
-    const rects = rectangles || techniques._findHiddenRectangles(pencils) || [];
+    const rects =
+      rectangles || techniques._findUniquenessRectangles(pencils) || [];
     if (rects.length === 0) return [];
 
     const candidateMasks = new Uint16Array(81);
@@ -4863,10 +4864,7 @@ const techniques = {
         );
         const petalMask1 = candidateMasks[ids[petalIndices[0]]];
         const petalMask2 = candidateMasks[ids[petalIndices[1]]];
-        if (
-          (petalMask1 & petalMask2 & baseMask) === 0 ||
-          ((petalMask1 | petalMask2) & baseMask) !== baseMask
-        ) {
+        if (((petalMask1 | petalMask2) & baseMask) !== baseMask) {
           continue;
         }
 
@@ -4955,6 +4953,234 @@ const techniques = {
     return [...foundByPattern.values()].sort(
       (left, right) => left.patternIndex - right.patternIndex,
     );
+  },
+
+  _findAvoidableRectangleXyWings: (board, pencils, filledValues = null) => {
+    const placed = filledValues || techniques._getAvoidableFilledValues(board);
+    if (!placed) return [];
+
+    const candidateMasks = new Uint16Array(81);
+    const candidateCells = Array(10).fill(0n);
+    const bivalueCells = Array.from({ length: 10 }, () => []);
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (board[r][c] !== 0) continue;
+        const id = r * 9 + c;
+        const mask = techniques._bits.maskFromSet(pencils[r][c]);
+        candidateMasks[id] = mask;
+        for (const digit of pencils[r][c]) {
+          candidateCells[digit] |= CELL_MASK[id];
+          if (pencils[r][c].size === 2) bivalueCells[digit].push(id);
+        }
+      }
+    }
+
+    const bit = (digit) => 1 << (digit - 1);
+    const digits = techniques._bits.maskToDigits;
+    const popcount = techniques._bits.popcount;
+    const rotations = [
+      [0, 1, 2, 3],
+      [1, 3, 0, 2],
+      [3, 2, 1, 0],
+      [2, 0, 3, 1],
+    ];
+    const patterns = [];
+
+    const isPlaced = (id, digit) =>
+      board[Math.floor(id / 9)][id % 9] !== 0 && placed[id] === digit;
+    const isEmptyBivalue = (id) =>
+      board[Math.floor(id / 9)][id % 9] === 0 &&
+      popcount(candidateMasks[id]) === 2;
+
+    const addSingleFilledPattern = (ids, cells) => {
+      const [a, b, c, d] = ids;
+      const d1 = placed[a];
+      if (!d1 || !isPlaced(a, d1)) return;
+      if (!isEmptyBivalue(b) || !isEmptyBivalue(c)) return;
+      if (board[Math.floor(d / 9)][d % 9] !== 0) return;
+
+      const shared = candidateMasks[b] & candidateMasks[c];
+      if (popcount(shared) !== 1) return;
+      const [d2] = digits(shared);
+      const [z] = digits(candidateMasks[b] & ~shared);
+      const [x] = digits(candidateMasks[c] & ~shared);
+      if (new Set([d1, d2, x, z]).size !== 4) return;
+
+      const dMask = candidateMasks[d];
+      const allowed = bit(d1) | bit(d2) | bit(x) | bit(z);
+      if (
+        popcount(dMask) < 2 ||
+        (dMask & bit(d1)) === 0 ||
+        (dMask & ~allowed) !== 0
+      ) {
+        return;
+      }
+
+      let caseId = null;
+      if (dMask === allowed) caseId = "single-all";
+      else if (dMask === (bit(d1) | bit(x) | bit(z))) caseId = "single-xz";
+      else if (
+        dMask === (bit(d1) | bit(d2) | bit(x)) ||
+        dMask === (bit(d1) | bit(d2) | bit(z))
+      ) {
+        caseId = "single-d2-extra";
+      } else if (dMask === (bit(d1) | bit(x)) || dMask === (bit(d1) | bit(z))) {
+        caseId = "single-extra";
+      } else if (dMask === (bit(d1) | bit(d2))) {
+        caseId = "single-d2";
+      }
+      if (!caseId) return;
+
+      patterns.push({ caseId, cells, ids, d1, d2, x, z });
+    };
+
+    const addAdjacentFilledPatterns = (ids, cells) => {
+      const [a, b, c, d] = ids;
+      const d1 = placed[a];
+      const d2 = placed[b];
+      if (!d1 || !d2 || d1 === d2) return;
+      if (!isPlaced(a, d1) || !isPlaced(b, d2)) return;
+      if (!isEmptyBivalue(c)) return;
+      if ((candidateMasks[c] & bit(d2)) === 0) return;
+      const [x] = digits(candidateMasks[c] & ~bit(d2));
+      if (!x || x === d1) return;
+      if (board[Math.floor(d / 9)][d % 9] !== 0) return;
+
+      const dMask = candidateMasks[d];
+      if ((dMask & bit(d1)) === 0) return;
+      if (popcount(dMask) === 2) {
+        const [z] = digits(dMask & ~bit(d1));
+        if (!z || new Set([d1, d2, x, z]).size !== 4) return;
+        patterns.push({
+          caseId: "adjacent-z",
+          cells,
+          ids,
+          d1,
+          d2,
+          x,
+          z,
+        });
+      } else if (popcount(dMask) === 3 && (dMask & bit(x)) !== 0) {
+        const remaining = dMask & ~(bit(d1) | bit(x));
+        if (popcount(remaining) !== 1) return;
+        const [z] = digits(remaining);
+        if (new Set([d1, d2, x, z]).size !== 4) return;
+        patterns.push({
+          caseId: "adjacent-xz",
+          cells,
+          ids,
+          d1,
+          d2,
+          x,
+          z,
+        });
+      }
+    };
+
+    const addDiagonalFilledPattern = (ids, cells) => {
+      const [a, b, c, d] = ids;
+      const d1 = placed[a];
+      if (!d1 || !isPlaced(a, d1) || !isPlaced(d, d1)) return;
+      if (!isEmptyBivalue(b) || !isEmptyBivalue(c)) return;
+
+      const shared = candidateMasks[b] & candidateMasks[c];
+      if (popcount(shared) !== 1) return;
+      const [d2] = digits(shared);
+      const [z] = digits(candidateMasks[b] & ~shared);
+      const [x] = digits(candidateMasks[c] & ~shared);
+      if (new Set([d1, d2, x, z]).size !== 4) return;
+      patterns.push({ caseId: "diagonal", cells, ids, d1, d2, x, z });
+    };
+
+    for (const rect of techniques._findAvoidableRectangles()) {
+      for (const rotation of rotations) {
+        const cells = rotation.map((index) => [...rect.cells[index]]);
+        const ids = cells.map(([r, c]) => r * 9 + c);
+        addSingleFilledPattern(ids, cells);
+        addAdjacentFilledPatterns(ids, cells);
+        addDiagonalFilledPattern(ids, cells);
+      }
+    }
+
+    const proofs = [];
+    const seen = new Set();
+    for (const pattern of patterns) {
+      const body = new Set(pattern.ids);
+      const sourceMask = (digit) =>
+        pattern.ids.reduce(
+          (mask, id) =>
+            candidateMasks[id] & bit(digit) ? mask | CELL_MASK[id] : mask,
+          0n,
+        );
+      const xSources = sourceMask(pattern.x);
+      const zSources = sourceMask(pattern.z);
+      const xWings = bivalueCells[pattern.x].filter(
+        (id) => !body.has(id) && (xSources & ~PEER_MAP[id]) === 0n,
+      );
+      const zWings = bivalueCells[pattern.z].filter(
+        (id) => !body.has(id) && (zSources & ~PEER_MAP[id]) === 0n,
+      );
+
+      for (const xWing of xWings) {
+        const pivotMask = candidateMasks[xWing] & ~bit(pattern.x);
+        if (popcount(pivotMask) !== 1) continue;
+        const [pivotDigit] = digits(pivotMask);
+        const expectedZWing = bit(pattern.z) | bit(pivotDigit);
+
+        for (const zWing of zWings) {
+          if (xWing === zWing || candidateMasks[zWing] !== expectedZWing) {
+            continue;
+          }
+          const eliminationMask =
+            PEER_MAP[xWing] & PEER_MAP[zWing] & candidateCells[pivotDigit];
+          if (eliminationMask === 0n) continue;
+
+          const removals = [];
+          for (let id = 0; id < 81; id++) {
+            if ((eliminationMask & CELL_MASK[id]) === 0n) continue;
+            removals.push({
+              r: Math.floor(id / 9),
+              c: id % 9,
+              num: pivotDigit,
+            });
+          }
+          const key = [
+            [...pattern.ids].sort((a, b) => a - b).join(","),
+            [xWing, zWing].sort((a, b) => a - b).join(","),
+            pivotDigit,
+            removals
+              .map(({ r, c, num }) => `${r},${c},${num}`)
+              .sort()
+              .join(";"),
+          ].join("|");
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          const guardianCells = pattern.ids
+            .filter(
+              (id) =>
+                (candidateMasks[id] & (bit(pattern.x) | bit(pattern.z))) !== 0,
+            )
+            .map((id) => [Math.floor(id / 9), id % 9]);
+          proofs.push({
+            caseId: pattern.caseId,
+            cells: pattern.cells,
+            d1: pattern.d1,
+            d2: pattern.d2,
+            guardianCells,
+            branches: [
+              [Math.floor(xWing / 9), xWing % 9],
+              [Math.floor(zWing / 9), zWing % 9],
+            ],
+            pivotDigit,
+            extraDigits: [pattern.x, pattern.z],
+            removals,
+          });
+        }
+      }
+    }
+
+    return proofs;
   },
 
   avoidableRectangle: (board, pencils, findAll = false) => {
@@ -5132,7 +5358,22 @@ const techniques = {
       const unfilledStr = getUnfilledStr(rectCells);
       let detail;
 
-      if (extraData.subsetCells && extraData.subsetCands) {
+      if (extraData.wings) {
+        detail = t(
+          "teks_msg_348",
+          d1,
+          d2,
+          basePosStr,
+          filledStr,
+          unfilledStr,
+          extraData.guardiansStr,
+          extraData.wings[0][0] + 1,
+          extraData.wings[0][1] + 1,
+          extraData.wings[1][0] + 1,
+          extraData.wings[1][1] + 1,
+          extraData.pivotDigit,
+        );
+      } else if (extraData.subsetCells && extraData.subsetCands) {
         const subsetStr =
           extraData.unitType === "box"
             ? formatBP(extraData.subsetCells, extraData.unitIdx)
@@ -5203,6 +5444,21 @@ const techniques = {
                     candidateColorPalette[4],
                   );
                 }
+              });
+            });
+          }
+          if (extraData.wings) {
+            extraData.wings.forEach(([cr, cc], index) => {
+              boardState[cr][cc].cellColor = cellColorPalette[6];
+              boardState[cr][cc].pencils.forEach((cand) => {
+                boardState[cr][cc].pencilColors.set(
+                  cand,
+                  cand === extraData.pivotDigit
+                    ? candidateColorPalette[6]
+                    : index === 0
+                      ? candidateColorPalette[4]
+                      : candidateColorPalette[5],
+                );
               });
             });
           }
@@ -5623,6 +5879,43 @@ const techniques = {
             }
           }
         }
+      }
+    }
+
+    const filledValues = techniques._getAvoidableFilledValues(board);
+    if (filledValues) {
+      const xyWingProofs = techniques._findAvoidableRectangleXyWings(
+        board,
+        pencils,
+        filledValues,
+      );
+
+      for (const proof of xyWingProofs) {
+        const filledCells = proof.cells.filter(([r, c]) => board[r][c] !== 0);
+        const guardiansStr = proof.guardianCells
+          .flatMap(([r, c]) => {
+            const extras = [...pencils[r][c]]
+              .filter((digit) => digit !== proof.d1 && digit !== proof.d2)
+              .sort((a, b) => a - b)
+              .join("");
+            return extras ? [`(${extras})r${r + 1}c${c + 1}`] : [];
+          })
+          .join(",");
+        const resultObj = makeResult(
+          "teks_msg_347",
+          proof.d1,
+          proof.d2,
+          proof.cells,
+          filledCells,
+          proof.removals,
+          {
+            guardiansStr,
+            wings: proof.branches,
+            pivotDigit: proof.pivotDigit,
+          },
+        );
+        const immediate = addResult(resultObj, "teks_msg_347");
+        if (immediate) return immediate;
       }
     }
 
@@ -7032,7 +7325,7 @@ const techniques = {
       return findAll ? results : { change: false };
 
     const bodies = techniques
-      ._findHiddenRectangles(pencils, false, filledValues)
+      ._findUniquenessRectangles(pencils, false, filledValues)
       .flatMap(({ cells, digits: [d1, d2] }) => {
         const placed = cells.filter(([r, c]) => board[r][c] !== 0);
         if (placed.length > 0 !== avoidable) return [];
@@ -11067,6 +11360,7 @@ const techniques = {
       6,
       5,
     );
+
     // Start candidates repeat across stems and across the three Blossom
     // variants. The bitset subset test depends only on the start node, so
     // cache it for the lifetime of this position's shared AIC graph.
@@ -11905,6 +12199,7 @@ const techniques = {
       4,
       4,
     );
+
     // 2. Every stem candidate grows one branch; an elimination has to survive
     // all of them, exactly as in Death Blossom.
     for (const stem of potentialStems) {

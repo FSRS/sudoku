@@ -597,9 +597,9 @@ const TRANSLATIONS = {
     ui_msg_352: "Blossom Loop",
     ui_msg_353: "Almost AIC",
     ui_msg_354: "BUG+n",
-    ui_msg_355: "GSP",
-    ui_msg_356: "Anti-GSP",
-    ui_msg_357: "Trivalue Oddagon",
+    ui_msg_355: "GSP (Beta)",
+    ui_msg_356: "Anti-GSP (Beta)",
+    ui_msg_357: "Trivalue Oddagon (Beta)",
     ui_msg_358: "Avoidable UET",
     teks_msg_1: "Eliminate Candidates",
     teks_msg_2: "at r{0}c{1}",
@@ -834,7 +834,7 @@ const TRANSLATIONS = {
       "Base ({0}{1}) in {2}, Filled cell {3}, Unfilled cells {4}, Conjugate pairs {5}",
     teks_msg_307: "Unique Rectangle + XY-Wing",
     teks_msg_308:
-      "Base ({0}{1}) in {2}, Guardians {3}, Wings r{4}c{5} and r{6}c{7}, Shared pivot ({8})",
+      "Base ({0}{1}) in {2}, Guardians {3}, Wings r{4}c{5} and r{6}c{7}, Virtual pivot ({8})",
     teks_msg_309: "Mutant Jellyfish",
     teks_msg_310: "Franken Jellyfish",
     teks_msg_311: "Cell Almost AIC",
@@ -874,6 +874,9 @@ const TRANSLATIONS = {
     teks_msg_344: "Avoidable Uniqueness External Test Type 3",
     teks_msg_345: "Avoidable Uniqueness External Test Type 3h",
     teks_msg_346: "Avoidable Uniqueness External Test + XY-Wing",
+    teks_msg_347: "Avoidable Unique Rectangle + XY-Wing",
+    teks_msg_348:
+      "Base ({0}{1}) in {2}, Filled cells {3}, Unfilled cells {4}, Guardians {5}, Wings r{6}c{7} and r{8}c{9}, Virtual pivot ({10})",
   },
 
   ko: {
@@ -1465,9 +1468,9 @@ const TRANSLATIONS = {
     ui_msg_352: "고리꽃",
     ui_msg_353: "거의 완성된 교대 추론 사슬",
     ui_msg_354: "BUG+n",
-    ui_msg_355: "거스의 대칭 배치",
-    ui_msg_356: "거스의 비대칭 배치",
-    ui_msg_357: "삼중값 홀수각형",
+    ui_msg_355: "GSP (베타)",
+    ui_msg_356: "Anti-GSP (베타)",
+    ui_msg_357: "삼중값 홀수각형 (베타)",
     ui_msg_358: "회피 가능한 외부 수호자 논법",
     teks_msg_1: "후보수 제거",
     teks_msg_2: "r{0}c{1}에서",
@@ -1704,7 +1707,7 @@ const TRANSLATIONS = {
       "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 이중 위치 {5}",
     teks_msg_307: "유일한 직사각형 + XY-윙",
     teks_msg_308:
-      "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 윙 r{4}c{5}, r{6}c{7}, 공통 피벗 ({8})",
+      "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 윙 r{4}c{5}, r{6}c{7}, 가상의 피벗 ({8})",
     teks_msg_309: "변이된 해파리",
     teks_msg_310: "조작된 해파리",
     teks_msg_311: "거의 완성된 교대 추론 사슬 (칸)",
@@ -1730,7 +1733,7 @@ const TRANSLATIONS = {
     teks_msg_331: "상하 대칭",
     teks_msg_332: "좌우 대칭",
     teks_msg_333: "점대칭",
-    teks_msg_334: "거스의 비대칭 배치",
+    teks_msg_334: "거스의 대칭 배치 불가 논법",
     teks_msg_335: "{0} 배치가 불가능한 퍼즐",
     teks_msg_336: "{0} 배치가 되려면 필요한 대응: {1}",
     teks_msg_337: "삼중값 홀수각형 유형 1",
@@ -1743,6 +1746,9 @@ const TRANSLATIONS = {
     teks_msg_344: "회피 가능한 외부 수호자 논법 유형 3",
     teks_msg_345: "회피 가능한 외부 수호자 논법 유형 3h",
     teks_msg_346: "회피 가능한 외부 수호자 논법 + XY-윙",
+    teks_msg_347: "회피 가능한 유일한 직사각형 + XY-윙",
+    teks_msg_348:
+      "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 수호자 {5}, 윙 r{6}c{7}, r{8}c{9}, 가상의 피벗 ({10})",
   },
 };
 

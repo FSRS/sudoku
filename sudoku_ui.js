@@ -7790,8 +7790,6 @@ const getUniquenessTechniques = () => [
   t("ui_msg_345"),
   t("ui_msg_358"),
   t("ui_msg_285"),
-  t("ui_msg_355"),
-  t("ui_msg_356"),
 ];
 const getMandatoryTechniques = () => [t("ui_msg_210"), t("ui_msg_195")];
 
@@ -7947,6 +7945,7 @@ function getDefaultTechniques() {
       func: techniques.gurthSymmetricalPlacement,
       level: 4,
       score: 100,
+      defaultEnabled: false,
     },
     {
       nameKey: "ui_msg_204",
@@ -7992,10 +7991,23 @@ function getDefaultTechniques() {
       score: 100,
     },
     {
+      nameKey: "ui_msg_285",
+      func: techniques.hiddenRectangle,
+      level: 4,
+      score: 110,
+    },
+    {
+      nameKey: "ui_msg_344",
+      func: techniques.avoidableRectangle,
+      level: 4,
+      score: 120,
+    },
+    {
       nameKey: "ui_msg_356",
       func: techniques.antiGurthSymmetricalPlacement,
       level: 5,
       score: 110,
+      defaultEnabled: false,
     },
     {
       nameKey: "ui_msg_354",
@@ -8065,18 +8077,6 @@ function getDefaultTechniques() {
       score: 200,
     },
     {
-      nameKey: "ui_msg_285",
-      func: techniques.hiddenRectangle,
-      level: 5,
-      score: 110,
-    },
-    {
-      nameKey: "ui_msg_344",
-      func: techniques.avoidableRectangle,
-      level: 5,
-      score: 120,
-    },
-    {
       nameKey: "ui_msg_358",
       func: techniques.avoidableUniquenessExternalTest,
       level: 5,
@@ -8125,6 +8125,7 @@ function getDefaultTechniques() {
       func: techniques.trivalueOddagon,
       level: 6,
       score: 230,
+      defaultEnabled: false,
     },
     {
       nameKey: "ui_msg_224",
