@@ -39,9 +39,9 @@ Object.assign(techniques, {
   _collectAllALS: (board, pencils, minSize = 1, maxSize = 8) => {
     const uniqueALS = new Map();
     const unitTypes = [
-      { name: "box", label: t("teks_msg_7") },
-      { name: "row", label: t("teks_msg_14") },
-      { name: "col", label: t("teks_msg_15") },
+      { name: "box", label: t("teks_unit_box") },
+      { name: "row", label: t("teks_unit_row") },
+      { name: "col", label: t("teks_unit_col") },
     ];
 
     for (const { name, label } of unitTypes) {
@@ -147,7 +147,7 @@ Object.assign(techniques, {
                 candMap: candMap,
                 unitType: name,
                 unitIndex: i,
-                unitName: t("teks_msg_17", label, i + 1),
+                unitName: t("teks_unit_with_index", label, i + 1),
                 hash: hash,
                 positions: positions,
                 candidatePositions: candidatePositions,

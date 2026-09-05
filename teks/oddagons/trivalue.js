@@ -161,10 +161,10 @@ Object.assign(techniques, {
                         type: "remove",
                         cells: elimCells,
                         hint: {
-                          name: t("teks_msg_337"),
-                          mainInfo: t("teks_msg_338", d1, d2, d3),
+                          name: t("teks_TVO_type_1"),
+                          mainInfo: t("teks_TVO_type_1_digits", d1, d2, d3),
                           detail: t(
-                            "teks_msg_339",
+                            "teks_TVO_type_1_guardians",
                             d1,
                             d2,
                             d3,
@@ -458,10 +458,10 @@ Object.assign(techniques, {
                                 type: "remove",
                                 cells: elimCells,
                                 hint: {
-                                  name: t("teks_msg_340"),
-                                  mainInfo: t("teks_msg_341", ...baseDigits),
+                                  name: t("teks_TVO_XZ"),
+                                  mainInfo: t("teks_TVO_XZ_digits", ...baseDigits),
                                   detail: t(
-                                    "teks_msg_342",
+                                    "teks_TVO_XZ_ALS_detail",
                                     ...baseDigits,
                                     loopPath(cells),
                                     guardiansStr,

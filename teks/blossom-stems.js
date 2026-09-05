@@ -36,10 +36,10 @@ Object.assign(techniques, {
             cells,
             houseName:
               unit < 9
-                ? t("teks_msg_153", unit + 1)
+                ? t("teks_r", unit + 1)
                 : unit < 18
-                  ? t("teks_msg_154", unit - 8)
-                  : t("teks_msg_155", unit - 17),
+                  ? t("teks_c", unit - 8)
+                  : t("teks_b", unit - 17),
           });
         }
       }
@@ -47,10 +47,10 @@ Object.assign(techniques, {
       const seenAals = new Set();
       const unitLabel = (unit) =>
         unit < 9
-          ? t("teks_msg_153", unit + 1)
+          ? t("teks_r", unit + 1)
           : unit < 18
-            ? t("teks_msg_154", unit - 8)
-            : t("teks_msg_155", unit - 17);
+            ? t("teks_c", unit - 8)
+            : t("teks_b", unit - 17);
 
       for (let unit = 0; unit < 27; unit++) {
         const eligibleCells = [];

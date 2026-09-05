@@ -318,11 +318,11 @@ function renderPuzzleLevelLabel() {
   if (kind === "daily") {
     puzzleLevelEl.textContent = `Lv. ${level}${star} (${difficultyWords[level]})`;
   } else if (kind === "unlimited") {
-    puzzleLevelEl.textContent = t("ui_msg_139", level, star);
+    puzzleLevelEl.textContent = t("ui_unlimited_level_option", level, star);
   } else if (kind === "bruteforce") {
-    puzzleLevelEl.textContent = t("ui_msg_201", star);
+    puzzleLevelEl.textContent = t("ui_custom_lv_12", star);
   } else {
-    puzzleLevelEl.textContent = t("ui_msg_200", level, star);
+    puzzleLevelEl.textContent = t("ui_custom_lv", level, star);
   }
 }
 
@@ -385,7 +385,7 @@ async function updateVatSearchingButton(button, techniqueName, runId) {
     return false;
   }
 
-  button.textContent = t("ui_msg_1", techniqueName);
+  button.textContent = t("ui_searching_status", techniqueName);
 
   // Ensure the text is visible before tech.func() blocks the main thread.
   await waitForBrowserPaint();
@@ -405,11 +405,11 @@ function hydrateBlossomWorkerResult(result) {
   const kind = result.blossom.kind;
   result.hint.name =
     kind === "cell"
-      ? t("teks_msg_193")
+      ? t("teks_cell_BLo")
       : kind === "region"
-        ? t("teks_msg_194")
-        : t("teks_msg_196");
-  result.hint.mainInfo = t("teks_msg_195", result.blossom.burrText);
+        ? t("teks_region_BLo")
+        : t("teks_AALS_BLo");
+  result.hint.mainInfo = t("teks_burr_on", result.blossom.burrText);
   return result;
 }
 
@@ -535,20 +535,20 @@ function updateSolverToggleButton() {
   const isMobile = window.innerWidth <= 550;
 
   if (isViewAllTechniquesMode && vatSelectedHint) {
-    btn.textContent = isMobile ? t("ui_msg_2") : t("ui_msg_3");
+    btn.textContent = isMobile ? t("ui_apply_eval_btn") : t("ui_apply_reeval_btn");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors";
-    btn.dataset.tooltip = t("ui_msg_145");
+    btn.dataset.tooltip = t("ui_apply_technique_tooltip");
   } else if (isSolverMode) {
-    btn.textContent = isMobile ? t("ui_msg_4") : t("ui_msg_5");
+    btn.textContent = isMobile ? t("ui_exit_solver_btn_mobile") : t("ui_exit_solver_btn");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
-    btn.dataset.tooltip = t("ui_msg_6");
+    btn.dataset.tooltip = t("ui_exit_solver_tooltip");
   } else {
-    btn.textContent = isMobile ? t("ui_msg_7") : t("ui_msg_8");
+    btn.textContent = isMobile ? t("ui_solver_mode_btn_mobile") : t("ui_enter_solver_mode_btn");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
-    btn.dataset.tooltip = t("ui_msg_9");
+    btn.dataset.tooltip = t("ui_enter_solver_tooltip");
   }
 }
 
@@ -825,27 +825,27 @@ function updateButtonLabels() {
   }
 
   if (currentMode === "pencil") {
-    modeToggleButton.textContent = isMobile ? t("ui_msg_10") : t("ui_msg_11");
-    modeToggleButton.dataset.tooltip = t("ui_msg_12");
+    modeToggleButton.textContent = isMobile ? t("ui_pencil_mode_btn_mobile") : t("ui_pencil_mode_btn");
+    modeToggleButton.dataset.tooltip = t("ui_pencil_mode_tooltip");
   } else {
-    modeToggleButton.textContent = isMobile ? t("ui_msg_13") : t("ui_msg_14");
+    modeToggleButton.textContent = isMobile ? t("ui_number_mode_btn_mobile") : t("ui_number_mode_btn");
     if (currentMode === "concrete") {
-      modeToggleButton.dataset.tooltip = t("ui_msg_15");
+      modeToggleButton.dataset.tooltip = t("ui_number_mode_tooltip");
     } else {
-      modeToggleButton.dataset.tooltip = t("ui_msg_16");
+      modeToggleButton.dataset.tooltip = t("ui_number_pencil_toggle_tooltip");
     }
   }
 
   if (currentMode === "draw") {
-    const label = drawSubMode === "solid" ? t("ui_msg_17") : t("ui_msg_18");
+    const label = drawSubMode === "solid" ? t("ui_draw_solid_mode_label") : t("ui_draw_dash_mode_label");
     drawButton.textContent = isMobile
       ? drawSubMode === "solid"
-        ? t("ui_msg_19")
-        : t("ui_msg_20")
+        ? t("ui_solid_line_style")
+        : t("ui_dash_line_style")
       : label;
     drawButton.dataset.tooltip = t(
-      "ui_msg_21",
-      t(drawSubMode === "solid" ? "ui_msg_19" : "ui_msg_20"),
+      "ui_draw_mode_tooltip",
+      t(drawSubMode === "solid" ? "ui_solid_line_style" : "ui_dash_line_style"),
     );
 
     drawButton.classList.remove("active", "active-green");
@@ -855,18 +855,18 @@ function updateButtonLabels() {
       drawButton.classList.add("active");
     }
   } else {
-    drawButton.textContent = isMobile ? t("ui_msg_22") : t("ui_msg_23");
-    drawButton.dataset.tooltip = t("ui_msg_24");
+    drawButton.textContent = isMobile ? t("ui_draw_mode_btn_mobile") : t("ui_draw_mode_btn");
+    drawButton.dataset.tooltip = t("ui_draw_mode_switch_tooltip");
     drawButton.classList.remove("active", "active-green");
   }
 
   if (currentMode === "color") {
     if (coloringSubMode === "cell") {
-      colorButton.textContent = isMobile ? t("ui_msg_25") : t("ui_msg_26");
-      colorButton.dataset.tooltip = t("ui_msg_27");
+      colorButton.textContent = isMobile ? t("ui_color_cell_mode_btn_mobile") : t("ui_color_cell_mode_btn");
+      colorButton.dataset.tooltip = t("ui_color_cell_mode_tooltip");
     } else if (coloringSubMode === "candidate") {
-      colorButton.textContent = isMobile ? t("ui_msg_28") : t("ui_msg_29");
-      colorButton.dataset.tooltip = t("ui_msg_30");
+      colorButton.textContent = isMobile ? t("ui_color_cand_mode_btn_mobile") : t("ui_color_cand_mode_btn");
+      colorButton.dataset.tooltip = t("ui_color_cand_mode_tooltip");
     } else if (coloringSubMode === "circle") {
       colorButton.textContent = isMobile
         ? t("ui_msg_circle_short")
@@ -879,17 +879,17 @@ function updateButtonLabels() {
       colorButton.dataset.tooltip = t("ui_msg_slash_tooltip");
     }
   } else {
-    colorButton.textContent = isMobile ? t("ui_msg_31") : t("ui_msg_32");
-    colorButton.dataset.tooltip = t("ui_msg_33");
+    colorButton.textContent = isMobile ? t("ui_color_mode_btn_mobile") : t("ui_color_mode_btn");
+    colorButton.dataset.tooltip = t("ui_color_mode_switch_tooltip");
   }
 
   updateSolverToggleButton();
 
   vagueHintBtn.textContent = isMobile ? "?" : "? (V)";
   if (isMobile) {
-    vagueHintBtn.dataset.tooltip = t("ui_msg_40");
+    vagueHintBtn.dataset.tooltip = t("ui_vague_hint_tooltip_mobile");
   } else {
-    vagueHintBtn.dataset.tooltip = t("ui_msg_41");
+    vagueHintBtn.dataset.tooltip = t("ui_vague_hint_tooltip");
   }
 
   if (!isMobile) {
@@ -910,9 +910,9 @@ function addSudokuCoachLink(puzzleString) {
 
   const btn = document.createElement("button");
   btn.id = "toggle-solver-mode-btn";
-  btn.dataset.tooltip = isMobile ? t("ui_msg_42") : t("ui_msg_43");
+  btn.dataset.tooltip = isMobile ? t("ui_solver_toggle_btn_mobile") : t("ui_solver_toggle_btn");
 
-  btn.textContent = isMobile ? t("ui_msg_7") : t("ui_msg_8");
+  btn.textContent = isMobile ? t("ui_solver_mode_btn_mobile") : t("ui_enter_solver_mode_btn");
   btn.className =
     "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600";
 
@@ -1873,37 +1873,37 @@ function updateLamp(color, { record = true, level = null } = {}) {
   // Visual-only states that must never touch timestamp logic
   if (color === "black") {
     difficultyLamp.dataset.tooltip = hasUsedAutoPencil
-      ? t("ui_msg_46")
-      : t("ui_msg_47");
+      ? t("ui_incorrect_progress_error")
+      : t("ui_auto_pencil_required_error");
     return;
   }
 
   // --- Tooltip Generation Logic ---
   const baseLabels = {
-    white: t("ui_msg_48"),
-    green: t("ui_msg_49"),
-    yellow: t("ui_msg_50"),
-    orange: t("ui_msg_51"),
-    red: t("ui_msg_52"),
+    white: t("ui_easy"),
+    green: t("ui_medium"),
+    yellow: t("ui_hard"),
+    orange: t("ui_unfair"),
+    red: t("ui_extreme"),
     violet: t("ui_msg_52_2"),
-    blue: t("ui_msg_53"),
-    magenta: t("ui_msg_54"),
-    gray: t("ui_msg_55"),
+    blue: t("ui_nightmare"),
+    magenta: t("ui_unmeasured"),
+    gray: t("ui_invalid"),
   };
 
   const defaultRanges = {
-    white: t("ui_msg_56"),
-    green: t("ui_msg_57"),
-    yellow: t("ui_msg_58"),
-    orange: t("ui_msg_59"),
-    red: t("ui_msg_60"),
-    violet: t("ui_msg_61"),
-    blue: t("ui_msg_62"),
+    white: t("ui_level_0"),
+    green: t("ui_level_1_2"),
+    yellow: t("ui_level_3_5"),
+    orange: t("ui_level_6"),
+    red: t("ui_level_7_8"),
+    violet: t("ui_level_9_10"),
+    blue: t("ui_level_11"),
     magenta: t("ui_msg_62_2"),
-    gray: t("ui_msg_63"),
+    gray: t("ui_non_unique_puzzle_error"),
   };
 
-  let tooltipText = t("ui_msg_64");
+  let tooltipText = t("ui_difficulty_tooltip");
 
   if (baseLabels[color]) {
     const label = baseLabels[color];
@@ -1912,14 +1912,14 @@ function updateLamp(color, { record = true, level = null } = {}) {
     // If a specific level is provided (and it's a solved state color), use it
     if (level !== null && color !== "gray") {
       const isCustom = hasCustomPreferences();
-      desc = isCustom ? t("ui_msg_65", level) : t("ui_msg_66", level);
+      desc = isCustom ? t("ui_custom_difficulty_level", level) : t("ui_difficulty_level_value", level);
     }
 
     tooltipText = `${label}: ${desc}`;
   }
 
   if (window.innerWidth <= 550 && currentLang === "en") {
-    tooltipText = tooltipText.replace(t("ui_msg_67"), "Lv.");
+    tooltipText = tooltipText.replace(t("ui_difficulty_level_term"), "Lv.");
   }
 
   difficultyLamp.dataset.tooltip = tooltipText;
@@ -2316,16 +2316,16 @@ function setupEventListeners() {
 
   copyInitialBtn.addEventListener("click", () => {
     if (!initialPuzzleString) {
-      showMessage(t("ui_msg_68"), "red");
+      showMessage(t("ui_copy_no_puzzle_error"), "red");
     } else {
-      copyTextToClipboard(initialPuzzleString, "ui_msg_69");
+      copyTextToClipboard(initialPuzzleString, "ui_initial_grid_copied");
     }
     copyModal.classList.add("hidden");
     copyModal.classList.remove("flex");
   });
 
   copyCurrentBtn.addEventListener("click", () => {
-    copyTextToClipboard(generateAsciiGrid(), "ui_msg_71");
+    copyTextToClipboard(generateAsciiGrid(), "ui_current_board_copied");
     copyModal.classList.add("hidden");
     copyModal.classList.remove("flex");
   });
@@ -2424,7 +2424,7 @@ function setupEventListeners() {
     resetModal.classList.remove("flex");
     clearUserBoard();
     clearAllColors();
-    showMessage(t("ui_msg_73"), "gray");
+    showMessage(t("ui_board_cleared_status"), "gray");
   });
 
   resetCancelBtn.addEventListener("click", () => {
@@ -2502,12 +2502,12 @@ function setupEventListeners() {
     modeToggleButton.addEventListener("mouseenter", () => {
       if (currentMode === "concrete") {
         modeToggleButton.textContent = isMobile
-          ? t("ui_msg_76")
-          : t("ui_msg_77");
+          ? t("ui_next_pencil_mode_btn_mobile")
+          : t("ui_next_pencil_mode_btn");
       } else if (currentMode === "pencil") {
         modeToggleButton.textContent = isMobile
-          ? t("ui_msg_78")
-          : t("ui_msg_79");
+          ? t("ui_next_number_mode_btn_mobile")
+          : t("ui_next_number_mode_btn");
       }
     });
     modeToggleButton.addEventListener("mouseleave", () => {
@@ -2526,9 +2526,9 @@ function setupEventListeners() {
     drawButton.addEventListener("mouseenter", () => {
       if (currentMode === "draw") {
         if (drawSubMode === "solid") {
-          drawButton.textContent = t("ui_msg_82");
+          drawButton.textContent = t("ui_next_draw_dash_mode_btn");
         } else {
-          drawButton.textContent = t("ui_msg_83");
+          drawButton.textContent = t("ui_next_draw_solid_mode_btn");
         }
       }
     });
@@ -2587,7 +2587,7 @@ function setupEventListeners() {
     const todayNum = parseInt(`${yyyy}${mm}${dd}`);
     const todayStr = `${yyyy}-${mm}-${dd}`;
     if (dateNum < minDateNum || dateNum > todayNum) {
-      dateError.textContent = t("ui_msg_84", todayStr);
+      dateError.textContent = t("ui_date_range_error", todayStr);
       return;
     }
     let customOption = [...dateSelect.options].find(
@@ -2628,14 +2628,14 @@ function setupEventListeners() {
       let color = "green";
 
       if (!currentHintData || !currentHintData.hint) {
-        message = t("ui_msg_85", vagueHintMessage);
+        message = t("ui_vague_hint_title", vagueHintMessage);
       } else {
         const h = currentHintData.hint;
 
         if (hintClickCount === 1) {
-          message = t("ui_msg_85", h.name);
+          message = t("ui_vague_hint_title", h.name);
         } else if (hintClickCount === 2) {
-          message = t("ui_msg_87", h.name, h.mainInfo || "");
+          message = t("ui_hint_title", h.name, h.mainInfo || "");
         } else {
           // --- BEGIN VISUAL HINT LOGIC ---
           drawnLines = [];
@@ -2656,7 +2656,7 @@ function setupEventListeners() {
       }
       showMessage(message, color === "blue" ? "blue" : "green");
     } else {
-      showMessage(t("ui_msg_88"), "orange");
+      showMessage(t("ui_vague_hint_not_found"), "orange");
     }
   };
 
@@ -2666,23 +2666,23 @@ function setupEventListeners() {
     if (activeTooltipElement === vagueHintBtn) activeTooltipElement = null;
     // A. Validation Checks (Keep these before the modal)
     if (isBoardIdenticalToSolution()) {
-      showMessage(t("ui_msg_89"), "green");
+      showMessage(t("ui_puzzle_already_solved"), "green");
       return;
     }
     if (countEmptyCells() <= 3) {
-      showMessage(t("ui_msg_90"), "orange");
+      showMessage(t("ui_trivial_state_hint_disabled"), "orange");
       return;
     }
 
     if (currentLampColor === "gray") {
-      showMessage(t("ui_msg_91"), "red");
+      showMessage(t("ui_invalid_puzzle_hint_unavailable"), "red");
       return;
     } else if (currentLampColor === "black") {
-      showMessage(t("ui_msg_92"), "red");
+      showMessage(t("ui_wrong_progress_hint_unavailable"), "red");
       return;
     }
     if (!vagueHintMessage) {
-      showMessage(t("ui_msg_88"), "orange");
+      showMessage(t("ui_vague_hint_not_found"), "orange");
       return;
     }
 
@@ -2722,14 +2722,14 @@ function setupEventListeners() {
     hideTooltip(shareBtn);
     if (activeTooltipElement === shareBtn) activeTooltipElement = null;
     if (!initialPuzzleString) {
-      showMessage(t("ui_msg_99"), "orange");
+      showMessage(t("ui_share_no_puzzle_error"), "orange");
       return;
     }
     shareStep1.classList.remove("hidden");
     shareStep1.classList.add("flex");
     shareStep2.classList.add("hidden");
     shareStep2.classList.remove("flex");
-    document.getElementById("share-modal-desc").textContent = t("ui_msg_100");
+    document.getElementById("share-modal-desc").textContent = t("ui_share_target_prompt");
     shareModal.classList.remove("hidden");
     shareModal.classList.add("flex");
   });
@@ -2740,7 +2740,7 @@ function setupEventListeners() {
     shareStep1.classList.remove("flex");
     shareStep2.classList.remove("hidden");
     shareStep2.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent = t("ui_msg_101");
+    document.getElementById("share-modal-desc").textContent = t("ui_share_initial_format_label");
   });
 
   shareCurrentBtn.addEventListener("click", () => {
@@ -2749,7 +2749,7 @@ function setupEventListeners() {
     shareStep1.classList.remove("flex");
     shareStep2.classList.remove("hidden");
     shareStep2.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent = t("ui_msg_102");
+    document.getElementById("share-modal-desc").textContent = t("ui_share_progress_format_label");
   });
 
   shareBackBtn.addEventListener("click", () => {
@@ -2757,7 +2757,7 @@ function setupEventListeners() {
     shareStep2.classList.remove("flex");
     shareStep1.classList.remove("hidden");
     shareStep1.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent = t("ui_msg_100");
+    document.getElementById("share-modal-desc").textContent = t("ui_share_target_prompt");
   });
 
   shareCancelBtn.addEventListener("click", () => {
@@ -2787,7 +2787,7 @@ function setupEventListeners() {
       .then(() => {
         showMessage(
           t(
-            "ui_msg_104",
+            "ui_link_copied_status",
             mode === "solver"
               ? currentLang === "ko"
                 ? "솔버"
@@ -2801,7 +2801,7 @@ function setupEventListeners() {
       })
       .catch((err) => {
         console.error("Copy failed:", err);
-        showMessage(t("ui_msg_105"), "red");
+        showMessage(t("ui_link_copy_error"), "red");
       });
 
     shareModal.classList.add("hidden");
@@ -2952,7 +2952,7 @@ function setupEventListeners() {
       if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
       const evalId = ++currentEvaluationId;
 
-      showMessage(t("ui_msg_106"), "blue");
+      showMessage(t("ui_eval_from_beginning_status"), "blue");
       // Start our own tracked evaluation & await it
       await evaluateBoardDifficulty({ waitForFrame: false });
 
@@ -2988,7 +2988,7 @@ function setupEventListeners() {
 
         const successText = document.createTextNode(
           t(
-            "ui_msg_107",
+            "ui_format_copied_status",
             format === "discord"
               ? t("ui_msg_format_discord")
               : t("ui_msg_format_plain"),
@@ -2997,7 +2997,7 @@ function setupEventListeners() {
         messageArea.appendChild(successText);
 
         const copyAgainButton = document.createElement("button");
-        copyAgainButton.textContent = t("ui_msg_108");
+        copyAgainButton.textContent = t("ui_copy_again_btn");
         copyAgainButton.className = "puzzle-action-button rounded-md";
         copyAgainButton.onclick = () => {
           compShareModal.classList.remove("hidden");
@@ -3007,7 +3007,7 @@ function setupEventListeners() {
       })
       .catch((err) => {
         console.error("Failed to copy text: ", err);
-        showMessage(t("ui_msg_109"), "red");
+        showMessage(t("ui_copy_text_error"), "red");
       });
 
     compShareModal.classList.add("hidden");
@@ -3195,25 +3195,25 @@ function handleKeyDown(e) {
       // Force-switch from pencil to number mode if active
       if (currentMode === "pencil") {
         currentMode = "concrete";
-        message += t("ui_msg_114");
+        message += t("ui_switched_to_number_mode_action");
       }
       // Force-switch from candidate to cell coloring if active
       if (currentMode === "color" && coloringSubMode !== "cell") {
         coloringSubMode = "cell";
-        message += t("ui_msg_115");
+        message += t("ui_switched_to_cell_color_mode_action");
       }
       // Force-disable experimental mode if active
       if (isExperimentalMode) {
         isExperimentalMode = false;
         saveExperimentalModePreference();
-        message += t("ui_msg_116");
+        message += t("ui_expt_mode_disabled_action");
       }
       showMessage(message, "gray");
       updateControls();
       updateButtonLabels();
       renderBoard();
     } else {
-      showMessage(t("ui_msg_117"), "gray");
+      showMessage(t("ui_pencil_marks_visible_action"), "gray");
       renderBoard();
     }
     return;
@@ -3545,7 +3545,7 @@ function handleModeChange(e, reverse = false) {
   if (clickedButton === modeToggleButton) {
     const targetMode = currentMode === "concrete" ? "pencil" : "concrete";
     if (targetMode === "pencil" && arePencilsHidden) {
-      showMessage(t("ui_msg_119"), "orange");
+      showMessage(t("ui_hidden_marks_pencil_disabled_tip"), "orange");
       return;
     }
   }
@@ -3556,7 +3556,7 @@ function handleModeChange(e, reverse = false) {
         ? previousColorSubMode(coloringSubMode)
         : nextColorSubMode(coloringSubMode);
       if (targetSubMode !== "cell" && arePencilsHidden) {
-        showMessage(t("ui_msg_120"), "orange");
+        showMessage(t("ui_hidden_marks_cand_color_disabled_tip"), "orange");
         return;
       }
     }
@@ -3666,14 +3666,14 @@ function handleModeChange(e, reverse = false) {
   let tip = "";
 
   if (currentMode === "concrete") {
-    tip = isMobile ? t("ui_msg_121") : t("ui_msg_121_desktop");
+    tip = isMobile ? t("ui_highlight_number_tip_mobile") : t("ui_msg_121_desktop");
   } else if (currentMode === "pencil") {
-    tip = isMobile ? t("ui_msg_122") : t("ui_msg_123");
+    tip = isMobile ? t("ui_pencil_mark_tip_mobile") : t("ui_pencil_mark_tip");
   } else if (currentMode === "color") {
     if (coloringSubMode === "cell") {
-      tip = isMobile ? t("ui_msg_124") : t("ui_msg_124_desktop");
+      tip = isMobile ? t("ui_cell_color_tip_mobile") : t("ui_msg_124_desktop");
     } else if (coloringSubMode === "candidate") {
-      tip = isMobile ? t("ui_msg_125") : t("ui_msg_126");
+      tip = isMobile ? t("ui_cand_color_select_tip_mobile") : t("ui_cand_color_preview_tip");
     } else if (coloringSubMode === "circle") {
       tip = isMobile ? t("ui_msg_circle_tip_mobile") : t("ui_msg_circle_tip");
     } else {
@@ -3681,8 +3681,8 @@ function handleModeChange(e, reverse = false) {
     }
   } else if (currentMode === "draw") {
     tip = isMobile
-      ? t("ui_msg_127", t(drawSubMode === "solid" ? "ui_msg_19" : "ui_msg_20"))
-      : t("ui_msg_128", t(drawSubMode === "solid" ? "ui_msg_19" : "ui_msg_20"));
+      ? t("ui_draw_tip_mobile", t(drawSubMode === "solid" ? "ui_solid_line_style" : "ui_dash_line_style"))
+      : t("ui_draw_tip", t(drawSubMode === "solid" ? "ui_solid_line_style" : "ui_dash_line_style"));
   }
   showMessage(tip, "gray");
 
@@ -3692,16 +3692,16 @@ function handleModeChange(e, reverse = false) {
   if (isExperimentalMode) {
     window.exptTipTimer = setTimeout(() => {
       let exptTip = "";
-      const actionTxt = isMobile ? t("ui_msg_129") : t("ui_msg_130");
+      const actionTxt = isMobile ? t("ui_long_press_action") : t("ui_right_click_action");
 
       if (currentMode === "concrete") {
-        exptTip = t("ui_msg_131", actionTxt);
+        exptTip = t("ui_expt_erase_cand_tip", actionTxt);
       } else if (currentMode === "draw" && drawSubMode === "solid") {
-        exptTip = t("ui_msg_132", actionTxt);
+        exptTip = t("ui_expt_draw_dash_tip", actionTxt);
       } else if (currentMode === "color" && coloringSubMode === "cell") {
-        exptTip = t("ui_msg_133", actionTxt);
+        exptTip = t("ui_expt_apply_cell_color_tip", actionTxt);
       } else if (currentMode === "color" && coloringSubMode === "candidate") {
-        exptTip = t("ui_msg_134", actionTxt);
+        exptTip = t("ui_expt_apply_cand_color_tip", actionTxt);
       }
 
       if (exptTip) {
@@ -3949,17 +3949,17 @@ async function populateSelectors() {
   });
   const customOption = document.createElement("option");
   customOption.value = "custom";
-  customOption.textContent = t("ui_msg_135");
+  customOption.textContent = t("ui_date_input_placeholder");
   dateSelect.appendChild(customOption);
 
   const unlimitedOption = document.createElement("option");
   unlimitedOption.value = "unlimited";
-  unlimitedOption.textContent = t("ui_msg_136");
+  unlimitedOption.textContent = t("ui_unlimited_option");
   dateSelect.appendChild(unlimitedOption);
 
   const dateBlankOption = document.createElement("option");
   dateBlankOption.value = "";
-  dateBlankOption.textContent = t("ui_msg_137");
+  dateBlankOption.textContent = t("ui_custom_option");
   dateBlankOption.hidden = true;
   dateSelect.appendChild(dateBlankOption);
 }
@@ -4002,7 +4002,7 @@ async function findAndLoadSelectedPuzzle() {
     levelSelect.value = "0";
   }
 
-  // 1. Handle t("ui_msg_136") Mode
+  // 1. Handle t("ui_unlimited_option") Mode
   if (dateSelect.value === "unlimited") {
     let level = parseInt(levelSelect.value, 10);
 
@@ -4043,7 +4043,7 @@ async function findAndLoadSelectedPuzzle() {
       const newGameBtn = document.getElementById("new-game-btn");
 
       if (levelText) {
-        levelText.textContent = t("ui_msg_66", level);
+        levelText.textContent = t("ui_difficulty_level_value", level);
         if (resumeSuffix) {
           if (currentLang === "ko" && [2, 4, 9].includes(level)) {
             resumeSuffix.textContent = t("modal_resume_desc_suffix_2");
@@ -4108,7 +4108,7 @@ async function findAndLoadSelectedPuzzle() {
     levelSelect.value = String(selectedLevel);
   }
 
-  showMessage(t("ui_msg_140"), "blue");
+  showMessage(t("ui_fetching_puzzle_status"), "blue");
 
   try {
     const response = await fetch(
@@ -4137,7 +4137,7 @@ async function findAndLoadSelectedPuzzle() {
         showMessage(t("ui_msg_level_11_fallback"), "orange");
       }
     } else {
-      throw new Error(t("ui_msg_141"));
+      throw new Error(t("ui_daily_level_not_found_error"));
     }
   } catch (err) {
     if (requestId !== puzzleSelectionRequestId) return;
@@ -4156,7 +4156,7 @@ async function findAndLoadSelectedPuzzle() {
 
     initBoardState();
     onBoardUpdated();
-    showMessage(t("ui_msg_142"), "red");
+    showMessage(t("ui_daily_puzzle_not_found_error"), "red");
     setPuzzleLevelLabel(null);
     puzzleScoreEl.textContent = "";
     puzzleTimerEl.textContent = "";
@@ -4298,7 +4298,7 @@ async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
   // Update the URL here
   const filename = `https://json.sudoku.darksabun.club/unlimited/Lv${fileIndex}.txt`;
 
-  showMessage(t("ui_msg_143", level), "blue");
+  showMessage(t("ui_fetching_unlimited_puzzle_status", level), "blue");
 
   try {
     const response = await fetch(filename);
@@ -4324,7 +4324,7 @@ async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
     const rawString = lines[sequenceState.q];
     const puzzleStr = decompressPuzzleString(rawString);
 
-    if (puzzleStr.length !== 81) throw new Error(t("ui_msg_144"));
+    if (puzzleStr.length !== 81) throw new Error(t("ui_puzzle_integrity_error"));
 
     // Persist only after the selected line has passed validation. The stored q
     // is the puzzle just loaded; the following call advances by p modulo N.
@@ -4344,11 +4344,11 @@ async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
 
     setPuzzleLevelLabel({ kind: "unlimited", level });
     puzzleScoreEl.textContent = "";
-    showMessage(t("ui_msg_146"), "green");
+    showMessage(t("ui_unlimited_puzzle_loaded"), "green");
   } catch (err) {
     if (requestId !== puzzleSelectionRequestId) return;
     console.error(err);
-    showMessage(t("ui_msg_147"), "red");
+    showMessage(t("ui_unlimited_puzzle_load_error"), "red");
     initBoardState();
     renderBoard();
   }
@@ -4369,10 +4369,10 @@ function checkCompletion() {
       messageArea.className =
         "text-center text-sm font-semibold flex items-center justify-center gap-2";
       const congratsText = document.createTextNode(
-        t("ui_msg_148", hadUsedHint ? "" : " ★"),
+        t("ui_solved_share_prompt", hadUsedHint ? "" : " ★"),
       );
       const shareButton = document.createElement("button");
-      shareButton.textContent = t("ui_msg_149");
+      shareButton.textContent = t("ui_share_btn");
       shareButton.className = "puzzle-action-button rounded-md";
       shareButton.onclick = () => {
         const compShareModal = document.getElementById(
@@ -4384,7 +4384,7 @@ function checkCompletion() {
       messageArea.appendChild(congratsText);
       messageArea.appendChild(shareButton);
     } else {
-      showMessage(t("ui_msg_150", hadUsedHint ? "" : " ★"), "green");
+      showMessage(t("ui_solved_status", hadUsedHint ? "" : " ★"), "green");
     }
     triggerSolveAnimation();
     stopTimer();
@@ -4514,7 +4514,7 @@ function clearAllColors() {
   clearColorAnnotations();
   saveState();
   renderBoard();
-  showMessage(t("ui_msg_151"), "gray");
+  showMessage(t("ui_colors_erased_status"), "gray");
 }
 
 function clearAllDrawings() {
@@ -4582,12 +4582,12 @@ function autoPencil(skipConfirm = false) {
     onBoardUpdated();
   }
 
-  showMessage(t("ui_msg_152"), "green");
+  showMessage(t("ui_auto_pencil_complete"), "green");
   hasUsedAutoPencil = true;
   isAutoPencilPending = false;
 
   const isMobile = window.innerWidth <= 550;
-  const tip = isMobile ? t("ui_msg_153") : t("ui_msg_154");
+  const tip = isMobile ? t("ui_bivalue_highlight_tip_mobile") : t("ui_bivalue_highlight_tip");
 
   setTimeout(() => {
     showMessage(tip, "gray");
@@ -4598,7 +4598,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   const loadId = ++puzzleLoadRequestId;
   const parsedInput = parsePuzzleInput(puzzleString, isValid);
   if (!parsedInput) {
-    showMessage(t("ui_msg_155"), "red");
+    showMessage(t("ui_invalid_puzzle_string_error"), "red");
     return false;
   }
 
@@ -4734,7 +4734,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   } else {
     const cleanString = puzzleString.replace(/\s/g, "");
     if (cleanString.length !== 81 || !/^[0-9\.]+$/.test(cleanString)) {
-      showMessage(t("ui_msg_155"), "red");
+      showMessage(t("ui_invalid_puzzle_string_error"), "red");
       addSudokuCoachLink(null);
       return false;
     }
@@ -4788,7 +4788,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     if (savedTime > 0) {
       wasSaveLoaded = true;
       isLoadingSavedGame = true;
-      showMessage(t("ui_msg_156"), "green");
+      showMessage(t("ui_saved_game_resumed"), "green");
       checkCompletion();
     }
   }
@@ -4863,11 +4863,11 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   addSudokuCoachLink(initialPuzzleString);
 
   if (isCustomPuzzle) {
-    if (!isUnlimited && !wasSaveLoaded) showMessage(t("ui_msg_157"), "green");
+    if (!isUnlimited && !wasSaveLoaded) showMessage(t("ui_custom_puzzle_loaded"), "green");
   } else if (!wasSaveLoaded && puzzleData) {
     showMessage(
       t(
-        "ui_msg_158",
+        "ui_daily_puzzle_loaded",
         dateSelect.options[dateSelect.selectedIndex].text,
         puzzleData.level,
       ),
@@ -4886,7 +4886,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     if (!hasUsedAutoPencil) {
       const isMobile = window.innerWidth <= 550;
       const tip = isMobile
-        ? t("ui_msg_159")
+        ? t("ui_auto_pencil_tip_mobile")
         : t("ui_msg_auto_pencil_tip_desktop");
       showMessage(tip, "gray");
     }
@@ -5171,18 +5171,18 @@ function applySavedProgress(puzzleData) {
       difficultyLamp.classList.add(`lamp-${last}`);
 
       const tooltips = {
-        white: t("ui_msg_160"),
-        green: t("ui_msg_161"),
-        yellow: t("ui_msg_162"),
-        orange: t("ui_msg_163"),
-        red: t("ui_msg_164"),
-        violet: t("ui_msg_165"),
+        white: t("ui_easy_level_0"),
+        green: t("ui_medium_level_1_2"),
+        yellow: t("ui_hard_level_3_5"),
+        orange: t("ui_unfair_level_6"),
+        red: t("ui_extreme_level_7_8"),
+        violet: t("ui_insane_level_9_10"),
         blue: t("ui_msg_165_2"),
-        magenta: t("ui_msg_166"),
+        magenta: t("ui_unmeasured_level_12"),
       };
-      let tooltipText = tooltips[last] || t("ui_msg_64");
+      let tooltipText = tooltips[last] || t("ui_difficulty_tooltip");
       if (window.innerWidth <= 550 && currentLang === "en")
-        tooltipText = tooltipText.replace(t("ui_msg_67"), "Lv.");
+        tooltipText = tooltipText.replace(t("ui_difficulty_level_term"), "Lv.");
       difficultyLamp.dataset.tooltip = tooltipText;
     }
   }
@@ -5202,7 +5202,7 @@ function applySavedProgress(puzzleData) {
     }
   }
 
-  showMessage(t("ui_msg_169"), "green");
+  showMessage(t("ui_saved_progress_loaded"), "green");
   return typeof savedGame.time === "number" ? savedGame.time : 0;
 }
 
@@ -5228,7 +5228,7 @@ function validateBoard() {
 
 function enterSolverModeUI() {
   if (solverSteps.length === 0) {
-    showMessage(t("ui_msg_170"), "orange");
+    showMessage(t("ui_eval_failed_or_busy_error"), "orange");
     return;
   }
 
@@ -5275,13 +5275,13 @@ function enterSolverModeUI() {
 
 async function solve() {
   if (!initialPuzzleString) {
-    showMessage(t("ui_msg_171"), "red");
+    showMessage(t("ui_initial_puzzle_missing_error"), "red");
     return;
   }
 
   // 1. Refuse entering solver mode if the puzzle does not have a unique solution
   if (currentLampColor === "gray") {
-    showMessage(t("ui_msg_172"), "red");
+    showMessage(t("ui_non_unique_solver_unavailable"), "red");
     return;
   }
 
@@ -5301,7 +5301,7 @@ async function solve() {
     if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
     const evalId = ++currentEvaluationId;
 
-    showMessage(t("ui_msg_106"), "blue");
+    showMessage(t("ui_eval_from_beginning_status"), "blue");
     await evaluateBoardDifficulty({ waitForFrame: false });
 
     if (currentEvaluationId !== evalId) return;
@@ -5318,7 +5318,7 @@ async function solve() {
 
   // If nearly solved (<= 3 empty cells) but not fully correct/completed
   if (emptyCount <= 3) {
-    showMessage(t("ui_msg_174"), "orange");
+    showMessage(t("ui_nearly_complete_solver_disabled"), "orange");
     return;
   }
 
@@ -5361,7 +5361,7 @@ async function proceedToSolverMode() {
     if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
     const evalId = ++currentEvaluationId;
 
-    showMessage(t("ui_msg_175"), "blue");
+    showMessage(t("ui_evaluating_status"), "blue");
     await evaluateBoardDifficulty({ waitForFrame: false });
 
     if (currentEvaluationId !== evalId) return;
@@ -5375,10 +5375,10 @@ async function proceedToSolverMode() {
   const currentBtn = document.getElementById("solver-current-btn");
 
   if (currentLampColor === "black") {
-    textEl.innerHTML = t("ui_msg_188");
+    textEl.innerHTML = t("ui_solver_restart_warning");
     currentBtn.style.display = "none"; // Hide 'Current State' option
   } else {
-    textEl.innerHTML = t("ui_msg_189");
+    textEl.innerHTML = t("ui_solver_start_state_prompt");
     currentBtn.style.display = "block";
   }
 
@@ -5424,7 +5424,7 @@ function exitSolverMode() {
   highlightState = userHighlightStateSnapshot;
   highlightedDigit = userHighlightedDigitSnapshot;
 
-  showMessage(t("ui_msg_176"), "gray");
+  showMessage(t("ui_solver_exited_status"), "gray");
 
   onBoardUpdated();
 
@@ -5814,7 +5814,7 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
       showMoreBtn.style.padding = "4px";
       showMoreBtn.style.borderRadius = "3px";
       showMoreBtn.style.cursor = "pointer";
-      showMoreBtn.textContent = t("ui_msg_178", group.items.length - 3);
+      showMoreBtn.textContent = t("ui_show_more_results", group.items.length - 3);
 
       showMoreBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -5851,7 +5851,7 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
 /** Puts the VAT "search next level" button into its busy state. */
 function markVatSearchButtonBusy(searchBtn) {
   if (!searchBtn) return;
-  searchBtn.textContent = t("ui_msg_179");
+  searchBtn.textContent = t("ui_preparing_search_status");
   searchBtn.disabled = true;
   searchBtn.classList.remove("hidden");
   searchBtn.classList.add("opacity-50", "cursor-wait");
@@ -5887,7 +5887,7 @@ async function buildViewAllTechniquesList(step) {
   if (allHints.length === 0) {
     const msg = document.createElement("div");
     msg.className = "p-2 text-sm text-gray-500 italic text-center";
-    msg.textContent = t("ui_msg_177");
+    msg.textContent = t("ui_no_technique_for_state");
     list.appendChild(msg);
     return;
   }
@@ -5925,10 +5925,10 @@ async function searchAndAppendVatLevel(
     return true;
   });
 
-  // Always prepend t("ui_msg_210") if requested
+  // Always prepend t("ui_eliminate_cands") if requested
   if (includeEliminate) {
     const elimTech = vatActiveTechniques.find(
-      (tech) => tech.name === t("ui_msg_210"),
+      (tech) => tech.name === t("ui_eliminate_cands"),
     );
     if (elimTech && !techsToSearch.includes(elimTech)) {
       techsToSearch.unshift(elimTech);
@@ -6006,7 +6006,7 @@ async function searchAndAppendVatLevel(
     const msg = document.createElement("div");
     msg.id = "vat-no-tech-msg";
     msg.className = "p-2 text-sm text-gray-500 italic text-center";
-    msg.textContent = t("ui_msg_180");
+    msg.textContent = t("ui_no_technique_found");
     list.appendChild(msg);
   } else if (newHints.length > 0) {
     const noMsg = list.querySelector("#vat-no-tech-msg");
@@ -6028,7 +6028,7 @@ async function searchAndAppendVatLevel(
     searchBtn.classList.remove("opacity-50", "cursor-wait");
 
     if (vatNextLevel <= vatMaxLevel) {
-      searchBtn.textContent = t("ui_msg_182", vatNextLevel);
+      searchBtn.textContent = t("ui_search_level_btn", vatNextLevel);
       searchBtn.onclick = () => {
         const nextLvlToRun = vatNextLevel;
         vatNextLevel++;
@@ -6210,20 +6210,20 @@ function renderSolverStep(index) {
       solverSteps[solverSteps.length - 1].type === "bruteforce";
 
     if (isBruteForce) {
-      msg = t("ui_msg_183", star, star);
+      msg = t("ui_unknown_eval_result", star, star);
     } else {
-      msg = t("ui_msg_184", step.level, star, step.score, star);
+      msg = t("ui_eval_result", step.level, star, step.score, star);
     }
     msgColor = "green";
 
     // Level 12 records no score, and a lone star would annotate nothing.
     setPuzzleScoreText(` (${lastValidScore}${star})`, "");
   } else if (step.type === "done") {
-    msg = t("ui_msg_185");
+    msg = t("ui_puzzle_fully_solved");
     msgColor = "green";
     setPuzzleScoreText(` (0${star})`, `(0${star})`);
   } else if (step.type === "bruteforce") {
-    msg = t("ui_msg_186");
+    msg = t("ui_solver_fallback_solution");
     msgColor = "red";
   } else if (step.type === "step") {
     const h = step.result.hint;
@@ -6425,7 +6425,7 @@ function buildSolverSummary() {
     nameEl.style.flexGrow = "1";
     nameEl.style.overflow = "hidden";
     nameEl.style.textOverflow = "ellipsis";
-    nameEl.textContent = t("ui_msg_187");
+    nameEl.textContent = t("ui_brute_force_name");
 
     const scoreEl = document.createElement("div");
     scoreEl.classList.add(
@@ -6920,7 +6920,7 @@ function rebuildHistorySnapshot(targetIndex) {
 }
 
 function getHistoryEntryDescription(entry) {
-  let actionDesc = t("ui_msg_191");
+  let actionDesc = t("ui_undo_no_visible_changes");
   if (entry.boardChanges?.length) {
     const before = createEmptyBoardState();
     const after = createEmptyBoardState();
@@ -6934,7 +6934,7 @@ function getHistoryEntryDescription(entry) {
   const lineDesc = entry.linePatch
     ? getLineDiffDescription(entry.linePatch.removed, entry.linePatch.added)
     : null;
-  if (actionDesc === t("ui_msg_191") && lineDesc) return lineDesc;
+  if (actionDesc === t("ui_undo_no_visible_changes") && lineDesc) return lineDesc;
   return lineDesc ? `${actionDesc}, ${lineDesc}` : actionDesc;
 }
 
@@ -7208,12 +7208,12 @@ function applyHistoryStep(direction, messageKey) {
 
 function undo() {
   if (historyIndex <= 0) return;
-  applyHistoryStep("undo", "ui_msg_192");
+  applyHistoryStep("undo", "ui_undo_action");
 }
 
 function redo() {
   if (historyIndex >= history.length - 1) return;
-  applyHistoryStep("redo", "ui_msg_194");
+  applyHistoryStep("redo", "ui_redo_action");
 }
 
 function updateUndoRedoButtons() {
@@ -7374,7 +7374,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   const star = hasCustomPreferences() ? "*" : "";
   if (emptyCount <= 3) {
     updateLamp("white", { level: 0 });
-    vagueHintMessage = t("ui_msg_195");
+    vagueHintMessage = t("ui_FH_vague_hint");
 
     lastValidScore = 4 * emptyCount;
 
@@ -7417,8 +7417,8 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   let lastProgressPaint = solveStartTime;
   if (IS_DEBUG_MODE) {
     console.clear();
-    console.log(t("ui_msg_196"));
-    console.log(t("ui_msg_197"));
+    console.log(t("ui_starting_new_difficulty_eval"));
+    console.log(t("ui_initial_board_state_0_empty"));
     console.table(virtualBoard);
   }
 
@@ -7531,7 +7531,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
           if (result.type === "place") {
             console.log(`  r${result.r + 1}c${result.c + 1}=${result.num}`);
           } else if (result.type === "remove") {
-            console.log(t("ui_msg_198"));
+            console.log(t("ui_remove_cands"));
             result.cells.forEach(({ r, c, num }) => {
               console.log(`  - r${r + 1}c${c + 1}<>${num}`);
             });
@@ -7584,7 +7584,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     });
 
     if (IS_DEBUG_MODE) {
-      console.log(t("ui_msg_199", maxDifficulty, evaluatedScore));
+      console.log(t("ui_level_score", maxDifficulty, evaluatedScore));
     }
 
     const star = hasCustomPreferences() ? "*" : "";
@@ -7690,7 +7690,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   }
   if (IS_DEBUG_MODE) {
     const solveEndTime = performance.now();
-    console.log(t("ui_msg_203", (solveEndTime - solveStartTime).toFixed(2)));
+    console.log(t("ui_eval_completed_in_ms", (solveEndTime - solveStartTime).toFixed(2)));
     console.log("-----------------------------------------------");
   }
   syncCurrentHistoryEvaluationState(myEvaluationId);
@@ -8090,7 +8090,7 @@ function openPreferencesModal() {
               style="width: 3rem;"
               data-default-score="${tech.origScore}"
               value="${tech.currentScore}"
-              title="${t("ui_msg_302", tech.origScore)}"
+              title="${t("ui_default_score_tooltip", tech.origScore)}"
             >
           </div>
         </div>
@@ -8296,11 +8296,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // 5. Force a fresh "Refresh/Re-evaluation" of the board
       currentEvaluationId++;
-      showMessage(t("ui_msg_303"), "blue");
+      showMessage(t("ui_prefs_saved_reeval_status"), "blue");
 
       await evaluateBoardDifficulty({ waitForFrame: false });
 
-      showMessage(t("ui_msg_304"), "green");
+      showMessage(t("ui_board_eval_updated_status"), "green");
     });
 
   // --- CANCEL BUTTON ---
@@ -8340,11 +8340,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // 6. Force a fresh "Refresh/Re-evaluation" using defaults
       currentEvaluationId++;
-      showMessage(t("ui_msg_305"), "blue");
+      showMessage(t("ui_defaults_restored_reeval_status"), "blue");
 
       await evaluateBoardDifficulty({ waitForFrame: false });
 
-      showMessage(t("ui_msg_306"), "green");
+      showMessage(t("ui_defaults_restored_status"), "green");
     });
 });
 
@@ -8462,14 +8462,14 @@ function copyTextToClipboard(text, successKey) {
     })
     .catch((err) => {
       console.error("Copy failed:", err);
-      showMessage(t("ui_msg_70"), "red");
+      showMessage(t("ui_copy_initial_grid_error"), "red");
     });
 }
 
 /** Ctrl+C copies the grid as text, Ctrl+Shift+C as an image. */
 function copyBoardShortcut(asImage) {
   if (asImage) copyGridAsImage();
-  else copyTextToClipboard(generateAsciiGrid(), "ui_msg_110");
+  else copyTextToClipboard(generateAsciiGrid(), "ui_ascii_board_copied");
 }
 
 function copyGridAsImage() {
@@ -8745,23 +8745,23 @@ function copyGridAsImage() {
   try {
     canvas.toBlob((blob) => {
       if (!blob) {
-        showMessage(t("ui_msg_307"), "red");
+        showMessage(t("ui_image_generation_error"), "red");
         return;
       }
       const item = new ClipboardItem({ "image/png": blob });
       navigator.clipboard
         .write([item])
         .then(() => {
-          showMessage(t("ui_msg_308"), "green");
+          showMessage(t("ui_image_copied_status"), "green");
         })
         .catch((err) => {
           console.error("Clipboard write failed:", err);
-          showMessage(t("ui_msg_309"), "red");
+          showMessage(t("ui_clipboard_permission_error"), "red");
         });
     }, "image/png");
   } catch (err) {
     console.error("Canvas toBlob failed:", err);
-    showMessage(t("ui_msg_310"), "red");
+    showMessage(t("ui_image_copy_error"), "red");
   }
 }
 
@@ -8769,7 +8769,7 @@ function copyGridAsImage() {
  * specific helper to map hex codes to "[Color N]" format
  */
 function getColorName(hex) {
-  if (!hex) return t("ui_msg_31");
+  if (!hex) return t("ui_color_mode_btn_mobile");
 
   // Group palettes to make the search logic scalable
   const palettes = [
@@ -8786,11 +8786,11 @@ function getColorName(hex) {
   for (const palette of palettes) {
     const idx = palette.indexOf(hex);
     if (idx !== -1) {
-      return t("ui_msg_312", idx + 1);
+      return t("ui_color_indexed_name", idx + 1);
     }
   }
 
-  return t("ui_msg_313");
+  return t("ui_custom_color");
 }
 
 /**
@@ -8832,16 +8832,16 @@ function getLineDiffDescription(before, after) {
   if (after.length > before.length) {
     // Find the line in 'after' that isn't in 'before'
     const added = after.find((a) => !before.some((b) => isSameLine(a, b)));
-    if (added) return t("ui_msg_314", formatLineLabel(added));
-    return t("ui_msg_315");
+    if (added) return t("ui_line_added_detail", formatLineLabel(added));
+    return t("ui_line_added");
   }
 
   // Case 2: Line Removed
   if (before.length > after.length) {
     // Find the line in 'before' that isn't in 'after'
     const removed = before.find((b) => !after.some((a) => isSameLine(a, b)));
-    if (removed) return t("ui_msg_316", formatLineLabel(removed));
-    return t("ui_msg_317");
+    if (removed) return t("ui_line_removed_detail", formatLineLabel(removed));
+    return t("ui_line_removed");
   }
 
   // Case 3: Line Modified (Style/Color change)
@@ -8868,8 +8868,8 @@ function getLineDiffDescription(before, after) {
       return match && (match.color !== a.color || match.style !== a.style);
     });
 
-    if (changed) return t("ui_msg_318", formatLineLabel(changed));
-    return t("ui_msg_319");
+    if (changed) return t("ui_line_updated", formatLineLabel(changed));
+    return t("ui_line_style_updated");
   }
 
   return null;
@@ -8892,9 +8892,9 @@ function getDiffDescription(before, after) {
       if (b.value !== a.value) {
         isCellChanged = true;
         if (a.value !== 0) {
-          placements.push(t("ui_msg_320", r + 1, c + 1, a.value));
+          placements.push(t("ui_placed_r_c", r + 1, c + 1, a.value));
         } else {
-          valueRemovals.push(t("ui_msg_321", b.value, r + 1, c + 1));
+          valueRemovals.push(t("ui_removed_from_r_c", b.value, r + 1, c + 1));
         }
       }
       // 2. Pencil Marks (Candidates)
@@ -8911,10 +8911,10 @@ function getDiffDescription(before, after) {
 
         if (added.length > 0) {
           isCellChanged = true;
-          cellDesc = t("ui_msg_322", added.join(""), r + 1, c + 1);
+          cellDesc = t("ui_marked_r_c", added.join(""), r + 1, c + 1);
         } else if (removed.length > 0) {
           isCellChanged = true;
-          cellDesc = t("ui_msg_323", removed.join(""), r + 1, c + 1);
+          cellDesc = t("ui_unmarked_r_c", removed.join(""), r + 1, c + 1);
         }
 
         // 3. Colors (Cell & Candidate)
@@ -8924,9 +8924,9 @@ function getDiffDescription(before, after) {
             isCellChanged = true;
             if (a.cellColor) {
               const cName = getColorName(a.cellColor);
-              cellDesc = t("ui_msg_324", cName, r + 1, c + 1);
+              cellDesc = t("ui_cell_color_added", cName, r + 1, c + 1);
             } else {
-              cellDesc = t("ui_msg_325", r + 1, c + 1);
+              cellDesc = t("ui_cell_color_cleared", r + 1, c + 1);
             }
           }
           // Candidate Colors
@@ -8938,9 +8938,9 @@ function getDiffDescription(before, after) {
                 isCellChanged = true;
                 if (cA) {
                   const cName = getColorName(cA);
-                  cellDesc = t("ui_msg_326", cName, n, r + 1, c + 1);
+                  cellDesc = t("ui_cand_color_added", cName, n, r + 1, c + 1);
                 } else {
-                  cellDesc = t("ui_msg_327", n, r + 1, c + 1);
+                  cellDesc = t("ui_cand_color_cleared", n, r + 1, c + 1);
                 }
                 break; // Stop after finding one change per cell
               }
@@ -8989,8 +8989,8 @@ function getDiffDescription(before, after) {
     return valueRemovals[0];
   if (totalChangedCells === 1 && otherChanges.length > 0)
     return otherChanges[0];
-  if (totalChangedCells === 0) return t("ui_msg_191");
-  return t("ui_msg_329");
+  if (totalChangedCells === 0) return t("ui_undo_no_visible_changes");
+  return t("ui_multiple_cells_updated_highlight_wipe_reset_solve");
 }
 
 function getHighlightDiff(before, after) {
@@ -9001,15 +9001,15 @@ function getHighlightDiff(before, after) {
   ) {
     // Case 1: Highlight Turned Off
     if (after.highlightState === 0) {
-      return t("ui_msg_330");
+      return t("ui_unhighlighted_all");
     }
     // Case 2: Digit Highlighted
     if (after.highlightState === 1) {
-      return t("ui_msg_331", after.highlightedDigit);
+      return t("ui_highlighted_digit", after.highlightedDigit);
     }
     // Case 3: Bi-value Highlighted
     if (after.highlightState === 2) {
-      return t("ui_msg_332");
+      return t("ui_highlighted_bi_value_cells");
     }
   }
   return null;
@@ -9031,7 +9031,7 @@ async function handleUrlParameters() {
     stateStr = decodeURIComponent(stateStr);
     const decodedState = decodeBoardState(stateStr);
     if (!decodedState) {
-      showMessage(t("ui_msg_155"), "red");
+      showMessage(t("ui_invalid_puzzle_string_error"), "red");
       return false;
     }
     const initialStr = decodedState.initialPuzzleString;
@@ -9059,7 +9059,7 @@ async function handleUrlParameters() {
       hadUsedSolver = true;
       hadUsedHint = true;
       currentEvaluationId++;
-      showMessage(t("ui_msg_333"), "blue");
+      showMessage(t("ui_evaluating_puzzle_from_url"), "blue");
       await evaluateBoardDifficulty({ waitForFrame: true, showProgress: true });
 
       enterSolverModeUI();
@@ -9083,7 +9083,7 @@ async function handleUrlParameters() {
       hadUsedSolver = true;
       hadUsedHint = true;
       currentEvaluationId++;
-      showMessage(t("ui_msg_333"), "blue");
+      showMessage(t("ui_evaluating_puzzle_from_url"), "blue");
       await evaluateBoardDifficulty({ waitForFrame: true, showProgress: true });
 
       enterSolverModeUI();

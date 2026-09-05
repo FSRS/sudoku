@@ -176,7 +176,7 @@ Object.assign(techniques, {
 
       if (extraData.wings) {
         detail = t(
-          "teks_msg_348",
+          "teks_AUR_XY_Wing_detail",
           d1,
           d2,
           basePosStr,
@@ -195,7 +195,7 @@ Object.assign(techniques, {
             : formatRC(extraData.subsetCells);
 
         detail = t(
-          "teks_msg_300",
+          "teks_AR_type_3_VNS_detail",
           d1,
           d2,
           basePosStr,
@@ -205,7 +205,7 @@ Object.assign(techniques, {
         );
       } else if (extraData.strongLinks) {
         detail = t(
-          "teks_msg_301",
+          "teks_AR_type_5_ConPairs_detail",
           d1,
           d2,
           basePosStr,
@@ -214,7 +214,7 @@ Object.assign(techniques, {
           extraData.strongLinks.join(","),
         );
       } else {
-        detail = t("teks_msg_299", d1, d2, basePosStr, filledStr, unfilledStr);
+        detail = t("teks_AR_base_detail", d1, d2, basePosStr, filledStr, unfilledStr);
       }
 
       return {
@@ -224,7 +224,7 @@ Object.assign(techniques, {
 
         hint: {
           name: t(nameKey),
-          mainInfo: t("teks_msg_298", d1, d2),
+          mainInfo: t("teks_AR_digits", d1, d2),
           detail,
         },
 
@@ -368,7 +368,7 @@ Object.assign(techniques, {
               pencils[target[0]][target[1]].has(d1)
             ) {
               const resultObj = makeResult(
-                "teks_msg_293",
+                "teks_AR_type_1",
                 d1,
                 d2,
                 cells,
@@ -381,7 +381,7 @@ Object.assign(techniques, {
                   },
                 ],
               );
-              const immediate = addResult(resultObj, "teks_msg_293");
+              const immediate = addResult(resultObj, "teks_AR_type_1");
               if (immediate) {
                 return immediate;
               }
@@ -430,14 +430,14 @@ Object.assign(techniques, {
                       );
                       if (removals.length > 0) {
                         const resultObj = makeResult(
-                          "teks_msg_294",
+                          "teks_AR_type_2",
                           d1,
                           d2,
                           cells,
                           filledCells,
                           removals,
                         );
-                        const immediate = addResult(resultObj, "teks_msg_294");
+                        const immediate = addResult(resultObj, "teks_AR_type_2");
                         if (immediate) {
                           return immediate;
                         }
@@ -467,7 +467,7 @@ Object.assign(techniques, {
                         continue;
                       }
                       const resultObj = makeResult(
-                        "teks_msg_295",
+                        "teks_AR_type_3",
                         d1,
                         d2,
                         cells,
@@ -480,7 +480,7 @@ Object.assign(techniques, {
                           unitIdx: unit.idx,
                         },
                       );
-                      const immediate = addResult(resultObj, "teks_msg_295");
+                      const immediate = addResult(resultObj, "teks_AR_type_3");
                       if (immediate) {
                         return immediate;
                       }
@@ -509,7 +509,7 @@ Object.assign(techniques, {
               const removals = getCommonPeerRemovals(unfilledCells, cells, g);
               if (removals.length > 0) {
                 const resultObj = makeResult(
-                  "teks_msg_296",
+                  "teks_AR_type_5",
                   d1,
                   d2,
                   cells,
@@ -517,7 +517,7 @@ Object.assign(techniques, {
                   removals,
                 );
 
-                const immediate = addResult(resultObj, "teks_msg_296");
+                const immediate = addResult(resultObj, "teks_AR_type_5");
 
                 if (immediate) {
                   return immediate;
@@ -559,14 +559,14 @@ Object.assign(techniques, {
                 const removals = getCommonPeerRemovals(peerBasis, cells, g);
                 if (removals.length > 0) {
                   const resultObj = makeResult(
-                    "teks_msg_296",
+                    "teks_AR_type_5",
                     d1,
                     d2,
                     cells,
                     filledCells,
                     removals,
                   );
-                  const immediate = addResult(resultObj, "teks_msg_296");
+                  const immediate = addResult(resultObj, "teks_AR_type_5");
                   if (immediate) {
                     return immediate;
                   }
@@ -661,7 +661,7 @@ Object.assign(techniques, {
                   ];
 
                   const resultObj = makeResult(
-                    "teks_msg_297",
+                    "teks_HAR",
                     d1,
                     d2,
                     cells,
@@ -679,7 +679,7 @@ Object.assign(techniques, {
                     },
                   );
 
-                  const immediate = addResult(resultObj, "teks_msg_297");
+                  const immediate = addResult(resultObj, "teks_HAR");
 
                   if (immediate) {
                     return immediate;
@@ -714,7 +714,7 @@ Object.assign(techniques, {
           })
           .join(",");
         const resultObj = makeResult(
-          "teks_msg_347",
+          "teks_AUR_plus_XY_Wing",
           proof.d1,
           proof.d2,
           proof.cells,
@@ -726,7 +726,7 @@ Object.assign(techniques, {
             pivotDigit: proof.pivotDigit,
           },
         );
-        const immediate = addResult(resultObj, "teks_msg_347");
+        const immediate = addResult(resultObj, "teks_AUR_plus_XY_Wing");
         if (immediate) return immediate;
       }
     }

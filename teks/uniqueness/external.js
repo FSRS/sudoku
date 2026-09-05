@@ -10,8 +10,8 @@ Object.assign(techniques, {
     const emitted = new Set();
     // Type 2, Type 3, Type 3h, + XY-Wing.
     const [type2Key, type3Key, type3hKey, xyWingKey] = avoidable
-      ? ["teks_msg_343", "teks_msg_344", "teks_msg_345", "teks_msg_346"]
-      : ["teks_msg_200", "teks_msg_201", "teks_msg_202", "teks_msg_203"];
+      ? ["teks_AUET_type_2", "teks_AUET_type_3", "teks_AUET_type_3h", "teks_AUET_plus_XY_Wing"]
+      : ["teks_UET_type_2", "teks_UET_type_3", "teks_UET_type_3h", "teks_UET_plus_XY_Wing"];
     const cellKey = (r, c) => r + "," + c;
     const cellId = techniques._cellToId;
     const idToCell = techniques._idToCell;
@@ -150,7 +150,7 @@ Object.assign(techniques, {
         cells,
         hint: {
           name: t(nameKey),
-          mainInfo: t("teks_msg_204", "" + d1 + d2),
+          mainInfo: t("teks_UET_digits", "" + d1 + d2),
           detail,
         },
         visualPlan: makeVisualPlan(body, d1, d2, guardians, cells, extra),
@@ -250,7 +250,7 @@ Object.assign(techniques, {
           ]),
         );
         const detail = t(
-          "teks_msg_205",
+          "teks_UET_base_guardians",
           "" + d1 + d2,
           formatBody(body),
           formatGuardians(guardians, d1, d2),
@@ -371,7 +371,7 @@ Object.assign(techniques, {
                 guardians,
                 removals,
                 t(
-                  "teks_msg_207",
+                  "teks_UET_type_3h_VHS_detail",
                   "" + d1 + d2,
                   formatBody(body),
                   formatGuardians(guardians, d1, d2),
@@ -434,7 +434,7 @@ Object.assign(techniques, {
               guardians,
               removals,
               t(
-                "teks_msg_206",
+                "teks_UET_type_3_VNS_detail",
                 "" + d1 + d2,
                 formatBody(body),
                 formatGuardians(guardians, d1, d2),
@@ -493,7 +493,7 @@ Object.assign(techniques, {
               guardians,
               removals,
               t(
-                "teks_msg_349",
+                "teks_UET_XY_Wing_detail",
                 "" + d1 + d2,
                 formatBody(body),
                 formatGuardians(guardians, d1, d2),

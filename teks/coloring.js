@@ -311,20 +311,20 @@ Object.assign(techniques, {
 
         if (uniqueElims.length > 0) {
           const name =
-            singleDigit !== null ? t("teks_msg_166") : t("teks_msg_167");
+            singleDigit !== null ? t("teks_SimpleColor") : t("teks_Medusa");
           const startCand = techniques._parseCandId(startId);
           const info =
             singleDigit !== null
-              ? t("teks_msg_168", singleDigit)
+              ? t("teks_SimpleColor_digit", singleDigit)
               : t(
-                  "teks_msg_169",
+                  "teks_start_color_1_with_r_c",
                   startCand.n,
                   startCand.r + 1,
                   startCand.c + 1,
                 );
 
           let detail = t(
-            "teks_msg_170",
+            "teks_start_color_c1_with_r_c",
             startCand.n,
             startCand.r + 1,
             startCand.c + 1,
@@ -332,14 +332,14 @@ Object.assign(techniques, {
 
           if (result.rule === "A_Cell") {
             detail += t(
-              "teks_msg_171",
+              "teks_invalid_color_c_appears_twice_in_r_c",
               result.targetColor,
               result.data.r + 1,
               result.data.c + 1,
             );
           } else if (result.rule === "A_Peer") {
             detail += t(
-              "teks_msg_172",
+              "teks_invalid_color_c_for_digit_sees_itself_at_r_c",
               result.data.n,
               result.targetColor,
               result.data.r + 1,
@@ -347,7 +347,7 @@ Object.assign(techniques, {
             );
           } else if (result.rule === "B_Cell") {
             detail += t(
-              "teks_msg_173",
+              "teks_bad_color_c_emptied_cell_r_c",
               result.data.r + 1,
               result.data.c + 1,
               result.targetColor,
@@ -356,12 +356,12 @@ Object.assign(techniques, {
             const uType = result.data.unitType;
             const uName =
               uType === "row"
-                ? t("teks_msg_174", result.data.idx + 1)
+                ? t("teks_SimpleColor_row", result.data.idx + 1)
                 : uType === "col"
-                  ? t("teks_msg_175", result.data.idx + 1)
-                  : t("teks_msg_176", result.data.idx + 1);
+                  ? t("teks_SimpleColor_col", result.data.idx + 1)
+                  : t("teks_SimpleColor_box", result.data.idx + 1);
             detail += t(
-              "teks_msg_177",
+              "teks_bad_color_c_removed_all_in",
               result.targetColor,
               uName,
               result.data.d,
@@ -375,14 +375,14 @@ Object.assign(techniques, {
             }
             const c1Str =
               c1Sources.size > 0
-                ? t("teks_msg_178", Array.from(c1Sources).join(", "))
+                ? t("teks_c1_at", Array.from(c1Sources).join(", "))
                 : "";
             const c2Str =
               c2Sources.size > 0
-                ? t("teks_msg_179", Array.from(c2Sources).join(", "))
+                ? t("teks_c2_at", Array.from(c2Sources).join(", "))
                 : "";
             const sources = [c1Str, c2Str].filter(Boolean).join(", ");
-            detail += t("teks_msg_180", sources);
+            detail += t("teks_color_trap", sources);
           }
 
           const cellColors = [];

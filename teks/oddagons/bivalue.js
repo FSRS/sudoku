@@ -404,10 +404,10 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: elimMap,
                 hint: {
-                  name: t("teks_msg_183"),
-                  mainInfo: t("teks_msg_184", d1, d2),
+                  name: t("teks_BVO_type_2"),
+                  mainInfo: t("teks_BVO_digits", d1, d2),
                   detail: t(
-                    "teks_msg_185",
+                    "teks_BVO_guardians",
                     d1,
                     d2,
                     getGuardiansStr(extraCells, d1, d2),
@@ -538,10 +538,10 @@ Object.assign(techniques, {
                       cells: elimMap,
 
                       hint: {
-                        name: t("teks_msg_186"),
-                        mainInfo: t("teks_msg_184", d1, d2),
+                        name: t("teks_BVO_type_3"),
+                        mainInfo: t("teks_BVO_digits", d1, d2),
                         detail: t(
-                          "teks_msg_187",
+                          "teks_BVO_type_3_VNS_detail",
                           d1,
                           d2,
                           getGuardiansStr(extraCells, d1, d2),
@@ -675,10 +675,10 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: elims,
                 hint: {
-                  name: t("teks_msg_188"),
-                  mainInfo: t("teks_msg_184", d1, d2),
+                  name: t("teks_BVO_type_4"),
+                  mainInfo: t("teks_BVO_digits", d1, d2),
                   detail: t(
-                    "teks_msg_189",
+                    "teks_BVO_type_4_guardians_detail",
                     d1,
                     d2,
                     getGuardiansStr(extraCells, d1, d2),

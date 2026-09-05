@@ -156,10 +156,10 @@ let coloringSubMode = "cell";
 const COLOR_SUBMODE_CYCLE = ["cell", "candidate", "circle", "slash"];
 // Label shown on the Color button while hovering it (the sub-mode you'd get next).
 const NEXT_COLOR_SUBMODE_LABEL = {
-  cell: "ui_msg_80",
+  cell: "ui_next_color_cand_mode_btn",
   candidate: "ui_msg_circle_next",
   circle: "ui_msg_slash_next",
-  slash: "ui_msg_81",
+  slash: "ui_next_color_cell_mode_btn",
 };
 let candidatePopupFormat = "A"; // 'A' for numpad, 'B' for phone pad
 let selectedColor = null;

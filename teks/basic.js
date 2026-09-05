@@ -41,9 +41,9 @@ Object.assign(techniques, {
         type: "remove",
         cells: uniqueRemovals,
         hint: {
-          name: t("teks_msg_1"),
-          mainInfo: t("teks_msg_2", newpr + 1, newpc + 1),
-          detail: t("teks_msg_3", newd, newr, newc),
+          name: t("teks_eliminate_cands"),
+          mainInfo: t("teks_eliminate_cands_location", newpr + 1, newpc + 1),
+          detail: t("teks_concrete_number_r_c", newd, newr, newc),
         },
         visualPlan: {
           highlight: { digit: null, state: 0 },
@@ -84,7 +84,7 @@ Object.assign(techniques, {
           r,
           emptyCol,
           solvedMask,
-          t("teks_msg_4", r + 1),
+          t("teks_FH_row", r + 1),
           "row",
           r,
         );
@@ -113,7 +113,7 @@ Object.assign(techniques, {
           emptyRow,
           c,
           solvedMask,
-          t("teks_msg_5", c + 1),
+          t("teks_FH_col", c + 1),
           "col",
           c,
         );
@@ -148,7 +148,7 @@ Object.assign(techniques, {
           emptyCell.r,
           emptyCell.c,
           solvedMask,
-          t("teks_msg_6", b + 1),
+          t("teks_FH_box", b + 1),
           "box",
           b,
         );
@@ -169,11 +169,11 @@ Object.assign(techniques, {
         break;
       }
     }
-    const isBox = unitName.includes(t("teks_msg_7"));
+    const isBox = unitName.includes(t("teks_unit_box"));
     const position = isBox
       ? `b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
       : `r${r + 1}c${c + 1}`;
-    const detail = t("teks_msg_8", missingNum, unitName, position);
+    const detail = t("teks_last_digit_in_at", missingNum, unitName, position);
 
     return {
       change: true,
@@ -182,7 +182,7 @@ Object.assign(techniques, {
       c,
       num: missingNum,
       hint: {
-        name: t("teks_msg_9"),
+        name: t("teks_FH"),
         mainInfo: unitName,
         detail,
       },
@@ -209,9 +209,9 @@ Object.assign(techniques, {
             c,
             num,
             hint: {
-              name: t("teks_msg_10"),
-              mainInfo: t("teks_msg_11", r + 1, c + 1),
-              detail: t("teks_msg_12", num, r + 1, c + 1),
+              name: t("teks_NakedS"),
+              mainInfo: t("teks_NakedS_location", r + 1, c + 1),
+              detail: t("teks_only_digit_remains_at_r_c", num, r + 1, c + 1),
             },
             visualPlan: {
               highlight: { digit: null, state: 0 },
@@ -231,9 +231,9 @@ Object.assign(techniques, {
     const results = [];
     // 1. Define types with the display name you want
     const unitTypes = [
-      { name: "box", label: t("teks_msg_7") },
-      { name: "row", label: t("teks_msg_14") },
-      { name: "col", label: t("teks_msg_15") },
+      { name: "box", label: t("teks_unit_box") },
+      { name: "row", label: t("teks_unit_row") },
+      { name: "col", label: t("teks_unit_col") },
     ];
 
     // 2. Iterate through types, then indices (0-8)
@@ -252,12 +252,12 @@ Object.assign(techniques, {
 
           if (possibleCells.length === 1) {
             const [r, c] = possibleCells[0];
-            const isBox = label === t("teks_msg_7");
+            const isBox = label === t("teks_unit_box");
             const position = isBox
               ? `b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
               : `r${r + 1}c${c + 1}`;
-            const unitLabel = t("teks_msg_17", label, i + 1);
-            const detail = t("teks_msg_18", position, num, unitLabel);
+            const unitLabel = t("teks_unit_with_index", label, i + 1);
+            const detail = t("teks_only_cell_with_digit_in", position, num, unitLabel);
 
             const res = {
               change: true,
@@ -266,7 +266,7 @@ Object.assign(techniques, {
               c,
               num,
               hint: {
-                name: t("teks_msg_19"),
+                name: t("teks_HiddenS"),
                 mainInfo: unitLabel,
                 detail,
               },
@@ -291,7 +291,7 @@ Object.assign(techniques, {
   lockedSubset: (board, pencils, size, findAll = false) => {
     // This technique finds subsets of candidates that are locked within the
     // intersection of a box and a line (row or column).
-    // It's a combination of t("teks_msg_28") (eliminating from the line outside the box)
+    // It's a combination of t("teks_pointing") (eliminating from the line outside the box)
     // and "Naked Subset" (eliminating from the box outside the line).
 
     const results = [];
@@ -332,7 +332,7 @@ Object.assign(techniques, {
             if (union.size === size) {
               const removals = [];
 
-              // A) Eliminate from other cells in the LINE (outside this box). This is a t("teks_msg_28") move.
+              // A) Eliminate from other cells in the LINE (outside this box). This is a t("teks_pointing") move.
               const box_limit = isRow ? box_c_start : box_r_start;
               for (let k = 0; k < 9; k++) {
                 if (k >= box_limit && k < box_limit + 3) continue; // Skip cells inside the box
@@ -379,17 +379,17 @@ Object.assign(techniques, {
                   .join("");
                 const cellStr = `r${rows}c${cols}`;
 
-                const lineType = isRow ? t("teks_msg_14") : t("teks_msg_15");
+                const lineType = isRow ? t("teks_unit_row") : t("teks_unit_col");
 
                 const res = {
                   change: true,
                   type: "remove",
                   cells: removals,
                   hint: {
-                    name: size === 2 ? t("teks_msg_22") : t("teks_msg_23"),
-                    mainInfo: t("teks_msg_24", lineType, line_idx + 1, b + 1),
+                    name: size === 2 ? t("teks_LockedP") : t("teks_LockedT"),
+                    mainInfo: t("teks_LockedP_intersection", lineType, line_idx + 1, b + 1),
                     detail: t(
-                      "teks_msg_25",
+                      "teks_together_have_digits_on_intersection_of_and_box",
                       cellStr,
                       [...union].join(""),
                       lineType,
@@ -495,12 +495,12 @@ Object.assign(techniques, {
 
             if (removals.length === 0) continue;
 
-            const lineName = isRow ? t("teks_msg_14") : t("teks_msg_15");
+            const lineName = isRow ? t("teks_unit_row") : t("teks_unit_col");
 
-            const hintName = is_pointing ? t("teks_msg_28") : t("teks_msg_29");
+            const hintName = is_pointing ? t("teks_pointing") : t("teks_claiming");
             const mainInfo = is_pointing
-              ? t("teks_msg_30", primaryIdx + 1, lineName, secondaryIdx + 1)
-              : t("teks_msg_31", lineName, primaryIdx + 1, secondaryIdx + 1);
+              ? t("teks_intersection_of_box_and", primaryIdx + 1, lineName, secondaryIdx + 1)
+              : t("teks_LockedCand_intersection", lineName, primaryIdx + 1, secondaryIdx + 1);
 
             let cellStr;
             if (is_pointing) {
@@ -526,7 +526,7 @@ Object.assign(techniques, {
 
             const detail = is_pointing
               ? t(
-                  "teks_msg_32",
+                  "teks_all_cells_with_digit_in_box_are_also_in",
                   num,
                   primaryIdx + 1,
                   cellStr,
@@ -534,7 +534,7 @@ Object.assign(techniques, {
                   secondaryIdx + 1,
                 )
               : t(
-                  "teks_msg_33",
+                  "teks_all_cells_with_digit_in_are_also_in_box",
                   num,
                   lineName,
                   primaryIdx + 1,
@@ -601,15 +601,15 @@ Object.assign(techniques, {
     const results = [];
 
     const unitTypes = [
-      { name: "box", label: t("teks_msg_7") },
-      { name: "row", label: t("teks_msg_14") },
-      { name: "col", label: t("teks_msg_15") },
+      { name: "box", label: t("teks_unit_box") },
+      { name: "row", label: t("teks_unit_row") },
+      { name: "col", label: t("teks_unit_col") },
     ];
 
     for (const { name, label } of unitTypes) {
       for (let i = 0; i < 9; i++) {
         const unit = techniques._getUnitCells(name, i);
-        const unitName = t("teks_msg_17", label, i + 1); // Now we have the proper name
+        const unitName = t("teks_unit_with_index", label, i + 1); // Now we have the proper name
 
         // const emptyCells = unit.filter(([r, c]) => board[r][c] === 0);
         // if (emptyCells.length < 2 * size) continue;
@@ -690,14 +690,14 @@ Object.assign(techniques, {
                 hint: {
                   name: `${t("teks_naked")} ${
                     size === 2
-                      ? t("teks_msg_38")
+                      ? t("teks_pair")
                       : size === 3
-                        ? t("teks_msg_39")
-                        : t("teks_msg_40")
+                        ? t("teks_triple")
+                        : t("teks_quad")
                   }`,
                   mainInfo: `${unitName}`,
                   detail: t(
-                    "teks_msg_41",
+                    "teks_together_have_digits_in",
                     cellStr,
                     [...union].sort().join(""),
                     unitName,
@@ -736,16 +736,16 @@ Object.assign(techniques, {
 
   hiddenSubset: (board, pencils, size, findAll = false) => {
     const unitTypes = [
-      { name: "box", label: t("teks_msg_7") },
-      { name: "row", label: t("teks_msg_14") },
-      { name: "col", label: t("teks_msg_15") },
+      { name: "box", label: t("teks_unit_box") },
+      { name: "row", label: t("teks_unit_row") },
+      { name: "col", label: t("teks_unit_col") },
     ];
     const results = [];
 
     for (const { name, label } of unitTypes) {
       for (let i = 0; i < 9; i++) {
         const unit = techniques._getUnitCells(name, i);
-        const unitName = t("teks_msg_17", label, i + 1); // Now we have the proper name
+        const unitName = t("teks_unit_with_index", label, i + 1); // Now we have the proper name
 
         const emptyCells = unit.filter(([r, c]) => board[r][c] === 0);
         // Fixed logic: Hidden subsets need at least size + 1 empty cells usually,
@@ -819,13 +819,13 @@ Object.assign(techniques, {
                 hint: {
                   name: `${t("teks_hidden")} ${
                     size === 2
-                      ? t("teks_msg_38")
+                      ? t("teks_pair")
                       : size === 3
-                        ? t("teks_msg_39")
-                        : t("teks_msg_40")
+                        ? t("teks_triple")
+                        : t("teks_quad")
                   }`,
                   mainInfo: `${unitName}`,
-                  detail: t("teks_msg_46", digitsStr, unitName, cellStr),
+                  detail: t("teks_all_cells_with_digits_in_are", digitsStr, unitName, cellStr),
                 },
                 visualPlan: {
                   highlight: { digit: null, state: 0 },
@@ -918,12 +918,12 @@ Object.assign(techniques, {
             hint: {
               name:
                 size === 2
-                  ? t("teks_msg_47")
+                  ? t("teks_X_Wing")
                   : size === 3
                     ? t("teks_msg_47_1")
                     : t("teks_msg_47_2"),
-              mainInfo: t("teks_msg_48", num),
-              detail: t("teks_msg_162", num, baseStr, coverStr),
+              mainInfo: t("teks_fish_digit", num),
+              detail: t("teks_digit_base_cover", num, baseStr, coverStr),
             },
             visualPlan: {
               highlight: { digit: num, state: 1 },
@@ -1112,13 +1112,13 @@ Object.assign(techniques, {
             hint: {
               name: `${t("teks_finned")} ${
                 fishSize === 2
-                  ? t("teks_msg_47")
+                  ? t("teks_X_Wing")
                   : fishSize === 3
                     ? t("teks_msg_47_1")
                     : t("teks_msg_47_2")
               }`,
-              mainInfo: t("teks_msg_48", num),
-              detail: t("teks_msg_49", num, baseStr, coverStr, finStr),
+              mainInfo: t("teks_fish_digit", num),
+              detail: t("teks_digit_base_cover_fin", num, baseStr, coverStr, finStr),
             },
             visualPlan: {
               highlight: { digit: num, state: 1 },

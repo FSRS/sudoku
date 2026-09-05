@@ -185,10 +185,10 @@ Object.assign(techniques, {
             type: "remove",
             cells: _getUniqueRemovals(removals),
             hint: {
-              name: t("teks_msg_76"),
-              mainInfo: t("teks_msg_77", d1, d2),
+              name: t("teks_UR_type_1"),
+              mainInfo: t("teks_UR_digits", d1, d2),
               detail: t(
-                "teks_msg_78",
+                "teks_UR_base_guardians",
                 d1,
                 d2,
                 basePosStr,
@@ -251,11 +251,11 @@ Object.assign(techniques, {
                 cells: _getUniqueRemovals(removals),
                 hint: {
                   name: guardiansShareHouse
-                    ? t("teks_msg_79")
-                    : t("teks_msg_80"),
-                  mainInfo: t("teks_msg_77", d1, d2),
+                    ? t("teks_UR_type_2")
+                    : t("teks_UR_type_5"),
+                  mainInfo: t("teks_UR_digits", d1, d2),
                   detail: t(
-                    "teks_msg_78",
+                    "teks_UR_base_guardians",
                     d1,
                     d2,
                     basePosStr,
@@ -364,10 +364,10 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: res.removals,
                 hint: {
-                  name: t("teks_msg_83"),
-                  mainInfo: t("teks_msg_77", d1, d2),
+                  name: t("teks_UR_type_3"),
+                  mainInfo: t("teks_UR_digits", d1, d2),
                   detail: t(
-                    "teks_msg_85",
+                    "teks_UR_type_3_VNS_detail",
                     d1,
                     d2,
                     basePosStr,
@@ -431,17 +431,17 @@ Object.assign(techniques, {
               if (removals.length > 0) {
                 const lineStr =
                   e1r === e2r
-                    ? t("teks_msg_86", e1r + 1)
-                    : t("teks_msg_87", e1c + 1);
+                    ? t("teks_UR_row", e1r + 1)
+                    : t("teks_UR_col", e1c + 1);
                 const resultObj = {
                   change: true,
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: t("teks_msg_88"),
-                    mainInfo: t("teks_msg_77", d1, d2),
+                    name: t("teks_UR_type_4"),
+                    mainInfo: t("teks_UR_digits", d1, d2),
                     detail: t(
-                      "teks_msg_90",
+                      "teks_UR_type_4_restricted_guardians_detail",
                       d1,
                       d2,
                       basePosStr,
@@ -496,10 +496,10 @@ Object.assign(techniques, {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: t("teks_msg_91"),
-                    mainInfo: t("teks_msg_77", d1, d2),
+                    name: t("teks_UR_type_6"),
+                    mainInfo: t("teks_UR_digits", d1, d2),
                     detail: t(
-                      "teks_msg_93",
+                      "teks_UR_type_6_guardian_elimination_detail",
                       d1,
                       d2,
                       basePosStr,
@@ -539,10 +539,10 @@ Object.assign(techniques, {
         type: "remove",
         cells: removals,
         hint: {
-          name: t("teks_msg_307"),
-          mainInfo: t("teks_msg_77", proof.d1, proof.d2),
+          name: t("teks_UR_plus_XY_Wing"),
+          mainInfo: t("teks_UR_digits", proof.d1, proof.d2),
           detail: t(
-            "teks_msg_308",
+            "teks_UR_XY_Wing_detail",
             proof.d1,
             proof.d2,
             getBasePosStr(proof.cells),
@@ -754,10 +754,10 @@ Object.assign(techniques, {
 
             // Existing hint structure preserved
             hint: {
-              name: t("teks_msg_94"),
-              mainInfo: t("teks_msg_77", d1, d2),
+              name: t("teks_HR"),
+              mainInfo: t("teks_UR_digits", d1, d2),
               detail: t(
-                "teks_msg_96",
+                "teks_HR_ConPairs_detail",
                 d1,
                 d2,
                 basePosStr,

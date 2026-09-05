@@ -1,7 +1,7 @@
 self.window = self;
 self.t = (key, ...args) => {
-  if (key === "teks_msg_17") return `${args[0]} ${args[1]}`;
-  if (key === "teks_msg_195") return `${args[0]}`;
+  if (key === "teks_unit_with_index") return `${args[0]} ${args[1]}`;
+  if (key === "teks_burr_on") return `${args[0]}`;
   return key;
 };
 

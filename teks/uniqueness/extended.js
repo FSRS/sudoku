@@ -212,7 +212,7 @@ Object.assign(techniques, {
 
       const baseDigitsStr = digits.sort().join("");
       const detailPrefix = t(
-        "teks_msg_97",
+        "teks_EUR_base_guardians",
         baseDigitsStr,
         getBasePosStr(cells),
         getGuardiansStr(extra_cells, core_digits, pencils),
@@ -230,8 +230,8 @@ Object.assign(techniques, {
             type: "remove",
             cells: _getUniqueRemovals(removals),
             hint: {
-              name: t("teks_msg_98"),
-              mainInfo: t("teks_msg_99", baseDigitsStr),
+              name: t("teks_EUR_type_1"),
+              mainInfo: t("teks_EUR_digits", baseDigitsStr),
               detail: detailPrefix,
             },
             visualPlan: getEURVisualPlan(
@@ -295,9 +295,9 @@ Object.assign(techniques, {
               cells: _getUniqueRemovals(removals),
               hint: {
                 name: guardiansShareHouse
-                  ? t("teks_msg_100")
-                  : t("teks_msg_101"),
-                mainInfo: t("teks_msg_99", baseDigitsStr),
+                  ? t("teks_EUR_type_2")
+                  : t("teks_EUR_type_5"),
+                mainInfo: t("teks_EUR_digits", baseDigitsStr),
                 detail: detailPrefix,
               },
               visualPlan: getEURVisualPlan(
@@ -401,9 +401,9 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: _getUniqueRemovals(res.removals),
                 hint: {
-                  name: t("teks_msg_102"),
-                  mainInfo: t("teks_msg_99", baseDigitsStr),
-                  detail: t("teks_msg_104", detailPrefix, subsetStr),
+                  name: t("teks_EUR_type_3"),
+                  mainInfo: t("teks_EUR_digits", baseDigitsStr),
+                  detail: t("teks_EUR_subset_cells", detailPrefix, subsetStr),
                 },
                 visualPlan: getEURVisualPlan(
                   3,
@@ -492,10 +492,10 @@ Object.assign(techniques, {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: t("teks_msg_105"),
-                    mainInfo: t("teks_msg_99", baseDigitsStr),
+                    name: t("teks_EUR_type_4"),
+                    mainInfo: t("teks_EUR_digits", baseDigitsStr),
                     detail: t(
-                      "teks_msg_107",
+                      "teks_EUR_type_4_restricted_base_detail",
                       detailPrefix,
                       d,
                       restrictedCellsStr,
@@ -572,9 +572,9 @@ Object.assign(techniques, {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: t("teks_msg_108"),
-                    mainInfo: t("teks_msg_99", baseDigitsStr),
-                    detail: t("teks_msg_110", detailPrefix, d),
+                    name: t("teks_EUR_type_6"),
+                    mainInfo: t("teks_EUR_digits", baseDigitsStr),
+                    detail: t("teks_EUR_type_6_guardian_elimination_detail", detailPrefix, d),
                   },
                   visualPlan: getEURVisualPlan(
                     6,

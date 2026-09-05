@@ -4,36 +4,36 @@ Object.assign(techniques, {
       partner: (r, c) => [c, r],
       axis: Array.from({ length: 9 }, (_, i) => [i, i]),
       maxSelfPaired: 3,
-      dirKey: "teks_msg_326",
-      labelKey: "teks_msg_329",
+      dirKey: "teks_top_left",
+      labelKey: "teks_diagonal",
     },
     antiDiagonal: {
       partner: (r, c) => [8 - c, 8 - r],
       axis: Array.from({ length: 9 }, (_, i) => [i, 8 - i]),
       maxSelfPaired: 3,
-      dirKey: "teks_msg_327",
-      labelKey: "teks_msg_330",
+      dirKey: "teks_top_right",
+      labelKey: "teks_antidiagonal",
     },
     xAxis: {
       partner: (r, c) => [8 - r, c],
       axis: Array.from({ length: 9 }, (_, i) => [4, i]),
       maxSelfPaired: 0,
       dirKey: null,
-      labelKey: "teks_msg_331",
+      labelKey: "teks_x_axis",
     },
     yAxis: {
       partner: (r, c) => [r, 8 - c],
       axis: Array.from({ length: 9 }, (_, i) => [i, 4]),
       maxSelfPaired: 0,
       dirKey: null,
-      labelKey: "teks_msg_332",
+      labelKey: "teks_y_axis",
     },
     central: {
       partner: (r, c) => [8 - r, 8 - c],
       axis: [[4, 4]],
       maxSelfPaired: 1,
       dirKey: null,
-      labelKey: "teks_msg_333",
+      labelKey: "teks_central",
     },
   },
 
@@ -173,12 +173,12 @@ Object.assign(techniques, {
         type: "remove",
         cells: removals,
         hint: {
-          name: t("teks_msg_323"),
+          name: t("teks_GSP"),
           mainInfo: symmetry.dirKey
-            ? t("teks_msg_324", t(symmetry.dirKey))
-            : t("teks_msg_325"),
+            ? t("teks_puzzle_is_diagonally_symmetric_in_the_direction", t(symmetry.dirKey))
+            : t("teks_puzzle_is_centrally_symmetric"),
           detail: t(
-            "teks_msg_328",
+            "teks_cand_s_mapping_in",
             t(symmetry.labelKey),
             techniques._gspMappingText(mapping),
           ),
@@ -256,10 +256,10 @@ Object.assign(techniques, {
         type: "remove",
         cells: removals,
         hint: {
-          name: t("teks_msg_334"),
-          mainInfo: t("teks_msg_335", t(symmetry.labelKey)),
+          name: t("teks_anti_GSP"),
+          mainInfo: t("teks_puzzle_cannot_have_symmetry", t(symmetry.labelKey)),
           detail: t(
-            "teks_msg_336",
+            "teks_mapping_required_for_symmetry",
             t(symmetry.labelKey),
             techniques._gspMappingText(mapping),
           ),
@@ -339,9 +339,9 @@ Object.assign(techniques, {
             type: "remove",
             cells: removals,
             hint: {
-              name: t("teks_msg_73"),
-              mainInfo: t("teks_msg_74", r_plus1 + 1, c_plus1 + 1),
-              detail: t("teks_msg_75", num, r_plus1 + 1, c_plus1 + 1),
+              name: t("teks_BUG_plus_1"),
+              mainInfo: t("teks_tri_value_cell_at_r_c", r_plus1 + 1, c_plus1 + 1),
+              detail: t("teks_all_digits_appear_exactly_twice_in_all_houses_except_for_r_c", num, r_plus1 + 1, c_plus1 + 1),
             },
             visualPlan: {
               highlight: { digit: null, state: 2 },
@@ -586,7 +586,7 @@ Object.assign(techniques, {
         cells: uniqueRemovals,
         hint: {
           name,
-          mainInfo: t("teks_msg_318", guardiansStr),
+          mainInfo: t("teks_BUG_type_2_guardians", guardiansStr),
           detail,
         },
         visualPlan: makeVisualPlan(uniqueRemovals, extra),
@@ -627,8 +627,8 @@ Object.assign(techniques, {
         }
       }
       const result = addResult(
-        t("teks_msg_314"),
-        t("teks_msg_319", guardiansStr),
+        t("teks_BUG_type_2"),
+        t("teks_BUG_type_3_guardians", guardiansStr),
         removals,
       );
       if (result) return result;
@@ -651,8 +651,8 @@ Object.assign(techniques, {
         }
       }
       const result = addResult(
-        t("teks_msg_317", trueCandidates.length),
-        t("teks_msg_322", guardiansStr),
+        t("teks_BUG_plus", trueCandidates.length),
+        t("teks_BUG_plus_n_guardians", guardiansStr),
         removals,
       );
       if (result) return result;
@@ -705,9 +705,9 @@ Object.assign(techniques, {
             }
           }
           const result = addResult(
-            t("teks_msg_315"),
+            t("teks_BUG_type_3"),
             t(
-              "teks_msg_320",
+              "teks_BUG_type_3_VNS_detail",
               guardiansStr,
               [...subsetDigits].sort((a, b) => a - b).join(""),
               formatCells(subsetCells),
@@ -750,8 +750,8 @@ Object.assign(techniques, {
             }
           }
           const result = addResult(
-            t("teks_msg_316"),
-            t("teks_msg_321", guardiansStr, num, formatCells([cell1, cell2])),
+            t("teks_BUG_type_4"),
+            t("teks_BUG_type_4_ConPair_detail", guardiansStr, num, formatCells([cell1, cell2])),
             removals,
             { conjugate: { cell1, cell2, num } },
           );

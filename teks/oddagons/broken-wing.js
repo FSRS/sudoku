@@ -147,9 +147,9 @@ Object.assign(techniques, {
                       type: "remove",
                       cells: removals,
                       hint: {
-                        name: t("teks_msg_190"),
-                        mainInfo: t("teks_msg_191", num),
-                        detail: t("teks_msg_192", num, pathStr, guardStr),
+                        name: t("teks_BW"),
+                        mainInfo: t("teks_BW_digit", num),
+                        detail: t("teks_BW_guardians", num, pathStr, guardStr),
                       },
                       visualPlan: {
                         highlight: { digit: num, state: 1 },

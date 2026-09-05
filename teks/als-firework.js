@@ -175,10 +175,10 @@ Object.assign(techniques, {
                       : formatRC(outsideIntersection);
 
                   const techName =
-                    size === 2 ? t("teks_msg_123") : t("teks_msg_124");
+                    size === 2 ? t("teks_ALP") : t("teks_ALT");
                   const mainInfo = t(
-                    "teks_msg_125",
-                    isRow ? t("teks_msg_14") : t("teks_msg_15"),
+                    "teks_ALS_houses",
+                    isRow ? t("teks_unit_row") : t("teks_unit_col"),
                     isLineToBox ? baseIdx + 1 : targetIdx + 1,
                     isLineToBox ? targetIdx + 1 : baseIdx + 1,
                   );
@@ -191,7 +191,7 @@ Object.assign(techniques, {
                       name: techName,
                       mainInfo: mainInfo,
                       detail: t(
-                        "teks_msg_126",
+                        "teks_ALS_intersection_detail",
                         digitsStr,
                         alsStr,
                         intStr,
@@ -442,10 +442,10 @@ Object.assign(techniques, {
                       );
                     }
                     if (eliminations.length > 0) {
-                      const hintName = t("teks_msg_127");
+                      const hintName = t("teks_SdC");
                       const lineName = isRow
-                        ? t("teks_msg_14")
-                        : t("teks_msg_15");
+                        ? t("teks_unit_row")
+                        : t("teks_unit_col");
 
                       // Build Hint Detail
                       const aCells = parsePosSet(A.positions);
@@ -459,7 +459,7 @@ Object.assign(techniques, {
                       const strDigits = maskToDigitsStr(totalMask);
 
                       let detailStr = t(
-                        "teks_msg_130",
+                        "teks_SdC_detail",
                         strC,
                         strA,
                         strB,
@@ -468,7 +468,7 @@ Object.assign(techniques, {
 
                       if (overlapMask > 0) {
                         detailStr += t(
-                          "teks_msg_131",
+                          "teks_SdC_duplicate_digit_suffix",
                           maskToDigitsStr(overlapMask),
                         );
                       }
@@ -498,7 +498,7 @@ Object.assign(techniques, {
                         hint: {
                           name: hintName,
                           mainInfo: t(
-                            "teks_msg_132",
+                            "teks_firework_intersection",
                             lineName,
                             lineIdx + 1,
                             boxNum,
@@ -1093,10 +1093,10 @@ Object.assign(techniques, {
                                     type: "remove",
                                     cells: eliminations,
                                     hint: {
-                                      name: t("teks_msg_133"),
-                                      mainInfo: t("teks_msg_134", ahsDigits),
+                                      name: t("teks_firework_triple"),
+                                      mainInfo: t("teks_firework_digits", ahsDigits),
                                       detail: t(
-                                        "teks_msg_135",
+                                        "teks_firework_position",
                                         ahsDigits,
                                         intersect[0] + 1,
                                         intersect[1] + 1,

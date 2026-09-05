@@ -231,18 +231,18 @@ Object.assign(techniques, {
         let fishName =
           fishSize === 4
             ? isMutant
-              ? t("teks_msg_309")
-              : t("teks_msg_310")
+              ? t("teks_mutant_jellyfish")
+              : t("teks_franken_jellyfish")
             : isMutant
-              ? t("teks_msg_159")
-              : t("teks_msg_160");
-        if (isFinned) fishName = t("teks_msg_161") + fishName;
+              ? t("teks_mutant_swordfish")
+              : t("teks_franken_swordfish");
+        if (isFinned) fishName = t("teks_finned_prefix") + fishName;
 
         const baseStr = formatUnits(baseUnits);
         const coverStr = formatUnits(coverUnits);
-        let detailStr = t("teks_msg_162", num, baseStr, coverStr);
+        let detailStr = t("teks_digit_base_cover", num, baseStr, coverStr);
         if (isFinned) {
-          detailStr += t("teks_msg_163", formatFins(allFinsMask));
+          detailStr += t("teks_fin", formatFins(allFinsMask));
         }
 
         const uTypeToName = (type) =>
@@ -260,7 +260,7 @@ Object.assign(techniques, {
           cells: elims,
           hint: {
             name: fishName,
-            mainInfo: t("teks_msg_48", num),
+            mainInfo: t("teks_fish_digit", num),
             detail: detailStr,
           },
           visualPlan: {

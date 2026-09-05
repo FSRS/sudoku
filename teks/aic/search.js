@@ -18,7 +18,7 @@ Object.assign(techniques, {
       preserveAlsSizes = null,
       preferredAlsSize = null,
     } = config;
-    const techniqueName = nameOverride || t("teks_msg_136");
+    const techniqueName = nameOverride || t("teks_AIC_name");
 
     let cache = techniques._aicCache;
 
@@ -469,7 +469,7 @@ Object.assign(techniques, {
         if (als) {
           const alsIds = als.cells.map((c) => c[0] * 9 + c[1]);
           const preferBox =
-            als.unitName && als.unitName.includes(t("teks_msg_7"));
+            als.unitName && als.unitName.includes(t("teks_unit_box"));
           orGateStr = `(${u.digits[0]}=${v.digits[0]})${getLoc(alsIds, preferBox)}`;
           lastDigit = v.digits[0];
         } else if (fish) {
@@ -662,7 +662,7 @@ Object.assign(techniques, {
         placement,
         hint: {
           name: name,
-          mainInfo: t("teks_msg_138", eurekaStr.split("-")[0]),
+          mainInfo: t("teks_start_with", eurekaStr.split("-")[0]),
           detail: `[${path.length}] ${eurekaStr}`,
         },
         visualPlan: {
@@ -720,8 +720,8 @@ Object.assign(techniques, {
       }
 
       if (
-        techniqueName === t("teks_msg_181") ||
-        techniqueName === t("teks_msg_182")
+        techniqueName === t("teks_ALS_XY_Wing") ||
+        techniqueName === t("teks_ALS_W_Wing")
       ) {
         if (cycle !== 1) continue;
       }
@@ -856,7 +856,7 @@ Object.assign(techniques, {
                 const chainStr = t("teks_msg_chain_term");
                 const aicStr = t("teks_msg_aic_term");
                 const ringName =
-                  techniqueName === t("teks_msg_136")
+                  techniqueName === t("teks_AIC_name")
                     ? t("teks_msg_aic_ring")
                     : techniqueName.includes(aicStr)
                       ? techniqueName + t("teks_msg_ring_suffix")
@@ -865,9 +865,9 @@ Object.assign(techniques, {
                             chainStr,
                             t("teks_msg_ring_term"),
                           )
-                        : useAlsXZ || techniqueName === t("teks_msg_182")
+                        : useAlsXZ || techniqueName === t("teks_ALS_W_Wing")
                           ? t("teks_msg_doubly_linked") + techniqueName
-                          : techniqueName === t("teks_msg_181")
+                          : techniqueName === t("teks_ALS_XY_Wing")
                             ? t("teks_msg_triply_linked") + techniqueName
                             : techniqueName + t("teks_msg_ring_suffix");
 
@@ -889,7 +889,7 @@ Object.assign(techniques, {
       }
       if (results.length > 0 && !findAll) return results[0];
 
-      if (techniqueName === t("teks_msg_182")) maxPathLen = 6;
+      if (techniqueName === t("teks_ALS_W_Wing")) maxPathLen = 6;
 
       // Priority 2: DN Loop
       if (!bivalueOnly && !useWxyz) {
@@ -948,8 +948,8 @@ Object.assign(techniques, {
                 const chainStr = t("teks_msg_chain_term");
                 const aicStr = t("teks_msg_aic_term");
                 const DNLName =
-                  techniqueName === t("teks_msg_136")
-                    ? t("teks_msg_140")
+                  techniqueName === t("teks_AIC_name")
+                    ? t("teks_DNL")
                     : techniqueName.includes(aicStr)
                       ? techniqueName.replace(aicStr, t("teks_msg_dnloop_term"))
                       : techniqueName.includes(chainStr)
@@ -1037,7 +1037,7 @@ Object.assign(techniques, {
         useGrouped: false,
         useAls: false,
         maxCycle: 2,
-        nameOverride: t("teks_msg_141"),
+        nameOverride: t("teks_X_Chain"),
       },
       findAll,
     );
@@ -1053,7 +1053,7 @@ Object.assign(techniques, {
         useGrouped: true,
         useAls: false,
         maxCycle: 2,
-        nameOverride: t("teks_msg_142"),
+        nameOverride: t("teks_grouped_X_Chain"),
       },
       findAll,
     );
@@ -1069,7 +1069,7 @@ Object.assign(techniques, {
         useGrouped: false,
         useAls: false,
         maxCycle: 3,
-        nameOverride: t("teks_msg_143"),
+        nameOverride: t("teks_XY_Chain"),
       },
       findAll,
     );
@@ -1100,7 +1100,7 @@ Object.assign(techniques, {
         useGrouped: true,
         useAls: false,
         maxCycle: 3,
-        nameOverride: t("teks_msg_144"),
+        nameOverride: t("teks_Grouped_AIC"),
       },
       findAll,
     );
@@ -1118,7 +1118,7 @@ Object.assign(techniques, {
         useWxyz: true,
         useAls: true,
         maxCycle: 1,
-        nameOverride: t("teks_msg_145"),
+        nameOverride: t("teks_WXYZ_Wing"),
         preserveAlsSizes: [3],
         preferredAlsSize: 3,
         allowedOrLinkTypes: ["als", "bivalue"],
@@ -1166,7 +1166,7 @@ Object.assign(techniques, {
         useAls: true,
         endSameDigits: true,
         maxCycle: 1,
-        nameOverride: t("teks_msg_146"),
+        nameOverride: t("teks_ALS_XZ"),
       },
       findAll,
     );
@@ -1184,7 +1184,7 @@ Object.assign(techniques, {
         useAlsOnly: true,
         endSameDigits: true,
         maxCycle: 2,
-        nameOverride: t("teks_msg_181"),
+        nameOverride: t("teks_ALS_XY_Wing"),
         allowedOrLinkTypes: ["als", "bivalue"],
 
         pathFilter: (path, cache, { kind, getOrLinkType }) => {
@@ -1216,7 +1216,7 @@ Object.assign(techniques, {
         useAls: true,
         endSameDigits: true,
         maxCycle: 2,
-        nameOverride: t("teks_msg_182"),
+        nameOverride: t("teks_ALS_W_Wing"),
         allowedOrLinkTypes: ["als", "bivalue", "region"],
 
         pathFilter: (path, cache, { kind, getOrLinkType }) => {
@@ -1259,7 +1259,7 @@ Object.assign(techniques, {
         useGrouped: true,
         useAls: true,
         maxCycle: 3,
-        nameOverride: t("teks_msg_147"),
+        nameOverride: t("teks_ALS_AIC"),
       },
       findAll,
     );
@@ -1276,7 +1276,7 @@ Object.assign(techniques, {
         useAls: true,
         useFish: true,
         maxCycle: 3,
-        nameOverride: t("teks_msg_148"),
+        nameOverride: t("teks_Complex_AIC"),
       },
       findAll,
     );

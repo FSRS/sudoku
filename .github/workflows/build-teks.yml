@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Reject direct edits to sudoku_teks.js
+      - name: Reject direct edits to sudoku_teks.js (deletion allowed)
         if: github.event_name == 'pull_request'
         shell: bash
         env:
@@ -38,12 +38,12 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if git cat-file -e "${BASE_SHA}:teks/core.js" 2>/dev/null &&
-            ! git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- sudoku_teks.js; then
+            ! git diff --quiet --diff-filter=d "$BASE_SHA" "$HEAD_SHA" -- sudoku_teks.js; then
             echo "::error::Do not edit sudoku_teks.js directly; edit files under teks/."
             exit 1
           fi
 
-      - name: Reject direct edits to sudoku_ui.js
+      - name: Reject direct edits to sudoku_ui.js (deletion allowed)
         if: github.event_name == 'pull_request'
         shell: bash
         env:
@@ -51,7 +51,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if git cat-file -e "${BASE_SHA}:ui/core.js" 2>/dev/null &&
-            ! git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- sudoku_ui.js; then
+            ! git diff --quiet --diff-filter=d "$BASE_SHA" "$HEAD_SHA" -- sudoku_ui.js; then
             echo "::error::Do not edit sudoku_ui.js directly; edit files under ui/."
             exit 1
           fi

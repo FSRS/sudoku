@@ -321,7 +321,7 @@ Object.assign(techniques, {
 
             if (als) {
               const preferBox =
-                als.unitName && als.unitName.includes(t("teks_msg_7"));
+                als.unitName && als.unitName.includes(t("teks_unit_box"));
               const alsLoc = getLoc(
                 als.cells.map((ac) => ac[0] * 9 + ac[1]),
                 preferBox,
@@ -335,15 +335,15 @@ Object.assign(techniques, {
         });
 
         const blossomName = isAals
-          ? t("teks_msg_197")
+          ? t("teks_AALS_DB")
           : isRegion
-            ? t("teks_msg_165")
-            : t("teks_msg_164");
+            ? t("teks_region_DB")
+            : t("teks_cell_DB");
         const mainInfoStr = isAals
-          ? t("teks_msg_198", stem.startDigits.join(""), stem.houseName)
+          ? t("teks_stem_AALS", stem.startDigits.join(""), stem.houseName)
           : isRegion
-            ? t("teks_msg_157", stem.digit, stem.houseName)
-            : t("teks_msg_158", stem.r + 1, stem.c + 1);
+            ? t("teks_blossom_house_stem", stem.digit, stem.houseName)
+            : t("teks_blossom_cell_stem", stem.r + 1, stem.c + 1);
 
         const cellColors = [];
         const candidateColors = [];

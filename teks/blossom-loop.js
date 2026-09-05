@@ -770,7 +770,7 @@ Object.assign(techniques, {
 
     const getAlsText = (left, right, als) => {
       const ids = als.cells.map(([r, c]) => r * 9 + c);
-      const preferBox = als.unitName && als.unitName.includes(t("teks_msg_7"));
+      const preferBox = als.unitName && als.unitName.includes(t("teks_unit_box"));
       return `(${left.digits[0]}=${right.digits[0]})${getLoc(ids, preferBox)}`;
     };
 
@@ -1195,11 +1195,11 @@ Object.assign(techniques, {
           hint: {
             name:
               burr.kind === "cell"
-                ? t("teks_msg_193")
+                ? t("teks_cell_BLo")
                 : burr.kind === "region"
-                  ? t("teks_msg_194")
-                  : t("teks_msg_196"),
-            mainInfo: t("teks_msg_195", burrText),
+                  ? t("teks_region_BLo")
+                  : t("teks_AALS_BLo"),
+            mainInfo: t("teks_burr_on", burrText),
             detail: eurekaText,
           },
           blossom,

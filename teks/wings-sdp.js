@@ -54,10 +54,10 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: t("teks_msg_50"),
-                  mainInfo: t("teks_msg_51", pivot.r + 1, pivot.c + 1),
+                  name: t("teks_XY_Wing"),
+                  mainInfo: t("teks_pivot_at_r_c", pivot.r + 1, pivot.c + 1),
                   detail: t(
-                    "teks_msg_52",
+                    "teks_digits_in_pivot_r_c_with_wings_r_c_and_r_c",
                     allCands,
                     pivot.r + 1,
                     pivot.c + 1,
@@ -171,10 +171,10 @@ Object.assign(techniques, {
               type: "remove",
               cells: removals,
               hint: {
-                name: t("teks_msg_53"),
-                mainInfo: t("teks_msg_51", pivot.r + 1, pivot.c + 1),
+                name: t("teks_XYZ_Wing"),
+                mainInfo: t("teks_pivot_at_r_c", pivot.r + 1, pivot.c + 1),
                 detail: t(
-                  "teks_msg_52",
+                  "teks_digits_in_pivot_r_c_with_wings_r_c_and_r_c",
                   pivotCands,
                   pivot.r + 1,
                   pivot.c + 1,
@@ -340,10 +340,10 @@ Object.assign(techniques, {
             type: "remove",
             cells: removals,
             hint: {
-              name: isGrouped ? t("teks_msg_56") : t("teks_msg_57"),
-              mainInfo: t("teks_msg_58", elimDigit, linkDigit),
+              name: isGrouped ? t("teks_grouped_W_Wing") : t("teks_W_Wing"),
+              mainInfo: t("teks_W_Wing_digits", elimDigit, linkDigit),
               detail: t(
-                "teks_msg_59",
+                "teks_digits_in_wings_r_c_and_r_c_connected_by_pivot_as",
                 elimDigit,
                 linkDigit,
                 cell1.r + 1,
@@ -485,9 +485,9 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: t("teks_msg_60"),
-                  mainInfo: t("teks_msg_61", pair[0], pair[1]),
-                  detail: t("teks_msg_62", pair[0], pair[1], pathStr),
+                  name: t("teks_RP"),
+                  mainInfo: t("teks_RP_digits", pair[0], pair[1]),
+                  detail: t("teks_on", pair[0], pair[1], pathStr),
                 },
                 visualPlan: {
                   highlight: { digit: null, state: 2 },
@@ -611,8 +611,8 @@ Object.assign(techniques, {
             type: "remove",
             cells: removals,
             hint: {
-              name: t("teks_msg_63"),
-              mainInfo: t("teks_msg_48", num),
+              name: t("teks_skyscraper"),
+              mainInfo: t("teks_fish_digit", num),
               detail: `(${num})(${link1Str})-(${link2Str})`,
             },
             visualPlan: techniques._buildSingleDigitChainVisualPlan(
@@ -720,8 +720,8 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: t("teks_msg_65"),
-                  mainInfo: t("teks_msg_48", num),
+                  name: t("teks_TSK"),
+                  mainInfo: t("teks_fish_digit", num),
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
                 visualPlan: techniques._buildSingleDigitChainVisualPlan(
@@ -821,8 +821,8 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: removals,
                 hint: {
-                  name: t("teks_msg_67"),
-                  mainInfo: t("teks_msg_48", num),
+                  name: t("teks_crane"),
+                  mainInfo: t("teks_fish_digit", num),
                   detail: `(${num})(${link1Str})-(${link2Str})`,
                 },
                 visualPlan: techniques._buildSingleDigitChainVisualPlan(
@@ -918,8 +918,8 @@ Object.assign(techniques, {
               type: "remove",
               cells: [{ r: r2, c: c2, num }],
               hint: {
-                name: t("teks_msg_69"),
-                mainInfo: t("teks_msg_48", num),
+                name: t("teks_grouped_TSK"),
+                mainInfo: t("teks_fish_digit", num),
                 detail: `(${num})(${link1Str})-(${link2Str})`,
               },
               visualPlan: techniques._buildSingleDigitChainVisualPlan(
@@ -1031,8 +1031,8 @@ Object.assign(techniques, {
                   type: "remove",
                   cells: [{ r: elimR, c: elimC, num }],
                   hint: {
-                    name: t("teks_msg_71"),
-                    mainInfo: t("teks_msg_48", num),
+                    name: t("teks_ER"),
+                    mainInfo: t("teks_fish_digit", num),
                     detail: `(${num})(${link1Str})-(${link2Str})`,
                   },
                   visualPlan: techniques._buildSingleDigitChainVisualPlan(
