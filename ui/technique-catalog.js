@@ -78,7 +78,7 @@
     "ui_UR",
     "ui_UL",
     "ui_EUR",
-    "ui_HR_vague_hint",
+    "ui_BUG_plus_n",
     "ui_AR",
     "ui_UET",
     "ui_AUET",
