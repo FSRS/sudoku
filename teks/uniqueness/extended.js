@@ -14,20 +14,130 @@ Object.assign(techniques, {
     );
   },
 
-  _checkAndAddER: (pairs, pencils, er_list, is_nx2, found) => {
+  _avoidableERHasDeadlyFilling: (
+    pairs,
+    digits,
+    board,
+    pencils,
+    filledValues,
+  ) => {
+    if (!board || !filledValues) return false;
+
+    const cells = pairs.flat();
+    const bodyIds = new Set(cells.map(([r, c]) => r * 9 + c));
+    const allowed = cells.map(([r, c]) => {
+      const placed = filledValues[r * 9 + c];
+      return placed
+        ? [placed]
+        : digits.filter((digit) => pencils[r][c].has(digit));
+    });
+    if (allowed.some((domain) => domain.length === 0)) return false;
+
+    const values = new Uint8Array(cells.length);
+    const order = cells
+      .map((_, index) => index)
+      .sort((left, right) => allowed[left].length - allowed[right].length);
+    const canUse = (index, digit) => {
+      const [r, c] = cells[index];
+      for (let other = 0; other < cells.length; other++) {
+        if (values[other] !== digit) continue;
+        const [otherR, otherC] = cells[other];
+        if (
+          r === otherR ||
+          c === otherC ||
+          techniques._getBoxIndex(r, c) ===
+            techniques._getBoxIndex(otherR, otherC)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    };
+    const canUseAgainstOutside = (r, c, digit) => {
+      for (let index = 0; index < 9; index++) {
+        const rowId = r * 9 + index;
+        const colId = index * 9 + c;
+        if (!bodyIds.has(rowId) && board[r][index] === digit) return false;
+        if (!bodyIds.has(colId) && board[index][c] === digit) return false;
+      }
+      const boxR = Math.floor(r / 3) * 3;
+      const boxC = Math.floor(c / 3) * 3;
+      for (let dr = 0; dr < 3; dr++) {
+        for (let dc = 0; dc < 3; dc++) {
+          const peerR = boxR + dr;
+          const peerC = boxC + dc;
+          if (
+            !bodyIds.has(peerR * 9 + peerC) &&
+            board[peerR][peerC] === digit
+          ) {
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+    const swappedFillingIsValid = () => {
+      for (let pairIndex = 0; pairIndex < pairs.length; pairIndex++) {
+        const first = pairIndex * 2;
+        const second = first + 1;
+        const [firstR, firstC] = cells[first];
+        const [secondR, secondC] = cells[second];
+        if (
+          !canUseAgainstOutside(firstR, firstC, values[second]) ||
+          !canUseAgainstOutside(secondR, secondC, values[first])
+        ) {
+          return false;
+        }
+      }
+      return true;
+    };
+    const search = (depth) => {
+      if (depth === order.length) return swappedFillingIsValid();
+      const index = order[depth];
+      for (const digit of allowed[index]) {
+        if (!canUse(index, digit)) continue;
+        values[index] = digit;
+        if (search(depth + 1)) return true;
+        values[index] = 0;
+      }
+      return false;
+    };
+
+    return search(0);
+  },
+
+  _checkAndAddER: (
+    pairs,
+    pencils,
+    er_list,
+    is_nx2,
+    found,
+    filledValues = null,
+    board = null,
+  ) => {
     const pairMasks = [];
     const digitFrequency = new Uint8Array(10);
     const bitCount = techniques._bits.popcount;
 
     for (const [[r1, c1], [r2, c2]] of pairs) {
-      // Prevent using solved cells (naked singles) which can cause false positives with union
-      if (pencils[r1][c1].size < 2 || pencils[r2][c2].size < 2) return;
+      // Ordinary EURs cannot use solved cells. Avoidable EURs represent a
+      // non-given placement as a singleton domain and validate it separately.
+      if (
+        !filledValues &&
+        (pencils[r1][c1].size < 2 || pencils[r2][c2].size < 2)
+      ) {
+        return;
+      }
 
       let mask = 0;
 
       // FIX: Use UNION instead of INTERSECTION to allow incomplete EUR base cells
-      for (const digit of pencils[r1][c1]) mask |= 1 << digit;
-      for (const digit of pencils[r2][c2]) mask |= 1 << digit;
+      const value1 = filledValues && filledValues[r1 * 9 + c1];
+      const value2 = filledValues && filledValues[r2 * 9 + c2];
+      if (value1) mask |= 1 << value1;
+      else for (const digit of pencils[r1][c1]) mask |= 1 << digit;
+      if (value2) mask |= 1 << value2;
+      else for (const digit of pencils[r2][c2]) mask |= 1 << digit;
 
       if (bitCount(mask) < 2) return;
       pairMasks.push(mask);
@@ -45,6 +155,15 @@ Object.assign(techniques, {
     if (eligibleDigits.length < pairs.length) return;
 
     const cells = pairs.flat();
+    const placedCells = filledValues
+      ? cells.filter(([r, c]) => filledValues[r * 9 + c] !== 0)
+      : [];
+    if (
+      filledValues &&
+      (placedCells.length === 0 || placedCells.length === cells.length)
+    ) {
+      return;
+    }
     for (const digits of techniques.combinations(
       eligibleDigits,
       pairs.length,
@@ -55,17 +174,42 @@ Object.assign(techniques, {
       // The union of each pair must contain at least 2 core digits
       if (pairMasks.some((mask) => bitCount(mask & coreMask) < 2)) continue;
 
+      if (filledValues) {
+        if (
+          placedCells.some(
+            ([r, c]) => (coreMask & (1 << filledValues[r * 9 + c])) === 0,
+          )
+        ) {
+          continue;
+        }
+        if (
+          !techniques._avoidableERHasDeadlyFilling(
+            pairs,
+            digits,
+            board,
+            pencils,
+            filledValues,
+          )
+        ) {
+          continue;
+        }
+      }
+
       const key = `${digits.join("")}:${cells
         .map(([r, c]) => r * 9 + c)
         .sort((a, b) => a - b)
         .join(",")}`;
       if (found.has(key)) continue;
       found.add(key);
-      er_list.push({ cells, digits, is_nx2 });
+      er_list.push({ cells, pairs, digits, is_nx2, placedCells });
     }
   },
 
-  _findExtendedRectangles: function (pencils) {
+  _findExtendedRectangles: function (
+    pencils,
+    filledValues = null,
+    board = null,
+  ) {
     const rectangles = [];
     const found = new Set();
     const indexes = [0, 1, 2, 3, 4, 5, 6, 7, 8];
@@ -87,7 +231,15 @@ Object.assign(techniques, {
             [r1, c],
             [r2, c],
           ]);
-          techniques._checkAndAddER(pairs, pencils, rectangles, false, found);
+          techniques._checkAndAddER(
+            pairs,
+            pencils,
+            rectangles,
+            false,
+            found,
+            filledValues,
+            board,
+          );
         }
       }
     }
@@ -109,17 +261,49 @@ Object.assign(techniques, {
             [r, c1],
             [r, c2],
           ]);
-          techniques._checkAndAddER(pairs, pencils, rectangles, true, found);
+          techniques._checkAndAddER(
+            pairs,
+            pencils,
+            rectangles,
+            true,
+            found,
+            filledValues,
+            board,
+          );
         }
       }
     }
     return rectangles;
   },
 
-  extendedRectangle: (board, pencils, findAll = false) => {
+  extendedRectangle: (
+    board,
+    pencils,
+    optionsOrFindAll = false,
+    requestedFindAll = false,
+  ) => {
+    const options =
+      optionsOrFindAll && typeof optionsOrFindAll === "object"
+        ? optionsOrFindAll
+        : {};
+    const findAll =
+      typeof optionsOrFindAll === "boolean"
+        ? optionsOrFindAll
+        : requestedFindAll;
+    const avoidable = options.avoidable === true;
+    const filledValues = avoidable
+      ? techniques._getAvoidableFilledValues(board)
+      : null;
     const results = [];
-    const ers = techniques._findExtendedRectangles(pencils);
-    if (ers.length === 0) return { change: false };
+    if (avoidable && !filledValues)
+      return findAll ? results : { change: false };
+    const ers = techniques._findExtendedRectangles(
+      pencils,
+      filledValues,
+      board,
+    );
+    if (ers.length === 0)
+      return avoidable && findAll ? results : { change: false };
 
     const formatRC = techniques._formatCellsRC;
     const formatBP = techniques._formatBoxPoints;
@@ -202,21 +386,33 @@ Object.assign(techniques, {
     };
 
     for (const er of ers) {
-      const { cells, digits, is_nx2 } = er;
+      const { cells, digits, is_nx2, placedCells = [] } = er;
+      const placedIds = new Set(
+        placedCells.map(([r, c]) => techniques._cellToId(r, c)),
+      );
       const core_digits = new Set(digits);
       const removals = [];
 
-      const extra_cells = cells.filter(([r, c]) =>
-        [...pencils[r][c]].some((cand) => !core_digits.has(cand)),
+      const extra_cells = cells.filter(
+        ([r, c]) =>
+          !placedIds.has(techniques._cellToId(r, c)) &&
+          [...pencils[r][c]].some((cand) => !core_digits.has(cand)),
       );
 
       const baseDigitsStr = digits.sort().join("");
-      const detailPrefix = t(
-        "teks_EUR_base_guardians",
-        baseDigitsStr,
-        getBasePosStr(cells),
-        getGuardiansStr(extra_cells, core_digits, pencils),
-      );
+      const detailPrefix = avoidable
+        ? t(
+            "teks_AEUR_base_guardians",
+            baseDigitsStr,
+            getBasePosStr(cells),
+            getGuardiansStr(extra_cells, core_digits, pencils),
+          )
+        : t(
+            "teks_EUR_base_guardians",
+            baseDigitsStr,
+            getBasePosStr(cells),
+            getGuardiansStr(extra_cells, core_digits, pencils),
+          );
 
       // --- Type 1 ---
       if (extra_cells.length === 1) {
@@ -230,8 +426,11 @@ Object.assign(techniques, {
             type: "remove",
             cells: _getUniqueRemovals(removals),
             hint: {
-              name: t("teks_EUR_type_1"),
-              mainInfo: t("teks_EUR_digits", baseDigitsStr),
+              name: t(avoidable ? "teks_AEUR_type_1" : "teks_EUR_type_1"),
+              mainInfo: t(
+                avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
+                baseDigitsStr,
+              ),
               detail: detailPrefix,
             },
             visualPlan: getEURVisualPlan(
@@ -239,6 +438,7 @@ Object.assign(techniques, {
               cells,
               digits,
               _getUniqueRemovals(removals),
+              { placedCells },
             ),
           };
           if (!findAll) return resultObj;
@@ -295,9 +495,12 @@ Object.assign(techniques, {
               cells: _getUniqueRemovals(removals),
               hint: {
                 name: guardiansShareHouse
-                  ? t("teks_EUR_type_2")
-                  : t("teks_EUR_type_5"),
-                mainInfo: t("teks_EUR_digits", baseDigitsStr),
+                  ? t(avoidable ? "teks_AEUR_type_2" : "teks_EUR_type_2")
+                  : t(avoidable ? "teks_AEUR_type_5" : "teks_EUR_type_5"),
+                mainInfo: t(
+                  avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
+                  baseDigitsStr,
+                ),
                 detail: detailPrefix,
               },
               visualPlan: getEURVisualPlan(
@@ -305,6 +508,7 @@ Object.assign(techniques, {
                 cells,
                 digits,
                 _getUniqueRemovals(removals),
+                { placedCells },
               ),
             };
             if (!findAll) return resultObj;
@@ -401,8 +605,13 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: _getUniqueRemovals(res.removals),
                 hint: {
-                  name: t("teks_EUR_type_3"),
-                  mainInfo: t("teks_EUR_digits", baseDigitsStr),
+                  name: t(
+                    avoidable ? "teks_AEUR_type_3" : "teks_EUR_type_3",
+                  ),
+                  mainInfo: t(
+                    avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
+                    baseDigitsStr,
+                  ),
                   detail: t("teks_EUR_subset_cells", detailPrefix, subsetStr),
                 },
                 visualPlan: getEURVisualPlan(
@@ -410,7 +619,11 @@ Object.assign(techniques, {
                   cells,
                   digits,
                   _getUniqueRemovals(res.removals),
-                  { subsetCells: res.chosen, subsetCands: res.union },
+                  {
+                    subsetCells: res.chosen,
+                    subsetCands: res.union,
+                    placedCells,
+                  },
                 ),
               };
               if (!findAll) return resultObj;
@@ -492,8 +705,13 @@ Object.assign(techniques, {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: t("teks_EUR_type_4"),
-                    mainInfo: t("teks_EUR_digits", baseDigitsStr),
+                    name: t(
+                      avoidable ? "teks_AEUR_type_4" : "teks_EUR_type_4",
+                    ),
+                    mainInfo: t(
+                      avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
+                      baseDigitsStr,
+                    ),
                     detail: t(
                       "teks_EUR_type_4_restricted_base_detail",
                       detailPrefix,
@@ -506,7 +724,12 @@ Object.assign(techniques, {
                     cells,
                     digits,
                     _getUniqueRemovals(removals),
-                    { restrictedDigit: d, e1: [e1r, e1c], e2: [e2r, e2c] },
+                    {
+                      restrictedDigit: d,
+                      e1: [e1r, e1c],
+                      e2: [e2r, e2c],
+                      placedCells,
+                    },
                   ),
                 };
                 if (!findAll) return resultObj;
@@ -572,8 +795,13 @@ Object.assign(techniques, {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: t("teks_EUR_type_6"),
-                    mainInfo: t("teks_EUR_digits", baseDigitsStr),
+                    name: t(
+                      avoidable ? "teks_AEUR_type_6" : "teks_EUR_type_6",
+                    ),
+                    mainInfo: t(
+                      avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
+                      baseDigitsStr,
+                    ),
                     detail: t("teks_EUR_type_6_guardian_elimination_detail", detailPrefix, d),
                   },
                   visualPlan: getEURVisualPlan(
@@ -586,6 +814,7 @@ Object.assign(techniques, {
                       is_nx2,
                       e1: [e1r, e1c],
                       e2: [e2r, e2c],
+                      placedCells,
                     },
                   ),
                 };
@@ -600,5 +829,13 @@ Object.assign(techniques, {
     }
     return findAll ? results : { change: false };
   },
+
+  avoidableExtendedRectangle: (board, pencils, findAll = false) =>
+    techniques.extendedRectangle(
+      board,
+      pencils,
+      { avoidable: true },
+      findAll,
+    ),
 
 });

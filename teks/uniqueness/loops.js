@@ -1,5 +1,8 @@
 Object.assign(techniques, {
-  _findUniqueLoops: function (pencils) {
+  _findUniqueLoops: function (pencils, filledValues = null) {
+    if (filledValues) {
+      return techniques._findAvoidableUniqueLoops(pencils, filledValues);
+    }
     const bivalue_cells_by_pair = new Map();
 
     for (let r = 0; r < 9; r++) {
@@ -161,10 +164,210 @@ Object.assign(techniques, {
     }
     return loops;
   },
-  uniqueLoop: (board, pencils, findAll = false) => {
+
+  _findAvoidableUniqueLoops: function (pencils, filledValues) {
+    const loops = [];
+    const found = new Set();
+    const maxLoopLength = 18;
+    const maxResults = 1023;
+    const getHouses = (id) => {
+      const r = Math.floor(id / 9);
+      const c = id % 9;
+      return [r, 9 + c, 18 + techniques._getBoxIndex(r, c)];
+    };
+
+    for (let d1 = 1; d1 <= 8; d1++) {
+      for (let d2 = d1 + 1; d2 <= 9; d2++) {
+        const cellList = [];
+        const floor = new Set();
+        const guardians = new Set();
+        const placed = new Map();
+
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            const id = r * 9 + c;
+            const value = filledValues[id];
+            if (value) {
+              if (value !== d1 && value !== d2) continue;
+              cellList.push(id);
+              floor.add(id);
+              placed.set(id, value);
+              continue;
+            }
+            const cands = pencils[r][c];
+            if (cands.size === 0) continue;
+            const hasD1 = cands.has(d1);
+            const hasD2 = cands.has(d2);
+            if (!hasD1 && !hasD2) continue;
+            const hasExtra = [...cands].some(
+              (digit) => digit !== d1 && digit !== d2,
+            );
+            if (!hasD1 || !hasD2) {
+              if (!hasExtra) continue;
+              guardians.add(id);
+            } else if (hasExtra) {
+              guardians.add(id);
+            } else {
+              floor.add(id);
+            }
+            cellList.push(id);
+          }
+        }
+        if (cellList.length < 6 || placed.size === 0 || floor.size === 0)
+          continue;
+
+        const neighbors = new Map();
+        for (const id of cellList) {
+          const cell = [Math.floor(id / 9), id % 9];
+          neighbors.set(
+            id,
+            cellList.filter(
+              (other) =>
+                other !== id &&
+                techniques._sees(cell, [
+                  Math.floor(other / 9),
+                  other % 9,
+                ]),
+            ),
+          );
+        }
+
+        for (const start of floor) {
+          const path = [start];
+          const used = new Set(path);
+          const houseCounts = new Uint8Array(27);
+          const houseParityMasks = new Uint8Array(27);
+          for (const house of getHouses(start)) {
+            houseCounts[house] = 1;
+            houseParityMasks[house] = 1;
+          }
+          let guardianCount = 0;
+          let direction = placed.has(start)
+            ? placed.get(start) === d1
+              ? 1
+              : 2
+            : 0;
+
+          const search = (current) => {
+            for (const next of neighbors.get(current)) {
+              if (next === start) continue;
+              if (used.has(next) || path.length >= maxLoopLength) continue;
+              if (floor.has(next) && next < start) continue;
+              const isGuardian = guardians.has(next);
+              if (isGuardian && guardianCount >= 4) continue;
+
+              const parity = path.length & 1;
+              const parityBit = 1 << parity;
+              const nextHouses = getHouses(next);
+              if (
+                nextHouses.some(
+                  (house) =>
+                    houseCounts[house] >= 2 ||
+                    (houseParityMasks[house] & parityBit) !== 0,
+                )
+              ) {
+                continue;
+              }
+
+              const oldDirection = direction;
+              if (placed.has(next)) {
+                const requiredDirection =
+                  (parity === 0) === (placed.get(next) === d1) ? 1 : 2;
+                if (direction !== 0 && direction !== requiredDirection)
+                  continue;
+                if (direction === 0) direction = requiredDirection;
+              }
+
+              path.push(next);
+              used.add(next);
+              if (isGuardian) guardianCount++;
+              for (const house of nextHouses) {
+                houseCounts[house]++;
+                houseParityMasks[house] |= parityBit;
+              }
+
+              let stop = false;
+              const isDeadlyBody = houseCounts.every(
+                (count) => count === 0 || count === 2,
+              );
+              if (
+                path.length >= 6 &&
+                path.length % 2 === 0 &&
+                isDeadlyBody &&
+                techniques._sees(
+                  [Math.floor(next / 9), next % 9],
+                  [Math.floor(start / 9), start % 9],
+                )
+              ) {
+                const key = `${d1},${d2}:${[...path]
+                  .sort((left, right) => left - right)
+                  .join(",")}`;
+                const placedIds = path.filter((id) => placed.has(id));
+                if (
+                  !found.has(key) &&
+                  placedIds.length > 0 &&
+                  placedIds.length < path.length
+                ) {
+                  found.add(key);
+                  loops.push({
+                    cells: path.map((id) => [Math.floor(id / 9), id % 9]),
+                    digits: [d1, d2],
+                    placedCells: placedIds.map((id) => [
+                      Math.floor(id / 9),
+                      id % 9,
+                    ]),
+                  });
+                  stop = loops.length >= maxResults;
+                }
+              }
+
+              if (!stop && path.length < maxLoopLength) stop = search(next);
+              for (const house of nextHouses) {
+                houseCounts[house]--;
+                houseParityMasks[house] &= ~parityBit;
+              }
+              used.delete(next);
+              path.pop();
+              if (isGuardian) guardianCount--;
+              direction = oldDirection;
+              if (stop) return true;
+            }
+            return false;
+          };
+
+          if (search(start) || loops.length >= maxResults) break;
+        }
+        if (loops.length >= maxResults) break;
+      }
+      if (loops.length >= maxResults) break;
+    }
+    return loops;
+  },
+
+  uniqueLoop: (
+    board,
+    pencils,
+    optionsOrFindAll = false,
+    requestedFindAll = false,
+  ) => {
+    const options =
+      optionsOrFindAll && typeof optionsOrFindAll === "object"
+        ? optionsOrFindAll
+        : {};
+    const findAll =
+      typeof optionsOrFindAll === "boolean"
+        ? optionsOrFindAll
+        : requestedFindAll;
+    const avoidable = options.avoidable === true;
+    const filledValues = avoidable
+      ? techniques._getAvoidableFilledValues(board)
+      : null;
     const results = [];
-    const loops = techniques._findUniqueLoops(pencils);
-    if (loops.length === 0) return { change: false };
+    if (avoidable && !filledValues)
+      return findAll ? results : { change: false };
+    const loops = techniques._findUniqueLoops(pencils, filledValues);
+    if (loops.length === 0)
+      return avoidable && findAll ? results : { change: false };
 
     const formatRC = techniques._formatCellsRC;
     const formatBP = techniques._formatBoxPoints;
@@ -215,24 +418,35 @@ Object.assign(techniques, {
     };
 
     for (const ul of loops) {
-      const { cells, digits } = ul;
+      const { cells, digits, placedCells = [] } = ul;
       const [d1, d2] = digits;
       const d_set = new Set(digits);
+      const placedIds = new Set(
+        placedCells.map(([r, c]) => techniques._cellToId(r, c)),
+      );
       let removals = [];
 
       const extra_cells = cells.filter(
         ([r, c]) =>
-          pencils[r][c].size !== 2 ||
-          ![...pencils[r][c]].every((d) => d_set.has(d)),
+          !placedIds.has(techniques._cellToId(r, c)) &&
+          (pencils[r][c].size !== 2 ||
+            ![...pencils[r][c]].every((d) => d_set.has(d))),
       );
 
       const baseDigitsStr = `${d1}${d2}`;
-      const detailPrefix = t(
-        "teks_UL_base_guardians",
-        baseDigitsStr,
-        getBasePosStr(cells),
-        getGuardiansStr(extra_cells, d_set, pencils),
-      );
+      const detailPrefix = avoidable
+        ? t(
+            "teks_AUL_base_guardians",
+            baseDigitsStr,
+            getBasePosStr(cells),
+            getGuardiansStr(extra_cells, d_set, pencils),
+          )
+        : t(
+            "teks_UL_base_guardians",
+            baseDigitsStr,
+            getBasePosStr(cells),
+            getGuardiansStr(extra_cells, d_set, pencils),
+          );
 
       // --- Type 1 ---
       if (extra_cells.length === 1) {
@@ -245,8 +459,11 @@ Object.assign(techniques, {
             type: "remove",
             cells: _getUniqueRemovals(removals),
             hint: {
-              name: t("teks_UL_type_1"),
-              mainInfo: t("teks_UL_digits", baseDigitsStr),
+              name: t(avoidable ? "teks_AUL_type_1" : "teks_UL_type_1"),
+              mainInfo: t(
+                avoidable ? "teks_AUL_digits" : "teks_UL_digits",
+                baseDigitsStr,
+              ),
               detail: detailPrefix,
             },
             visualPlan: getULVisualPlan(
@@ -254,6 +471,7 @@ Object.assign(techniques, {
               cells,
               digits,
               _getUniqueRemovals(removals),
+              { placedCells },
             ),
           };
           if (!findAll) return resultObj;
@@ -308,9 +526,12 @@ Object.assign(techniques, {
               cells: _getUniqueRemovals(removals),
               hint: {
                 name: guardiansShareHouse
-                  ? t("teks_UL_type_2")
-                  : t("teks_UL_type_5"),
-                mainInfo: t("teks_UL_digits", baseDigitsStr),
+                  ? t(avoidable ? "teks_AUL_type_2" : "teks_UL_type_2")
+                  : t(avoidable ? "teks_AUL_type_5" : "teks_UL_type_5"),
+                mainInfo: t(
+                  avoidable ? "teks_AUL_digits" : "teks_UL_digits",
+                  baseDigitsStr,
+                ),
                 detail: detailPrefix,
               },
               visualPlan: getULVisualPlan(
@@ -318,6 +539,7 @@ Object.assign(techniques, {
                 cells,
                 digits,
                 _getUniqueRemovals(removals),
+                { placedCells },
               ),
             };
             if (!findAll) return resultObj;
@@ -407,16 +629,31 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: _getUniqueRemovals(res.removals),
                 hint: {
-                  name: t("teks_UL_type_3"),
-                  mainInfo: t("teks_UL_digits", baseDigitsStr),
-                  detail: t("teks_EUR_subset_cells", detailPrefix, subsetStr),
+                  name: t(
+                    avoidable ? "teks_AUL_type_3" : "teks_UL_type_3",
+                  ),
+                  mainInfo: t(
+                    avoidable ? "teks_AUL_digits" : "teks_UL_digits",
+                    baseDigitsStr,
+                  ),
+                  detail: t(
+                    avoidable
+                      ? "teks_UL_subset_cells"
+                      : "teks_EUR_subset_cells",
+                    detailPrefix,
+                    subsetStr,
+                  ),
                 },
                 visualPlan: getULVisualPlan(
                   3,
                   cells,
                   digits,
                   _getUniqueRemovals(res.removals),
-                  { subsetCells: res.chosen, subsetCands: res.union },
+                  {
+                    subsetCells: res.chosen,
+                    subsetCands: res.union,
+                    placedCells,
+                  },
                 ),
               };
               if (!findAll) return resultObj;
@@ -427,7 +664,8 @@ Object.assign(techniques, {
         }
 
         // --- Type 4 ---
-        if (techniques._sees([e1r, e1c], [e2r, e2c])) {
+        // Avoidable loops intentionally do not define Type 4.
+        if (!avoidable && techniques._sees([e1r, e1c], [e2r, e2c])) {
           let unitType, unitIndex, loc1, loc2;
           if (e1r === e2r) {
             unitType = "row";
@@ -515,7 +753,8 @@ Object.assign(techniques, {
       }
 
       // --- Type 6 ---
-      if (extra_cells.length > 1) {
+      // Avoidable loops intentionally do not define Type 6.
+      if (!avoidable && extra_cells.length > 1) {
         // A restricted base digit can occupy either parity of the loop, but
         // not a mixture of both.  Therefore Type 6 only applies when every
         // guardian belongs to the same parity of the loop order.  Whether
@@ -599,5 +838,8 @@ Object.assign(techniques, {
     }
     return findAll ? results : { change: false };
   },
+
+  avoidableUniqueLoop: (board, pencils, findAll = false) =>
+    techniques.uniqueLoop(board, pencils, { avoidable: true }, findAll),
 
 });

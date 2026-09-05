@@ -147,7 +147,14 @@ Object.assign(techniques, {
     sourcePencils,
   ) => {
     const coreDigits = new Set(digits);
-    const cellColors = cells.map(([r, c]) => ({ r, c, color: 7 }));
+    const placedIds = new Set(
+      (extraData.placedCells || []).map(([r, c]) => r * 9 + c),
+    );
+    const cellColors = cells.map(([r, c]) => ({
+      r,
+      c,
+      color: placedIds.has(r * 9 + c) ? 6 : 7,
+    }));
     const candidateColors = cells.flatMap(([r, c]) =>
       Array.from(sourcePencils[r][c], (num) => ({
         r,
@@ -160,7 +167,7 @@ Object.assign(techniques, {
 
     if (type === 3) {
       for (const [r, c] of extraData.subsetCells) {
-        cellColors.push({ r, c, color: 6 });
+        cellColors.push({ r, c, color: placedIds.size > 0 ? 5 : 6 });
         for (const num of sourcePencils[r][c]) {
           if (extraData.subsetCands.has(num)) {
             candidateColors.push({ r, c, num, color: 4 });

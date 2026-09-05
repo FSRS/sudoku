@@ -25,10 +25,40 @@ Object.assign(techniques, {
     return peers;
   },
 
-  uniqueRectangle: (board, pencils, findAll = false) => {
+  uniqueRectangle: (
+    board,
+    pencils,
+    optionsOrFindAll = false,
+    requestedFindAll = false,
+  ) => {
+    const options =
+      optionsOrFindAll && typeof optionsOrFindAll === "object"
+        ? optionsOrFindAll
+        : {};
+    const findAll =
+      typeof optionsOrFindAll === "boolean"
+        ? optionsOrFindAll
+        : requestedFindAll;
+    const avoidable = options.avoidable === true;
+    const filledValues = avoidable
+      ? techniques._getAvoidableFilledValues(board)
+      : null;
     let results = [];
-    const rects = techniques._findUniquenessRectangles(pencils);
-    if (!rects || rects.length === 0) return { change: false };
+    if (avoidable && !filledValues)
+      return findAll ? results : { change: false };
+    const rects = techniques
+      ._findUniquenessRectangles(pencils, !avoidable, filledValues)
+      .filter(({ cells }) => {
+        if (!avoidable) return true;
+        const placedCount = cells.filter(
+          ([r, c]) => filledValues[r * 9 + c] !== 0,
+        ).length;
+        return placedCount > 0 && placedCount < cells.length;
+      });
+    // The Avoidable XY-Wing extension performs its own rectangle search, so an
+    // empty ordinary-pattern list must not short-circuit it.
+    if ((!rects || rects.length === 0) && !avoidable)
+      return { change: false };
 
     const isExactPair = (r, c, d1, d2) =>
       pencils[r][c].size === 2 &&
@@ -42,6 +72,9 @@ Object.assign(techniques, {
     const getBasePosStr = techniques._formatRectangleBounds;
 
     const getURVisualPlan = (type, cells, d1, d2, removals, extraData = {}) => {
+      const placedIds = new Set(
+        (extraData.placedCells || []).map(([r, c]) => r * 9 + c),
+      );
       const candidateColors = cells.flatMap(([r, c]) =>
         Array.from(pencils[r][c], (num) => ({
           r,
@@ -50,12 +83,16 @@ Object.assign(techniques, {
           color: num === d1 || num === d2 ? 7 : 3,
         })),
       );
-      const cellColors = cells.map(([r, c]) => ({ r, c, color: 7 }));
+      const cellColors = cells.map(([r, c]) => ({
+        r,
+        c,
+        color: placedIds.has(r * 9 + c) ? 6 : 7,
+      }));
       const links = [];
 
       if (type === 3) {
         for (const [r, c] of extraData.subsetCells) {
-          cellColors.push({ r, c, color: 6 });
+          cellColors.push({ r, c, color: placedIds.size > 0 ? 5 : 6 });
           for (const num of pencils[r][c]) {
             if (extraData.subsetCands.has(num)) {
               candidateColors.push({ r, c, num, color: 4 });
@@ -129,11 +166,17 @@ Object.assign(techniques, {
       pivotDigit,
       extraDigits,
       removals,
+      placedCells = [],
     ) => {
+      const placedIds = new Set(placedCells.map(([r, c]) => r * 9 + c));
       return {
         highlight: { digit: null, state: 0 },
         cellColors: [
-          ...cells.map(([r, c]) => ({ r, c, color: 7 })),
+          ...cells.map(([r, c]) => ({
+            r,
+            c,
+            color: placedIds.has(r * 9 + c) ? 6 : 7,
+          })),
           ...wings.map(([r, c]) => ({ r, c, color: 6 })),
         ],
         candidateColors: [
@@ -168,10 +211,25 @@ Object.assign(techniques, {
     for (const rect of rects) {
       const { cells, digits } = rect;
       const [d1, d2] = digits;
+      const placedCells = avoidable
+        ? cells.filter(([r, c]) => filledValues[r * 9 + c] !== 0)
+        : [];
+      const placedIds = new Set(placedCells.map(([r, c]) => r * 9 + c));
 
       const basePosStr = getBasePosStr(cells);
 
-      const extraCells = cells.filter(([r, c]) => !isExactPair(r, c, d1, d2));
+      const extraCells = cells.filter(
+        ([r, c]) =>
+          !placedIds.has(r * 9 + c) && !isExactPair(r, c, d1, d2),
+      );
+      const baseDetail = () =>
+        t(
+          avoidable ? "teks_AR_base_detail" : "teks_UR_base_guardians",
+          d1,
+          d2,
+          basePosStr,
+          getGuardiansStr(extraCells, d1, d2),
+        );
 
       // --- Type 1: One extra cell ---
       if (extraCells.length === 1) {
@@ -185,15 +243,9 @@ Object.assign(techniques, {
             type: "remove",
             cells: _getUniqueRemovals(removals),
             hint: {
-              name: t("teks_UR_type_1"),
-              mainInfo: t("teks_UR_digits", d1, d2),
-              detail: t(
-                "teks_UR_base_guardians",
-                d1,
-                d2,
-                basePosStr,
-                getGuardiansStr(extraCells, d1, d2),
-              ),
+              name: t(avoidable ? "teks_AR_type_1" : "teks_UR_type_1"),
+              mainInfo: t(avoidable ? "teks_AR_digits" : "teks_UR_digits", d1, d2),
+              detail: baseDetail(),
             },
             visualPlan: getURVisualPlan(
               1,
@@ -201,6 +253,7 @@ Object.assign(techniques, {
               d1,
               d2,
               _getUniqueRemovals(removals),
+              { placedCells },
             ),
           };
           if (!findAll) return resultObj;
@@ -251,16 +304,14 @@ Object.assign(techniques, {
                 cells: _getUniqueRemovals(removals),
                 hint: {
                   name: guardiansShareHouse
-                    ? t("teks_UR_type_2")
-                    : t("teks_UR_type_5"),
-                  mainInfo: t("teks_UR_digits", d1, d2),
-                  detail: t(
-                    "teks_UR_base_guardians",
+                    ? t(avoidable ? "teks_AR_type_2" : "teks_UR_type_2")
+                    : t(avoidable ? "teks_AR_type_5" : "teks_UR_type_5"),
+                  mainInfo: t(
+                    avoidable ? "teks_AR_digits" : "teks_UR_digits",
                     d1,
                     d2,
-                    basePosStr,
-                    getGuardiansStr(extraCells, d1, d2),
                   ),
+                  detail: baseDetail(),
                 },
                 visualPlan: getURVisualPlan(
                   guardiansShareHouse ? 2 : 5,
@@ -268,6 +319,7 @@ Object.assign(techniques, {
                   d1,
                   d2,
                   _getUniqueRemovals(removals),
+                  { placedCells },
                 ),
               };
 
@@ -364,10 +416,16 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: res.removals,
                 hint: {
-                  name: t("teks_UR_type_3"),
-                  mainInfo: t("teks_UR_digits", d1, d2),
+                  name: t(avoidable ? "teks_AR_type_3" : "teks_UR_type_3"),
+                  mainInfo: t(
+                    avoidable ? "teks_AR_digits" : "teks_UR_digits",
+                    d1,
+                    d2,
+                  ),
                   detail: t(
-                    "teks_UR_type_3_VNS_detail",
+                    avoidable
+                      ? "teks_AR_type_3_VNS_detail"
+                      : "teks_UR_type_3_VNS_detail",
                     d1,
                     d2,
                     basePosStr,
@@ -381,7 +439,11 @@ Object.assign(techniques, {
                   d1,
                   d2,
                   _getUniqueRemovals(res.removals),
-                  { subsetCells: res.chosen, subsetCands: res.union },
+                  {
+                    subsetCells: res.chosen,
+                    subsetCands: res.union,
+                    placedCells,
+                  },
                 ), // Changed union to res.unions
               };
               if (!findAll) return resultObj;
@@ -392,7 +454,7 @@ Object.assign(techniques, {
         }
 
         // --- Type 4: Aligned extra cells with a restricted digit ---
-        if (e1r === e2r || e1c === e2c) {
+        if (!avoidable && (e1r === e2r || e1c === e2c)) {
           for (const u of [d1, d2]) {
             const v = u === d1 ? d2 : d1;
             let isRestricted = false;
@@ -468,7 +530,7 @@ Object.assign(techniques, {
         }
 
         // --- Type 6: Diagonal extra cells with restricted rows ---
-        if (e1r !== e2r && e1c !== e2c) {
+        if (!avoidable && e1r !== e2r && e1c !== e2c) {
           for (const u of [d1, d2]) {
             let u_found_in_rows = false;
             for (const row of [cells[0][0], cells[2][0]]) {
@@ -527,26 +589,49 @@ Object.assign(techniques, {
       }
     }
 
-    const xyWingProofs = techniques._findUniqueRectangleXyWings(
-      board,
-      pencils,
-      rects,
-    );
+    if (avoidable) {
+      const hiddenResults = techniques.hiddenRectangle(
+        board,
+        pencils,
+        { avoidable: true },
+        findAll,
+      );
+      if (!findAll && hiddenResults && hiddenResults.change) return hiddenResults;
+      if (findAll && Array.isArray(hiddenResults)) results.push(...hiddenResults);
+    }
+
+    const xyWingProofs = avoidable
+      ? techniques._findAvoidableRectangleXyWings(
+          board,
+          pencils,
+          filledValues,
+        )
+      : techniques._findUniqueRectangleXyWings(board, pencils, rects);
     for (const proof of xyWingProofs) {
       const removals = proof.removals.map(({ r, c, num }) => ({ r, c, num }));
+      const guardianCells = proof.petals || proof.guardianCells;
+      const placedCells = avoidable
+        ? proof.cells.filter(([r, c]) => filledValues[r * 9 + c] !== 0)
+        : [];
       const resultObj = {
         change: true,
         type: "remove",
         cells: removals,
         hint: {
-          name: t("teks_UR_plus_XY_Wing"),
-          mainInfo: t("teks_UR_digits", proof.d1, proof.d2),
+          name: t(
+            avoidable ? "teks_AUR_plus_XY_Wing" : "teks_UR_plus_XY_Wing",
+          ),
+          mainInfo: t(
+            avoidable ? "teks_AR_digits" : "teks_UR_digits",
+            proof.d1,
+            proof.d2,
+          ),
           detail: t(
-            "teks_UR_XY_Wing_detail",
+            avoidable ? "teks_AUR_XY_Wing_detail" : "teks_UR_XY_Wing_detail",
             proof.d1,
             proof.d2,
             getBasePosStr(proof.cells),
-            getGuardiansStr(proof.petals, proof.d1, proof.d2),
+            getGuardiansStr(guardianCells, proof.d1, proof.d2),
             proof.branches[0][0] + 1,
             proof.branches[0][1] + 1,
             proof.branches[1][0] + 1,
@@ -561,6 +646,7 @@ Object.assign(techniques, {
           proof.pivotDigit,
           proof.extraDigits,
           removals,
+          placedCells,
         ),
       };
       if (!findAll) return resultObj;
@@ -570,9 +656,36 @@ Object.assign(techniques, {
     return findAll ? results : { change: false };
   },
 
-  hiddenRectangle: (board, pencils, findAll = false) => {
+  hiddenRectangle: (
+    board,
+    pencils,
+    optionsOrFindAll = false,
+    requestedFindAll = false,
+  ) => {
+    const options =
+      optionsOrFindAll && typeof optionsOrFindAll === "object"
+        ? optionsOrFindAll
+        : {};
+    const findAll =
+      typeof optionsOrFindAll === "boolean"
+        ? optionsOrFindAll
+        : requestedFindAll;
+    const avoidable = options.avoidable === true;
+    const filledValues = avoidable
+      ? techniques._getAvoidableFilledValues(board)
+      : null;
     const results = [];
-    const rectangles = techniques._findUniquenessRectangles(pencils);
+    if (avoidable && !filledValues)
+      return findAll ? results : { change: false };
+    const rectangles = techniques
+      ._findUniquenessRectangles(pencils, !avoidable, filledValues)
+      .filter(({ cells }) => {
+        if (!avoidable) return true;
+        const placedCount = cells.filter(
+          ([r, c]) => filledValues[r * 9 + c] !== 0,
+        ).length;
+        return placedCount > 0 && placedCount < cells.length;
+      });
     if (rectangles.length === 0) return { change: false };
 
     const getBasePosStr = (cells) => {
@@ -619,11 +732,19 @@ Object.assign(techniques, {
     for (const rect of rectangles) {
       const { cells, digits } = rect;
       const [d1, d2] = digits;
+      const placedCells = avoidable
+        ? cells.filter(([r, c]) => filledValues[r * 9 + c] !== 0)
+        : [];
+      const placedIds = new Set(placedCells.map(([r, c]) => r * 9 + c));
 
       const extraCells = [];
       const bivalueCells = [];
 
       for (const [r, c] of cells) {
+        if (placedIds.has(r * 9 + c)) {
+          bivalueCells.push([r, c]);
+          continue;
+        }
         const cands = pencils[r][c];
         const hasExtra = [...cands].some((cand) => cand !== d1 && cand !== d2);
 
@@ -754,10 +875,16 @@ Object.assign(techniques, {
 
             // Existing hint structure preserved
             hint: {
-              name: t("teks_HR"),
-              mainInfo: t("teks_UR_digits", d1, d2),
+              name: t(avoidable ? "teks_HAR" : "teks_HR"),
+              mainInfo: t(
+                avoidable ? "teks_AR_digits" : "teks_UR_digits",
+                d1,
+                d2,
+              ),
               detail: t(
-                "teks_HR_ConPairs_detail",
+                avoidable
+                  ? "teks_HAR_ConPairs_detail"
+                  : "teks_HR_ConPairs_detail",
                 d1,
                 d2,
                 basePosStr,
@@ -769,7 +896,11 @@ Object.assign(techniques, {
 
             visualPlan: {
               highlight: { digit: null, state: 0 },
-              cellColors: cells.map(([r, c]) => ({ r, c, color: 7 })),
+              cellColors: cells.map(([r, c]) => ({
+                r,
+                c,
+                color: placedIds.has(r * 9 + c) ? 6 : 7,
+              })),
               candidateColors: cells.flatMap(([r, c]) =>
                 Array.from(pencils[r][c], (num) => ({
                   r,

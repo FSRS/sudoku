@@ -449,7 +449,9 @@ const TRANSLATIONS = {
     ui_BUG_plus_1: "BUG+1",
     ui_UR: "Unique Rectangle",
     ui_UL: "Unique Loop",
+    ui_AUL: "Avoidable Unique Loop",
     ui_EUR: "Extended Unique Rectangle",
+    ui_AEUR: "Avoidable Extended Unique Rectangle",
     ui_HR_vague_hint: "Hidden Rectangle",
     ui_FH: "Full House",
     ui_eliminate_cands: "Eliminate Candidates",
@@ -708,6 +710,14 @@ const TRANSLATIONS = {
     teks_EUR_type_6: "Extended Unique Rectangle Type 6",
     teks_EUR_type_6_guardian_elimination_detail:
       "{0}, Exclude a specific placement of ({1}) on ER removing all guardians",
+    teks_AEUR_base_guardians: "Base ({0}) in {1}, Guardians {2}",
+    teks_AEUR_digits: "Digits ({0})",
+    teks_AEUR_type_1: "Avoidable Extended Unique Rectangle Type 1",
+    teks_AEUR_type_2: "Avoidable Extended Unique Rectangle Type 2",
+    teks_AEUR_type_5: "Avoidable Extended Unique Rectangle Type 5",
+    teks_AEUR_type_3: "Avoidable Extended Unique Rectangle Type 3",
+    teks_AEUR_type_4: "Avoidable Extended Unique Rectangle Type 4",
+    teks_AEUR_type_6: "Avoidable Extended Unique Rectangle Type 6",
     teks_UL_base_guardians: "Base ({0}) in {1}, Guardians: {2}",
     teks_UL_type_1: "Unique Loop Type 1",
     teks_UL_digits: "using Digits ({0})",
@@ -719,6 +729,12 @@ const TRANSLATIONS = {
     teks_UL_type_6: "Unique Loop Type 6",
     teks_UL_type_6_guardian_elimination_detail:
       "{0}, Exclude a specific placement of ({1}) on Unique Loop removing all guardians",
+    teks_AUL_base_guardians: "Base ({0}) in {1}, Guardians: {2}",
+    teks_AUL_digits: "using Digits ({0})",
+    teks_AUL_type_1: "Avoidable Unique Loop Type 1",
+    teks_AUL_type_2: "Avoidable Unique Loop Type 2",
+    teks_AUL_type_5: "Avoidable Unique Loop Type 5",
+    teks_AUL_type_3: "Avoidable Unique Loop Type 3",
     teks_ALP: "Almost Locked Pair",
     teks_ALT: "Almost Locked Triple",
     teks_ALS_houses: "using {0} {1} and Box {2}",
@@ -827,11 +843,13 @@ const TRANSLATIONS = {
     teks_AR_type_5: "Avoidable Rectangle Type 5",
     teks_HAR: "Hidden Avoidable Rectangle",
     teks_AR_digits: "using Digits ({0}{1})",
-    teks_AR_base_detail: "Base ({0}{1}) in {2}, Filled cells {3}, Unfilled cells {4}",
+    teks_AR_base_detail: "Base ({0}{1}) in {2}, Guardians {3}",
     teks_AR_type_3_VNS_detail:
-      "Base ({0}{1}) in {2}, Filled cells {3}, Unfilled cells {4}, Virtual naked subset {5}",
+      "Base ({0}{1}) in {2}, Guardians {3}, Virtual naked subset {4}",
     teks_AR_type_5_ConPairs_detail:
-      "Base ({0}{1}) in {2}, Filled cell {3}, Unfilled cells {4}, Conjugate pairs {5}",
+      "Base ({0}{1}) in {2}, Guardians {3}, Conjugate pairs {4}",
+    teks_HAR_ConPairs_detail:
+      "Base ({0}{1}) in {2}, Guardians {3}, Floor cells {4}, Conjugate pairs {5}",
     teks_UR_plus_XY_Wing: "Unique Rectangle + XY-Wing",
     teks_UR_XY_Wing_detail:
       "Base ({0}{1}) in {2}, Guardians {3}, Wings r{4}c{5} and r{6}c{7}",
@@ -876,7 +894,7 @@ const TRANSLATIONS = {
     teks_AUET_plus_XY_Wing: "Avoidable Uniqueness External Test + XY-Wing",
     teks_AUR_plus_XY_Wing: "Avoidable Unique Rectangle + XY-Wing",
     teks_AUR_XY_Wing_detail:
-      "Base ({0}{1}) in {2}, Filled cells {3}, Unfilled cells {4}, Guardians {5}, Wings r{6}c{7} and r{8}c{9}",
+      "Base ({0}{1}) in {2}, Guardians {3}, Wings r{4}c{5} and r{6}c{7}",
     teks_UET_XY_Wing_detail:
       "Base ({0}) in {1}, Guardians {2}, Wings r{3}c{4} and r{5}c{6}",
   },
@@ -1322,7 +1340,9 @@ const TRANSLATIONS = {
     ui_BUG_plus_1: "BUG+1",
     ui_UR: "유일한 직사각형",
     ui_UL: "유일한 고리",
+    ui_AUL: "회피 가능한 유일한 고리",
     ui_EUR: "확장된 유일한 직사각형",
+    ui_AEUR: "회피 가능한 확장된 유일한 직사각형",
     ui_HR_vague_hint: "숨은 직사각형",
     ui_FH: "가득찬 집",
     ui_eliminate_cands: "후보수 제거",
@@ -1580,6 +1600,14 @@ const TRANSLATIONS = {
     teks_EUR_type_6: "확장된 유일한 직사각형 유형 6",
     teks_EUR_type_6_guardian_elimination_detail:
       "{0}, 모든 수호자를 제거하는 직사각형 위의 숫자 ({1})의 배치를 제외",
+    teks_AEUR_base_guardians: "({1})의 기반 숫자 ({0}), 수호자 {2}",
+    teks_AEUR_digits: "숫자 ({0}) 사용",
+    teks_AEUR_type_1: "회피 가능한 확장된 유일한 직사각형 유형 1",
+    teks_AEUR_type_2: "회피 가능한 확장된 유일한 직사각형 유형 2",
+    teks_AEUR_type_5: "회피 가능한 확장된 유일한 직사각형 유형 5",
+    teks_AEUR_type_3: "회피 가능한 확장된 유일한 직사각형 유형 3",
+    teks_AEUR_type_4: "회피 가능한 확장된 유일한 직사각형 유형 4",
+    teks_AEUR_type_6: "회피 가능한 확장된 유일한 직사각형 유형 6",
     teks_UL_base_guardians: "({1})의 기반 숫자 ({0}), 수호자 {2}",
     teks_UL_type_1: "유일한 고리 유형 1",
     teks_UL_digits: "숫자 ({0}) 사용",
@@ -1591,6 +1619,12 @@ const TRANSLATIONS = {
     teks_UL_type_6: "유일한 고리 유형 6",
     teks_UL_type_6_guardian_elimination_detail:
       "{0}, 모든 수호자를 제거하는 고리 위의 숫자 ({1})의 배치를 제외",
+    teks_AUL_base_guardians: "({1})의 기반 숫자 ({0}), 수호자 {2}",
+    teks_AUL_digits: "숫자 ({0}) 사용",
+    teks_AUL_type_1: "회피 가능한 유일한 고리 유형 1",
+    teks_AUL_type_2: "회피 가능한 유일한 고리 유형 2",
+    teks_AUL_type_5: "회피 가능한 유일한 고리 유형 5",
+    teks_AUL_type_3: "회피 가능한 유일한 고리 유형 3",
     teks_ALP: "거의 잠긴 둘",
     teks_ALT: "거의 잠긴 셋",
     teks_ALS_houses: "{1}번 {0}과(와) {2}번 상자 사용",
@@ -1702,11 +1736,13 @@ const TRANSLATIONS = {
     teks_AR_type_5: "회피 가능한 직사각형 유형 5",
     teks_HAR: "숨은 회피 가능한 직사각형",
     teks_AR_digits: "숫자 ({0}{1}) 사용",
-    teks_AR_base_detail: "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}",
+    teks_AR_base_detail: "{2}의 기반 숫자 ({0}{1}), 수호자 {3}",
     teks_AR_type_3_VNS_detail:
-      "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 가상의 드러난 부분집합 {5}",
+      "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 가상의 드러난 부분집합 {4}",
     teks_AR_type_5_ConPairs_detail:
-      "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 이중 위치 {5}",
+      "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 이중 위치 {4}",
+    teks_HAR_ConPairs_detail:
+      "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 바닥 칸 {4}, 이중 위치 {5}",
     teks_UR_plus_XY_Wing: "유일한 직사각형 + XY-윙",
     teks_UR_XY_Wing_detail:
       "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 윙 r{4}c{5}, r{6}c{7}",
@@ -1750,7 +1786,7 @@ const TRANSLATIONS = {
     teks_AUET_plus_XY_Wing: "회피 가능한 외부 수호자 논법 + XY-윙",
     teks_AUR_plus_XY_Wing: "회피 가능한 유일한 직사각형 + XY-윙",
     teks_AUR_XY_Wing_detail:
-      "{2}의 기반 숫자 ({0}{1}), 채워진 칸 {3}, 빈 칸 {4}, 수호자 {5}, 윙 r{6}c{7}, r{8}c{9}",
+      "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 윙 r{4}c{5}, r{6}c{7}",
     teks_UET_XY_Wing_detail:
       "{1}의 기반 숫자 ({0}), 수호자 {2}, 윙 r{3}c{4}, r{5}c{6}",
   },
