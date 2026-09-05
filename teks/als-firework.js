@@ -12,6 +12,9 @@ Object.assign(techniques, {
     const cleanExtraCells = (cellsToClean, V) => {
       const removals = [];
       for (const { r, c } of cellsToClean) {
+        // A concrete digit can participate in an ALT's off-intersection set,
+        // but it is already placed and therefore has nothing to remove.
+        if (board[r][c] !== 0) continue;
         for (const cand of pencils[r][c]) {
           if (!V.has(cand)) {
             removals.push({ r, c, num: cand });
@@ -89,21 +92,33 @@ Object.assign(techniques, {
                 targetIdx,
               );
 
-              // Refinement: Target unit must not contain concrete digits from V
-              let hasConcrete = false;
-              for (const [tr, tc] of targetCells) {
-                if (V.has(board[tr][tc])) {
-                  hasConcrete = true;
-                  break;
-                }
-              }
-              if (hasConcrete) continue;
-
               const inIntersection = [];
               const outsideIntersection = [];
+              let hasDisallowedConcrete = false;
 
               for (const [tr, tc] of targetCells) {
-                if (board[tr][tc] !== 0) continue;
+                let isIntersect = false;
+                if (baseType === "box") {
+                  isIntersect = techniques._getBoxIndex(tr, tc) === baseIdx;
+                } else {
+                  isIntersect = (isRow ? tr : tc) === baseIdx;
+                }
+
+                const concrete = board[tr][tc];
+                // A placed ALS digit may occupy one of an ALT's two
+                // off-intersection cells.  ALPs retain their existing,
+                // candidate-only behavior.
+                if (concrete !== 0) {
+                  if (size === 3 && !isIntersect && V.has(concrete)) {
+                    outsideIntersection.push({ r: tr, c: tc });
+                  } else if (V.has(concrete)) {
+                    // Keep concrete digits out of the intersection, and
+                    // preserve ALP's candidate-only behavior.
+                    hasDisallowedConcrete = true;
+                    break;
+                  }
+                  continue;
+                }
 
                 let hasV = false;
                 for (const v of V) {
@@ -114,19 +129,14 @@ Object.assign(techniques, {
                 }
                 if (!hasV) continue;
 
-                let isIntersect = false;
-                if (baseType === "box") {
-                  isIntersect = techniques._getBoxIndex(tr, tc) === baseIdx;
-                } else {
-                  isIntersect = (isRow ? tr : tc) === baseIdx;
-                }
-
                 if (isIntersect) {
                   inIntersection.push({ r: tr, c: tc });
                 } else {
                   outsideIntersection.push({ r: tr, c: tc });
                 }
               }
+
+              if (hasDisallowedConcrete) continue;
 
               // Condition: Candidates appear in intersection, AND exactly size-1 cells outside intersection.
               if (
