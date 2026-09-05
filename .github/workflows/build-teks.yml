@@ -43,11 +43,30 @@ jobs:
             exit 1
           fi
 
+      - name: Reject direct edits to sudoku_ui.js
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git cat-file -e "${BASE_SHA}:ui/core.js" 2>/dev/null &&
+            ! git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- sudoku_ui.js; then
+            echo "::error::Do not edit sudoku_ui.js directly; edit files under ui/."
+            exit 1
+          fi
+
       - name: Build sudoku_teks.js
         run: node scripts/build-teks.cjs
 
       - name: Verify generated bundle
         run: node scripts/build-teks.cjs --check
+
+      - name: Build sudoku_ui.js
+        run: node scripts/build-ui.cjs
+
+      - name: Verify generated UI bundle
+        run: node scripts/build-ui.cjs --check
 
       - name: Configure GitHub Pages
         if: github.event_name != 'pull_request'
@@ -64,6 +83,7 @@ jobs:
             --exclude='backups/' \
             --exclude='scripts/' \
             --exclude='teks/' \
+            --exclude='ui/' \
             --exclude='_site/' \
             ./ _site/
 
