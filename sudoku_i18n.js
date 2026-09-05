@@ -247,11 +247,14 @@ const TRANSLATIONS = {
     ui_expt_mode_enabled_status: "Experimental Mode Enabled!",
     ui_disable_expt_mode_tooltip: "Disable Experimental Mode.",
     ui_expt_mode_disabled_status: "Experimental Mode Disabled.",
-    ui_enable_expt_mode_tooltip: "Enable Experimental Mode: Click candidates directly.",
+    ui_enable_expt_mode_tooltip:
+      "Enable Experimental Mode: Click candidates directly.",
     ui_msg_experimental_mode_tip:
       "Tip: Experimental Mode lets you use candidates directly. Enable it in Preferences (⚙).",
-    ui_vague_hint_tooltip_mobile: "View increasingly concrete hints for the next step.",
-    ui_vague_hint_tooltip: "View increasingly concrete hints for the next step (V).",
+    ui_vague_hint_tooltip_mobile:
+      "View increasingly concrete hints for the next step.",
+    ui_vague_hint_tooltip:
+      "View increasingly concrete hints for the next step (V).",
     ui_solver_toggle_btn_mobile: "Toggle GUI Solver Mode",
     ui_solver_toggle_btn: "Toggle GUI Solver Mode (S).",
     ui_solver_mode_label: "Solver Mode",
@@ -299,17 +302,22 @@ const TRANSLATIONS = {
     ui_hint_title: "Hint: {0} - {1}",
     ui_vague_hint_not_found: "Hint not found!",
     ui_puzzle_already_solved: "The Sudoku is already solved!",
-    ui_trivial_state_hint_disabled: "Hints and Solver Mode are disabled for trivial states.",
-    ui_invalid_puzzle_hint_unavailable: "No hint available for an invalid puzzle.",
-    ui_wrong_progress_hint_unavailable: "Hint unavailable: a wrong progress has been made.",
+    ui_trivial_state_hint_disabled:
+      "Hints and Solver Mode are disabled for trivial states.",
+    ui_invalid_puzzle_hint_unavailable:
+      "No hint available for an invalid puzzle.",
+    ui_wrong_progress_hint_unavailable:
+      "Hint unavailable: a wrong progress has been made.",
     ui_hint_not_found: "Hint not found!",
-    ui_hidden_marks_disable_expt: "Experimental mode is disabled while marks are hidden.",
+    ui_hidden_marks_disable_expt:
+      "Experimental mode is disabled while marks are hidden.",
     ui_expt_coloring_enabled_tooltip:
       "Expt. ON: Direct coloring, plus click candidates to remove (Pencil) or set (Number).",
     ui_expt_enabled_tooltip:
       "Expt. ON: Click candidates to remove (Pencil mode) or set as value (Number mode).",
     ui_expt_coloring_disabled_tooltip: "Expt. OFF: Popup coloring enabled.",
-    ui_expt_disabled_tooltip: "Expt. OFF: Click-to-set/remove candidates disabled.",
+    ui_expt_disabled_tooltip:
+      "Expt. OFF: Click-to-set/remove candidates disabled.",
     ui_share_no_puzzle_error: "No puzzle loaded to share.",
     ui_share_target_prompt: "What do you want to share?",
     ui_share_initial_format_label: "Share Initial State as:",
@@ -339,22 +347,28 @@ const TRANSLATIONS = {
       "Pencil mode is disabled while marks are hidden. (Press Alt+A to make visible)",
     ui_hidden_marks_cand_color_disabled_tip:
       "Candidate coloring is disabled while marks are hidden. (Press Alt+A to make visible)",
-    ui_highlight_number_tip_mobile: "Tip: Touch a filled cell to highlight its number.",
+    ui_highlight_number_tip_mobile:
+      "Tip: Touch a filled cell to highlight its number.",
     ui_msg_121_desktop:
       "Tip: Click a filled&nbsp;cell&nbsp;<span class='shortcut-highlight'>(or press 'Enter')</span> to highlight its number.",
-    ui_pencil_mark_tip_mobile: "Tip: Touch a cell, then a digit to toggle a pencil mark.",
-    ui_pencil_mark_tip: "Tip: Click a cell, then a digit to toggle a pencil mark.",
-    ui_cell_color_tip_mobile: "Tip: Pick a color, then touch a cell to paint it.",
+    ui_pencil_mark_tip_mobile:
+      "Tip: Touch a cell, then a digit to toggle a pencil mark.",
+    ui_pencil_mark_tip:
+      "Tip: Click a cell, then a digit to toggle a pencil mark.",
+    ui_cell_color_tip_mobile:
+      "Tip: Pick a color, then touch a cell to paint it.",
     ui_msg_124_desktop:
       "Tip: Pick a color, then click a&nbsp;cell&nbsp;<span class='shortcut-highlight'>(or press 'C')</span> to paint it.",
-    ui_cand_color_select_tip_mobile: "Tip: Pick a color, then touch a cell to select a candidate.",
+    ui_cand_color_select_tip_mobile:
+      "Tip: Pick a color, then touch a cell to select a candidate.",
     ui_cand_color_preview_tip:
       "Tip: Pick a color, hover over a candidate to preview, and click to apply.",
     ui_draw_tip_mobile: "Draw ({0}): Touch start then end candidate.",
     ui_draw_tip: "Draw ({0}): Click two candidates to connect. (X to switch)",
     ui_long_press_action: "Long press",
     ui_right_click_action: "Right-click",
-    ui_expt_erase_cand_tip: "Expt feature: {0} a candidate to erase it directly.",
+    ui_expt_erase_cand_tip:
+      "Expt feature: {0} a candidate to erase it directly.",
     ui_expt_draw_dash_tip: "Expt feature: {0} a candidate to draw a dash line.",
     ui_expt_apply_cell_color_tip:
       "Expt feature: {0} a candidate to apply the previously selected cell color.",
@@ -372,9 +386,11 @@ const TRANSLATIONS = {
     ui_daily_puzzle_not_found_error: "No puzzle found for this date and level.",
     ui_msg_level_11_fallback:
       "Level 11 is unavailable for this date. Loaded Level 10 instead.",
-    ui_fetching_unlimited_puzzle_status: "Fetching Unlimited Puzzle (Lv. {0})...",
+    ui_fetching_unlimited_puzzle_status:
+      "Fetching Unlimited Puzzle (Lv. {0})...",
     ui_puzzle_integrity_error: "Puzzle integrity check failed.",
-    ui_apply_technique_tooltip: "Apply selected technique and re-evaluate from this step",
+    ui_apply_technique_tooltip:
+      "Apply selected technique and re-evaluate from this step",
     ui_unlimited_puzzle_loaded: "Loaded Unlimited Puzzle!",
     ui_unlimited_puzzle_load_error: "Error loading unlimited puzzle.",
     ui_solved_share_prompt: "You solved it!{0} → ",
@@ -393,7 +409,8 @@ const TRANSLATIONS = {
     ui_msg_156_offline: "Offline: resumed the saved daily puzzle.",
     ui_custom_puzzle_loaded: "Custom puzzle loaded!",
     ui_daily_puzzle_loaded: "Loaded puzzle for {0}, Level {1}",
-    ui_auto_pencil_tip_mobile: "Tip: Touch 'Auto-Pencil' to fill in all possible candidates.",
+    ui_auto_pencil_tip_mobile:
+      "Tip: Touch 'Auto-Pencil' to fill in all possible candidates.",
     ui_msg_auto_pencil_tip_desktop:
       "Tip: Click&nbsp;'Auto-Pencil'&nbsp;<span class='shortcut-highlight'>(or press 'A')</span> to fill in all possible candidates.",
     ui_msg_copy_tip_desktop:
@@ -438,7 +455,8 @@ const TRANSLATIONS = {
     ui_undo_action: "Undid: {0}",
     ui_redo_action: "Redid: {0}",
     ui_FH_vague_hint: "Full House",
-    ui_starting_new_difficulty_eval: "--- Starting New Difficulty Evaluation ---",
+    ui_starting_new_difficulty_eval:
+      "--- Starting New Difficulty Evaluation ---",
     ui_initial_board_state_0_empty: "Initial Board State (0 = empty):",
     ui_remove_cands: "Remove candidates:",
     ui_level_score: "Level: {0}, Score: {1}",
@@ -451,7 +469,7 @@ const TRANSLATIONS = {
     ui_UL: "Unique Loop",
     ui_AUL: "Avoidable Unique Loop",
     ui_EUR: "Extended Unique Rectangle",
-    ui_AEUR: "Avoidable Extended Unique Rectangle",
+    ui_AEUR: "Avoidable EUR",
     ui_HR_vague_hint: "Hidden Rectangle",
     ui_FH: "Full House",
     ui_eliminate_cands: "Eliminate Candidates",
@@ -549,11 +567,13 @@ const TRANSLATIONS = {
     ui_default_score_tooltip: "Score (default: {0})",
     ui_prefs_saved_reeval_status: "Preferences saved! Re-evaluating board...",
     ui_board_eval_updated_status: "Board evaluation updated!",
-    ui_defaults_restored_reeval_status: "Defaults restored! Re-evaluating board...",
+    ui_defaults_restored_reeval_status:
+      "Defaults restored! Re-evaluating board...",
     ui_defaults_restored_status: "Defaults restored and applied!",
     ui_image_generation_error: "Failed to generate image.",
     ui_image_copied_status: "Image copied to clipboard!",
-    ui_clipboard_permission_error: "Clipboard access denied. Check permissions.",
+    ui_clipboard_permission_error:
+      "Clipboard access denied. Check permissions.",
     ui_image_copy_error: "Failed to copy image to clipboard.",
     ui_color_name: "Color",
     ui_color_indexed_name: "[Color {0}]",
@@ -573,7 +593,8 @@ const TRANSLATIONS = {
     ui_cand_color_added: "{0} in ({1})r{2}c{3}",
     ui_cand_color_cleared: "Cleared color in ({0})r{1}c{2}",
     ui_action_no_visible_changes: "No visible changes",
-    ui_multiple_cells_updated_highlight_wipe_reset_solve: "Multiple cells updated (Highlight/Wipe/Reset/Solve)",
+    ui_multiple_cells_updated_highlight_wipe_reset_solve:
+      "Multiple cells updated (Highlight/Wipe/Reset/Solve)",
     ui_unhighlighted_all: "Unhighlighted all",
     ui_highlighted_digit: "Highlighted Digit {0}",
     ui_highlighted_bi_value_cells: "Highlighted Bi-value cells",
@@ -651,7 +672,8 @@ const TRANSLATIONS = {
     teks_Hidden_subset_row: "Row",
     teks_Hidden_subset_col: "Col",
     teks_Hidden_subset_unit: "{0} {1}",
-    teks_all_cells_with_digits_in_are: "All cells with digits ({0}) in {1} are {2}",
+    teks_all_cells_with_digits_in_are:
+      "All cells with digits ({0}) in {1} are {2}",
     teks_X_Wing: "X-Wing",
     teks_msg_47_1: "Swordfish",
     teks_msg_47_2: "Jellyfish",
@@ -738,11 +760,13 @@ const TRANSLATIONS = {
     teks_ALP: "Almost Locked Pair",
     teks_ALT: "Almost Locked Triple",
     teks_ALS_houses: "using {0} {1} and Box {2}",
-    teks_ALS_intersection_detail: "ALS ({0}){1}, Intersection {2}, Off-intersection {3}",
+    teks_ALS_intersection_detail:
+      "ALS ({0}){1}, Intersection {2}, Off-intersection {3}",
     teks_SdC: "Sue de Coq",
     teks_SdC_row: "Row",
     teks_SdC_col: "Col",
-    teks_SdC_detail: "Intersection {0}, Off-intersection {1} and {2}, Digit ({3})",
+    teks_SdC_detail:
+      "Intersection {0}, Off-intersection {1} and {2}, Digit ({3})",
     teks_SdC_duplicate_digit_suffix: ", ({0}) appears twice",
     teks_firework_intersection: "Intersecting {0} {1} and Box {2}",
     teks_firework_triple: "Firework Triple",
@@ -798,8 +822,10 @@ const TRANSLATIONS = {
     teks_SimpleColor_digit: "Digit ({0})",
     teks_start_color_1_with_r_c: "Start Color 1 with ({0})r{1}c{2}",
     teks_start_color_c1_with_r_c: "Start Color C1 with ({0})r{1}c{2}. ",
-    teks_invalid_color_c_appears_twice_in_r_c: "Invalid Color C{0} appears twice in r{1}c{2}.",
-    teks_invalid_color_c_for_digit_sees_itself_at_r_c: "Invalid Color C{1} for digit ({0}) sees itself at r{2}c{3}.",
+    teks_invalid_color_c_appears_twice_in_r_c:
+      "Invalid Color C{0} appears twice in r{1}c{2}.",
+    teks_invalid_color_c_for_digit_sees_itself_at_r_c:
+      "Invalid Color C{1} for digit ({0}) sees itself at r{2}c{3}.",
     teks_bad_color_c_emptied_cell_r_c: "Bad Color C{2} emptied cell r{0}c{1}.",
     teks_SimpleColor_row: "Row {0}",
     teks_SimpleColor_col: "Col {0}",
@@ -817,7 +843,8 @@ const TRANSLATIONS = {
     teks_BVO_type_3_VNS_detail:
       "({0}{1}){3} Guardians {2}, Exrta cells for vitrual naked subset {4}",
     teks_BVO_type_4: "Bivalue Oddagon Type 4",
-    teks_BVO_type_4_guardians_detail: "({0}{1}){3}, Guardians {2} are on adjacent two cells",
+    teks_BVO_type_4_guardians_detail:
+      "({0}{1}){3}, Guardians {2} are on adjacent two cells",
     teks_BW: "Broken Wing",
     teks_BW_digit: "Digit ({0})",
     teks_BW_guardians: "({0}){1}, Guardians {2}",
@@ -866,10 +893,12 @@ const TRANSLATIONS = {
     teks_BUG_type_3_guardians: "Guardians {0}",
     teks_BUG_type_3_VNS_detail:
       "Guardians {0}, Extra cells {2} for virtual naked subset ({1})",
-    teks_BUG_type_4_ConPair_detail: "Guardians {0}, Conjugate pair ({1}) in {2}",
+    teks_BUG_type_4_ConPair_detail:
+      "Guardians {0}, Conjugate pair ({1}) in {2}",
     teks_BUG_plus_n_guardians: "Guardians {0}",
     teks_GSP: "Gurth's Symmetrical Placement",
-    teks_puzzle_is_diagonally_symmetric_in_the_direction: "Puzzle is diagonally symmetric in the {0} direction",
+    teks_puzzle_is_diagonally_symmetric_in_the_direction:
+      "Puzzle is diagonally symmetric in the {0} direction",
     teks_puzzle_is_centrally_symmetric: "Puzzle is centrally symmetric",
     teks_top_left: "top-left",
     teks_top_right: "top-right",
@@ -881,7 +910,8 @@ const TRANSLATIONS = {
     teks_central: "Central",
     teks_anti_GSP: "Anti Gurth's Symmetrical Placement",
     teks_puzzle_cannot_have_symmetry: "Puzzle cannot have {0} symmetry",
-    teks_mapping_required_for_symmetry: "Mapping required for {0} symmetry: {1}",
+    teks_mapping_required_for_symmetry:
+      "Mapping required for {0} symmetry: {1}",
     teks_TVO_type_1: "Trivalue Oddagon Type 1",
     teks_TVO_type_1_digits: "using Digits ({0}{1}{2})",
     teks_TVO_type_1_guardians: "({0}{1}{2}){3}, Guardians {4}",
@@ -1088,7 +1118,8 @@ const TRANSLATIONS = {
     ui_exit_solver_tooltip: "솔버 모드를 종료하고 플레이 모드로 되돌아갑니다.",
     ui_solver_mode_btn_mobile: "솔버 모드",
     ui_enter_solver_mode_btn: "솔버 모드 켜기 (S)",
-    ui_enter_solver_tooltip: "퍼즐의 풀이과정을 보기 위해 솔버모드에 진입합니다.",
+    ui_enter_solver_tooltip:
+      "퍼즐의 풀이과정을 보기 위해 솔버모드에 진입합니다.",
     ui_pencil_mode_btn_mobile: "연필",
     ui_pencil_mode_btn: "연필 (Z)",
     ui_pencil_mode_tooltip:
@@ -1102,7 +1133,8 @@ const TRANSLATIONS = {
     ui_draw_dash_mode_label: "그리기: 점선",
     ui_solid_line_style: "실선",
     ui_dash_line_style: "점선",
-    ui_draw_mode_tooltip: "그리기 모드 ({0}): 두 후보수를 클릭하여 연결합니다. (X로 전환)",
+    ui_draw_mode_tooltip:
+      "그리기 모드 ({0}): 두 후보수를 클릭하여 연결합니다. (X로 전환)",
     ui_draw_mode_btn_mobile: "그리기",
     ui_draw_mode_btn: "그리기 (X)",
     ui_draw_mode_switch_tooltip: "그리기 모드로 전환 (X)",
@@ -1141,17 +1173,21 @@ const TRANSLATIONS = {
     ui_expt_mode_enabled_status: "실험실 모드 활성화됨!",
     ui_disable_expt_mode_tooltip: "실험실 모드 비활성화.",
     ui_expt_mode_disabled_status: "실험실 모드 비활성화됨.",
-    ui_enable_expt_mode_tooltip: "실험실 모드 활성화: 후보수를 직접 클릭하세요.",
+    ui_enable_expt_mode_tooltip:
+      "실험실 모드 활성화: 후보수를 직접 클릭하세요.",
     ui_msg_experimental_mode_tip:
       "팁: 실험실 모드에서는 후보수를 직접 조작할 수 있습니다. 환경설정(⚙)에서 켜세요.",
-    ui_vague_hint_tooltip_mobile: "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다.",
-    ui_vague_hint_tooltip: "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다 (V).",
+    ui_vague_hint_tooltip_mobile:
+      "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다.",
+    ui_vague_hint_tooltip:
+      "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다 (V).",
     ui_solver_toggle_btn_mobile: "솔버 모드를 켜거나 끕니다",
     ui_solver_toggle_btn: "솔버 모드를 켜거나 끕니다 (S).",
     ui_solver_mode_label: "솔버 모드",
     ui_enter_solver_mode_label: "솔버 모드 진입 (S)",
     ui_incorrect_progress_error: "오류: 잘못된 진행이 있습니다.",
-    ui_auto_pencil_required_error: "후보수 자동 채우기가 사용되지 않음; 평가가 중지되었습니다.",
+    ui_auto_pencil_required_error:
+      "후보수 자동 채우기가 사용되지 않음; 평가가 중지되었습니다.",
     ui_easy: "입문",
     ui_medium: "초급",
     ui_hard: "숙련",
@@ -1195,16 +1231,21 @@ const TRANSLATIONS = {
     ui_puzzle_already_solved: "스도쿠가 이미 해결되었습니다!",
     ui_trivial_state_hint_disabled:
       "퍼즐이 거의 완료되었습니다. 매우 쉬운 상태에서는 힌트와 솔버 모드가 비활성화됩니다.",
-    ui_invalid_puzzle_hint_unavailable: "유효하지 않은 퍼즐에는 힌트가 제공되지 않습니다.",
-    ui_wrong_progress_hint_unavailable: "힌트 사용 불가: 잘못된 진행이 있습니다.",
+    ui_invalid_puzzle_hint_unavailable:
+      "유효하지 않은 퍼즐에는 힌트가 제공되지 않습니다.",
+    ui_wrong_progress_hint_unavailable:
+      "힌트 사용 불가: 잘못된 진행이 있습니다.",
     ui_hint_not_found: "힌트를 찾을 수 없습니다!",
-    ui_hidden_marks_disable_expt: "표시가 숨겨져 있는 동안에는 실험실 모드가 비활성화됩니다.",
+    ui_hidden_marks_disable_expt:
+      "표시가 숨겨져 있는 동안에는 실험실 모드가 비활성화됩니다.",
     ui_expt_coloring_enabled_tooltip:
       "실험실 모드 켜짐: 직접 색칠하기 및 후보수를 클릭하여 제거(연필)하거나 설정(숫자)할 수 있습니다.",
     ui_expt_enabled_tooltip:
       "실험실 모드 켜짐: 후보수를 클릭하여 제거(연필 모드)하거나 값으로 설정(숫자 모드)할 수 있습니다.",
-    ui_expt_coloring_disabled_tooltip: "실험실 모드 꺼짐: 팝업 색칠하기 활성화됨.",
-    ui_expt_disabled_tooltip: "실험실 모드 꺼짐: 클릭하여 후보수 설정/제거 기능이 비활성화됨.",
+    ui_expt_coloring_disabled_tooltip:
+      "실험실 모드 꺼짐: 팝업 색칠하기 활성화됨.",
+    ui_expt_disabled_tooltip:
+      "실험실 모드 꺼짐: 클릭하여 후보수 설정/제거 기능이 비활성화됨.",
     ui_share_no_puzzle_error: "공유할 퍼즐이 없습니다.",
     ui_share_target_prompt: "무엇을 공유하시겠습니까?",
     ui_share_initial_format_label: "초기 상태 공유하기:",
@@ -1232,25 +1273,32 @@ const TRANSLATIONS = {
       "표시가 숨겨져 있는 동안에는 연필 모드가 비활성화됩니다. (보이게 하려면 Alt+A를 누르세요)",
     ui_hidden_marks_cand_color_disabled_tip:
       "표시가 숨겨져 있는 동안에는 후보수 색칠하기가 비활성화됩니다. (보이게 하려면 Alt+A를 누르세요)",
-    ui_highlight_number_tip_mobile: "팁: 채워진 셀을 터치하여 숫자를 강조 표시하세요.",
+    ui_highlight_number_tip_mobile:
+      "팁: 채워진 셀을 터치하여 숫자를 강조 표시하세요.",
     ui_msg_121_desktop:
       "팁: 채워진 셀을 클릭&nbsp;<span class='shortcut-highlight'>(또는 'Enter' 입력)</span>하여 숫자를 강조 표시하세요.",
-    ui_pencil_mark_tip_mobile: "팁: 셀을 터치한 후 숫자를 눌러 후보숫자를 적거나 지웁니다.",
-    ui_pencil_mark_tip: "팁: 셀을 클릭한 후 숫자를 눌러 후보숫자를 적거나 지웁니다.",
+    ui_pencil_mark_tip_mobile:
+      "팁: 셀을 터치한 후 숫자를 눌러 후보숫자를 적거나 지웁니다.",
+    ui_pencil_mark_tip:
+      "팁: 셀을 클릭한 후 숫자를 눌러 후보숫자를 적거나 지웁니다.",
     ui_cell_color_tip_mobile: "팁: 색상을 선택한 후 셀을 터치하여 칠하세요.",
     ui_msg_124_desktop:
       "팁: 색상을 선택한 후 셀을 클릭&nbsp;<span class='shortcut-highlight'>(또는 'C' 입력)</span>하여 칠하세요.",
-    ui_cand_color_select_tip_mobile: "팁: 색상을 선택한 후 셀을 터치하여 후보수를 선택하세요.",
+    ui_cand_color_select_tip_mobile:
+      "팁: 색상을 선택한 후 셀을 터치하여 후보수를 선택하세요.",
     ui_cand_color_preview_tip:
       "팁: 색상을 선택한 후 후보수 위에 마우스를 올려 미리보고 클릭하여 적용하세요.",
-    ui_draw_tip_mobile: "그리기 ({0}): 시작 후보수와 끝 후보수를 차례로 터치하세요.",
+    ui_draw_tip_mobile:
+      "그리기 ({0}): 시작 후보수와 끝 후보수를 차례로 터치하세요.",
     ui_draw_tip: "그리기 ({0}): 두 후보수를 클릭하여 연결하세요. (X로 전환)",
     ui_long_press_action: "길게 눌러",
     ui_right_click_action: "우클릭하여",
     ui_expt_erase_cand_tip: "실험실 기능: 후보수를 {0} 바로 지우세요.",
     ui_expt_draw_dash_tip: "실험실 기능: 후보수를 {0} 점선을 그리세요.",
-    ui_expt_apply_cell_color_tip: "실험실 기능: 후보수를 {0} 이전에 선택한 셀 색상을 적용하세요.",
-    ui_expt_apply_cand_color_tip: "실험실 기능: 후보수를 {0} 이전에 선택한 색상을 적용하세요.",
+    ui_expt_apply_cell_color_tip:
+      "실험실 기능: 후보수를 {0} 이전에 선택한 셀 색상을 적용하세요.",
+    ui_expt_apply_cand_color_tip:
+      "실험실 기능: 후보수를 {0} 이전에 선택한 색상을 적용하세요.",
     ui_date_input_placeholder: "날짜 입력",
     ui_unlimited_option: "무제한",
     ui_custom_option: "사용자 지정 퍼즐",
@@ -1259,15 +1307,20 @@ const TRANSLATIONS = {
     ui_fetching_puzzle_status: "퍼즐을 가져오는 중...",
     solver_progress_remaining: "남은 후보숫자 {0}/{1}",
     solver_progress_searching: "{0} 탐색 중",
-    ui_daily_level_not_found_error: "일일 파일에서 퍼즐 레벨을 찾을 수 없습니다",
-    ui_daily_puzzle_not_found_error: "이 날짜와 레벨에 해당하는 퍼즐을 찾을 수 없습니다.",
+    ui_daily_level_not_found_error:
+      "일일 파일에서 퍼즐 레벨을 찾을 수 없습니다",
+    ui_daily_puzzle_not_found_error:
+      "이 날짜와 레벨에 해당하는 퍼즐을 찾을 수 없습니다.",
     ui_msg_level_11_fallback:
       "이 날짜에는 레벨 11을 이용할 수 없어 레벨 10을 불러왔습니다.",
-    ui_fetching_unlimited_puzzle_status: "무제한 퍼즐 가져오는 중 (레벨 {0})...",
+    ui_fetching_unlimited_puzzle_status:
+      "무제한 퍼즐 가져오는 중 (레벨 {0})...",
     ui_puzzle_integrity_error: "퍼즐 무결성 검사에 실패했습니다.",
-    ui_apply_technique_tooltip: "선택한 기술을 적용하고 이 단계부터 재평가합니다.",
+    ui_apply_technique_tooltip:
+      "선택한 기술을 적용하고 이 단계부터 재평가합니다.",
     ui_unlimited_puzzle_loaded: "무제한 퍼즐을 불러왔습니다!",
-    ui_unlimited_puzzle_load_error: "무제한 퍼즐을 불러오는 중 오류가 발생했습니다.",
+    ui_unlimited_puzzle_load_error:
+      "무제한 퍼즐을 불러오는 중 오류가 발생했습니다.",
     ui_solved_share_prompt: "퍼즐을 풀었습니다!{0} → ",
     ui_share_btn: "공유하기",
     ui_solved_status: "퍼즐을 풀었습니다!{0}",
@@ -1304,13 +1357,15 @@ const TRANSLATIONS = {
     ui_saved_progress_loaded: "저장된 진행 상황을 불러왔습니다.",
     ui_eval_failed_or_busy_error: "평가 진행 중이거나 실패했습니다!",
     ui_initial_puzzle_missing_error: "오류: 초기 퍼즐이 로드되지 않았습니다.",
-    ui_non_unique_solver_unavailable: "유일한 해답이 없는 퍼즐에서는 솔버 모드를 사용할 수 없습니다.",
+    ui_non_unique_solver_unavailable:
+      "유일한 해답이 없는 퍼즐에서는 솔버 모드를 사용할 수 없습니다.",
     ui_solver_eval_from_beginning_status: "처음부터 평가중...",
     ui_nearly_complete_solver_disabled:
       "퍼즐이 거의 완료되었습니다. 매우 쉬운 상태에서는 힌트와 솔버 모드가 비활성화됩니다.",
     ui_evaluating_status: "평가중...",
     ui_solver_exited_status: "솔버 모드를 종료했습니다.",
-    ui_no_technique_for_state: "이 상태에 대해 적용할 수 있는 기술을 찾지 못했습니다.",
+    ui_no_technique_for_state:
+      "이 상태에 대해 적용할 수 있는 기술을 찾지 못했습니다.",
     ui_show_more_results: "{0}개 더 보기...",
     ui_preparing_search_status: "검색 준비중...",
     ui_no_technique_found: "적용할 수 있는 기술을 찾지 못했습니다.",
@@ -1324,7 +1379,8 @@ const TRANSLATIONS = {
     ui_brute_force_name: "무작위 대입 :(",
     ui_solver_restart_warning:
       "잘못된 진행이 있습니다.<br><span class='font-bold text-red-500'>솔버를 처음부터 시작합니다.</span>",
-    ui_solver_start_state_prompt: "진행 중인 퍼즐입니다.<br>솔버를 어디서부터 시작하시겠습니까?",
+    ui_solver_start_state_prompt:
+      "진행 중인 퍼즐입니다.<br>솔버를 어디서부터 시작하시겠습니까?",
     ui_undo_no_visible_changes: "눈에 띄는 변경 사항 없음",
     ui_undo_action: "실행 취소: {0}",
     ui_redo_action: "다시 실행: {0}",
@@ -1342,7 +1398,7 @@ const TRANSLATIONS = {
     ui_UL: "유일한 고리",
     ui_AUL: "회피 가능한 유일한 고리",
     ui_EUR: "확장된 유일한 직사각형",
-    ui_AEUR: "회피 가능한 확장된 유일한 직사각형",
+    ui_AEUR: "회피 가능한 EUR",
     ui_HR_vague_hint: "숨은 직사각형",
     ui_FH: "가득찬 집",
     ui_eliminate_cands: "후보수 제거",
@@ -1438,9 +1494,11 @@ const TRANSLATIONS = {
     ui_eliminate_cands_eval_name: "후보수 제거",
     ui_FH_eval_name: "가득찬 집",
     ui_default_score_tooltip: "점수 (기본값: {0})",
-    ui_prefs_saved_reeval_status: "기본 설정이 저장되었습니다! 보드 재평가 중...",
+    ui_prefs_saved_reeval_status:
+      "기본 설정이 저장되었습니다! 보드 재평가 중...",
     ui_board_eval_updated_status: "보드 평가가 업데이트되었습니다!",
-    ui_defaults_restored_reeval_status: "기본값이 복원되었습니다! 보드 재평가 중...",
+    ui_defaults_restored_reeval_status:
+      "기본값이 복원되었습니다! 보드 재평가 중...",
     ui_defaults_restored_status: "기본값이 복원 및 적용되었습니다!",
     ui_image_generation_error: "이미지 생성에 실패했습니다.",
     ui_image_copied_status: "이미지가 클립보드로 복사됐습니다!",
@@ -1464,7 +1522,8 @@ const TRANSLATIONS = {
     ui_cand_color_added: "({1})r{2}c{3}에 {0} 칠함",
     ui_cand_color_cleared: "({0})r{1}c{2}의 색상 지움",
     ui_action_no_visible_changes: "눈에 띄는 변경 사항 없음",
-    ui_multiple_cells_updated_highlight_wipe_reset_solve: "여러 셀 업데이트됨 (강조/지우기/초기화/해결)",
+    ui_multiple_cells_updated_highlight_wipe_reset_solve:
+      "여러 셀 업데이트됨 (강조/지우기/초기화/해결)",
     ui_unhighlighted_all: "모든 강조 표시 해제",
     ui_highlighted_digit: "숫자 {0} 강조 표시됨",
     ui_highlighted_bi_value_cells: "이중값을 가진 셀이 강조 표시됨",
@@ -1511,7 +1570,8 @@ const TRANSLATIONS = {
     teks_unit_col: "열",
     teks_HiddenS_box: "상자",
     teks_unit_with_index: "{1}번 {0}",
-    teks_only_cell_with_digit_in: "{2}에서 {0}에 숫자 ({1})이(가) 들어갈 수 있는 유일한 칸",
+    teks_only_cell_with_digit_in:
+      "{2}에서 {0}에 숫자 ({1})이(가) 들어갈 수 있는 유일한 칸",
     teks_HiddenS: "숨은 하나",
     teks_LockedP_row: "행",
     teks_LockedP_col: "열",
@@ -1542,15 +1602,18 @@ const TRANSLATIONS = {
     teks_Hidden_subset_row: "행",
     teks_Hidden_subset_col: "열",
     teks_Hidden_subset_unit: "{1}번 {0}",
-    teks_all_cells_with_digits_in_are: "{1}에서 숫자 ({0})이(가) 들어갈 수 있는 모든 칸이 {2}임",
+    teks_all_cells_with_digits_in_are:
+      "{1}에서 숫자 ({0})이(가) 들어갈 수 있는 모든 칸이 {2}임",
     teks_X_Wing: "X-윙",
     teks_msg_47_1: "황새치",
     teks_msg_47_2: "해파리",
     teks_fish_digit: "숫자 ({0})",
-    teks_digit_base_cover_fin: "숫자 ({0}) 사용, 밑 {1}, 덮개 {2}, 지느러미 {3}",
+    teks_digit_base_cover_fin:
+      "숫자 ({0}) 사용, 밑 {1}, 덮개 {2}, 지느러미 {3}",
     teks_XY_Wing: "XY-윙",
     teks_pivot_at_r_c: "피벗 r{0}c{1}",
-    teks_digits_in_pivot_r_c_with_wings_r_c_and_r_c: "숫자 ({0}) 사용, 피벗 r{1}c{2}, 윙 r{3}c{4}, r{5}c{6}",
+    teks_digits_in_pivot_r_c_with_wings_r_c_and_r_c:
+      "숫자 ({0}) 사용, 피벗 r{1}c{2}, 윙 r{3}c{4}, r{5}c{6}",
     teks_XYZ_Wing: "XYZ-윙",
     teks_grouped_W_Wing: "그룹 W-윙",
     teks_W_Wing: "W-윙",
@@ -1596,7 +1659,8 @@ const TRANSLATIONS = {
     teks_EUR_type_3: "확장된 유일한 직사각형 유형 3",
     teks_EUR_subset_cells: "{0}, 가상의 드러난 부분집합을 위한 추가 칸 {1}",
     teks_EUR_type_4: "확장된 유일한 직사각형 유형 4",
-    teks_EUR_type_4_restricted_base_detail: "{0}, {2}에서 기반 숫자 ({1}) 제한됨",
+    teks_EUR_type_4_restricted_base_detail:
+      "{0}, {2}에서 기반 숫자 ({1}) 제한됨",
     teks_EUR_type_6: "확장된 유일한 직사각형 유형 6",
     teks_EUR_type_6_guardian_elimination_detail:
       "{0}, 모든 수호자를 제거하는 직사각형 위의 숫자 ({1})의 배치를 제외",
@@ -1628,7 +1692,8 @@ const TRANSLATIONS = {
     teks_ALP: "거의 잠긴 둘",
     teks_ALT: "거의 잠긴 셋",
     teks_ALS_houses: "{1}번 {0}과(와) {2}번 상자 사용",
-    teks_ALS_intersection_detail: "거의 드러난 집합 ({0}){1}, 교차로 {2}, 교차로 밖 {3}",
+    teks_ALS_intersection_detail:
+      "거의 드러난 집합 ({0}){1}, 교차로 {2}, 교차로 밖 {3}",
     teks_SdC: "수 드 콕",
     teks_SdC_row: "행",
     teks_SdC_col: "열",
@@ -1692,7 +1757,8 @@ const TRANSLATIONS = {
       "한 셀에는 한 숫자만 참이므로 색 {0}이(가) r{1}c{2}에 두 번 나타나 모순됨.",
     teks_invalid_color_c_for_digit_sees_itself_at_r_c:
       "숫자 ({0})에 대한 색 {1}이(가) r{2}c{3}에서 마주 보게 되어 모순됨.",
-    teks_bad_color_c_emptied_cell_r_c: "r{0}c{1}내 모든 후보숫자가 색 {2}과(와) NAND 관계에 있음.",
+    teks_bad_color_c_emptied_cell_r_c:
+      "r{0}c{1}내 모든 후보숫자가 색 {2}과(와) NAND 관계에 있음.",
     teks_SimpleColor_row: "{0}번 행",
     teks_SimpleColor_col: "{0}번 열",
     teks_SimpleColor_box: "{0}번 상자",
@@ -1700,7 +1766,8 @@ const TRANSLATIONS = {
       "색 {0}이(가) {1}에서 숫자 ({2})이(가) 들어갈 수 있는 모든 칸을 제거하여 모순됨.",
     teks_c1_at: "색 1이 {0}에",
     teks_c2_at: "색 2가 {0}에",
-    teks_color_trap: "삭제되는 후보숫자가 두 색상({0}) 모두와 NAND 관계에 있음.",
+    teks_color_trap:
+      "삭제되는 후보숫자가 두 색상({0}) 모두와 NAND 관계에 있음.",
     teks_ALS_XY_Wing: "거의 드러난 집합 XY-윙",
     teks_ALS_W_Wing: "거의 드러난 집합 W-윙",
     teks_BVO_type_2: "이중값 홀수각형 유형 2",
@@ -1710,7 +1777,8 @@ const TRANSLATIONS = {
     teks_BVO_type_3_VNS_detail:
       "({0}{1}){3}, 수호자 {2}, 가상의 드러난 부분집합을 위한 추가 칸 {4}",
     teks_BVO_type_4: "이중값 홀수각형 유형 4",
-    teks_BVO_type_4_guardians_detail: "({0}{1}){3}, 수호자 {2}가 인접한 두 칸에 위치함",
+    teks_BVO_type_4_guardians_detail:
+      "({0}{1}){3}, 수호자 {2}가 인접한 두 칸에 위치함",
     teks_BW: "꺾인 날개",
     teks_BW_digit: "숫자 ({0}) 사용",
     teks_BW_guardians: "({0}){1}, 수호자 {2}",
@@ -1757,11 +1825,13 @@ const TRANSLATIONS = {
     teks_BUG_plus: "BUG+{0}",
     teks_BUG_type_2_guardians: "수호자 {0}",
     teks_BUG_type_3_guardians: "수호자 {0}",
-    teks_BUG_type_3_VNS_detail: "수호자 {0}, 가상의 드러난 부분집합 ({1})을 위한 추가 칸 {2}",
+    teks_BUG_type_3_VNS_detail:
+      "수호자 {0}, 가상의 드러난 부분집합 ({1})을 위한 추가 칸 {2}",
     teks_BUG_type_4_ConPair_detail: "수호자 {0}, {2}의 이중 위치 ({1})",
     teks_BUG_plus_n_guardians: "수호자 {0}",
     teks_GSP: "거스의 대칭 배치",
-    teks_puzzle_is_diagonally_symmetric_in_the_direction: "{0} 방향으로 대각선 대칭인 퍼즐",
+    teks_puzzle_is_diagonally_symmetric_in_the_direction:
+      "{0} 방향으로 대각선 대칭인 퍼즐",
     teks_puzzle_is_centrally_symmetric: "중심점을 기준으로 점대칭인 퍼즐",
     teks_top_left: "좌상향",
     teks_top_right: "우상향",
@@ -1779,7 +1849,8 @@ const TRANSLATIONS = {
     teks_TVO_type_1_guardians: "({0}{1}{2}){3}, 수호자 {4}",
     teks_TVO_XZ: "삼중값 홀수각형 XZ",
     teks_TVO_XZ_digits: "숫자 ({0}{1}{2}) 사용",
-    teks_TVO_XZ_ALS_detail: "({0}{1}{2}){3}, 수호자 {4}, 거의 드러난 집합 ({5}){6}",
+    teks_TVO_XZ_ALS_detail:
+      "({0}{1}{2}){3}, 수호자 {4}, 거의 드러난 집합 ({5}){6}",
     teks_AUET_type_2: "회피 가능한 외부 수호자 논법 유형 2",
     teks_AUET_type_3: "회피 가능한 외부 수호자 논법 유형 3",
     teks_AUET_type_3h: "회피 가능한 외부 수호자 논법 유형 3h",
