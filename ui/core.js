@@ -4343,7 +4343,6 @@ async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
     if (!loaded) return;
 
     setPuzzleLevelLabel({ kind: "unlimited", level });
-    puzzleScoreEl.textContent = "";
     showMessage(t("ui_unlimited_puzzle_loaded"), "green");
   } catch (err) {
     if (requestId !== puzzleSelectionRequestId) return;
