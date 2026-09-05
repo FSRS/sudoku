@@ -1,5 +1,5 @@
 Object.assign(techniques, {
-
+  // --- Unified Coloring / Medusa Helper ---
   // Helper: Convert cell coordinates and digit into a unique 0-728 ID
   _getCandId: (r, c, n) => (r * 9 + c) * 9 + (n - 1),
 
@@ -508,5 +508,4 @@ Object.assign(techniques, {
   medusa3D: (board, pencils, findAll = false) => {
     return techniques._solveColoring(board, pencils, null, findAll);
   },
-
 });

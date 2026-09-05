@@ -229,13 +229,17 @@ Object.assign(techniques, {
       const makeResult = (baseUnits, coverUnits, allFinsMask, elims) => {
         const isFinned = !isZero(allFinsMask);
         let fishName =
-          fishSize === 4
+          fishSize === 5
             ? isMutant
-              ? t("teks_mutant_jellyfish")
-              : t("teks_franken_jellyfish")
-            : isMutant
-              ? t("teks_mutant_swordfish")
-              : t("teks_franken_swordfish");
+              ? t("teks_mutant_squirmbag")
+              : t("teks_franken_squirmbag")
+            : fishSize === 4
+              ? isMutant
+                ? t("teks_mutant_jellyfish")
+                : t("teks_franken_jellyfish")
+              : isMutant
+                ? t("teks_mutant_swordfish")
+                : t("teks_franken_swordfish");
         if (isFinned) fishName = t("teks_finned_prefix") + fishName;
 
         const baseStr = formatUnits(baseUnits);
@@ -529,5 +533,29 @@ Object.assign(techniques, {
     return techniques._complexFishCore(board, pencils, 4, true, findAll);
   },
 
-  // --- Unified Coloring / Medusa Helper ---
+  finnedFrankenSquirmbag: (board, pencils, findAll = false) => {
+    return techniques._complexFishCore(board, pencils, 5, false, findAll);
+  },
+
+  finnedMutantSquirmbag: (board, pencils, findAll = false) => {
+    return techniques._complexFishCore(board, pencils, 5, true, findAll);
+  },
+
+  complexFish: (board, pencils, fishSize, findAll = false) => {
+    if (findAll) {
+      return [
+        ...techniques._complexFishCore(board, pencils, fishSize, false, true),
+        ...techniques._complexFishCore(board, pencils, fishSize, true, true),
+      ];
+    }
+    const franken = techniques._complexFishCore(
+      board,
+      pencils,
+      fishSize,
+      false,
+      false,
+    );
+    if (franken.change) return franken;
+    return techniques._complexFishCore(board, pencils, fishSize, true, false);
+  },
 });
