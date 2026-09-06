@@ -775,7 +775,7 @@ const TRANSLATIONS = {
     teks_SdC_detail:
       "Intersection {0}, Off-intersection {1} and {2}, Digit ({3})",
     teks_SdC_duplicate_digit_suffix: ", ({0}) appears twice",
-    teks_firework_intersection: "Intersecting {0} {1} and Box {2}",
+    teks_SdC_intersection: "Intersecting {0} {1} and Box {2}",
     teks_firework_triple: "Firework Triple",
     teks_msg_133_2: "Firework Quadruple",
     teks_firework_digits: "Digits ({0})",
@@ -1715,7 +1715,7 @@ const TRANSLATIONS = {
     teks_SdC_col: "열",
     teks_SdC_detail: "교차로 {0}, 교차로 밖 {1} 및 {2}, 숫자 ({3})",
     teks_SdC_duplicate_digit_suffix: ", ({0})(이)가 두 번 나타남.",
-    teks_firework_intersection: "{0}번 {1}과 {2}번 상자의 교차로",
+    teks_SdC_intersection: "{1}번 {0}과 {2}번 상자의 교차로",
     teks_firework_triple: "삼중 불꽃놀이",
     teks_msg_133_2: "사중 불꽃놀이",
     teks_firework_digits: "숫자 ({0})",

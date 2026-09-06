@@ -184,8 +184,7 @@ Object.assign(techniques, {
                       ? formatBP(outsideIntersection, targetIdx)
                       : formatRC(outsideIntersection);
 
-                  const techName =
-                    size === 2 ? t("teks_ALP") : t("teks_ALT");
+                  const techName = size === 2 ? t("teks_ALP") : t("teks_ALT");
                   const mainInfo = t(
                     "teks_ALS_houses",
                     isRow ? t("teks_unit_row") : t("teks_unit_col"),
@@ -508,7 +507,7 @@ Object.assign(techniques, {
                         hint: {
                           name: hintName,
                           mainInfo: t(
-                            "teks_firework_intersection",
+                            "teks_SdC_intersection",
                             lineName,
                             lineIdx + 1,
                             boxNum,
@@ -555,5 +554,4 @@ Object.assign(techniques, {
 
     return findAll ? results : { change: false };
   },
-
 });
