@@ -164,7 +164,6 @@ Object.assign(techniques, {
           for (let i = start; i <= candidateUnits.length - remaining; i++) {
             const unit = candidateUnits[i];
             const nextEndoMask = bitOr(endoMask, bitAnd(mask, unit.mask));
-            if (bitPopcount(nextEndoMask) > 2) continue;
 
             selected.push(unit);
             visit(
@@ -339,10 +338,8 @@ Object.assign(techniques, {
               return null;
 
             const exoFinsMask = bitAndNot(baseCombination.mask, coverMask);
-            if (bitPopcount(exoFinsMask) > 4) return null;
 
             const allFinsMask = bitOr(exoFinsMask, baseCombination.endoMask);
-            if (bitPopcount(allFinsMask) > 5) return null;
             if (
               !isZero(allFinsMask) &&
               !isZero(bitAndNot(allFinsMask, PEER_BITSETS[targetId]))
