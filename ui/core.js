@@ -8020,14 +8020,21 @@ function openPreferencesModal() {
     savedPrefs.forEach((p) => {
       const tech = findTechniqueForPreference(p, defaultTechs);
       if (tech) {
-        currentOrder.push({
+        const row = {
           ...tech,
           enabled: p.enabled,
           origLevel: tech.level,
           level: p.level !== undefined ? p.level : tech.level,
           origScore: tech.score,
           currentScore: p.score !== undefined ? p.score : tech.score,
-        });
+        };
+        const existingIndex = currentOrder.findIndex(
+          (item) => item.id === tech.id,
+        );
+        if (existingIndex === -1) currentOrder.push(row);
+        else if (!currentOrder[existingIndex].enabled && row.enabled) {
+          currentOrder[existingIndex] = row;
+        }
       }
     });
     insertMissingDefaultsInOrder(

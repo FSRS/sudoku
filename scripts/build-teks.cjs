@@ -19,6 +19,7 @@ const sources = [
   "uniqueness/extended.js",
   "uniqueness/loops.js",
   "uniqueness/external.js",
+  "uniqueness/groups.js",
   "alc-sdq.js",
   "firework.js",
   "aic/graph.js",
