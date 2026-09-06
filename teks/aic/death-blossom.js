@@ -5,8 +5,12 @@ Object.assign(techniques, {
     isRegion,
     findAll = false,
     focusKind = null,
+    seenEliminations = null,
   ) => {
     const results = [];
+    const recordedEliminations = findAll
+      ? (seenEliminations ?? new Set())
+      : null;
     techniques._useSharedAICCache(board, pencils);
     const cache = techniques._aicCache;
     const isAals = focusKind === "aals";
@@ -277,8 +281,9 @@ Object.assign(techniques, {
         );
       };
 
-      let chosenPaths = null;
-      let elims = null;
+      // Normal mode needs the first writable proof. findAll retains every
+      // proof that contributes at least one previously unreported elimination.
+      const candidateProofs = [];
 
       for (const target of reachableElims) {
         const targetDigit = target.num;
@@ -305,12 +310,27 @@ Object.assign(techniques, {
         const proven = provenElims(paths);
         if (proven.length === 0) continue;
 
-        chosenPaths = paths;
-        elims = proven;
+        if (findAll) {
+          // Deduplicate before continuing the target loop. If this proof is
+          // already known, a later target from the same stem may still add a
+          // different conclusion.
+          const novelElims = proven.filter((el) => {
+            const key = `${el.r}:${el.c}:${el.num}`;
+            if (recordedEliminations.has(key)) return false;
+            recordedEliminations.add(key);
+            return true;
+          });
+          if (novelElims.length === 0) continue;
+
+          candidateProofs.push({ chosenPaths: paths, elims: novelElims });
+          continue;
+        }
+
+        candidateProofs.push({ chosenPaths: paths, elims: proven });
         break;
       }
 
-      if (chosenPaths) {
+      for (const { chosenPaths, elims } of candidateProofs) {
         const chainStrs = chosenPaths.map((path) => {
           const startNode = path[0];
           let str = `(${startNode.digits[0]})r${Math.floor(startNode.cells[0] / 9) + 1}c${(startNode.cells[0] % 9) + 1}`;
@@ -473,10 +493,26 @@ Object.assign(techniques, {
 
   deathBlossom: (board, pencils, findAll = false) => {
     if (findAll) {
+      const seenEliminations = new Set();
       return [
-        ...techniques.cellDeathBlossom(board, pencils, true),
-        ...techniques.regionDeathBlossom(board, pencils, true),
-        ...techniques.aalsDeathBlossom(board, pencils, true),
+        ...techniques.cellDeathBlossom(
+          board,
+          pencils,
+          true,
+          seenEliminations,
+        ),
+        ...techniques.regionDeathBlossom(
+          board,
+          pencils,
+          true,
+          seenEliminations,
+        ),
+        ...techniques.aalsDeathBlossom(
+          board,
+          pencils,
+          true,
+          seenEliminations,
+        ),
       ];
     }
     const cell = techniques.cellDeathBlossom(board, pencils, false);
@@ -486,16 +522,52 @@ Object.assign(techniques, {
     return techniques.aalsDeathBlossom(board, pencils, false);
   },
 
-  cellDeathBlossom: (board, pencils, findAll = false) => {
-    return techniques._deathBlossomCore(board, pencils, false, findAll);
+  cellDeathBlossom: (
+    board,
+    pencils,
+    findAll = false,
+    seenEliminations = null,
+  ) => {
+    return techniques._deathBlossomCore(
+      board,
+      pencils,
+      false,
+      findAll,
+      null,
+      seenEliminations,
+    );
   },
 
-  regionDeathBlossom: (board, pencils, findAll = false) => {
-    return techniques._deathBlossomCore(board, pencils, true, findAll);
+  regionDeathBlossom: (
+    board,
+    pencils,
+    findAll = false,
+    seenEliminations = null,
+  ) => {
+    return techniques._deathBlossomCore(
+      board,
+      pencils,
+      true,
+      findAll,
+      null,
+      seenEliminations,
+    );
   },
 
-  aalsDeathBlossom: (board, pencils, findAll = false) => {
-    return techniques._deathBlossomCore(board, pencils, false, findAll, "aals");
+  aalsDeathBlossom: (
+    board,
+    pencils,
+    findAll = false,
+    seenEliminations = null,
+  ) => {
+    return techniques._deathBlossomCore(
+      board,
+      pencils,
+      false,
+      findAll,
+      "aals",
+      seenEliminations,
+    );
   },
 
   // --- Almost AIC ---

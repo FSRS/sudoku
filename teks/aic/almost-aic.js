@@ -535,8 +535,9 @@ Object.assign(techniques, {
         );
       };
 
-      let chosenPaths = null;
-      let elims = null;
+      // Normal mode needs the first writable proof. findAll retains every
+      // proof that contributes at least one previously unreported elimination.
+      const candidateProofs = [];
 
       for (const candidate of reachableElims) {
         const id = candidate.r * 9 + candidate.c;
@@ -560,300 +561,307 @@ Object.assign(techniques, {
         const proven = provenElims(paths);
         if (proven.length === 0) continue;
 
-        chosenPaths = paths;
-        elims = proven;
+        if (findAll) {
+          // Deduplicate before continuing the target loop. If this proof is
+          // already known, a later target from the same stem may still add a
+          // different conclusion.
+          const novelElims = proven.filter((el) => {
+            const key = `${el.r}:${el.c}:${el.num}`;
+            if (recordedEliminations.has(key)) return false;
+            recordedEliminations.add(key);
+            return true;
+          });
+          if (novelElims.length === 0) continue;
+
+          candidateProofs.push({ chosenPaths: paths, elims: novelElims });
+          continue;
+        }
+
+        candidateProofs.push({ chosenPaths: paths, elims: proven });
         break;
       }
 
-      if (!chosenPaths) continue;
+      if (candidateProofs.length === 0) continue;
 
-      if (findAll) {
-        elims = elims.filter((el) => {
-          const key = `${el.r}:${el.c}:${el.num}`;
-          if (recordedEliminations.has(key)) return false;
-          recordedEliminations.add(key);
-          return true;
-        });
-        if (elims.length === 0) continue;
-      }
+      for (const { chosenPaths, elims } of candidateProofs) {
+        // 4. Eureka notation: one single chain built out of two almost AICs
+        // (three branches leave the last one as a plain AIC tail).
+        const stemDigitsUnique =
+          new Set(startNodes.map((node) => node.digits[0])).size ===
+          startNodes.length;
 
-      // 4. Eureka notation: one single chain built out of two almost AICs
-      // (three branches leave the last one as a plain AIC tail).
-      const stemDigitsUnique =
-        new Set(startNodes.map((node) => node.digits[0])).size ===
-        startNodes.length;
-
-      const stemGate = (left, right) => {
-        if (isCell) {
-          const leftDigits = left
-            .map((node) => node.digits[0])
-            .sort((a, b) => a - b)
-            .join("");
-          const rightDigits = right
-            .map((node) => node.digits[0])
-            .sort((a, b) => a - b)
-            .join("");
-          return `(${leftDigits}=${rightDigits})${getLoc([stem.cellId])}`;
-        }
-
-        if (isRegion) {
-          return `(${stem.digit})${getLoc(
-            left.flatMap((node) => node.cells),
-          )}=${getLoc(right.flatMap((node) => node.cells))}`;
-        }
-
-        const alsLoc = getLoc(stem.cells, stem.unit >= 18);
-        if (stemDigitsUnique) {
-          const leftDigits = left
-            .map((node) => node.digits[0])
-            .sort((a, b) => a - b)
-            .join("");
-          const rightDigits = right
-            .map((node) => node.digits[0])
-            .sort((a, b) => a - b)
-            .join("");
-          return `(${leftDigits}=${rightDigits})${alsLoc}`;
-        }
-
-        const describe = (list) =>
-          list
-            .map((node) => `${node.digits[0]}${getLoc(node.cells)}`)
-            .join(",");
-        return `(${describe(left)}=${describe(right)})${alsLoc}`;
-      };
-
-      const emit = (state, u, v) => {
-        const term = strongTerm(u, v, state.lastDigit);
-        state.lastDigit = term.digit;
-        return term.text;
-      };
-
-      const reverseTerms = (path, state) => {
-        const terms = [];
-        for (let i = path.length - 1; i >= 2; i -= 2) {
-          terms.push(emit(state, path[i], path[i - 1]));
-        }
-        return terms;
-      };
-
-      const forwardTerms = (path, state) => {
-        const terms = [];
-        for (let i = 1; i + 1 < path.length; i += 2) {
-          terms.push(emit(state, path[i], path[i + 1]));
-        }
-        return terms;
-      };
-
-      const almostBracket = (indexA, indexB) => {
-        const state = { lastDigit: null };
-        const terms = reverseTerms(chosenPaths[indexA], state);
-        terms.push(stemGate([startNodes[indexA]], [startNodes[indexB]]));
-        state.lastDigit = startNodes[indexB].digits[0];
-        terms.push(...forwardTerms(chosenPaths[indexB], state));
-        return `[${terms.join("-")}]`;
-      };
-
-      let eurekaStr;
-      if (startNodes.length === 3) {
-        const state = { lastDigit: startNodes[2].digits[0] };
-        const tail = [stemGate(startNodes.slice(0, 2), [startNodes[2]])];
-        tail.push(...forwardTerms(chosenPaths[2], state));
-        eurekaStr = `${almostBracket(0, 1)} + ${tail.join("-")}`;
-      } else {
-        eurekaStr = [
-          almostBracket(0, 1),
-          stemGate(startNodes.slice(0, 2), startNodes.slice(2)),
-          almostBracket(2, 3),
-        ].join(" + ");
-      }
-
-      // 5. Structures the chains leaned on, for the AIC style visuals.
-      const usedAlses = [];
-      const usedFishes = [];
-      const fishNodes = new Set();
-      const seenAlsKeys = new Set();
-      const seenFishKeys = new Set();
-
-      for (const path of chosenPaths) {
-        for (let i = 1; i + 1 < path.length; i += 2) {
-          const u = path[i];
-          const v = path[i + 1];
-
-          const als = alsLinkRegistry.get(u)?.get(v);
-          if (als) {
-            const key = als.cells
-              .map((cell) => cell[0] * 9 + cell[1])
+        const stemGate = (left, right) => {
+          if (isCell) {
+            const leftDigits = left
+              .map((node) => node.digits[0])
               .sort((a, b) => a - b)
+              .join("");
+            const rightDigits = right
+              .map((node) => node.digits[0])
+              .sort((a, b) => a - b)
+              .join("");
+            return `(${leftDigits}=${rightDigits})${getLoc([stem.cellId])}`;
+          }
+
+          if (isRegion) {
+            return `(${stem.digit})${getLoc(
+              left.flatMap((node) => node.cells),
+            )}=${getLoc(right.flatMap((node) => node.cells))}`;
+          }
+
+          const alsLoc = getLoc(stem.cells, stem.unit >= 18);
+          if (stemDigitsUnique) {
+            const leftDigits = left
+              .map((node) => node.digits[0])
+              .sort((a, b) => a - b)
+              .join("");
+            const rightDigits = right
+              .map((node) => node.digits[0])
+              .sort((a, b) => a - b)
+              .join("");
+            return `(${leftDigits}=${rightDigits})${alsLoc}`;
+          }
+
+          const describe = (list) =>
+            list
+              .map((node) => `${node.digits[0]}${getLoc(node.cells)}`)
               .join(",");
-            if (!seenAlsKeys.has(key)) {
-              seenAlsKeys.add(key);
-              usedAlses.push(als.cells);
-            }
-            continue;
+          return `(${describe(left)}=${describe(right)})${alsLoc}`;
+        };
+
+        const emit = (state, u, v) => {
+          const term = strongTerm(u, v, state.lastDigit);
+          state.lastDigit = term.digit;
+          return term.text;
+        };
+
+        const reverseTerms = (path, state) => {
+          const terms = [];
+          for (let i = path.length - 1; i >= 2; i -= 2) {
+            terms.push(emit(state, path[i], path[i - 1]));
           }
+          return terms;
+        };
 
-          const fish = fishLinkRegistry.get(u)?.get(v);
-          if (fish) {
-            const key = `${fish.d}:${fish.basesStr}\\${fish.coversStr}`;
-            if (!seenFishKeys.has(key)) {
-              seenFishKeys.add(key);
-              usedFishes.push(fish);
+        const forwardTerms = (path, state) => {
+          const terms = [];
+          for (let i = 1; i + 1 < path.length; i += 2) {
+            terms.push(emit(state, path[i], path[i + 1]));
+          }
+          return terms;
+        };
+
+        const almostBracket = (indexA, indexB) => {
+          const state = { lastDigit: null };
+          const terms = reverseTerms(chosenPaths[indexA], state);
+          terms.push(stemGate([startNodes[indexA]], [startNodes[indexB]]));
+          state.lastDigit = startNodes[indexB].digits[0];
+          terms.push(...forwardTerms(chosenPaths[indexB], state));
+          return `[${terms.join("-")}]`;
+        };
+
+        let eurekaStr;
+        if (startNodes.length === 3) {
+          const state = { lastDigit: startNodes[2].digits[0] };
+          const tail = [stemGate(startNodes.slice(0, 2), [startNodes[2]])];
+          tail.push(...forwardTerms(chosenPaths[2], state));
+          eurekaStr = `${almostBracket(0, 1)} + ${tail.join("-")}`;
+        } else {
+          eurekaStr = [
+            almostBracket(0, 1),
+            stemGate(startNodes.slice(0, 2), startNodes.slice(2)),
+            almostBracket(2, 3),
+          ].join(" + ");
+        }
+
+        // 5. Structures the chains leaned on, for the AIC style visuals.
+        const usedAlses = [];
+        const usedFishes = [];
+        const fishNodes = new Set();
+        const seenAlsKeys = new Set();
+        const seenFishKeys = new Set();
+
+        for (const path of chosenPaths) {
+          for (let i = 1; i + 1 < path.length; i += 2) {
+            const u = path[i];
+            const v = path[i + 1];
+
+            const als = alsLinkRegistry.get(u)?.get(v);
+            if (als) {
+              const key = als.cells
+                .map((cell) => cell[0] * 9 + cell[1])
+                .sort((a, b) => a - b)
+                .join(",");
+              if (!seenAlsKeys.has(key)) {
+                seenAlsKeys.add(key);
+                usedAlses.push(als.cells);
+              }
+              continue;
             }
-            fishNodes.add(u);
-            fishNodes.add(v);
+
+            const fish = fishLinkRegistry.get(u)?.get(v);
+            if (fish) {
+              const key = `${fish.d}:${fish.basesStr}\\${fish.coversStr}`;
+              if (!seenFishKeys.has(key)) {
+                seenFishKeys.add(key);
+                usedFishes.push(fish);
+              }
+              fishNodes.add(u);
+              fishNodes.add(v);
+            }
           }
         }
-      }
 
-      const techniqueName = isAals
-        ? t("teks_AALS_AAIC")
-        : isRegion
-          ? t("teks_region_AAIC")
-          : t("teks_cell_AAIC");
-      const mainInfoStr = isAals
-        ? t("teks_stem_AALS", stem.startDigits.join(""), stem.houseName)
-        : isRegion
-          ? t("teks_blossom_house_stem", stem.digit, stem.houseName)
-          : t("teks_blossom_cell_stem", stem.r + 1, stem.c + 1);
+        const techniqueName = isAals
+          ? t("teks_AALS_AAIC")
+          : isRegion
+            ? t("teks_region_AAIC")
+            : t("teks_cell_AAIC");
+        const mainInfoStr = isAals
+          ? t("teks_stem_AALS", stem.startDigits.join(""), stem.houseName)
+          : isRegion
+            ? t("teks_blossom_house_stem", stem.digit, stem.houseName)
+            : t("teks_blossom_cell_stem", stem.r + 1, stem.c + 1);
 
-      const cellColors = [];
-      const candidateColors = [];
-      const candidateMarks = [];
-      const links = [];
-      if (isAals) {
-        for (const id of stem.cells) {
-          cellColors.push({
-            r: Math.floor(id / 9),
-            c: id % 9,
-            color: 5,
-            mode: "add",
-          });
-        }
-      }
-
-      const colorCodes = [6, 7, 2, 3, 4, 1, 8];
-      let colorCount = -1;
-      for (const cells of usedAlses) {
-        colorCount++;
-        const color = colorCodes[colorCount % colorCodes.length];
-        for (const [r, c] of cells) {
-          cellColors.push({ r, c, color, mode: "add" });
-        }
-      }
-      for (const fish of usedFishes) {
-        colorCount++;
-        const color = colorCodes[colorCount % colorCodes.length];
-        for (const id of fish.allCells) {
-          const r = Math.floor(id / 9);
-          const c = id % 9;
-          if (pencils[r][c].has(fish.d)) {
-            candidateMarks.push({
-              r,
-              c,
-              num: fish.d,
-              marker: "circle",
-              color,
+        const cellColors = [];
+        const candidateColors = [];
+        const candidateMarks = [];
+        const links = [];
+        if (isAals) {
+          for (const id of stem.cells) {
+            cellColors.push({
+              r: Math.floor(id / 9),
+              c: id % 9,
+              color: 5,
+              mode: "add",
             });
           }
         }
-      }
 
-      for (const path of chosenPaths) {
-        path.forEach((node, index) => {
-          if (fishNodes.has(node)) return;
-          const color = index % 2 === 0 ? 4 : 5;
-          for (const id of node.cells) {
+        const colorCodes = [6, 7, 2, 3, 4, 1, 8];
+        let colorCount = -1;
+        for (const cells of usedAlses) {
+          colorCount++;
+          const color = colorCodes[colorCount % colorCodes.length];
+          for (const [r, c] of cells) {
+            cellColors.push({ r, c, color, mode: "add" });
+          }
+        }
+        for (const fish of usedFishes) {
+          colorCount++;
+          const color = colorCodes[colorCount % colorCodes.length];
+          for (const id of fish.allCells) {
             const r = Math.floor(id / 9);
             const c = id % 9;
-            for (const num of node.digits) {
-              if (pencils[r][c].has(num)) {
-                candidateColors.push({ r, c, num, color });
-              }
+            if (pencils[r][c].has(fish.d)) {
+              candidateMarks.push({
+                r,
+                c,
+                num: fish.d,
+                marker: "circle",
+                color,
+              });
             }
           }
-        });
+        }
 
-        path.forEach((node, index) => {
-          if (fishNodes.has(node) || node.cells.length < 2) return;
-          const color = index % 2 === 0 ? 4 : 5;
-          for (let i = 0; i < node.cells.length - 1; i++) {
+        for (const path of chosenPaths) {
+          path.forEach((node, index) => {
+            if (fishNodes.has(node)) return;
+            const color = index % 2 === 0 ? 4 : 5;
+            for (const id of node.cells) {
+              const r = Math.floor(id / 9);
+              const c = id % 9;
+              for (const num of node.digits) {
+                if (pencils[r][c].has(num)) {
+                  candidateColors.push({ r, c, num, color });
+                }
+              }
+            }
+          });
+
+          path.forEach((node, index) => {
+            if (fishNodes.has(node) || node.cells.length < 2) return;
+            const color = index % 2 === 0 ? 4 : 5;
+            for (let i = 0; i < node.cells.length - 1; i++) {
+              links.push({
+                r1: Math.floor(node.cells[i] / 9),
+                c1: node.cells[i] % 9,
+                n1: node.digits[0],
+                r2: Math.floor(node.cells[i + 1] / 9),
+                c2: node.cells[i + 1] % 9,
+                n2: node.digits[0],
+                color,
+                style: "solid",
+              });
+            }
+          });
+
+          for (let i = 0; i < path.length - 1; i++) {
+            if (
+              i % 2 === 1 &&
+              fishLinkRegistry.get(path[i])?.get(path[i + 1])
+            ) {
+              continue;
+            }
+            const [from, to] = getClosestCells(path[i], path[i + 1]);
             links.push({
-              r1: Math.floor(node.cells[i] / 9),
-              c1: node.cells[i] % 9,
-              n1: node.digits[0],
-              r2: Math.floor(node.cells[i + 1] / 9),
-              c2: node.cells[i + 1] % 9,
-              n2: node.digits[0],
-              color,
-              style: "solid",
+              r1: from[0],
+              c1: from[1],
+              n1: path[i].digits[0],
+              r2: to[0],
+              c2: to[1],
+              n2: path[i + 1].digits[0],
+              color: 0,
+              style: i % 2 === 0 ? "dash" : "solid",
             });
           }
-        });
+        }
 
-        for (let i = 0; i < path.length - 1; i++) {
-          if (
-            i % 2 === 1 &&
-            fishLinkRegistry.get(path[i])?.get(path[i + 1])
-          ) {
-            continue;
-          }
-          const [from, to] = getClosestCells(path[i], path[i + 1]);
+        for (let i = 0; i < startNodes.length - 1; i++) {
+          const [from, to] = getClosestCells(startNodes[i], startNodes[i + 1]);
           links.push({
             r1: from[0],
             c1: from[1],
-            n1: path[i].digits[0],
+            n1: startNodes[i].digits[0],
             r2: to[0],
             c2: to[1],
-            n2: path[i + 1].digits[0],
-            color: 0,
-            style: i % 2 === 0 ? "dash" : "solid",
+            n2: startNodes[i + 1].digits[0],
+            color: 1,
+            style: "solid",
           });
         }
+        candidateMarks.push(
+          ...elims.map(({ r, c, num }) => ({
+            r,
+            c,
+            num,
+            marker: "slash",
+            color: 0,
+          })),
+        );
+
+        const resultObj = {
+          change: true,
+          type: "remove",
+          cells: elims,
+          hint: {
+            name: techniqueName,
+            mainInfo: mainInfoStr,
+            detail: eurekaStr,
+          },
+          visualPlan: {
+            highlight: { digit: null, state: 0 },
+            cellColors,
+            candidateColors,
+            candidateMarks,
+            links,
+          },
+        };
+
+        if (!findAll) return resultObj;
+        results.push(resultObj);
       }
-
-      for (let i = 0; i < startNodes.length - 1; i++) {
-        const [from, to] = getClosestCells(startNodes[i], startNodes[i + 1]);
-        links.push({
-          r1: from[0],
-          c1: from[1],
-          n1: startNodes[i].digits[0],
-          r2: to[0],
-          c2: to[1],
-          n2: startNodes[i + 1].digits[0],
-          color: 1,
-          style: "solid",
-        });
-      }
-      candidateMarks.push(
-        ...elims.map(({ r, c, num }) => ({
-          r,
-          c,
-          num,
-          marker: "slash",
-          color: 0,
-        })),
-      );
-
-      const resultObj = {
-        change: true,
-        type: "remove",
-        cells: elims,
-        hint: {
-          name: techniqueName,
-          mainInfo: mainInfoStr,
-          detail: eurekaStr,
-        },
-        visualPlan: {
-          highlight: { digit: null, state: 0 },
-          cellColors,
-          candidateColors,
-          candidateMarks,
-          links,
-        },
-      };
-
-      if (!findAll) return resultObj;
-      results.push(resultObj);
     }
 
     return findAll ? results : { change: false };
