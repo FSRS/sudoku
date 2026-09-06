@@ -41,6 +41,7 @@ const copyBtn = document.getElementById("copy-btn");
 const copyModal = document.getElementById("copy-modal");
 const copyInitialBtn = document.getElementById("copy-initial-btn");
 const copyCurrentBtn = document.getElementById("copy-current-btn");
+const copyYzfBtn = document.getElementById("copy-yzf-btn");
 const copyImageBtn = document.getElementById("copy-image-btn");
 const copyCancelBtn = document.getElementById("copy-cancel-btn");
 const shareBtn = document.getElementById("share-btn");
@@ -2330,11 +2331,34 @@ function setupEventListeners() {
     copyModal.classList.remove("flex");
   });
 
+  copyYzfBtn.addEventListener("click", () => {
+    copyTextToClipboard(generateLibraryString(), "ui_yzf_copied");
+    copyModal.classList.add("hidden");
+    copyModal.classList.remove("flex");
+  });
+
   copyImageBtn.addEventListener("click", () => {
     copyGridAsImage(); // Generates the image and handles its own toast notifications
     copyModal.classList.add("hidden");
     copyModal.classList.remove("flex");
   });
+
+  // Copying or cutting a selection out of the ASCII grid yields one unbroken string.
+  function copyPuzzleSelectionAsOneLine(event) {
+    const start = this.selectionStart;
+    const end = this.selectionEnd;
+    const selected = this.value.slice(start, end);
+    if (!selected || !/^[0-9.\s]+$/.test(selected)) return;
+    event.clipboardData.setData("text/plain", selected.replace(/\s/g, ""));
+    event.preventDefault();
+    if (event.type === "cut") {
+      this.setRangeText("", start, end, "end");
+      this.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }
+
+  puzzleStringInput.addEventListener("copy", copyPuzzleSelectionAsOneLine);
+  puzzleStringInput.addEventListener("cut", copyPuzzleSelectionAsOneLine);
 
   puzzleStringInput.addEventListener("input", function () {
     // 1. Save the current cursor position
@@ -8453,6 +8477,38 @@ function generateAsciiGrid() {
 
   output += makeLine("'", "'", "'", "'", "-"); // Bot
   return output;
+}
+
+/**
+ * Snapshots the board as a YZF/HoDoKu library string,
+ * `:0000:x:<board>:<eliminations>::`. Givens stay bare, user-placed values
+ * carry a `+`, and every legal candidate a cell no longer holds is listed as a
+ * `<digit><row><col>` elimination. Cells without pencil marks keep their legal
+ * candidates, matching how generateAsciiGrid() reads them.
+ */
+function generateLibraryString() {
+  const board = boardState.map((row) => row.map((cell) => cell.value));
+  let boardPart = "";
+  const eliminations = [];
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = boardState[r][c];
+      if (cell.value !== 0) {
+        boardPart += cell.isGiven ? String(cell.value) : `+${cell.value}`;
+        continue;
+      }
+      boardPart += ".";
+      if (cell.pencils.size === 0) continue;
+      for (let num = 1; num <= 9; num++) {
+        if (isValid(board, r, c, num) && !cell.pencils.has(num)) {
+          eliminations.push(`${num}${r + 1}${c + 1}`);
+        }
+      }
+    }
+  }
+
+  return `:0000:x:${boardPart}:${eliminations.join(" ")}::`;
 }
 
 // --- Image Grid Generation ---

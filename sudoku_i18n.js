@@ -97,6 +97,7 @@ const TRANSLATIONS = {
     modal_copy_title: "Copy Board Data",
     btn_copy_initial: "Copy Initial Grid",
     btn_copy_current: "Copy Current Board",
+    btn_copy_yzf: "Copy YZF Format",
     btn_copy_image: "Copy Grid as Image",
 
     // === Completion share modal ===
@@ -287,6 +288,7 @@ const TRANSLATIONS = {
     ui_initial_grid_copied: "Initial grid copied to clipboard!",
     ui_copy_initial_grid_error: "Failed to copy to clipboard.",
     ui_current_board_copied: "Current board copied to clipboard!",
+    ui_yzf_copied: "YZF library string copied to clipboard!",
     ui_copy_current_board_error: "Failed to copy to clipboard.",
     ui_board_cleared_status: "Board cleared.",
     ui_next_pencil_mode_btn_mobile: "Pen?",
@@ -1029,6 +1031,7 @@ const TRANSLATIONS = {
     modal_copy_title: "퍼즐 데이터 복사하기",
     btn_copy_initial: "초기 퍼즐 상태 복사",
     btn_copy_current: "현재 퍼즐 상태 복사",
+    btn_copy_yzf: "현재 퍼즐 상태 복사 (YZF)",
     btn_copy_image: "현재 퍼즐을 이미지로 복사",
 
     // === Completion share modal ===
@@ -1221,6 +1224,7 @@ const TRANSLATIONS = {
     ui_initial_grid_copied: "초기 퍼즐이 클립보드에 복사되었습니다!",
     ui_copy_initial_grid_error: "클립보드 복사에 실패했습니다.",
     ui_current_board_copied: "현재 퍼즐이 클립보드에 복사되었습니다!",
+    ui_yzf_copied: "YZF 문자열이 클립보드에 복사되었습니다!",
     ui_copy_current_board_error: "클립보드 복사에 실패했습니다.",
     ui_board_cleared_status: "퍼즐이 지워졌습니다.",
     ui_next_pencil_mode_btn_mobile: "연필?",
@@ -1646,7 +1650,7 @@ const TRANSLATIONS = {
       "({0})r{1}c{2}을(를) 제외한 모든 숫자가 모든 하우스에서 정확히 두 번 나타남",
     teks_UR_type_1: "유일한 직사각형 유형 1",
     teks_UR_digits: "숫자 ({0}{1}) 사용",
-    teks_UR_base_guardians: "({2})의 기반 숫자 ({0}{1}), 수호자 {3}",
+    teks_UR_base_guardians: "{2}의 기반 숫자 ({0}{1}), 수호자 {3}",
     teks_UR_type_2: "유일한 직사각형 유형 2",
     teks_UR_type_5: "유일한 직사각형 유형 5",
     teks_UR_type_3: "유일한 직사각형 유형 3",
@@ -1663,7 +1667,7 @@ const TRANSLATIONS = {
     teks_HR: "숨은 직사각형",
     teks_HR_ConPairs_detail:
       "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 이중값 칸 {4}, 이중 위치 {5}",
-    teks_EUR_base_guardians: "({1})의 기반 숫자 ({0}), 수호자 {2}",
+    teks_EUR_base_guardians: "{1}의 기반 숫자 ({0}), 수호자 {2}",
     teks_EUR_type_1: "확장된 유일한 직사각형 유형 1",
     teks_EUR_digits: "숫자 ({0}) 사용",
     teks_EUR_type_2: "확장된 유일한 직사각형 유형 2",
@@ -1676,7 +1680,7 @@ const TRANSLATIONS = {
     teks_EUR_type_6: "확장된 유일한 직사각형 유형 6",
     teks_EUR_type_6_guardian_elimination_detail:
       "{0}, 모든 수호자를 제거하는 직사각형 위의 숫자 ({1})의 배치를 제외",
-    teks_AEUR_base_guardians: "({1})의 기반 숫자 ({0}), 수호자 {2}",
+    teks_AEUR_base_guardians: "{1}의 기반 숫자 ({0}), 수호자 {2}",
     teks_AEUR_digits: "숫자 ({0}) 사용",
     teks_AEUR_type_1: "회피 가능한 확장된 유일한 직사각형 유형 1",
     teks_AEUR_type_2: "회피 가능한 확장된 유일한 직사각형 유형 2",
@@ -1684,7 +1688,7 @@ const TRANSLATIONS = {
     teks_AEUR_type_3: "회피 가능한 확장된 유일한 직사각형 유형 3",
     teks_AEUR_type_4: "회피 가능한 확장된 유일한 직사각형 유형 4",
     teks_AEUR_type_6: "회피 가능한 확장된 유일한 직사각형 유형 6",
-    teks_UL_base_guardians: "({1})의 기반 숫자 ({0}), 수호자 {2}",
+    teks_UL_base_guardians: "{1}의 기반 숫자 ({0}), 수호자 {2}",
     teks_UL_type_1: "유일한 고리 유형 1",
     teks_UL_digits: "숫자 ({0}) 사용",
     teks_UL_type_2: "유일한 고리 유형 2",
@@ -1695,7 +1699,7 @@ const TRANSLATIONS = {
     teks_UL_type_6: "유일한 고리 유형 6",
     teks_UL_type_6_guardian_elimination_detail:
       "{0}, 모든 수호자를 제거하는 고리 위의 숫자 ({1})의 배치를 제외",
-    teks_AUL_base_guardians: "({1})의 기반 숫자 ({0}), 수호자 {2}",
+    teks_AUL_base_guardians: "{1}의 기반 숫자 ({0}), 수호자 {2}",
     teks_AUL_digits: "숫자 ({0}) 사용",
     teks_AUL_type_1: "회피 가능한 유일한 고리 유형 1",
     teks_AUL_type_2: "회피 가능한 유일한 고리 유형 2",
