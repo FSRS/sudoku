@@ -493,26 +493,10 @@ Object.assign(techniques, {
 
   deathBlossom: (board, pencils, findAll = false) => {
     if (findAll) {
-      const seenEliminations = new Set();
       return [
-        ...techniques.cellDeathBlossom(
-          board,
-          pencils,
-          true,
-          seenEliminations,
-        ),
-        ...techniques.regionDeathBlossom(
-          board,
-          pencils,
-          true,
-          seenEliminations,
-        ),
-        ...techniques.aalsDeathBlossom(
-          board,
-          pencils,
-          true,
-          seenEliminations,
-        ),
+        ...techniques.cellDeathBlossom(board, pencils, true),
+        ...techniques.regionDeathBlossom(board, pencils, true),
+        ...techniques.aalsDeathBlossom(board, pencils, true),
       ];
     }
     const cell = techniques.cellDeathBlossom(board, pencils, false);

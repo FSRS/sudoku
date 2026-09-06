@@ -869,11 +869,10 @@ Object.assign(techniques, {
 
   almostAic: (board, pencils, findAll = false) => {
     if (findAll) {
-      const seenEliminations = new Set();
       return [
-        ...techniques.cellAlmostAic(board, pencils, true, seenEliminations),
-        ...techniques.regionAlmostAic(board, pencils, true, seenEliminations),
-        ...techniques.aalsAlmostAic(board, pencils, true, seenEliminations),
+        ...techniques.cellAlmostAic(board, pencils, true),
+        ...techniques.regionAlmostAic(board, pencils, true),
+        ...techniques.aalsAlmostAic(board, pencils, true),
       ];
     }
     const cell = techniques.cellAlmostAic(board, pencils, false);
