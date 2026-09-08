@@ -303,7 +303,7 @@ Object.assign(techniques, {
       board,
     );
     if (ers.length === 0)
-      return avoidable && findAll ? results : { change: false };
+      return findAll ? results : { change: false };
 
     const formatRC = techniques._formatCellsRC;
     const formatBP = techniques._formatBoxPoints;
