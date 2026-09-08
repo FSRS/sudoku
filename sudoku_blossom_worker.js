@@ -17,6 +17,7 @@ const serializeResult = (result) => ({
   type: result.type,
   cells: result.cells,
   hint: result.hint,
+  visualPlan: result.visualPlan,
   blossom: {
     kind: result.blossom.kind,
     burrText: result.blossom.burrText,
