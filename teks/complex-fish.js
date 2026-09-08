@@ -225,7 +225,13 @@ Object.assign(techniques, {
           .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
           .join(",");
 
-      const makeResult = (baseUnits, coverUnits, allFinsMask, elims) => {
+      const makeResult = (
+        baseUnits,
+        coverUnits,
+        allFinsMask,
+        endoFinsMask,
+        elims,
+      ) => {
         const isFinned = !isZero(allFinsMask);
         let fishName =
           fishSize === 5
@@ -271,10 +277,16 @@ Object.assign(techniques, {
             cellColors: [
               ...baseCells.map(([r, c]) => ({ r, c, color: 6, mode: "add" })),
               ...coverCells.map(([r, c]) => ({ r, c, color: 7, mode: "add" })),
-              ...getBits(allFinsMask).map((id) => ({
+              ...getBits(bitAndNot(allFinsMask, endoFinsMask)).map((id) => ({
                 r: Math.floor(id / 9),
                 c: id % 9,
                 color: 5,
+                mode: "add",
+              })),
+              ...getBits(endoFinsMask).map((id) => ({
+                r: Math.floor(id / 9),
+                c: id % 9,
+                color: 8,
                 mode: "add",
               })),
             ],
@@ -381,6 +393,7 @@ Object.assign(techniques, {
               baseCombination.units,
               coverUnits,
               allFinsMask,
+              baseCombination.endoMask,
               elims,
             );
           };
