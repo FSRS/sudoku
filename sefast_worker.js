@@ -1,106 +1,15 @@
-importScripts("sefast_runtime.js", "sefast_native.js");
+/* SEROB C++ host integration, modified in 2026 by ClubDS. LGPL-2.1-only. */
+importScripts("sefast_native.js", "sefast_runtime.js");
 
 let enginePromise;
 
-async function loadEngine() {
-  if (enginePromise) return enginePromise;
-  enginePromise = (async () => {
-    const native = await createSeFastNative();
-    const toStateHex = (state) => {
-      let result = "";
-      for (let cell = 0; cell < 81; cell++) {
-        const value = state.charCodeAt(cell);
-        result += value === 0 ? "." : String(value);
-      }
-      result += ":";
-      for (let cell = 81; cell < 162; cell++) {
-        result += state.charCodeAt(cell).toString(16).padStart(3, "0");
-      }
-      return result;
-    };
-    self.sefastNativeClosure = (state, onIds, offIds, dynamic, nishio) => {
-      const pointer = native.ccall(
-        "sefast_closure_packed",
-        "number",
-        ["string", "string", "string", "number", "number"],
-        [state, onIds, offIds, dynamic, nishio],
-      );
-      const length = native._sefast_closure_length();
-      const values = native.HEAPU16.subarray(
-        pointer >>> 1,
-        (pointer >>> 1) + length,
-      );
-      let result = "";
-      for (let start = 0; start < values.length; start += 8192) {
-        result += String.fromCharCode(...values.subarray(start, start + 8192));
-      }
-      return result;
-    };
-    self.sefastParallelChoose = (
-      state,
-      cells,
-      multiple,
-      dynamic,
-      nishio,
-      level,
-      nestingLimit,
-    ) => {
-      const hex = toStateHex(state);
-      let result;
-      if (dynamic === 0 && multiple === 0 && nishio === 0 && level === 0) {
-        result = native.ccall(
-          "sefast_best_static",
-          "string",
-          ["string"],
-          [hex],
-        );
-      } else if (dynamic !== 0) {
-        result = native.ccall(
-          "sefast_best_chain_cells",
-          "string",
-          [
-            "string",
-            "string",
-            "number",
-            "number",
-            "number",
-            "number",
-            "number",
-          ],
-          [hex, cells, multiple, dynamic, nishio, level, nestingLimit],
-        );
-      } else {
-        return "-1";
-      }
-      if (result.startsWith("ERROR,")) {
-        console.warn(
-          "sefast: native chooser failed, using the Java path.",
-          result,
-        );
-        return "-1";
-      }
-      return result === "" ? "-2" : result;
-    };
-    const response = await fetch("sefast.wasm");
-    const bytes = await response.arrayBuffer();
-    const imports = {};
-    const exports = {};
-    const runtime = TeaVM.wasmGC.defaults(imports, exports);
-    const module = await WebAssembly.compile(bytes, {
-      builtins: ["js-string"],
+function loadEngine() {
+  if (!enginePromise) {
+    enginePromise = createSeFast().catch((error) => {
+      enginePromise = null;
+      throw error;
     });
-    const instance = await WebAssembly.instantiate(module, imports);
-    runtime.supplyExports(instance.exports);
-    for (const [key, value] of Object.entries(instance.exports)) {
-      if (value instanceof WebAssembly.Global) {
-        Object.defineProperty(exports, key, { get: () => value.value });
-      }
-    }
-    return exports;
-  })().catch((error) => {
-    enginePromise = null;
-    throw error;
-  });
+  }
   return enginePromise;
 }
 
