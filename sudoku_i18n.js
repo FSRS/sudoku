@@ -1599,13 +1599,13 @@ const TRANSLATIONS = {
     teks_LockedCand_row: "행",
     teks_LockedCand_col: "열",
     teks_pointing: "줄가리킴",
-    teks_claiming: "칸독차지",
+    teks_claiming: "네모차지",
     teks_intersection_of_box_and: "{0}번 상자와 {2}번 {1}의 교차로",
     teks_LockedCand_intersection: "{1}번 {0}과(와) {2}번 상자의 교차로",
     teks_all_cells_with_digit_in_box_are_also_in:
-      "{1}번 상자에서 숫자 ({0})을(를) 포함하는 모든 칸 {2}이(가) {4}번 {3}에도 있음",
+      "{1}번 상자에서 숫자 ({0})을(를) 포함하는 칸이 {4}번 {3}의 {2}밖에 없음",
     teks_all_cells_with_digit_in_are_also_in_box:
-      "{2}번 {1}에서 숫자 ({0})을(를) 포함하는 모든 칸 {3}이(가) {4}번 상자에도 있음",
+      "{2}번 {1}에서 숫자 ({0})을(를) 포함하는 칸이 {4}번 상자의 {3}밖에 없음",
     teks_Naked_subset_box: "상자",
     teks_Naked_subset_row: "행",
     teks_Naked_subset_col: "열",
@@ -1907,6 +1907,45 @@ function setLanguage(lang) {
   applyTranslations();
 }
 
+const JOSA_PAIRS = {
+  "을(를)": ["을", "를"],
+  "이(가)": ["이", "가"],
+  "과(와)": ["과", "와"],
+};
+
+const DIGIT_ENDS_IN_CONSONANT = [
+  true,
+  true,
+  false,
+  true,
+  false,
+  false,
+  true,
+  true,
+  true,
+  false,
+];
+const JOSA_SILENT = new Set([")", "]", "}", ">", '"', "'", " "]);
+
+function endsInConsonant(text, from) {
+  for (let i = from; i >= 0; i--) {
+    const ch = text[i];
+    if (JOSA_SILENT.has(ch)) continue;
+    if (ch >= "0" && ch <= "9") return DIGIT_ENDS_IN_CONSONANT[Number(ch)];
+    const code = ch.charCodeAt(0);
+    if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0;
+    return null;
+  }
+  return null;
+}
+
+function resolveJosa(text) {
+  return text.replace(/을\(를\)|이\(가\)|과\(와\)/g, (pair, offset) => {
+    const consonant = endsInConsonant(text, offset - 1);
+    return consonant === null ? pair : JOSA_PAIRS[pair][consonant ? 0 : 1];
+  });
+}
+
 /**
  * Translation helper.
  * @param {string} key - Translation key
@@ -1919,7 +1958,7 @@ function t(key, ...args) {
   for (let i = 0; i < args.length; i++) {
     text = text.replaceAll(`{${i}}`, args[i]);
   }
-  return text;
+  return resolveJosa(text);
 }
 
 /**
