@@ -367,7 +367,7 @@ Object.assign(techniques, {
       return findAll ? results : { change: false };
     const loops = techniques._findUniqueLoops(pencils, filledValues);
     if (loops.length === 0)
-      return avoidable && findAll ? results : { change: false };
+      return findAll ? results : { change: false };
 
     const formatRC = techniques._formatCellsRC;
     const formatBP = techniques._formatBoxPoints;

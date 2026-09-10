@@ -58,7 +58,7 @@ Object.assign(techniques, {
     // The Avoidable XY-Wing extension performs its own rectangle search, so an
     // empty ordinary-pattern list must not short-circuit it.
     if ((!rects || rects.length === 0) && !avoidable)
-      return { change: false };
+      return findAll ? results : { change: false };
 
     const isExactPair = (r, c, d1, d2) =>
       pencils[r][c].size === 2 &&
@@ -686,7 +686,7 @@ Object.assign(techniques, {
         ).length;
         return placedCount > 0 && placedCount < cells.length;
       });
-    if (rectangles.length === 0) return { change: false };
+    if (rectangles.length === 0) return findAll ? results : { change: false };
 
     const getBasePosStr = (cells) => {
       // Group columns by row
