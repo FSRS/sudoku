@@ -1779,7 +1779,7 @@ const TRANSLATIONS = {
     teks_SimpleColor_col: "{0}번 열",
     teks_SimpleColor_box: "{0}번 상자",
     teks_bad_color_c_removed_all_in:
-      "색 {0}이(가) {1}에서 숫자 ({2})이(가) 들어갈 수 있는 모든 칸을 제거하여 모순됨.",
+      "{1}에서 숫자 ({2})이(가) 들어갈 수 있는 모든 칸이 색 {0}과(와) NAND 관계에 있음.",
     teks_c1_at: "색 1이 {0}에",
     teks_c2_at: "색 2가 {0}에",
     teks_color_trap:
