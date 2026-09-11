@@ -15,6 +15,7 @@ const sources = [
   "uniqueness/bug.js",
   "uniqueness/rectangles.js",
   "uniqueness/rectangle-patterns.js",
+  "uniqueness/rectangle-type7.js",
   "uniqueness/avoidable.js",
   "uniqueness/extended.js",
   "uniqueness/loops.js",

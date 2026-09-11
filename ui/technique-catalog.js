@@ -36,6 +36,7 @@
       ["ui_HR", "ui_AR"],
     ],
     ["ui_BUG_plus_n", "bugPlusN", null, 5, 110],
+    ["ui_UR_type_7", "combinedUniqueRectangleType7", null, 5, 110],
     [
       "ui_UET",
       "combinedUniquenessExternalTest",
@@ -142,6 +143,7 @@
   const uniquenessIds = Object.freeze([
     "ui_BUG_plus_1",
     "ui_UR",
+    "ui_UR_type_7",
     "ui_UL",
     "ui_EUR",
     "ui_BUG_plus_n",

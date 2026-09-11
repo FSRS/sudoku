@@ -16,6 +16,12 @@ Object.assign(techniques, {
       (all) => techniques.avoidableRectangle(board, pencils, all),
     ]),
 
+  combinedUniqueRectangleType7: (board, pencils, findAll = false) =>
+    runCombinedUniquenessTechniques(findAll, [
+      (all) => techniques.uniqueRectangleType7(board, pencils, all),
+      (all) => techniques.avoidableRectangleType7(board, pencils, all),
+    ]),
+
   combinedUniquenessExternalTest: (board, pencils, findAll = false) =>
     runCombinedUniquenessTechniques(findAll, [
       (all) => techniques.uniquenessExternalTest(board, pencils, all),

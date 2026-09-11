@@ -631,6 +631,7 @@ const TRANSLATIONS = {
     ui_anti_GSP: "Anti-GSP",
     ui_TVO: "Trivalue Oddagon",
     ui_AUET: "Avoidable UET",
+    ui_UR_type_7: "UR Type 7",
     teks_eliminate_cands: "Eliminate Candidates",
     teks_eliminate_cands_location: "at r{0}c{1}",
     teks_concrete_number_r_c: "Concrete number ({0})r{1}c{2}",
@@ -936,6 +937,12 @@ const TRANSLATIONS = {
       "Base ({0}{1}) in {2}, Guardians {3}, Wings r{4}c{5} and r{6}c{7}",
     teks_UET_XY_Wing_detail:
       "Base ({0}) in {1}, Guardians {2}, Wings r{3}c{4} and r{5}c{6}",
+    teks_UR_type_7: "Unique Rectangle Type 7",
+    teks_UR_type_7_base_guardians: "Base ({0}{1}) in {2}, Guardians {3}, {4}",
+    teks_UR_type_7_bivalue_cells: "Bivalue cells {0}",
+    teks_UR_type_7_ConPairs: "Conjugate pairs {0}",
+    teks_UR_type_7_grouped_ConPairs: "Grouped conjugate pairs {0}",
+    teks_AUR_type_7: "Avoidable Unique Rectangle Type 7",
   },
 
   ko: {
@@ -1569,6 +1576,7 @@ const TRANSLATIONS = {
     ui_anti_GSP: "Anti-GSP",
     ui_TVO: "삼중값 홀수각형",
     ui_AUET: "회피 가능한 외부 수호자 논법",
+    ui_UR_type_7: "UR 유형 7",
     teks_eliminate_cands: "후보수 제거",
     teks_eliminate_cands_location: "r{0}c{1}에서",
     teks_concrete_number_r_c: "확정된 숫자 ({0}) r{1}c{2}에 의해",
@@ -1878,6 +1886,13 @@ const TRANSLATIONS = {
       "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, 윙 r{4}c{5}, r{6}c{7}",
     teks_UET_XY_Wing_detail:
       "{1}의 기반 숫자 ({0}), 수호자 {2}, 윙 r{3}c{4}, r{5}c{6}",
+    teks_UR_type_7: "유일한 직사각형 유형 7",
+    teks_UR_type_7_base_guardians:
+      "({2})의 기반 숫자 ({0}{1}), 수호자 {3}, {4}",
+    teks_UR_type_7_bivalue_cells: "이중값 셀 {0}",
+    teks_UR_type_7_ConPairs: "이중 위치 {0}",
+    teks_UR_type_7_grouped_ConPairs: "그룹 이중 위치 {0}",
+    teks_AUR_type_7: "회피 가능한 유일한 직사각형 유형 7",
   },
 };
 
