@@ -290,16 +290,41 @@ Object.assign(techniques, {
                 mode: "add",
               })),
             ],
-            candidateColors: baseCells
-              .filter(([r, c]) => pencils[r][c].has(num))
-              .map(([r, c]) => ({ r, c, num, color: 6 })),
-            candidateMarks: elims.map(({ r, c, num: removalNum }) => ({
-              r,
-              c,
-              num: removalNum,
-              marker: "slash",
-              color: 0,
-            })),
+            candidateMarks: [
+              ...baseCells
+                .filter(
+                  ([r, c]) =>
+                    pencils[r][c].has(num) && !testBit(allFinsMask, r * 9 + c),
+                )
+                .map(([r, c]) => ({
+                  r,
+                  c,
+                  num,
+                  marker: "circle",
+                  color: 6,
+                })),
+              ...getBits(bitAndNot(allFinsMask, endoFinsMask)).map((id) => ({
+                r: Math.floor(id / 9),
+                c: id % 9,
+                num,
+                marker: "circle",
+                color: 5,
+              })),
+              ...getBits(endoFinsMask).map((id) => ({
+                r: Math.floor(id / 9),
+                c: id % 9,
+                num,
+                marker: "circle",
+                color: 8,
+              })),
+              ...elims.map(({ r, c, num: removalNum }) => ({
+                r,
+                c,
+                num: removalNum,
+                marker: "slash",
+                color: 0,
+              })),
+            ],
           },
         };
       };

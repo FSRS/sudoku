@@ -970,20 +970,28 @@ Object.assign(techniques, {
                   }),
                 ),
               ],
-              candidateColors: [...primaryLineIndices].flatMap((primIdx) =>
-                Array.from({ length: 9 }, (_, p) =>
-                  isRowBased ? [primIdx, p] : [p, primIdx],
-                )
-                  .filter(([r, c]) => pencils[r][c].has(num))
-                  .map(([r, c]) => ({ r, c, num, color: 6 })),
-              ),
-              candidateMarks: removals.map(({ r, c, num: removalNum }) => ({
-                r,
-                c,
-                num: removalNum,
-                marker: "slash",
-                color: 0,
-              })),
+              candidateMarks: [
+                ...[...primaryLineIndices].flatMap((primIdx) =>
+                  Array.from({ length: 9 }, (_, p) =>
+                    isRowBased ? [primIdx, p] : [p, primIdx],
+                  )
+                    .filter(([r, c]) => pencils[r][c].has(num))
+                    .map(([r, c]) => ({
+                      r,
+                      c,
+                      num,
+                      marker: "circle",
+                      color: 6,
+                    })),
+                ),
+                ...removals.map(({ r, c, num: removalNum }) => ({
+                  r,
+                  c,
+                  num: removalNum,
+                  marker: "slash",
+                  color: 0,
+                })),
+              ],
             },
           };
           if (!findAll) return res;
@@ -1177,20 +1185,37 @@ Object.assign(techniques, {
                   mode: "add",
                 })),
               ],
-              candidateColors: [...baseLineIndices].flatMap((primIdx) =>
-                Array.from({ length: 9 }, (_, p) =>
-                  isRowBased ? [primIdx, p] : [p, primIdx],
-                )
-                  .filter(([r, c]) => pencils[r][c].has(num))
-                  .map(([r, c]) => ({ r, c, num, color: 6 })),
-              ),
-              candidateMarks: removals.map(({ r, c, num: removalNum }) => ({
-                r,
-                c,
-                num: removalNum,
-                marker: "slash",
-                color: 0,
-              })),
+              candidateMarks: [
+                ...[...baseLineIndices].flatMap((primIdx) =>
+                  Array.from({ length: 9 }, (_, p) =>
+                    isRowBased ? [primIdx, p] : [p, primIdx],
+                  )
+                    .filter(([r, c]) =>
+                      pencils[r][c].has(num) && !finIds.has(r * 9 + c),
+                    )
+                    .map(([r, c]) => ({
+                      r,
+                      c,
+                      num,
+                      marker: "circle",
+                      color: 6,
+                    })),
+                ),
+                ...fins.map(([r, c]) => ({
+                  r,
+                  c,
+                  num,
+                  marker: "circle",
+                  color: 5,
+                })),
+                ...removals.map(({ r, c, num: removalNum }) => ({
+                  r,
+                  c,
+                  num: removalNum,
+                  marker: "slash",
+                  color: 0,
+                })),
+              ],
             },
           };
           if (!findAll) return resultObj;
