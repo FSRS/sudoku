@@ -589,17 +589,6 @@ Object.assign(techniques, {
       }
     }
 
-    if (avoidable) {
-      const hiddenResults = techniques.hiddenRectangle(
-        board,
-        pencils,
-        { avoidable: true },
-        findAll,
-      );
-      if (!findAll && hiddenResults && hiddenResults.change) return hiddenResults;
-      if (findAll && Array.isArray(hiddenResults)) results.push(...hiddenResults);
-    }
-
     const xyWingProofs = avoidable
       ? techniques._findAvoidableRectangleXyWings(
           board,
