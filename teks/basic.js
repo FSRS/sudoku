@@ -257,7 +257,12 @@ Object.assign(techniques, {
               ? `b${techniques._getBoxIndex(r, c) + 1}p${techniques._getPointIndex(r, c) + 1}`
               : `r${r + 1}c${c + 1}`;
             const unitLabel = t("teks_unit_with_index", label, i + 1);
-            const detail = t("teks_only_cell_with_digit_in", position, num, unitLabel);
+            const detail = t(
+              "teks_only_cell_with_digit_in",
+              position,
+              num,
+              unitLabel,
+            );
 
             const res = {
               change: true,
@@ -379,7 +384,9 @@ Object.assign(techniques, {
                   .join("");
                 const cellStr = `r${rows}c${cols}`;
 
-                const lineType = isRow ? t("teks_unit_row") : t("teks_unit_col");
+                const lineType = isRow
+                  ? t("teks_unit_row")
+                  : t("teks_unit_col");
 
                 const res = {
                   change: true,
@@ -387,7 +394,12 @@ Object.assign(techniques, {
                   cells: removals,
                   hint: {
                     name: size === 2 ? t("teks_LockedP") : t("teks_LockedT"),
-                    mainInfo: t("teks_LockedP_intersection", lineType, line_idx + 1, b + 1),
+                    mainInfo: t(
+                      "teks_LockedP_intersection",
+                      lineType,
+                      line_idx + 1,
+                      b + 1,
+                    ),
                     detail: t(
                       "teks_together_have_digits_on_intersection_of_and_box",
                       cellStr,
@@ -497,10 +509,22 @@ Object.assign(techniques, {
 
             const lineName = isRow ? t("teks_unit_row") : t("teks_unit_col");
 
-            const hintName = is_pointing ? t("teks_pointing") : t("teks_claiming");
+            const hintName = is_pointing
+              ? t("teks_pointing")
+              : t("teks_claiming");
             const mainInfo = is_pointing
-              ? t("teks_intersection_of_box_and", primaryIdx + 1, lineName, secondaryIdx + 1)
-              : t("teks_LockedCand_intersection", lineName, primaryIdx + 1, secondaryIdx + 1);
+              ? t(
+                  "teks_intersection_of_box_and",
+                  primaryIdx + 1,
+                  lineName,
+                  secondaryIdx + 1,
+                )
+              : t(
+                  "teks_LockedCand_intersection",
+                  lineName,
+                  primaryIdx + 1,
+                  secondaryIdx + 1,
+                );
 
             let cellStr;
             if (is_pointing) {
@@ -825,7 +849,12 @@ Object.assign(techniques, {
                         : t("teks_quad")
                   }`,
                   mainInfo: `${unitName}`,
-                  detail: t("teks_all_cells_with_digits_in_are", digitsStr, unitName, cellStr),
+                  detail: t(
+                    "teks_all_cells_with_digits_in_are",
+                    digitsStr,
+                    unitName,
+                    cellStr,
+                  ),
                 },
                 visualPlan: {
                   highlight: { digit: null, state: 0 },
@@ -920,8 +949,8 @@ Object.assign(techniques, {
                 size === 2
                   ? t("teks_X_Wing")
                   : size === 3
-                    ? t("teks_msg_47_1")
-                    : t("teks_msg_47_2"),
+                    ? t("teks_swordfish")
+                    : t("teks_jellyfish"),
               mainInfo: t("teks_fish_digit", num),
               detail: t("teks_digit_base_cover", num, baseStr, coverStr),
             },
@@ -1114,11 +1143,17 @@ Object.assign(techniques, {
                 fishSize === 2
                   ? t("teks_X_Wing")
                   : fishSize === 3
-                    ? t("teks_msg_47_1")
-                    : t("teks_msg_47_2")
+                    ? t("teks_swordfish")
+                    : t("teks_jellyfish")
               }`,
               mainInfo: t("teks_fish_digit", num),
-              detail: t("teks_digit_base_cover_fin", num, baseStr, coverStr, finStr),
+              detail: t(
+                "teks_digit_base_cover_fin",
+                num,
+                baseStr,
+                coverStr,
+                finStr,
+              ),
             },
             visualPlan: {
               highlight: { digit: num, state: 1 },

@@ -263,14 +263,14 @@ Object.assign(techniques, {
                       type: "remove",
                       cells: resultEliminations,
                       hint: {
-                        name: t("teks_msg_133_2"),
+                        name: t("teks_firework_quadruple"),
                         mainInfo: t(
-                          "teks_msg_134_2",
+                          "teks_firework_quadruple_digits",
                           maskToDigits(pair1Mask).join(""),
                           maskToDigits(pair2Mask).join(""),
                         ),
                         detail: t(
-                          "teks_msg_135_2",
+                          "teks_firework_quadruple_position",
                           maskToDigits(pair1Mask).join(""),
                           pivot1[0] + 1,
                           pivot1[1] + 1,
@@ -547,7 +547,10 @@ Object.assign(techniques, {
                                     cells: eliminations,
                                     hint: {
                                       name: t("teks_firework_triple"),
-                                      mainInfo: t("teks_firework_digits", ahsDigits),
+                                      mainInfo: t(
+                                        "teks_firework_digits",
+                                        ahsDigits,
+                                      ),
                                       detail: t(
                                         "teks_firework_position",
                                         ahsDigits,
@@ -602,5 +605,4 @@ Object.assign(techniques, {
 
     return findAll ? results : { change: false };
   },
-
 });

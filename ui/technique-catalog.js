@@ -143,11 +143,11 @@
   const uniquenessIds = Object.freeze([
     "ui_BUG_plus_1",
     "ui_UR",
+    "ui_BUG_plus_n",
     "ui_UR_type_7",
+    "ui_UET",
     "ui_UL",
     "ui_EUR",
-    "ui_BUG_plus_n",
-    "ui_UET",
   ]);
   const mandatoryIds = Object.freeze([
     "ui_eliminate_cands",
