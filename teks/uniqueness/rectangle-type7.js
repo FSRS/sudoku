@@ -1,3 +1,37 @@
+// This read-only geometry is board-independent. `var` lets the regression
+// harness hot-install this split source over the generated bundle.
+var UR7_RECTANGLE_GEOMETRIES = (() => {
+  const geometries = [];
+  for (let r1 = 0; r1 < 8; r1++) {
+    for (let r2 = r1 + 1; r2 < 9; r2++) {
+      for (let c1 = 0; c1 < 8; c1++) {
+        for (let c2 = c1 + 1; c2 < 9; c2++) {
+          const sameBand = Math.floor(r1 / 3) === Math.floor(r2 / 3);
+          const sameStack = Math.floor(c1 / 3) === Math.floor(c2 / 3);
+          if (sameBand === sameStack) continue;
+
+          const rectIds = [
+            r1 * 9 + c1,
+            r1 * 9 + c2,
+            r2 * 9 + c1,
+            r2 * 9 + c2,
+          ];
+          geometries.push({
+            rectIds,
+            edges: [
+              { type: "row", index: r1, ids: [rectIds[0], rectIds[1]] },
+              { type: "row", index: r2, ids: [rectIds[2], rectIds[3]] },
+              { type: "col", index: c1, ids: [rectIds[0], rectIds[2]] },
+              { type: "col", index: c2, ids: [rectIds[1], rectIds[3]] },
+            ],
+          });
+        }
+      }
+    }
+  }
+  return geometries;
+})();
+
 Object.assign(techniques, {
   uniqueRectangleType7: (
     board,
@@ -23,6 +57,7 @@ Object.assign(techniques, {
       board,
       pencils,
       filledValues,
+      !findAll,
     );
     if (proofs.length === 0) return findAll ? [] : { change: false };
 
@@ -210,8 +245,29 @@ Object.assign(techniques, {
       findAll,
     ),
 
-  _findUniqueRectangleType7: (board, pencils, filledValues = null) => {
+  // `firstOnly` stops after the first complete proof: every removal target and
+  // necessary-link check of that proof still runs, so results[0] is unchanged.
+  _findUniqueRectangleType7: (
+    board,
+    pencils,
+    filledValues = null,
+    firstOnly = false,
+  ) => {
     const results = [];
+    // Avoidable rectangles need exactly one non-given corner, so a board with
+    // no non-given entry at all cannot host one.
+    if (filledValues && !filledValues.some(Boolean)) return results;
+    const rectangleGeometries = filledValues ? [] : UR7_RECTANGLE_GEOMETRIES;
+    if (filledValues) {
+      for (const geometry of UR7_RECTANGLE_GEOMETRIES) {
+        const placedIds = geometry.rectIds.filter(
+          (id) => filledValues[id] !== 0,
+        );
+        if (placedIds.length === 1) {
+          rectangleGeometries.push({ geometry, placedIds });
+        }
+      }
+    }
     const seen = new Set();
     const rowCandidates = Array.from({ length: 10 }, () =>
       Array.from({ length: 9 }, () => []),
@@ -278,18 +334,12 @@ Object.assign(techniques, {
       const falseCandidates = new Set();
       const trueCandidates = new Set();
       const trueGroups = new Set();
+      const trueCandidateQueue = [];
+      const trueGroupQueue = [];
+      let candidateHead = 0;
+      let groupHead = 0;
+      let linksDirty = true;
       let contradiction = false;
-
-      for (const id of rectIds) {
-        for (const digit of digits) {
-          if (!hasCandidate(id, digit)) {
-            falseCandidates.add(candidateKey(id, digit));
-          }
-        }
-        if (filledValues && filledValues[id]) {
-          trueCandidates.add(candidateKey(id, filledValues[id]));
-        }
-      }
 
       const nodeIsFalse = (node) =>
         node.members.every((id) =>
@@ -299,12 +349,14 @@ Object.assign(techniques, {
         if (trueCandidates.has(key)) contradiction = true;
         if (falseCandidates.has(key)) return false;
         falseCandidates.add(key);
+        linksDirty = true;
         return true;
       };
       const setCandidateTrue = (key) => {
         if (falseCandidates.has(key)) contradiction = true;
         if (trueCandidates.has(key)) return false;
         trueCandidates.add(key);
+        trueCandidateQueue.push(key);
         return true;
       };
       const setNodeTrue = (node) => {
@@ -317,59 +369,64 @@ Object.assign(techniques, {
         }
         if (trueGroups.has(node.id)) return false;
         trueGroups.add(node.id);
+        trueGroupQueue.push(node);
         return true;
       };
 
+      for (const id of rectIds) {
+        for (const digit of digits) {
+          if (!hasCandidate(id, digit)) {
+            falseCandidates.add(candidateKey(id, digit));
+          }
+        }
+        if (filledValues && filledValues[id]) {
+          setCandidateTrue(candidateKey(id, filledValues[id]));
+        }
+      }
       setCandidateTrue(targetKey);
-      let changed = true;
-      while (changed && !contradiction) {
-        changed = false;
-
-        for (const key of [...trueCandidates]) {
+      while (
+        (candidateHead < trueCandidateQueue.length ||
+          groupHead < trueGroupQueue.length ||
+          linksDirty) &&
+        !contradiction
+      ) {
+        while (candidateHead < trueCandidateQueue.length && !contradiction) {
+          const key = trueCandidateQueue[candidateHead++];
           const digit = key % 10;
           const id = Math.floor(key / 10);
           for (const otherDigit of digits) {
             if (otherDigit !== digit) {
-              changed = setFalse(candidateKey(id, otherDigit)) || changed;
+              setFalse(candidateKey(id, otherDigit));
             }
           }
           for (const peerId of digitCandidates[digit]) {
+            if (peerId !== id && SEES_MATRIX[id * 81 + peerId] === 1) {
+              setFalse(candidateKey(peerId, digit));
+            }
+          }
+        }
+
+        while (groupHead < trueGroupQueue.length && !contradiction) {
+          const node = trueGroupQueue[groupHead++];
+          for (const peerId of digitCandidates[node.digit]) {
             if (
-              peerId !== id &&
-              techniques._sees(
-                [Math.floor(id / 9), id % 9],
-                [Math.floor(peerId / 9), peerId % 9],
+              node.members.includes(peerId) ||
+              !node.members.every(
+                (memberId) => SEES_MATRIX[peerId * 81 + memberId] === 1,
               )
             ) {
-              changed = setFalse(candidateKey(peerId, digit)) || changed;
+              continue;
             }
+            setFalse(candidateKey(peerId, node.digit));
           }
         }
 
-        for (const link of links) {
-          for (const node of link.nodes) {
-            if (!trueGroups.has(node.id)) continue;
-            for (const peerId of digitCandidates[node.digit]) {
-              if (
-                node.members.includes(peerId) ||
-                !node.members.every((memberId) =>
-                  techniques._sees(
-                    [Math.floor(peerId / 9), peerId % 9],
-                    [Math.floor(memberId / 9), memberId % 9],
-                  ),
-                )
-              ) {
-                continue;
-              }
-              changed = setFalse(candidateKey(peerId, node.digit)) || changed;
-            }
-          }
-        }
-
+        if (!linksDirty || contradiction) continue;
+        linksDirty = false;
         for (const link of links) {
           const [left, right] = link.nodes;
-          if (nodeIsFalse(left)) changed = setNodeTrue(right) || changed;
-          if (nodeIsFalse(right)) changed = setNodeTrue(left) || changed;
+          if (nodeIsFalse(left)) setNodeTrue(right);
+          if (nodeIsFalse(right)) setNodeTrue(left);
         }
       }
 
@@ -402,207 +459,183 @@ Object.assign(techniques, {
 
     for (let d1 = 1; d1 <= 8; d1++) {
       for (let d2 = d1 + 1; d2 <= 9; d2++) {
-        for (let r1 = 0; r1 < 8; r1++) {
-          for (let r2 = r1 + 1; r2 < 9; r2++) {
-            for (let c1 = 0; c1 < 8; c1++) {
-              for (let c2 = c1 + 1; c2 < 9; c2++) {
-                const sameBand = Math.floor(r1 / 3) === Math.floor(r2 / 3);
-                const sameStack = Math.floor(c1 / 3) === Math.floor(c2 / 3);
-                if (sameBand === sameStack) continue;
+        for (const entry of rectangleGeometries) {
+          const geometry = filledValues ? entry.geometry : entry;
+          const { rectIds, edges } = geometry;
+          const placedIds = filledValues ? entry.placedIds : [];
+          if (
+            rectIds.some(
+              (id) => !hasCandidate(id, d1) && !hasCandidate(id, d2),
+            )
+          ) {
+            continue;
+          }
 
-                const rectIds = [
-                  r1 * 9 + c1,
-                  r1 * 9 + c2,
-                  r2 * 9 + c1,
-                  r2 * 9 + c2,
-                ];
-                const placedIds = filledValues
-                  ? rectIds.filter((id) => filledValues[id] !== 0)
-                  : [];
-                if (filledValues && placedIds.length !== 1) {
-                  continue;
-                }
-                if (
-                  rectIds.some(
-                    (id) => !hasCandidate(id, d1) && !hasCandidate(id, d2),
-                  )
-                ) {
-                  continue;
-                }
+          if (
+            edges.some((edge) =>
+              [d1, d2].some(
+                (digit) =>
+                  !edge.ids.some((id) => hasCandidate(id, digit)),
+              ),
+            )
+          ) {
+            continue;
+          }
 
-                const edges = [
-                  { type: "row", index: r1, ids: [rectIds[0], rectIds[1]] },
-                  { type: "row", index: r2, ids: [rectIds[2], rectIds[3]] },
-                  { type: "col", index: c1, ids: [rectIds[0], rectIds[2]] },
-                  { type: "col", index: c2, ids: [rectIds[1], rectIds[3]] },
-                ];
-                if (
-                  edges.some((edge) =>
-                    [d1, d2].some(
-                      (digit) =>
-                        !edge.ids.some((id) => hasCandidate(id, digit)),
-                    ),
-                  )
-                ) {
-                  continue;
-                }
+          const exactCount = rectIds.filter((id) =>
+            isExactPair(id, d1, d2),
+          ).length;
+          if (exactCount >= 3) continue;
 
-                const exactCount = rectIds.filter((id) =>
-                  isExactPair(id, d1, d2),
-                ).length;
-                if (exactCount >= 3) continue;
+          const biCellLinks = rectIds
+            .filter((id) => isExactPair(id, d1, d2))
+            .map((id) =>
+              makeLink("biCell", d2, [id], [id], {
+                leftDigit: d1,
+                label: `biCell ${formatCell(id)}`,
+              }),
+            );
+          const conjugateLinks = [];
+          const groupedLinks = [];
 
-                const biCellLinks = rectIds
-                  .filter((id) => isExactPair(id, d1, d2))
-                  .map((id) =>
-                    makeLink("biCell", d2, [id], [id], {
-                      leftDigit: d1,
-                      label: `biCell ${formatCell(id)}`,
-                    }),
-                  );
-                const conjugateLinks = [];
-                const groupedLinks = [];
+          for (const edge of edges) {
+            for (const digit of [d1, d2]) {
+              if (!edge.ids.every((id) => hasCandidate(id, digit))) {
+                continue;
+              }
+              const houseCandidates =
+                edge.type === "row"
+                  ? rowCandidates[digit][edge.index]
+                  : colCandidates[digit][edge.index];
+              if (sameMembers(houseCandidates, edge.ids)) {
+                conjugateLinks.push(
+                  makeLink(
+                    "conjugate",
+                    digit,
+                    [edge.ids[0]],
+                    [edge.ids[1]],
+                    { label: formatHouse(edge.type, edge.index, digit) },
+                  ),
+                );
+                continue;
+              }
 
-                for (const edge of edges) {
-                  for (const digit of [d1, d2]) {
-                    if (!edge.ids.every((id) => hasCandidate(id, digit))) {
-                      continue;
-                    }
-                    const houseCandidates =
-                      edge.type === "row"
-                        ? rowCandidates[digit][edge.index]
-                        : colCandidates[digit][edge.index];
-                    if (sameMembers(houseCandidates, edge.ids)) {
-                      conjugateLinks.push(
-                        makeLink(
-                          "conjugate",
-                          digit,
-                          [edge.ids[0]],
-                          [edge.ids[1]],
-                          { label: formatHouse(edge.type, edge.index, digit) },
-                        ),
-                      );
-                      continue;
-                    }
+              const groups = new Map();
+              for (const id of houseCandidates) {
+                const r = Math.floor(id / 9);
+                const c = id % 9;
+                const box = techniques._getBoxIndex(r, c);
+                if (!groups.has(box)) groups.set(box, []);
+                groups.get(box).push(id);
+              }
+              if (groups.size !== 2) continue;
+              const parts = [...groups.values()];
+              const singletonIndex = parts.findIndex(
+                (part) => part.length === 1,
+              );
+              if (singletonIndex < 0) continue;
+              const singleton = parts[singletonIndex];
+              const group = parts[1 - singletonIndex];
+              if (
+                group.length < 2 ||
+                !edge.ids.includes(singleton[0]) ||
+                !edge.ids.some((id) => group.includes(id))
+              ) {
+                continue;
+              }
 
-                    const groups = new Map();
-                    for (const id of houseCandidates) {
-                      const r = Math.floor(id / 9);
-                      const c = id % 9;
-                      const box = techniques._getBoxIndex(r, c);
-                      if (!groups.has(box)) groups.set(box, []);
-                      groups.get(box).push(id);
-                    }
-                    if (groups.size !== 2) continue;
-                    const parts = [...groups.values()];
-                    const singletonIndex = parts.findIndex(
-                      (part) => part.length === 1,
-                    );
-                    if (singletonIndex < 0) continue;
-                    const singleton = parts[singletonIndex];
-                    const group = parts[1 - singletonIndex];
-                    if (
-                      group.length < 2 ||
-                      !edge.ids.includes(singleton[0]) ||
-                      !edge.ids.some((id) => group.includes(id))
-                    ) {
-                      continue;
-                    }
+              groupedLinks.push(
+                makeLink("grouped", digit, singleton, group, {
+                  auxiliaryCells: group
+                    .filter((id) => !rectIds.includes(id))
+                    .map((id) => [Math.floor(id / 9), id % 9]),
+                  label:
+                    `${formatHouse(edge.type, edge.index, digit)} grouped(` +
+                    `${singleton.map(formatCell).join("")}|` +
+                    `${group.map(formatCell).join("")})`,
+                }),
+              );
+            }
+          }
 
-                    groupedLinks.push(
-                      makeLink("grouped", digit, singleton, group, {
-                        auxiliaryCells: group
-                          .filter((id) => !rectIds.includes(id))
-                          .map((id) => [Math.floor(id / 9), id % 9]),
-                        label:
-                          `${formatHouse(edge.type, edge.index, digit)} grouped(` +
-                          `${singleton.map(formatCell).join("")}|` +
-                          `${group.map(formatCell).join("")})`,
-                      }),
-                    );
-                  }
-                }
-
-                for (const combination of patterns) {
-                  const [bCount, cCount, gCount] = combination;
-                  if (
-                    biCellLinks.length < bCount ||
-                    conjugateLinks.length < cCount ||
-                    groupedLinks.length < gCount
-                  ) {
-                    continue;
-                  }
-                  for (const bs of techniques.combinations(
-                    biCellLinks,
-                    bCount,
-                  )) {
-                    for (const cs of techniques.combinations(
-                      conjugateLinks,
-                      cCount,
-                    )) {
-                      for (const gs of techniques.combinations(
-                        groupedLinks,
-                        gCount,
-                      )) {
-                        const links = [...bs, ...cs, ...gs];
-                        const removals = [];
-                        for (const id of rectIds) {
-                          if (filledValues && filledValues[id]) continue;
-                          for (const digit of [d1, d2]) {
-                            if (
-                              hasCandidate(id, digit) &&
-                              closesDeadlyRectangle(
-                                rectIds,
-                                [d1, d2],
-                                links,
-                                candidateKey(id, digit),
-                              ) &&
-                              // Every displayed link must be necessary for this
-                              // target's proof, not merely present nearby.
-                              links.every((unused, index) =>
-                                !closesDeadlyRectangle(
-                                  rectIds,
-                                  [d1, d2],
-                                  links.filter((link, i) => i !== index),
-                                  candidateKey(id, digit),
-                                ),
-                              )
-                            ) {
-                              removals.push({
-                                r: Math.floor(id / 9),
-                                c: id % 9,
-                                num: digit,
-                              });
-                            }
-                          }
-                        }
-                        if (removals.length === 0) continue;
-                        const uniqueRemovals = _getUniqueRemovals(removals);
-                        const signature =
-                          `${d1}${d2}:${rectIds.join(".")}:` +
-                          uniqueRemovals
-                            .map(({ r, c, num }) => `${r * 9 + c}.${num}`)
-                            .sort()
-                            .join("|");
-                        if (seen.has(signature)) continue;
-                        seen.add(signature);
-                        results.push({
-                          cells: rectIds.map((id) => [
-                            Math.floor(id / 9),
-                            id % 9,
-                          ]),
-                          digits: [d1, d2],
+          for (const combination of patterns) {
+            const [bCount, cCount, gCount] = combination;
+            if (
+              biCellLinks.length < bCount ||
+              conjugateLinks.length < cCount ||
+              groupedLinks.length < gCount
+            ) {
+              continue;
+            }
+            for (const bs of techniques.combinations(
+              biCellLinks,
+              bCount,
+            )) {
+              for (const cs of techniques.combinations(
+                conjugateLinks,
+                cCount,
+              )) {
+                for (const gs of techniques.combinations(
+                  groupedLinks,
+                  gCount,
+                )) {
+                  const links = [...bs, ...cs, ...gs];
+                  const removals = [];
+                  for (const id of rectIds) {
+                    if (filledValues && filledValues[id]) continue;
+                    for (const digit of [d1, d2]) {
+                      if (
+                        hasCandidate(id, digit) &&
+                        closesDeadlyRectangle(
+                          rectIds,
+                          [d1, d2],
                           links,
-                          combination,
-                          removals: uniqueRemovals,
-                          placedCells: placedIds.map((id) => [
-                            Math.floor(id / 9),
-                            id % 9,
-                          ]),
+                          candidateKey(id, digit),
+                        ) &&
+                        // Every displayed link must be necessary for this
+                        // target's proof, not merely present nearby.
+                        links.every((unused, index) =>
+                          !closesDeadlyRectangle(
+                            rectIds,
+                            [d1, d2],
+                            links.filter((link, i) => i !== index),
+                            candidateKey(id, digit),
+                          ),
+                        )
+                      ) {
+                        removals.push({
+                          r: Math.floor(id / 9),
+                          c: id % 9,
+                          num: digit,
                         });
                       }
                     }
                   }
+                  if (removals.length === 0) continue;
+                  const uniqueRemovals = _getUniqueRemovals(removals);
+                  const signature =
+                    `${d1}${d2}:${rectIds.join(".")}:` +
+                    uniqueRemovals
+                      .map(({ r, c, num }) => `${r * 9 + c}.${num}`)
+                      .sort()
+                      .join("|");
+                  if (seen.has(signature)) continue;
+                  seen.add(signature);
+                  results.push({
+                    cells: rectIds.map((id) => [
+                      Math.floor(id / 9),
+                      id % 9,
+                    ]),
+                    digits: [d1, d2],
+                    links,
+                    combination,
+                    removals: uniqueRemovals,
+                    placedCells: placedIds.map((id) => [
+                      Math.floor(id / 9),
+                      id % 9,
+                    ]),
+                  });
+                  if (firstOnly) return results;
                 }
               }
             }
