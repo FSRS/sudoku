@@ -954,7 +954,7 @@ const TRANSLATIONS = {
     tooltip_reset: "진행 중인 퍼즐을 초기화 합니다 (Q).",
     tooltip_wipe_draw: "그린 선을 모두 지웁니다 (W).",
     tooltip_wipe_colors:
-      "셀과 후보수의 색, 동그라미, 가위표를 모두 지웁니다 (E).",
+      "칸과 후보수의 색, 동그라미, 가위표를 모두 지웁니다 (E).",
 
     // === Solver bar ===
     tooltip_prev_step: "이전 단계",
@@ -1115,11 +1115,11 @@ const TRANSLATIONS = {
     ui_pencil_mode_btn_mobile: "연필",
     ui_pencil_mode_btn: "연필 (Z)",
     ui_pencil_mode_tooltip:
-      "연필 모드: 셀을 클릭한 후 숫자를 눌러 후보수를 적거나 지웁니다. (Z로 전환)",
+      "연필 모드: 칸을 클릭한 후 숫자를 눌러 후보수를 적거나 지웁니다. (Z로 전환)",
     ui_number_mode_btn_mobile: "숫자",
     ui_number_mode_btn: "숫자 (Z)",
     ui_number_mode_tooltip:
-      "숫자 모드: 셀을 클릭한 후 숫자를 눌러 값을 설정합니다. (Z로 전환)",
+      "숫자 모드: 칸을 클릭한 후 숫자를 눌러 값을 설정합니다. (Z로 전환)",
     ui_number_pencil_toggle_tooltip: "숫자/연필 모드 전환 (Z)",
     ui_draw_solid_mode_label: "그리기: 실선",
     ui_draw_dash_mode_label: "그리기: 점선",
@@ -1130,10 +1130,10 @@ const TRANSLATIONS = {
     ui_draw_mode_btn_mobile: "그리기",
     ui_draw_mode_btn: "그리기 (X)",
     ui_draw_mode_switch_tooltip: "그리기 모드로 전환 (X)",
-    ui_color_cell_mode_btn_mobile: "셀",
-    ui_color_cell_mode_btn: "색상: 셀",
+    ui_color_cell_mode_btn_mobile: "칸",
+    ui_color_cell_mode_btn: "색상: 칸",
     ui_color_cell_mode_tooltip:
-      "셀 칠하기 모드: 색상을 선택한 후 셀을 클릭하여 칠합니다. (C로 전환)",
+      "칸 칠하기 모드: 색상을 선택한 후 칸을 클릭하여 칠합니다. (C로 전환)",
     ui_color_cand_mode_btn_mobile: "후보수",
     ui_color_cand_mode_btn: "색상: 후보수",
     ui_color_cand_mode_tooltip:
@@ -1214,7 +1214,7 @@ const TRANSLATIONS = {
     ui_next_number_mode_btn_mobile: "숫자?",
     ui_next_number_mode_btn: "숫자? (Z)",
     ui_next_color_cand_mode_btn: "색상: 후보수?",
-    ui_next_color_cell_mode_btn: "색상: 셀?",
+    ui_next_color_cell_mode_btn: "색상: 칸?",
     ui_next_draw_dash_mode_btn: "그리기: 점선?",
     ui_next_draw_solid_mode_btn: "그리기: 실선?",
     ui_date_range_error: "날짜는 2026-03-01과 {0} 사이여야 합니다.",
@@ -1257,7 +1257,7 @@ const TRANSLATIONS = {
     ui_library_board_copied: "퍼즐 상태가 클립보드로 복사되었습니다!",
     ui_library_board_copy_error: "클립보드 복사에 실패했습니다.",
     ui_switched_to_number_mode_action: " 숫자 모드로 전환되었습니다.",
-    ui_switched_to_cell_color_mode_action: " 셀 칠하기 모드로 전환되었습니다.",
+    ui_switched_to_cell_color_mode_action: " 칸 칠하기 모드로 전환되었습니다.",
     ui_expt_mode_disabled_action: " 실험실 모드가 비활성화되었습니다.",
     ui_pencil_marks_visible_action: "이제 연필 표시가 보입니다.",
     ui_hidden_marks_expt_disabled_tip:
@@ -1267,18 +1267,18 @@ const TRANSLATIONS = {
     ui_hidden_marks_cand_color_disabled_tip:
       "표시가 숨겨져 있는 동안에는 후보수 색칠하기가 비활성화됩니다. (보이게 하려면 Alt+A를 누르세요)",
     ui_highlight_number_tip_mobile:
-      "팁: 채워진 셀을 터치하여 숫자를 강조 표시하세요.",
+      "팁: 채워진 칸을 터치하여 숫자를 강조 표시하세요.",
     ui_msg_121_desktop:
-      "팁: 채워진 셀을 클릭&nbsp;<span class='shortcut-highlight'>(또는 'Enter' 입력)</span>하여 숫자를 강조 표시하세요.",
+      "팁: 채워진 칸을 클릭&nbsp;<span class='shortcut-highlight'>(또는 'Enter' 입력)</span>하여 숫자를 강조 표시하세요.",
     ui_pencil_mark_tip_mobile:
-      "팁: 셀을 터치한 후 숫자를 눌러 후보숫자를 적거나 지웁니다.",
+      "팁: 칸을 터치한 후 숫자를 눌러 후보숫자를 적거나 지웁니다.",
     ui_pencil_mark_tip:
-      "팁: 셀을 클릭한 후 숫자를 눌러 후보숫자를 적거나 지웁니다.",
-    ui_cell_color_tip_mobile: "팁: 색상을 선택한 후 셀을 터치하여 칠하세요.",
+      "팁: 칸을 클릭한 후 숫자를 눌러 후보숫자를 적거나 지웁니다.",
+    ui_cell_color_tip_mobile: "팁: 색상을 선택한 후 칸을 터치하여 칠하세요.",
     ui_msg_124_desktop:
-      "팁: 색상을 선택한 후 셀을 클릭&nbsp;<span class='shortcut-highlight'>(또는 'C' 입력)</span>하여 칠하세요.",
+      "팁: 색상을 선택한 후 칸을 클릭&nbsp;<span class='shortcut-highlight'>(또는 'C' 입력)</span>하여 칠하세요.",
     ui_cand_color_select_tip_mobile:
-      "팁: 색상을 선택한 후 셀을 터치하여 후보수를 선택하세요.",
+      "팁: 색상을 선택한 후 칸을 터치하여 후보수를 선택하세요.",
     ui_cand_color_preview_tip:
       "팁: 색상을 선택한 후 후보수 위에 마우스를 올려 미리보고 클릭하여 적용하세요.",
     ui_draw_tip_mobile:
@@ -1289,7 +1289,7 @@ const TRANSLATIONS = {
     ui_expt_erase_cand_tip: "실험실 기능: 후보수를 {0} 바로 지우세요.",
     ui_expt_draw_dash_tip: "실험실 기능: 후보수를 {0} 점선을 그리세요.",
     ui_expt_apply_cell_color_tip:
-      "실험실 기능: 후보수를 {0} 이전에 선택한 셀 색상을 적용하세요.",
+      "실험실 기능: 후보수를 {0} 이전에 선택한 칸 색상을 적용하세요.",
     ui_expt_apply_cand_color_tip:
       "실험실 기능: 후보수를 {0} 이전에 선택한 색상을 적용하세요.",
     ui_date_input_placeholder: "날짜 입력",
@@ -1322,9 +1322,9 @@ const TRANSLATIONS = {
     ui_msg_annotations_cleared: "모든 선과 색상을 지웠습니다.",
     ui_auto_pencil_complete: "후보숫자 채우기 완료!",
     ui_bivalue_highlight_tip_mobile:
-      "팁: 강조 표시가 꺼져 있을 때 이중값 셀을 터치하면 모든 해당 셀이 강조됩니다.",
+      "팁: 강조 표시가 꺼져 있을 때 이중값 칸을 터치하면 모든 해당 칸이 강조됩니다.",
     ui_bivalue_highlight_tip:
-      "팁: 이중값 셀을 강조 표시하려면 강조 표시가 꺼져 있을 때 셀 중 하나를 클릭하거나 '0'을 누르세요.",
+      "팁: 이중값 칸을 강조 표시하려면 강조 표시가 꺼져 있을 때 칸 중 하나를 클릭하거나 '0'을 누르세요.",
     ui_invalid_puzzle_string_error: "오류: 유효하지 않은 퍼즐 문자열입니다.",
     ui_saved_game_resumed: "저장된 게임을 이어서 시작합니다.",
     ui_msg_156_offline:
@@ -1491,10 +1491,10 @@ const TRANSLATIONS = {
     ui_cand_color_cleared: "({0})r{1}c{2}의 색상 지움",
     ui_action_no_visible_changes: "눈에 띄는 변경 사항 없음",
     ui_multiple_cells_updated_highlight_wipe_reset_solve:
-      "여러 셀 업데이트됨 (강조/지우기/초기화/해결)",
+      "여러 칸 업데이트됨 (강조/지우기/초기화/해결)",
     ui_unhighlighted_all: "모든 강조 표시 해제",
     ui_highlighted_digit: "숫자 {0} 강조 표시됨",
-    ui_highlighted_bi_value_cells: "이중값을 가진 셀이 강조 표시됨",
+    ui_highlighted_bi_value_cells: "이중값을 가진 칸이 강조 표시됨",
     ui_evaluating_puzzle_from_url: "URL에서 퍼즐 평가 중...",
     ui_SimpleColor: "심플 컬러링",
     ui_Medusa: "3D 메두사",
@@ -1728,7 +1728,7 @@ const TRANSLATIONS = {
     teks_start_color_1_with_r_c: "({0})r{1}c{2}부터 시작",
     teks_start_color_c1_with_r_c: "({0})r{1}c{2}부터 시작. ",
     teks_invalid_color_c_appears_twice_in_r_c:
-      "한 셀에는 한 숫자만 참이므로 색 {0}이(가) r{1}c{2}에 두 번 나타나 모순됨.",
+      "한 칸에는 한 숫자만 참이므로 색 {0}이(가) r{1}c{2}에 두 번 나타나 모순됨.",
     teks_invalid_color_c_for_digit_sees_itself_at_r_c:
       "숫자 ({0})에 대한 색 {1}이(가) r{2}c{3}에서 마주 보게 되어 모순됨.",
     teks_bad_color_c_emptied_cell_r_c:
@@ -1838,7 +1838,7 @@ const TRANSLATIONS = {
       "{1}의 기반 숫자 ({0}), 수호자 {2}, 윙 r{3}c{4}, r{5}c{6}",
     teks_UR_type_7: "유일한 직사각형 유형 7",
     teks_UR_type_7_base_guardians: "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, {4}",
-    teks_UR_type_7_bivalue_cells: "이중값 셀 {0}",
+    teks_UR_type_7_bivalue_cells: "이중값 칸 {0}",
     teks_UR_type_7_ConPairs: "이중 위치 {0}",
     teks_UR_type_7_grouped_ConPairs: "그룹 이중 위치 {0}",
     teks_AUR_type_7: "회피 가능한 유일한 직사각형 유형 7",
