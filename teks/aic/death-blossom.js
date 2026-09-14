@@ -553,6 +553,4 @@ Object.assign(techniques, {
       seenEliminations,
     );
   },
-
-  // --- Almost AIC ---
 });

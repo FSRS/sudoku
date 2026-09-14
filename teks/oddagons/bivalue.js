@@ -722,6 +722,4 @@ Object.assign(techniques, {
 
     return findAll ? results : { change: false };
   },
-
-  // Trivalue Oddagon
 });

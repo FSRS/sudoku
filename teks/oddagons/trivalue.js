@@ -1,4 +1,5 @@
 Object.assign(techniques, {
+  // Trivalue Oddagon
   _trivalueOddagonPlacements: [
     [0, 10, 20],
     [1, 11, 18],
@@ -186,9 +187,7 @@ Object.assign(techniques, {
                               c,
                               num,
                               color:
-                                num === d1 || num === d2 || num === d3
-                                  ? 7
-                                  : 3,
+                                num === d1 || num === d2 || num === d3 ? 7 : 3,
                             })),
                           ),
                           candidateMarks: elimCells.map(({ r, c, num }) => ({
@@ -368,11 +367,7 @@ Object.assign(techniques, {
                                 ),
                               ];
                               const links = [];
-                              const addCandidateGroup = (
-                                ids,
-                                digit,
-                                color,
-                              ) => {
+                              const addCandidateGroup = (ids, digit, color) => {
                                 for (let i = 0; i < ids.length - 1; i++) {
                                   links.push({
                                     r1: Math.floor(ids[i] / 9),
@@ -459,7 +454,10 @@ Object.assign(techniques, {
                                 cells: elimCells,
                                 hint: {
                                   name: t("teks_TVO_XZ"),
-                                  mainInfo: t("teks_TVO_XZ_digits", ...baseDigits),
+                                  mainInfo: t(
+                                    "teks_TVO_XZ_digits",
+                                    ...baseDigits,
+                                  ),
                                   detail: t(
                                     "teks_TVO_XZ_ALS_detail",
                                     ...baseDigits,

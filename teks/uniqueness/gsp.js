@@ -1,4 +1,5 @@
 Object.assign(techniques, {
+  // Gurth's Symmetrical Placement
   _gspSymmetries: {
     diagonal: {
       partner: (r, c) => [c, r],

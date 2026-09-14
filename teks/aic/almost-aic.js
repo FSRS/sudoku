@@ -1,4 +1,5 @@
 Object.assign(techniques, {
+  // --- Almost AIC ---
   _almostAicMaxBranchNodes: 16,
   _buildAlmostAicGraph: (board, pencils) => {
     techniques._useSharedAICCache(board, pencils);

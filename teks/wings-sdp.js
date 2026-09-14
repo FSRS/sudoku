@@ -1065,6 +1065,4 @@ Object.assign(techniques, {
     }
     return [...logic(true), ...logic(false)];
   },
-
-  // Gurth's Symmetrical Placement
 });
