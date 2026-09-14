@@ -1837,8 +1837,7 @@ const TRANSLATIONS = {
     teks_UET_XY_Wing_detail:
       "{1}의 기반 숫자 ({0}), 수호자 {2}, 윙 r{3}c{4}, r{5}c{6}",
     teks_UR_type_7: "유일한 직사각형 유형 7",
-    teks_UR_type_7_base_guardians:
-      "({2})의 기반 숫자 ({0}{1}), 수호자 {3}, {4}",
+    teks_UR_type_7_base_guardians: "{2}의 기반 숫자 ({0}{1}), 수호자 {3}, {4}",
     teks_UR_type_7_bivalue_cells: "이중값 셀 {0}",
     teks_UR_type_7_ConPairs: "이중 위치 {0}",
     teks_UR_type_7_grouped_ConPairs: "그룹 이중 위치 {0}",
