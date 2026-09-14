@@ -637,9 +637,7 @@ Object.assign(techniques, {
         if (i < path.length) drawGroup(v, (i + 1) % path.length);
 
         const skipLine =
-          useFish &&
-          i % 2 === 0 &&
-          activeFishLinkRegistry.get(u)?.get(v);
+          useFish && i % 2 === 0 && activeFishLinkRegistry.get(u)?.get(v);
         if (!skipLine) {
           const [cA, cB] = getClosestCells(u, v);
           links.push({
@@ -1314,6 +1312,4 @@ Object.assign(techniques, {
       return m;
     },
   },
-
-  // --- ALS COLLECTION ENGINE ---
 });

@@ -219,8 +219,7 @@ Object.assign(techniques, {
       const basePosStr = getBasePosStr(cells);
 
       const extraCells = cells.filter(
-        ([r, c]) =>
-          !placedIds.has(r * 9 + c) && !isExactPair(r, c, d1, d2),
+        ([r, c]) => !placedIds.has(r * 9 + c) && !isExactPair(r, c, d1, d2),
       );
       const baseDetail = () =>
         t(
@@ -244,7 +243,11 @@ Object.assign(techniques, {
             cells: _getUniqueRemovals(removals),
             hint: {
               name: t(avoidable ? "teks_AR_type_1" : "teks_UR_type_1"),
-              mainInfo: t(avoidable ? "teks_AR_digits" : "teks_UR_digits", d1, d2),
+              mainInfo: t(
+                avoidable ? "teks_AR_digits" : "teks_UR_digits",
+                d1,
+                d2,
+              ),
               detail: baseDetail(),
             },
             visualPlan: getURVisualPlan(
@@ -590,11 +593,7 @@ Object.assign(techniques, {
     }
 
     const xyWingProofs = avoidable
-      ? techniques._findAvoidableRectangleXyWings(
-          board,
-          pencils,
-          filledValues,
-        )
+      ? techniques._findAvoidableRectangleXyWings(board, pencils, filledValues)
       : techniques._findUniqueRectangleXyWings(board, pencils, rects);
     for (const proof of xyWingProofs) {
       const removals = proof.removals.map(({ r, c, num }) => ({ r, c, num }));
@@ -607,9 +606,7 @@ Object.assign(techniques, {
         type: "remove",
         cells: removals,
         hint: {
-          name: t(
-            avoidable ? "teks_AUR_plus_XY_Wing" : "teks_UR_plus_XY_Wing",
-          ),
+          name: t(avoidable ? "teks_AUR_plus_XY_Wing" : "teks_UR_plus_XY_Wing"),
           mainInfo: t(
             avoidable ? "teks_AR_digits" : "teks_UR_digits",
             proof.d1,

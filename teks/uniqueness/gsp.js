@@ -175,7 +175,10 @@ Object.assign(techniques, {
         hint: {
           name: t("teks_GSP"),
           mainInfo: symmetry.dirKey
-            ? t("teks_puzzle_is_diagonally_symmetric_in_the_direction", t(symmetry.dirKey))
+            ? t(
+                "teks_puzzle_is_diagonally_symmetric_in_the_direction",
+                t(symmetry.dirKey),
+              )
             : t("teks_puzzle_is_centrally_symmetric"),
           detail: t(
             "teks_cand_s_mapping_in",
@@ -183,11 +186,7 @@ Object.assign(techniques, {
             techniques._gspMappingText(mapping),
           ),
         },
-        visualPlan: techniques._buildGspVisualPlan(
-          cellGroups,
-          kept,
-          removals,
-        ),
+        visualPlan: techniques._buildGspVisualPlan(cellGroups, kept, removals),
       };
       if (!findAll) return result;
       results.push(result);
@@ -272,5 +271,4 @@ Object.assign(techniques, {
 
     return findAll ? results : { change: false };
   },
-
 });

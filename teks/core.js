@@ -239,7 +239,6 @@ class AICNode {
   }
 }
 
-
 const techniques = {};
 
 Object.assign(techniques, {
@@ -506,5 +505,4 @@ Object.assign(techniques, {
     }
     return ids;
   },
-
 });

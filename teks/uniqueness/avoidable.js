@@ -1,11 +1,6 @@
 Object.assign(techniques, {
   avoidableRectangle: (board, pencils, findAll = false) =>
-    techniques.uniqueRectangle(
-      board,
-      pencils,
-      { avoidable: true },
-      findAll,
-    ),
+    techniques.uniqueRectangle(board, pencils, { avoidable: true }, findAll),
 
   _findAvoidableRectangles: () => {
     const rectangles = [];

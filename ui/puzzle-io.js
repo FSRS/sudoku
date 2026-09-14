@@ -1,7 +1,8 @@
 (function (root) {
   "use strict";
 
-  const BASE62 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const BASE62 =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
   function puzzleStringToGrid(puzzle) {
     const board = Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -74,7 +75,9 @@
   }
 
   function parseLibraryPuzzleString(text, isValidCandidate) {
-    const fields = String(text || "").trim().split(":");
+    const fields = String(text || "")
+      .trim()
+      .split(":");
     if (fields.length < 3) return null;
 
     let boardIndex = 0;
@@ -98,7 +101,8 @@
       const col = index % 9;
       for (let num = 1; num <= 9; num++) {
         if (universe && !universe[index].has(num)) continue;
-        if (isValidCandidate(placedGrid, row, col, num)) pencils[index].add(num);
+        if (isValidCandidate(placedGrid, row, col, num))
+          pencils[index].add(num);
       }
     }
 
@@ -135,7 +139,8 @@
     }
 
     const cleanString = source.replace(/\s/g, "");
-    if (cleanString.length !== 81 || !/^[0-9.]+$/.test(cleanString)) return null;
+    if (cleanString.length !== 81 || !/^[0-9.]+$/.test(cleanString))
+      return null;
     return { kind: "compact", source, cleanString };
   }
 
@@ -144,7 +149,8 @@
     for (const row of boardState) {
       for (const cell of row) {
         if (cell.isGiven) value += cell.value;
-        else if (cell.value !== 0) value += String.fromCharCode(64 + cell.value);
+        else if (cell.value !== 0)
+          value += String.fromCharCode(64 + cell.value);
         else if (cell.pencils.size > 0) {
           let mask = 0;
           for (const pencil of cell.pencils) mask |= 1 << (pencil - 1);
@@ -160,7 +166,9 @@
         compressed += "z";
         remaining -= 26;
       }
-      return compressed + (remaining ? String.fromCharCode(96 + remaining) : "");
+      return (
+        compressed + (remaining ? String.fromCharCode(96 + remaining) : "")
+      );
     });
   }
 

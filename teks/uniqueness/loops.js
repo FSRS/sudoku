@@ -224,10 +224,7 @@ Object.assign(techniques, {
             cellList.filter(
               (other) =>
                 other !== id &&
-                techniques._sees(cell, [
-                  Math.floor(other / 9),
-                  other % 9,
-                ]),
+                techniques._sees(cell, [Math.floor(other / 9), other % 9]),
             ),
           );
         }
@@ -366,8 +363,7 @@ Object.assign(techniques, {
     if (avoidable && !filledValues)
       return findAll ? results : { change: false };
     const loops = techniques._findUniqueLoops(pencils, filledValues);
-    if (loops.length === 0)
-      return findAll ? results : { change: false };
+    if (loops.length === 0) return findAll ? results : { change: false };
 
     const formatRC = techniques._formatCellsRC;
     const formatBP = techniques._formatBoxPoints;
@@ -629,9 +625,7 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: _getUniqueRemovals(res.removals),
                 hint: {
-                  name: t(
-                    avoidable ? "teks_AUL_type_3" : "teks_UL_type_3",
-                  ),
+                  name: t(avoidable ? "teks_AUL_type_3" : "teks_UL_type_3"),
                   mainInfo: t(
                     avoidable ? "teks_AUL_digits" : "teks_UL_digits",
                     baseDigitsStr,
@@ -824,7 +818,11 @@ Object.assign(techniques, {
               hint: {
                 name: t("teks_UL_type_6"),
                 mainInfo: t("teks_UL_digits", baseDigitsStr),
-                detail: t("teks_UL_type_6_guardian_elimination_detail", detailPrefix, u),
+                detail: t(
+                  "teks_UL_type_6_guardian_elimination_detail",
+                  detailPrefix,
+                  u,
+                ),
               },
               visualPlan: getULVisualPlan(6, cells, digits, uniqueRemovals, {
                 restrictedDigit: u,
@@ -841,5 +839,4 @@ Object.assign(techniques, {
 
   avoidableUniqueLoop: (board, pencils, findAll = false) =>
     techniques.uniqueLoop(board, pencils, { avoidable: true }, findAll),
-
 });

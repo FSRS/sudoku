@@ -144,5 +144,4 @@ Object.assign(techniques, {
     stems.sort((left, right) => left.size - right.size);
     return stems;
   },
-
 });

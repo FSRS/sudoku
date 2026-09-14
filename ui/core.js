@@ -536,17 +536,23 @@ function updateSolverToggleButton() {
   const isMobile = window.innerWidth <= 550;
 
   if (isViewAllTechniquesMode && vatSelectedHint) {
-    btn.textContent = isMobile ? t("ui_apply_eval_btn") : t("ui_apply_reeval_btn");
+    btn.textContent = isMobile
+      ? t("ui_apply_eval_btn")
+      : t("ui_apply_reeval_btn");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors";
     btn.dataset.tooltip = t("ui_apply_technique_tooltip");
   } else if (isSolverMode) {
-    btn.textContent = isMobile ? t("ui_exit_solver_btn_mobile") : t("ui_exit_solver_btn");
+    btn.textContent = isMobile
+      ? t("ui_exit_solver_btn_mobile")
+      : t("ui_exit_solver_btn");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
     btn.dataset.tooltip = t("ui_exit_solver_tooltip");
   } else {
-    btn.textContent = isMobile ? t("ui_solver_mode_btn_mobile") : t("ui_enter_solver_mode_btn");
+    btn.textContent = isMobile
+      ? t("ui_solver_mode_btn_mobile")
+      : t("ui_enter_solver_mode_btn");
     btn.className =
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
     btn.dataset.tooltip = t("ui_enter_solver_tooltip");
@@ -826,10 +832,14 @@ function updateButtonLabels() {
   }
 
   if (currentMode === "pencil") {
-    modeToggleButton.textContent = isMobile ? t("ui_pencil_mode_btn_mobile") : t("ui_pencil_mode_btn");
+    modeToggleButton.textContent = isMobile
+      ? t("ui_pencil_mode_btn_mobile")
+      : t("ui_pencil_mode_btn");
     modeToggleButton.dataset.tooltip = t("ui_pencil_mode_tooltip");
   } else {
-    modeToggleButton.textContent = isMobile ? t("ui_number_mode_btn_mobile") : t("ui_number_mode_btn");
+    modeToggleButton.textContent = isMobile
+      ? t("ui_number_mode_btn_mobile")
+      : t("ui_number_mode_btn");
     if (currentMode === "concrete") {
       modeToggleButton.dataset.tooltip = t("ui_number_mode_tooltip");
     } else {
@@ -838,7 +848,10 @@ function updateButtonLabels() {
   }
 
   if (currentMode === "draw") {
-    const label = drawSubMode === "solid" ? t("ui_draw_solid_mode_label") : t("ui_draw_dash_mode_label");
+    const label =
+      drawSubMode === "solid"
+        ? t("ui_draw_solid_mode_label")
+        : t("ui_draw_dash_mode_label");
     drawButton.textContent = isMobile
       ? drawSubMode === "solid"
         ? t("ui_solid_line_style")
@@ -856,17 +869,23 @@ function updateButtonLabels() {
       drawButton.classList.add("active");
     }
   } else {
-    drawButton.textContent = isMobile ? t("ui_draw_mode_btn_mobile") : t("ui_draw_mode_btn");
+    drawButton.textContent = isMobile
+      ? t("ui_draw_mode_btn_mobile")
+      : t("ui_draw_mode_btn");
     drawButton.dataset.tooltip = t("ui_draw_mode_switch_tooltip");
     drawButton.classList.remove("active", "active-green");
   }
 
   if (currentMode === "color") {
     if (coloringSubMode === "cell") {
-      colorButton.textContent = isMobile ? t("ui_color_cell_mode_btn_mobile") : t("ui_color_cell_mode_btn");
+      colorButton.textContent = isMobile
+        ? t("ui_color_cell_mode_btn_mobile")
+        : t("ui_color_cell_mode_btn");
       colorButton.dataset.tooltip = t("ui_color_cell_mode_tooltip");
     } else if (coloringSubMode === "candidate") {
-      colorButton.textContent = isMobile ? t("ui_color_cand_mode_btn_mobile") : t("ui_color_cand_mode_btn");
+      colorButton.textContent = isMobile
+        ? t("ui_color_cand_mode_btn_mobile")
+        : t("ui_color_cand_mode_btn");
       colorButton.dataset.tooltip = t("ui_color_cand_mode_tooltip");
     } else if (coloringSubMode === "circle") {
       colorButton.textContent = isMobile
@@ -880,7 +899,9 @@ function updateButtonLabels() {
       colorButton.dataset.tooltip = t("ui_msg_slash_tooltip");
     }
   } else {
-    colorButton.textContent = isMobile ? t("ui_color_mode_btn_mobile") : t("ui_color_mode_btn");
+    colorButton.textContent = isMobile
+      ? t("ui_color_mode_btn_mobile")
+      : t("ui_color_mode_btn");
     colorButton.dataset.tooltip = t("ui_color_mode_switch_tooltip");
   }
 
@@ -911,9 +932,13 @@ function addSudokuCoachLink(puzzleString) {
 
   const btn = document.createElement("button");
   btn.id = "toggle-solver-mode-btn";
-  btn.dataset.tooltip = isMobile ? t("ui_solver_toggle_btn_mobile") : t("ui_solver_toggle_btn");
+  btn.dataset.tooltip = isMobile
+    ? t("ui_solver_toggle_btn_mobile")
+    : t("ui_solver_toggle_btn");
 
-  btn.textContent = isMobile ? t("ui_solver_mode_btn_mobile") : t("ui_enter_solver_mode_btn");
+  btn.textContent = isMobile
+    ? t("ui_solver_mode_btn_mobile")
+    : t("ui_enter_solver_mode_btn");
   btn.className =
     "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600";
 
@@ -1913,7 +1938,9 @@ function updateLamp(color, { record = true, level = null } = {}) {
     // If a specific level is provided (and it's a solved state color), use it
     if (level !== null && color !== "gray") {
       const isCustom = hasCustomPreferences();
-      desc = isCustom ? t("ui_custom_difficulty_level", level) : t("ui_difficulty_level_value", level);
+      desc = isCustom
+        ? t("ui_custom_difficulty_level", level)
+        : t("ui_difficulty_level_value", level);
     }
 
     tooltipText = `${label}: ${desc}`;
@@ -2753,7 +2780,9 @@ function setupEventListeners() {
     shareStep1.classList.add("flex");
     shareStep2.classList.add("hidden");
     shareStep2.classList.remove("flex");
-    document.getElementById("share-modal-desc").textContent = t("ui_share_target_prompt");
+    document.getElementById("share-modal-desc").textContent = t(
+      "ui_share_target_prompt",
+    );
     shareModal.classList.remove("hidden");
     shareModal.classList.add("flex");
   });
@@ -2764,7 +2793,9 @@ function setupEventListeners() {
     shareStep1.classList.remove("flex");
     shareStep2.classList.remove("hidden");
     shareStep2.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent = t("ui_share_initial_format_label");
+    document.getElementById("share-modal-desc").textContent = t(
+      "ui_share_initial_format_label",
+    );
   });
 
   shareCurrentBtn.addEventListener("click", () => {
@@ -2773,7 +2804,9 @@ function setupEventListeners() {
     shareStep1.classList.remove("flex");
     shareStep2.classList.remove("hidden");
     shareStep2.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent = t("ui_share_progress_format_label");
+    document.getElementById("share-modal-desc").textContent = t(
+      "ui_share_progress_format_label",
+    );
   });
 
   shareBackBtn.addEventListener("click", () => {
@@ -2781,7 +2814,9 @@ function setupEventListeners() {
     shareStep2.classList.remove("flex");
     shareStep1.classList.remove("hidden");
     shareStep1.classList.add("flex");
-    document.getElementById("share-modal-desc").textContent = t("ui_share_target_prompt");
+    document.getElementById("share-modal-desc").textContent = t(
+      "ui_share_target_prompt",
+    );
   });
 
   shareCancelBtn.addEventListener("click", () => {
@@ -3690,14 +3725,18 @@ function handleModeChange(e, reverse = false) {
   let tip = "";
 
   if (currentMode === "concrete") {
-    tip = isMobile ? t("ui_highlight_number_tip_mobile") : t("ui_msg_121_desktop");
+    tip = isMobile
+      ? t("ui_highlight_number_tip_mobile")
+      : t("ui_msg_121_desktop");
   } else if (currentMode === "pencil") {
     tip = isMobile ? t("ui_pencil_mark_tip_mobile") : t("ui_pencil_mark_tip");
   } else if (currentMode === "color") {
     if (coloringSubMode === "cell") {
       tip = isMobile ? t("ui_cell_color_tip_mobile") : t("ui_msg_124_desktop");
     } else if (coloringSubMode === "candidate") {
-      tip = isMobile ? t("ui_cand_color_select_tip_mobile") : t("ui_cand_color_preview_tip");
+      tip = isMobile
+        ? t("ui_cand_color_select_tip_mobile")
+        : t("ui_cand_color_preview_tip");
     } else if (coloringSubMode === "circle") {
       tip = isMobile ? t("ui_msg_circle_tip_mobile") : t("ui_msg_circle_tip");
     } else {
@@ -3705,8 +3744,22 @@ function handleModeChange(e, reverse = false) {
     }
   } else if (currentMode === "draw") {
     tip = isMobile
-      ? t("ui_draw_tip_mobile", t(drawSubMode === "solid" ? "ui_solid_line_style" : "ui_dash_line_style"))
-      : t("ui_draw_tip", t(drawSubMode === "solid" ? "ui_solid_line_style" : "ui_dash_line_style"));
+      ? t(
+          "ui_draw_tip_mobile",
+          t(
+            drawSubMode === "solid"
+              ? "ui_solid_line_style"
+              : "ui_dash_line_style",
+          ),
+        )
+      : t(
+          "ui_draw_tip",
+          t(
+            drawSubMode === "solid"
+              ? "ui_solid_line_style"
+              : "ui_dash_line_style",
+          ),
+        );
   }
   showMessage(tip, "gray");
 
@@ -3716,7 +3769,9 @@ function handleModeChange(e, reverse = false) {
   if (isExperimentalMode) {
     window.exptTipTimer = setTimeout(() => {
       let exptTip = "";
-      const actionTxt = isMobile ? t("ui_long_press_action") : t("ui_right_click_action");
+      const actionTxt = isMobile
+        ? t("ui_long_press_action")
+        : t("ui_right_click_action");
 
       if (currentMode === "concrete") {
         exptTip = t("ui_expt_erase_cand_tip", actionTxt);
@@ -4348,7 +4403,8 @@ async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
     const rawString = lines[sequenceState.q];
     const puzzleStr = decompressPuzzleString(rawString);
 
-    if (puzzleStr.length !== 81) throw new Error(t("ui_puzzle_integrity_error"));
+    if (puzzleStr.length !== 81)
+      throw new Error(t("ui_puzzle_integrity_error"));
 
     // Persist only after the selected line has passed validation. The stored q
     // is the puzzle just loaded; the following call advances by p modulo N.
@@ -4610,7 +4666,9 @@ function autoPencil(skipConfirm = false) {
   isAutoPencilPending = false;
 
   const isMobile = window.innerWidth <= 550;
-  const tip = isMobile ? t("ui_bivalue_highlight_tip_mobile") : t("ui_bivalue_highlight_tip");
+  const tip = isMobile
+    ? t("ui_bivalue_highlight_tip_mobile")
+    : t("ui_bivalue_highlight_tip");
 
   setTimeout(() => {
     showMessage(tip, "gray");
@@ -4886,7 +4944,8 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   addSudokuCoachLink(initialPuzzleString);
 
   if (isCustomPuzzle) {
-    if (!isUnlimited && !wasSaveLoaded) showMessage(t("ui_custom_puzzle_loaded"), "green");
+    if (!isUnlimited && !wasSaveLoaded)
+      showMessage(t("ui_custom_puzzle_loaded"), "green");
   } else if (!wasSaveLoaded && puzzleData) {
     showMessage(
       t(
@@ -5837,7 +5896,10 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
       showMoreBtn.style.padding = "4px";
       showMoreBtn.style.borderRadius = "3px";
       showMoreBtn.style.cursor = "pointer";
-      showMoreBtn.textContent = t("ui_show_more_results", group.items.length - 3);
+      showMoreBtn.textContent = t(
+        "ui_show_more_results",
+        group.items.length - 3,
+      );
 
       showMoreBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -6957,7 +7019,8 @@ function getHistoryEntryDescription(entry) {
   const lineDesc = entry.linePatch
     ? getLineDiffDescription(entry.linePatch.removed, entry.linePatch.added)
     : null;
-  if (actionDesc === t("ui_undo_no_visible_changes") && lineDesc) return lineDesc;
+  if (actionDesc === t("ui_undo_no_visible_changes") && lineDesc)
+    return lineDesc;
   return lineDesc ? `${actionDesc}, ${lineDesc}` : actionDesc;
 }
 
@@ -7713,7 +7776,9 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   }
   if (IS_DEBUG_MODE) {
     const solveEndTime = performance.now();
-    console.log(t("ui_eval_completed_in_ms", (solveEndTime - solveStartTime).toFixed(2)));
+    console.log(
+      t("ui_eval_completed_in_ms", (solveEndTime - solveStartTime).toFixed(2)),
+    );
     console.log("-----------------------------------------------");
   }
   syncCurrentHistoryEvaluationState(myEvaluationId);

@@ -906,5 +906,4 @@ Object.assign(techniques, {
     }
     return result;
   },
-
 });

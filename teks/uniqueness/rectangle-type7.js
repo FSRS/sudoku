@@ -10,12 +10,7 @@ var UR7_RECTANGLE_GEOMETRIES = (() => {
           const sameStack = Math.floor(c1 / 3) === Math.floor(c2 / 3);
           if (sameBand === sameStack) continue;
 
-          const rectIds = [
-            r1 * 9 + c1,
-            r1 * 9 + c2,
-            r2 * 9 + c1,
-            r2 * 9 + c2,
-          ];
+          const rectIds = [r1 * 9 + c1, r1 * 9 + c2, r2 * 9 + c1, r2 * 9 + c2];
           geometries.push({
             rectIds,
             edges: [
@@ -51,8 +46,7 @@ Object.assign(techniques, {
     const filledValues = avoidable
       ? techniques._getAvoidableFilledValues(board)
       : null;
-    if (avoidable && !filledValues)
-      return findAll ? [] : { change: false };
+    if (avoidable && !filledValues) return findAll ? [] : { change: false };
     const proofs = techniques._findUniqueRectangleType7(
       board,
       pencils,
@@ -100,23 +94,20 @@ Object.assign(techniques, {
         .filter(({ kind }) => kind === "grouped")
         .map(({ endpoints }) => endpoints.map(formatCellIds).join(","));
       return [
-        bivalueCells.length ? t("teks_UR_type_7_bivalue_cells", bivalueCells.join(",")) : null,
+        bivalueCells.length
+          ? t("teks_UR_type_7_bivalue_cells", bivalueCells.join(","))
+          : null,
         conjugatePairs.length
           ? t("teks_UR_type_7_ConPairs", conjugatePairs.join(","))
           : null,
-        groupedPairs.length ? t("teks_UR_type_7_grouped_ConPairs", groupedPairs.join(",")) : null,
+        groupedPairs.length
+          ? t("teks_UR_type_7_grouped_ConPairs", groupedPairs.join(","))
+          : null,
       ]
         .filter(Boolean)
         .join(", ");
     };
-    const buildVisualPlan = (
-      cells,
-      d1,
-      d2,
-      links,
-      removals,
-      placedCells,
-    ) => {
+    const buildVisualPlan = (cells, d1, d2, links, removals, placedCells) => {
       const placedIds = new Set(placedCells.map(([r, c]) => r * 9 + c));
       const cellColors = cells.map(([r, c]) => ({
         r,
@@ -441,21 +432,23 @@ Object.assign(techniques, {
     };
 
     // A placed corner supplies one of UR7's three propagation steps.
-    const patterns = filledValues ? [
-      [2, 0, 0],
-      [1, 1, 0],
-      [0, 2, 0],
-      [1, 0, 1],
-      [0, 1, 1],
-      [0, 0, 2],
-    ] : [
-      [2, 1, 0],
-      [1, 2, 0],
-      [0, 3, 0],
-      [2, 0, 1],
-      [1, 1, 1],
-      [0, 2, 1],
-    ];
+    const patterns = filledValues
+      ? [
+          [2, 0, 0],
+          [1, 1, 0],
+          [0, 2, 0],
+          [1, 0, 1],
+          [0, 1, 1],
+          [0, 0, 2],
+        ]
+      : [
+          [2, 1, 0],
+          [1, 2, 0],
+          [0, 3, 0],
+          [2, 0, 1],
+          [1, 1, 1],
+          [0, 2, 1],
+        ];
 
     for (let d1 = 1; d1 <= 8; d1++) {
       for (let d2 = d1 + 1; d2 <= 9; d2++) {
@@ -464,9 +457,7 @@ Object.assign(techniques, {
           const { rectIds, edges } = geometry;
           const placedIds = filledValues ? entry.placedIds : [];
           if (
-            rectIds.some(
-              (id) => !hasCandidate(id, d1) && !hasCandidate(id, d2),
-            )
+            rectIds.some((id) => !hasCandidate(id, d1) && !hasCandidate(id, d2))
           ) {
             continue;
           }
@@ -474,8 +465,7 @@ Object.assign(techniques, {
           if (
             edges.some((edge) =>
               [d1, d2].some(
-                (digit) =>
-                  !edge.ids.some((id) => hasCandidate(id, digit)),
+                (digit) => !edge.ids.some((id) => hasCandidate(id, digit)),
               ),
             )
           ) {
@@ -509,13 +499,9 @@ Object.assign(techniques, {
                   : colCandidates[digit][edge.index];
               if (sameMembers(houseCandidates, edge.ids)) {
                 conjugateLinks.push(
-                  makeLink(
-                    "conjugate",
-                    digit,
-                    [edge.ids[0]],
-                    [edge.ids[1]],
-                    { label: formatHouse(edge.type, edge.index, digit) },
-                  ),
+                  makeLink("conjugate", digit, [edge.ids[0]], [edge.ids[1]], {
+                    label: formatHouse(edge.type, edge.index, digit),
+                  }),
                 );
                 continue;
               }
@@ -567,10 +553,7 @@ Object.assign(techniques, {
             ) {
               continue;
             }
-            for (const bs of techniques.combinations(
-              biCellLinks,
-              bCount,
-            )) {
+            for (const bs of techniques.combinations(biCellLinks, bCount)) {
               for (const cs of techniques.combinations(
                 conjugateLinks,
                 cCount,
@@ -594,13 +577,14 @@ Object.assign(techniques, {
                         ) &&
                         // Every displayed link must be necessary for this
                         // target's proof, not merely present nearby.
-                        links.every((unused, index) =>
-                          !closesDeadlyRectangle(
-                            rectIds,
-                            [d1, d2],
-                            links.filter((link, i) => i !== index),
-                            candidateKey(id, digit),
-                          ),
+                        links.every(
+                          (unused, index) =>
+                            !closesDeadlyRectangle(
+                              rectIds,
+                              [d1, d2],
+                              links.filter((link, i) => i !== index),
+                              candidateKey(id, digit),
+                            ),
                         )
                       ) {
                         removals.push({
@@ -622,10 +606,7 @@ Object.assign(techniques, {
                   if (seen.has(signature)) continue;
                   seen.add(signature);
                   results.push({
-                    cells: rectIds.map((id) => [
-                      Math.floor(id / 9),
-                      id % 9,
-                    ]),
+                    cells: rectIds.map((id) => [Math.floor(id / 9), id % 9]),
                     digits: [d1, d2],
                     links,
                     combination,

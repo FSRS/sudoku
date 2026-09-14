@@ -302,8 +302,7 @@ Object.assign(techniques, {
       filledValues,
       board,
     );
-    if (ers.length === 0)
-      return findAll ? results : { change: false };
+    if (ers.length === 0) return findAll ? results : { change: false };
 
     const formatRC = techniques._formatCellsRC;
     const formatBP = techniques._formatBoxPoints;
@@ -332,45 +331,45 @@ Object.assign(techniques, {
         const [e2r, e2c] = extraData.e2;
         if (extraData.is_nx2) {
           plan.links.push({
-              r1: e1r,
-              c1: e1c,
-              n1: u,
-              r2: e2r,
-              c2: e1c,
-              n2: u,
-              color: 0,
-              style: "solid",
+            r1: e1r,
+            c1: e1c,
+            n1: u,
+            r2: e2r,
+            c2: e1c,
+            n2: u,
+            color: 0,
+            style: "solid",
           });
           plan.links.push({
-              r1: e1r,
-              c1: e2c,
-              n1: u,
-              r2: e2r,
-              c2: e2c,
-              n2: u,
-              color: 0,
-              style: "solid",
+            r1: e1r,
+            c1: e2c,
+            n1: u,
+            r2: e2r,
+            c2: e2c,
+            n2: u,
+            color: 0,
+            style: "solid",
           });
         } else {
           plan.links.push({
-              r1: e1r,
-              c1: e1c,
-              n1: u,
-              r2: e1r,
-              c2: e2c,
-              n2: u,
-              color: 0,
-              style: "solid",
+            r1: e1r,
+            c1: e1c,
+            n1: u,
+            r2: e1r,
+            c2: e2c,
+            n2: u,
+            color: 0,
+            style: "solid",
           });
           plan.links.push({
-              r1: e2r,
-              c1: e1c,
-              n1: u,
-              r2: e2r,
-              c2: e2c,
-              n2: u,
-              color: 0,
-              style: "solid",
+            r1: e2r,
+            c1: e1c,
+            n1: u,
+            r2: e2r,
+            c2: e2c,
+            n2: u,
+            color: 0,
+            style: "solid",
           });
         }
       }
@@ -605,9 +604,7 @@ Object.assign(techniques, {
                 type: "remove",
                 cells: _getUniqueRemovals(res.removals),
                 hint: {
-                  name: t(
-                    avoidable ? "teks_AEUR_type_3" : "teks_EUR_type_3",
-                  ),
+                  name: t(avoidable ? "teks_AEUR_type_3" : "teks_EUR_type_3"),
                   mainInfo: t(
                     avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
                     baseDigitsStr,
@@ -705,9 +702,7 @@ Object.assign(techniques, {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: t(
-                      avoidable ? "teks_AEUR_type_4" : "teks_EUR_type_4",
-                    ),
+                    name: t(avoidable ? "teks_AEUR_type_4" : "teks_EUR_type_4"),
                     mainInfo: t(
                       avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
                       baseDigitsStr,
@@ -795,14 +790,16 @@ Object.assign(techniques, {
                   type: "remove",
                   cells: _getUniqueRemovals(removals),
                   hint: {
-                    name: t(
-                      avoidable ? "teks_AEUR_type_6" : "teks_EUR_type_6",
-                    ),
+                    name: t(avoidable ? "teks_AEUR_type_6" : "teks_EUR_type_6"),
                     mainInfo: t(
                       avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
                       baseDigitsStr,
                     ),
-                    detail: t("teks_EUR_type_6_guardian_elimination_detail", detailPrefix, d),
+                    detail: t(
+                      "teks_EUR_type_6_guardian_elimination_detail",
+                      detailPrefix,
+                      d,
+                    ),
                   },
                   visualPlan: getEURVisualPlan(
                     6,
@@ -831,11 +828,5 @@ Object.assign(techniques, {
   },
 
   avoidableExtendedRectangle: (board, pencils, findAll = false) =>
-    techniques.extendedRectangle(
-      board,
-      pencils,
-      { avoidable: true },
-      findAll,
-    ),
-
+    techniques.extendedRectangle(board, pencils, { avoidable: true }, findAll),
 });

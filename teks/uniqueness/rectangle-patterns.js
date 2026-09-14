@@ -371,10 +371,7 @@ Object.assign(techniques, {
         dMask === (bit(d1) | bit(d2) | bit(z))
       ) {
         caseId = "single-d2-extra";
-      } else if (
-        dMask === (bit(d1) | bit(x)) ||
-        dMask === (bit(d1) | bit(z))
-      ) {
+      } else if (dMask === (bit(d1) | bit(x)) || dMask === (bit(d1) | bit(z))) {
         caseId = "single-extra";
       } else if (dMask === (bit(d1) | bit(d2))) {
         caseId = "single-d2";

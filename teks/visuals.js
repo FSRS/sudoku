@@ -191,8 +191,7 @@ Object.assign(techniques, {
 
     return {
       highlight: {
-        digit:
-          type === 4 || type === 6 ? extraData.restrictedDigit : null,
+        digit: type === 4 || type === 6 ? extraData.restrictedDigit : null,
         state: type === 4 || type === 6 ? 1 : 0,
       },
       cellColors,
@@ -215,5 +214,4 @@ Object.assign(techniques, {
       ),
     );
   },
-
 });

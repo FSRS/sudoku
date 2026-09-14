@@ -1190,8 +1190,9 @@ Object.assign(techniques, {
                   Array.from({ length: 9 }, (_, p) =>
                     isRowBased ? [primIdx, p] : [p, primIdx],
                   )
-                    .filter(([r, c]) =>
-                      pencils[r][c].has(num) && !finIds.has(r * 9 + c),
+                    .filter(
+                      ([r, c]) =>
+                        pencils[r][c].has(num) && !finIds.has(r * 9 + c),
                     )
                     .map(([r, c]) => ({
                       r,

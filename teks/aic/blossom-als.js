@@ -1,4 +1,5 @@
 Object.assign(techniques, {
+  // --- ALS COLLECTION ENGINE ---
   _calculateALSHash: (cells) => {
     if (cells.length === 0) return 0;
 

@@ -66,15 +66,22 @@ Object.assign(techniques, {
             cells: removals,
             hint: {
               name: t("teks_BUG_plus_1"),
-              mainInfo: t("teks_tri_value_cell_at_r_c", r_plus1 + 1, c_plus1 + 1),
-              detail: t("teks_all_digits_appear_exactly_twice_in_all_houses_except_for_r_c", num, r_plus1 + 1, c_plus1 + 1),
+              mainInfo: t(
+                "teks_tri_value_cell_at_r_c",
+                r_plus1 + 1,
+                c_plus1 + 1,
+              ),
+              detail: t(
+                "teks_all_digits_appear_exactly_twice_in_all_houses_except_for_r_c",
+                num,
+                r_plus1 + 1,
+                c_plus1 + 1,
+              ),
             },
             visualPlan: {
               highlight: { digit: null, state: 2 },
               cellColors: [{ r: r_plus1, c: c_plus1, color: 7 }],
-              candidateColors: [
-                { r: r_plus1, c: c_plus1, num, color: 3 },
-              ],
+              candidateColors: [{ r: r_plus1, c: c_plus1, num, color: 3 }],
               candidateMarks: removals.map(({ r, c, num: removalNum }) => ({
                 r,
                 c,
@@ -477,7 +484,12 @@ Object.assign(techniques, {
           }
           const result = addResult(
             t("teks_BUG_type_4"),
-            t("teks_BUG_type_4_ConPair_detail", guardiansStr, num, formatCells([cell1, cell2])),
+            t(
+              "teks_BUG_type_4_ConPair_detail",
+              guardiansStr,
+              num,
+              formatCells([cell1, cell2]),
+            ),
             removals,
             { conjugate: { cell1, cell2, num } },
           );
@@ -488,5 +500,4 @@ Object.assign(techniques, {
 
     return findAll ? results : { change: false };
   },
-
 });

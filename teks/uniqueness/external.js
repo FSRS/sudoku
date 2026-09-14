@@ -10,8 +10,18 @@ Object.assign(techniques, {
     const emitted = new Set();
     // Type 2, Type 3, Type 3h, + XY-Wing.
     const [type2Key, type3Key, type3hKey, xyWingKey] = avoidable
-      ? ["teks_AUET_type_2", "teks_AUET_type_3", "teks_AUET_type_3h", "teks_AUET_plus_XY_Wing"]
-      : ["teks_UET_type_2", "teks_UET_type_3", "teks_UET_type_3h", "teks_UET_plus_XY_Wing"];
+      ? [
+          "teks_AUET_type_2",
+          "teks_AUET_type_3",
+          "teks_AUET_type_3h",
+          "teks_AUET_plus_XY_Wing",
+        ]
+      : [
+          "teks_UET_type_2",
+          "teks_UET_type_3",
+          "teks_UET_type_3h",
+          "teks_UET_plus_XY_Wing",
+        ];
     const cellKey = (r, c) => r + "," + c;
     const cellId = techniques._cellToId;
     const idToCell = techniques._idToCell;
