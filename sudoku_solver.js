@@ -238,6 +238,8 @@ function checkPuzzleUniqueness(board) {
 
 /**
  * Counts the number of solutions for a given board up to a specified limit.
+ * The board is left exactly as it was passed in, including when the search
+ * stops at the limit.
  * @param {number[][]} board - The Sudoku board to solve.
  * @param {number} limit - The maximum number of solutions to find before stopping.
  * @returns {number} The number of solutions found (up to the limit).
@@ -257,6 +259,9 @@ function countSolutions(board, limit = 10000) {
       if (isValid(board, row, col, num)) {
         board[row][col] = num;
         if (search()) {
+          // Undo this frame's placement on the way out; stopping early must not
+          // leave the caller's board holding a half-finished solution.
+          board[row][col] = 0;
           return true; // Propagate the stop signal
         }
       }

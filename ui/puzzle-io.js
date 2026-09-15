@@ -224,10 +224,67 @@
     return { initialPuzzleString: initial.join(""), userCells };
   }
 
-  function readJsonArray(storage, key) {
+  // A browser can refuse storage outright -- a private window, blocked site
+  // data, an enterprise policy -- and the refusal arrives as an exception from
+  // the accessor itself. None of that should reach a caller: a setting that
+  // cannot be read is a setting at its default, and one that cannot be written
+  // leaves the value in memory where it already works.
+
+  function readStoredText(storage, key) {
     try {
-      const value = storage.getItem(key);
-      if (!value) return [];
+      return storage.getItem(key);
+    } catch (error) {
+      console.warn(`Failed to read ${key}; using defaults.`, error);
+      return null;
+    }
+  }
+
+  function writeStoredText(storage, key, value) {
+    try {
+      storage.setItem(key, value);
+      return true;
+    } catch (error) {
+      console.warn(`Failed to save ${key}.`, error);
+      return false;
+    }
+  }
+
+  function removeStored(storage, key) {
+    try {
+      storage.removeItem(key);
+      return true;
+    } catch (error) {
+      console.warn(`Failed to clear ${key}.`, error);
+      return false;
+    }
+  }
+
+  /**
+   * A stored setting is used only while it still has the type it was written
+   * with. Anything else is left in place, unread, and the default applies --
+   * clearing it would throw away a value a later build might understand.
+   */
+  function readStoredBoolean(storage, key, fallback) {
+    const raw = readStoredText(storage, key);
+    if (raw === null) return fallback;
+    try {
+      const parsed = JSON.parse(raw);
+      return typeof parsed === "boolean" ? parsed : fallback;
+    } catch (error) {
+      console.warn(`Ignoring malformed ${key}; using defaults.`, error);
+      return fallback;
+    }
+  }
+
+  function readStoredEnum(storage, key, allowed, fallback) {
+    const raw = readStoredText(storage, key);
+    return allowed.includes(raw) ? raw : fallback;
+  }
+
+  function readJsonArray(storage, key) {
+    const value = readStoredText(storage, key);
+    if (!value) return [];
+    try {
       const parsed = JSON.parse(value);
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
@@ -245,5 +302,10 @@
     parsePuzzleInput,
     puzzleStringToGrid,
     readJsonArray,
+    readStoredBoolean,
+    readStoredEnum,
+    readStoredText,
+    removeStored,
+    writeStoredText,
   });
 })(globalThis);

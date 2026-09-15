@@ -139,6 +139,7 @@ const TRANSLATIONS = {
     pref_experimental_mode_tooltip_mobile:
       "Direct candidates: left/right-click to set/erase in Number mode; color candidates directly.",
     ui_rating_pending: "rating...",
+    ui_rating_stalled: "no response",
     pref_uniqueness: "Enable Uniqueness Techniques",
     pref_drag_hint: "Drag & drop to reorder solver priority.",
     btn_pref_reset: "Reset",
@@ -428,6 +429,8 @@ const TRANSLATIONS = {
     ui_difficulty_indicator_label: "Difficulty Indicator",
     ui_level_label: "Level",
     ui_saved_progress_loaded: "Loaded saved progress.",
+    ui_storage_write_failed:
+      "Could not save; this browser is not allowing storage.",
     ui_eval_failed_or_busy_error: "Evaluation in progress or failed!",
     ui_initial_puzzle_missing_error: "Error: No initial puzzle loaded.",
     ui_non_unique_solver_unavailable:
@@ -1054,6 +1057,7 @@ const TRANSLATIONS = {
     pref_experimental_mode_tooltip_mobile:
       "좌/우클릭으로 후보수 설정/지우기, 후보수 직접 색칠.",
     ui_rating_pending: "측정 중...",
+    ui_rating_stalled: "응답 없음",
     pref_uniqueness: "유일성 논법 활성화",
     pref_drag_hint:
       "드래그 & 드롭으로 솔버의 우선순위를 재정렬 할 수 있습니다.",
@@ -1348,6 +1352,8 @@ const TRANSLATIONS = {
     ui_difficulty_indicator_label: "난이도 표시기",
     ui_level_label: "레벨",
     ui_saved_progress_loaded: "저장된 진행 상황을 불러왔습니다.",
+    ui_storage_write_failed:
+      "저장하지 못했습니다. 브라우저가 저장소를 허용하지 않습니다.",
     ui_eval_failed_or_busy_error: "평가 진행 중이거나 실패했습니다!",
     ui_initial_puzzle_missing_error: "오류: 초기 퍼즐이 로드되지 않았습니다.",
     ui_non_unique_solver_unavailable:
@@ -1848,13 +1854,33 @@ const TRANSLATIONS = {
 // --- Language Management ---
 let currentLang = "en";
 
+// A browser can refuse storage outright, and the refusal comes back as an
+// exception from the accessor. The language is a preference, so a refusal means
+// the default, never a failure to start.
+function readStoredLanguage() {
+  try {
+    return localStorage.getItem("sudoku-lang");
+  } catch (error) {
+    console.warn("Failed to read the saved language; using defaults.", error);
+    return null;
+  }
+}
+
+function writeStoredLanguage(lang) {
+  try {
+    localStorage.setItem("sudoku-lang", lang);
+  } catch (error) {
+    console.warn("Failed to save the language choice.", error);
+  }
+}
+
 function detectLanguage() {
   // 1. URL parameter (?lang=ko)
   const urlLang = new URLSearchParams(window.location.search).get("lang");
   if (urlLang && TRANSLATIONS[urlLang]) return urlLang;
 
   // 2. localStorage
-  const saved = localStorage.getItem("sudoku-lang");
+  const saved = readStoredLanguage();
   if (saved && TRANSLATIONS[saved]) return saved;
 
   // 3. Browser language
@@ -1867,7 +1893,7 @@ function detectLanguage() {
 function setLanguage(lang) {
   if (!TRANSLATIONS[lang]) return;
   currentLang = lang;
-  localStorage.setItem("sudoku-lang", lang);
+  writeStoredLanguage(lang);
   applyTranslations();
 }
 

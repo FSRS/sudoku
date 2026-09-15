@@ -7,6 +7,11 @@ const {
   parsePuzzleInput,
   puzzleStringToGrid,
   readJsonArray,
+  readStoredBoolean,
+  readStoredEnum,
+  readStoredText,
+  removeStored,
+  writeStoredText,
 } = SudokuPuzzleIO;
 
 const gridContainer = document.getElementById("sudoku-grid");
@@ -128,7 +133,7 @@ let puzzleSelectionRequestId = 0;
 let puzzleLoadRequestId = 0;
 
 function getDifficultyEngine() {
-  const saved = localStorage.getItem(difficultyEngineStorageKey);
+  const saved = readStoredText(localStorage, difficultyEngineStorageKey);
   return difficultyEngines.has(saved) ? saved : "skfr";
 }
 
@@ -256,6 +261,10 @@ function getDifficultyRatingText(puzzle, onReady) {
   const key = `${engine}:${puzzle}`;
   const cached = difficultyRatingCache.get(key);
   if (cached?.status === "resolved") return cached.text;
+  // Localized on read so a later language switch still relabels it.
+  if (cached?.status === "stalled") {
+    return ` (${difficultyEngineLabels[engine]} ${t("ui_rating_stalled")})`;
+  }
   if (cached?.status === "rejected") return "";
   // Rating runs async, so show the engine as pending until onReady re-renders.
   const pendingText = ` (${difficultyEngineLabels[engine]} ${t("ui_rating_pending")})`;
@@ -271,7 +280,13 @@ function getDifficultyRatingText(puzzle, onReady) {
         onReady();
       },
       (error) => {
-        difficultyRatingCache.set(key, { status: "rejected" });
+        // An engine that stopped answering is reported, otherwise the label
+        // would fall back to the plain level as if nothing had been measured.
+        const stalled =
+          error?.code === "timeout" || error?.code === "unavailable";
+        difficultyRatingCache.set(key, {
+          status: stalled ? "stalled" : "rejected",
+        });
         console.warn(`${engine} difficulty rating failed.`, error);
         // Re-render too, otherwise the pending text would never clear.
         onReady();
@@ -464,31 +479,66 @@ function warmBlossomWorkers() {
   for (const kind of ["cell", "region", "aals"]) getBlossomWorker(kind);
 }
 
+const BLOSSOM_DEADMAN_MS = 600000;
+
 function runBlossomWorkerKind(kind, fallback, board, pencils, findAll) {
   return new Promise((resolve) => {
+    const useMainThread = (error) => {
+      if (error) {
+        console.warn("Blossom worker failed; using the main thread.", error);
+      }
+      resolve(fallback(board, pencils, findAll));
+    };
+
     const entry = getBlossomWorker(kind);
     if (!entry) {
-      resolve(fallback(board, pencils, findAll));
+      useMainThread(null);
       return;
     }
+
     const id = entry.nextId++;
+    const deadman = setTimeout(() => {
+      // Silence this long means the worker is gone rather than busy. Dropping it
+      // fails this request, which falls back below, and lets the next request
+      // start a fresh worker instead of queueing behind a dead one.
+      dropBlossomWorker(
+        kind,
+        entry,
+        new Error("Blossom worker stopped answering."),
+      );
+    }, BLOSSOM_DEADMAN_MS);
+
     entry.pending.set(id, {
       done: (results) => {
-        const hydrated = results.map(hydrateBlossomWorkerResult);
-        resolve(findAll ? hydrated : hydrated[0] || { change: false });
+        clearTimeout(deadman);
+        try {
+          const hydrated = results.map(hydrateBlossomWorkerResult);
+          resolve(findAll ? hydrated : hydrated[0] || { change: false });
+        } catch (error) {
+          // A reply that cannot be read is a failed request, not a lost one.
+          useMainThread(error);
+        }
       },
       fail: (error) => {
-        console.warn("Blossom worker failed; using the main thread.", error);
-        resolve(fallback(board, pencils, findAll));
+        clearTimeout(deadman);
+        useMainThread(error);
       },
     });
-    entry.worker.postMessage({
-      id,
-      kind,
-      board,
-      candidateLists: pencils.map((row) => row.map((digits) => [...digits])),
-      findAll,
-    });
+
+    try {
+      entry.worker.postMessage({
+        id,
+        kind,
+        board,
+        candidateLists: pencils.map((row) => row.map((digits) => [...digits])),
+        findAll,
+      });
+    } catch (error) {
+      // The request never reached the worker, so nothing will ever answer it.
+      clearTimeout(deadman);
+      entry.pending.delete(id);
+      useMainThread(error);
+    }
   });
 }
 
@@ -564,7 +614,7 @@ function initTheme() {
   const html = document.documentElement;
 
   // Check local storage or fallback to OS preference
-  const saved = localStorage.getItem("theme");
+  const saved = readStoredText(localStorage, "theme");
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 
   if (saved === "dark" || (!saved && prefersDark)) {
@@ -579,7 +629,7 @@ function initTheme() {
       // Toggle the HTML class
       html.classList.toggle("dark");
       const isDark = html.classList.contains("dark");
-      localStorage.setItem("theme", isDark ? "dark" : "light");
+      writeStoredText(localStorage, "theme", isDark ? "dark" : "light");
 
       // Execute the color mapping
       swapThemeColors();
@@ -3238,8 +3288,8 @@ function handleKeyDown(e) {
       return;
     }
     // Actions on second press
-    localStorage.removeItem("sudokuSaves");
-    localStorage.removeItem("sudokuExperimentalMode");
+    removeStored(localStorage, "sudokuSaves");
+    removeStored(localStorage, "sudokuExperimentalMode");
     clearUserBoard(); // Clears the current board state
     showMessage("All saved data cleared and board has been reset.", "green");
     isClearStoragePending = false; // Reset flag after completion
@@ -4055,7 +4105,7 @@ async function loadSavedDailyPuzzle(date, level) {
   const allSaves = readAllSaves();
 
   const savedGame = allSaves.find(
-    (save) => save.date === date && save.level === level && save.puzzle,
+    (save) => isSaveRecord(save) && save.date === date && save.level === level,
   );
   if (!savedGame) return false;
 
@@ -4087,7 +4137,7 @@ async function findAndLoadSelectedPuzzle() {
 
     // CHECK FOR SAVED GAME
     const savedGame = readAllSaves().find(
-      (s) => s.date === "unlimited" && s.level === level,
+      (s) => isSaveRecord(s) && s.date === "unlimited" && s.level === level,
     );
 
     if (savedGame) {
@@ -4281,7 +4331,7 @@ function randomIntegerBelow(limit) {
 function getUnlimitedSequenceStates() {
   try {
     const stored = JSON.parse(
-      localStorage.getItem(UNLIMITED_SEQUENCE_STORAGE_KEY) || "{}",
+      readStoredText(localStorage, UNLIMITED_SEQUENCE_STORAGE_KEY) || "{}",
     );
     return stored && typeof stored === "object" && !Array.isArray(stored)
       ? stored
@@ -4295,7 +4345,11 @@ function getUnlimitedSequenceStates() {
 function saveUnlimitedSequenceState(level, state) {
   const states = getUnlimitedSequenceStates();
   states[String(level)] = state;
-  localStorage.setItem(UNLIMITED_SEQUENCE_STORAGE_KEY, JSON.stringify(states));
+  writeStoredText(
+    localStorage,
+    UNLIMITED_SEQUENCE_STORAGE_KEY,
+    JSON.stringify(states),
+  );
 }
 
 async function fingerprintUnlimitedPuzzleFile(text) {
@@ -5024,6 +5078,165 @@ function readAllSaves() {
   return readJsonArray(localStorage, "sudokuSaves");
 }
 
+const isDigit = (value) => Number.isInteger(value) && value >= 1 && value <= 9;
+const isCoordinate = (value) =>
+  Number.isInteger(value) && value >= 0 && value <= 8;
+const isPlainObject = (value) =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * The shape a stored save must have before its fields are read. Guards every
+ * lookup into the saves array, which can hold anything a past build, a failed
+ * write or another tab left behind.
+ */
+function isSaveRecord(record) {
+  if (!isPlainObject(record)) return false;
+  const hasDate = record.date === "unlimited" || Number.isInteger(record.date);
+  return (
+    hasDate &&
+    Number.isInteger(record.level) &&
+    typeof record.puzzle === "string"
+  );
+}
+
+/** A line the board can actually draw: two candidate anchors inside the grid. */
+function isUsableLine(line) {
+  if (!isPlainObject(line)) return false;
+  return (
+    isCoordinate(line.r1) &&
+    isCoordinate(line.c1) &&
+    isCoordinate(line.r2) &&
+    isCoordinate(line.c2) &&
+    isDigit(line.n1) &&
+    isDigit(line.n2)
+  );
+}
+
+/** Candidate digits travel as a plain array. */
+function parseDigitList(list) {
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) return null;
+  return list.every(isDigit) ? list : null;
+}
+
+/** Maps keyed by candidate digit travel as [digit, value] pairs. */
+function parseDigitMap(entries) {
+  if (entries === undefined || entries === null) return [];
+  if (!Array.isArray(entries)) return null;
+  for (const entry of entries) {
+    if (!Array.isArray(entry) || entry.length !== 2) return null;
+    if (!isDigit(entry[0]) || !Number.isInteger(entry[1])) return null;
+  }
+  return entries;
+}
+
+/** One stored cell as live values, or null when any part of it is unusable. */
+function parseSavedCell(savedCell) {
+  if (!isPlainObject(savedCell)) return null;
+
+  const value =
+    savedCell.v === undefined || savedCell.v === null ? 0 : savedCell.v;
+  if (value !== 0 && !isDigit(value)) return null;
+
+  const pencils = parseDigitList(savedCell.p);
+  const pencilColors = parseDigitMap(savedCell.pc);
+  const candCircles = parseDigitMap(savedCell.cr);
+  const candSlashes = parseDigitMap(savedCell.sx);
+  if (!pencils || !pencilColors || !candCircles || !candSlashes) return null;
+
+  const cellColor =
+    savedCell.cc === undefined || savedCell.cc === null ? null : savedCell.cc;
+  if (cellColor !== null && !Number.isInteger(cellColor)) return null;
+
+  return { value, pencils, cellColor, pencilColors, candCircles, candSlashes };
+}
+
+/**
+ * Validates a whole record into the values the board needs. Returns null when
+ * anything is unusable; touches no global state either way, so the caller can
+ * decide to apply all of it or none of it.
+ */
+function parseSavedProgress(savedGame) {
+  const progress = savedGame.progress;
+  if (!Array.isArray(progress) || progress.length !== 81) return null;
+
+  const cells = [];
+  for (let i = 0; i < 81; i++) {
+    const savedCell = progress[i];
+    if (savedCell === null || savedCell === undefined) continue;
+    const parsed = parseSavedCell(savedCell);
+    if (!parsed) return null;
+    cells.push([i, parsed]);
+  }
+
+  const givenMarks = [];
+  if (savedGame.givenMarks !== undefined) {
+    if (!Array.isArray(savedGame.givenMarks)) return null;
+    for (const entry of savedGame.givenMarks) {
+      if (!Array.isArray(entry) || entry.length !== 2) return null;
+      const [index, marks] = entry;
+      if (!Number.isInteger(index) || index < 0 || index > 80) return null;
+      const parsed = parseSavedCell(marks);
+      if (!parsed) return null;
+      givenMarks.push([index, parsed]);
+    }
+  }
+
+  return {
+    cells,
+    givenMarks,
+    // A line the board cannot draw is dropped rather than failing the record;
+    // it must not cost the user the numbers stored beside it.
+    lines: Array.isArray(savedGame.lines)
+      ? savedGame.lines.filter(isUsableLine)
+      : [],
+    // A record written before this flag existed is treated as hinted, which is
+    // what the previous code did.
+    usedHint:
+      savedGame.usedHint !== undefined ? savedGame.usedHint === true : true,
+    usedAutoPencil: savedGame.usedAutoPencil === true,
+    lampTimes: isPlainObject(savedGame.lampTimes) ? savedGame.lampTimes : {},
+    time:
+      typeof savedGame.time === "number" && savedGame.time >= 0
+        ? savedGame.time
+        : 0,
+  };
+}
+
+/**
+ * Colours and markers the user put on given cells. These live outside
+ * `progress`, which older builds read positionally and would take as an
+ * instruction to clear the given's number.
+ * @returns {Array} [cellIndex, marks] pairs, empty when nothing is marked.
+ */
+function serializeGivenMarks() {
+  const marks = [];
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = boardState[r][c];
+      if (
+        !cell.isGiven ||
+        (cell.cellColor === null &&
+          cell.pencilColors.size === 0 &&
+          cell.candCircles.size === 0 &&
+          cell.candSlashes.size === 0)
+      ) {
+        continue;
+      }
+      marks.push([
+        r * 9 + c,
+        {
+          cc: cell.cellColor,
+          pc: [...cell.pencilColors.entries()],
+          cr: [...cell.candCircles.entries()],
+          sx: [...cell.candSlashes.entries()],
+        },
+      ]);
+    }
+  }
+  return marks;
+}
+
 /**
  * Converts the current user progress on the board into a serializable array.
  * @returns {Array} An array representing the user's inputs.
@@ -5096,8 +5309,12 @@ function savePuzzleProgress() {
   )
     return;
 
-  let hasUserInput = false;
-  for (let r = 0; r < 9; r++) {
+  // Lines and marks on given cells are user work too: every editable cell can
+  // be bare while the board still carries the user's thinking.
+  const givenMarks = serializeGivenMarks();
+  const usableLines = drawnLines.filter(isUsableLine);
+  let hasUserInput = usableLines.length > 0 || givenMarks.length > 0;
+  for (let r = 0; r < 9 && !hasUserInput; r++) {
     for (let c = 0; c < 9; c++) {
       const cell = boardState[r][c];
       if (!cell.isGiven) {
@@ -5121,7 +5338,8 @@ function savePuzzleProgress() {
 
   // Find existing save for this specific Date + Level
   const existingSaveIndex = allSaves.findIndex(
-    (s) => s.date === selectedDate && s.level === selectedLevel,
+    (s) =>
+      isSaveRecord(s) && s.date === selectedDate && s.level === selectedLevel,
   );
 
   if (hasUserInput) {
@@ -5130,7 +5348,8 @@ function savePuzzleProgress() {
       level: selectedLevel,
       puzzle: initialPuzzleString,
       progress: serializeProgress(),
-      lines: drawnLines,
+      lines: usableLines,
+      givenMarks,
       time: Math.max(0, Math.floor(currentElapsedTime)),
       lampTimes: lampTimestamps,
       usedHint: hadUsedHint,
@@ -5162,7 +5381,9 @@ function savePuzzleProgress() {
     }
   }
 
-  localStorage.setItem("sudokuSaves", JSON.stringify(allSaves));
+  if (!writeStoredText(localStorage, "sudokuSaves", JSON.stringify(allSaves))) {
+    notifyStorageWriteFailed();
+  }
 }
 
 function removeCurrentPuzzleSave() {
@@ -5179,12 +5400,17 @@ function removeCurrentPuzzleSave() {
   const allSaves = readAllSaves();
 
   const existingSaveIndex = allSaves.findIndex(
-    (s) => s.date === selectedDate && s.level === selectedLevel,
+    (s) =>
+      isSaveRecord(s) && s.date === selectedDate && s.level === selectedLevel,
   );
 
   if (existingSaveIndex > -1) {
     allSaves.splice(existingSaveIndex, 1);
-    localStorage.setItem("sudokuSaves", JSON.stringify(allSaves));
+    if (
+      !writeStoredText(localStorage, "sudokuSaves", JSON.stringify(allSaves))
+    ) {
+      notifyStorageWriteFailed();
+    }
   }
 }
 
@@ -5196,32 +5422,40 @@ function applySavedProgress(puzzleData) {
   const allSaves = readAllSaves();
 
   const savedGameIndex = allSaves.findIndex(
-    (s) => s.date === puzzleData.date && s.level === puzzleData.level,
+    (s) =>
+      isSaveRecord(s) &&
+      s.date === puzzleData.date &&
+      s.level === puzzleData.level,
   );
   if (savedGameIndex === -1) return 0;
 
   const savedGame = allSaves[savedGameIndex];
 
-  if (savedGame.lines) {
-    drawnLines = savedGame.lines;
-  } else {
-    drawnLines = [];
-  }
-
-  hadUsedHint = savedGame.usedHint !== undefined ? savedGame.usedHint : true;
-  hasUsedAutoPencil = savedGame.usedAutoPencil === true;
-
+  // A record for a different puzzle under the same date and level is stale.
+  // Checked before anything is applied: this used to run after the record's
+  // lines and hint flag had already been put on the board.
   if (savedGame.puzzle !== decompressPuzzleString(puzzleData.puzzle)) {
     allSaves.splice(savedGameIndex, 1);
-    localStorage.setItem("sudokuSaves", JSON.stringify(allSaves));
+    if (
+      !writeStoredText(localStorage, "sudokuSaves", JSON.stringify(allSaves))
+    ) {
+      notifyStorageWriteFailed();
+    }
     return 0;
   }
 
-  const progress = savedGame.progress;
-  if (!progress || progress.length !== 81) return 0;
+  // The record becomes plain values first. Nothing reaches the board until all
+  // of it has proved usable, so a corrupt entry cannot leave half of a previous
+  // game behind.
+  const restored = parseSavedProgress(savedGame);
+  if (!restored) return 0;
+
+  drawnLines = restored.lines;
+  hadUsedHint = restored.usedHint;
+  hasUsedAutoPencil = restored.usedAutoPencil;
 
   // CRITICAL: Restore lampTimestamps FIRST
-  lampTimestamps = savedGame.lampTimes || {};
+  lampTimestamps = restored.lampTimes;
 
   // Restore the lamp visual state
   if (lampTimestamps && Object.keys(lampTimestamps).length > 0) {
@@ -5269,23 +5503,30 @@ function applySavedProgress(puzzleData) {
     }
   }
 
-  for (let i = 0; i < 81; i++) {
-    const savedCell = progress[i];
-    if (savedCell) {
-      const r = Math.floor(i / 9);
-      const c = i % 9;
-      const currentCell = boardState[r][c];
-      currentCell.value = savedCell.v || 0;
-      currentCell.pencils = new Set(savedCell.p || []);
-      currentCell.cellColor = savedCell.cc || null;
-      currentCell.pencilColors = new Map(savedCell.pc || []);
-      currentCell.candCircles = new Map(savedCell.cr || []);
-      currentCell.candSlashes = new Map(savedCell.sx || []);
-    }
+  for (const [index, cell] of restored.cells) {
+    const currentCell = boardState[Math.floor(index / 9)][index % 9];
+    // The puzzle owns the numbers in its given cells; a record never does.
+    // Marks the user put on a given travel separately, below.
+    if (currentCell.isGiven) continue;
+    currentCell.value = cell.value;
+    currentCell.pencils = new Set(cell.pencils);
+    currentCell.cellColor = cell.cellColor;
+    currentCell.pencilColors = new Map(cell.pencilColors);
+    currentCell.candCircles = new Map(cell.candCircles);
+    currentCell.candSlashes = new Map(cell.candSlashes);
+  }
+
+  for (const [index, marks] of restored.givenMarks) {
+    const currentCell = boardState[Math.floor(index / 9)][index % 9];
+    if (!currentCell.isGiven) continue;
+    currentCell.cellColor = marks.cellColor;
+    currentCell.pencilColors = new Map(marks.pencilColors);
+    currentCell.candCircles = new Map(marks.candCircles);
+    currentCell.candSlashes = new Map(marks.candSlashes);
   }
 
   showMessage(t("ui_saved_progress_loaded"), "green");
-  return typeof savedGame.time === "number" ? savedGame.time : 0;
+  return restored.time;
 }
 
 function validateBoard() {
@@ -6628,6 +6869,21 @@ function showMessage(text, color) {
   messageArea.classList.add(colors[color] || "text-gray-600");
 }
 
+// A storage layer that refuses to record leaves the board intact but the
+// progress unsaved. Say so, but not on every keystroke -- the writes are
+// debounced per edit and a blocked storage stays blocked.
+const STORAGE_FAILURE_NOTICE_INTERVAL_MS = 30000;
+let lastStorageFailureNotice = 0;
+
+function notifyStorageWriteFailed() {
+  const now = Date.now();
+  if (now - lastStorageFailureNotice < STORAGE_FAILURE_NOTICE_INTERVAL_MS) {
+    return;
+  }
+  lastStorageFailureNotice = now;
+  showMessage(t("ui_storage_write_failed"), "orange");
+}
+
 // --- SOLVER ENGINE PROGRESS READOUT ---
 const SOLVER_PROGRESS_DELAY_MS = 40; // stay silent for fast evaluations
 const SOLVER_PROGRESS_INTERVAL_MS = 120; // repaint cadence while solving
@@ -7312,27 +7568,38 @@ function updateUndoRedoButtons() {
  * Saves the current state of isExperimentalMode to localStorage.
  */
 function saveExperimentalModePreference() {
-  localStorage.setItem(
-    "sudokuExperimentalMode",
-    JSON.stringify(isExperimentalMode),
-  );
+  // Still a JSON boolean, so a build without this change reads it unchanged.
+  if (
+    !writeStoredText(
+      localStorage,
+      "sudokuExperimentalMode",
+      JSON.stringify(isExperimentalMode),
+    )
+  ) {
+    notifyStorageWriteFailed();
+  }
 }
 
 function loadDisplayModePreference() {
-  const savedPref = localStorage.getItem("sudokuDisplayFormat");
-  if (savedPref === "A" || savedPref === "B") {
-    candidatePopupFormat = savedPref;
-  }
+  candidatePopupFormat = readStoredEnum(
+    localStorage,
+    "sudokuDisplayFormat",
+    ["A", "B"],
+    candidatePopupFormat,
+  );
 }
 
 /**
- * Loads the experimental mode preference from localStorage on startup.
+ * Loads the experimental mode preference from localStorage on startup. This
+ * runs before the puzzle loads, so it must not be able to stop startup: a
+ * setting that is missing, corrupt or of the wrong type falls back instead.
  */
 function loadExperimentalModePreference() {
-  const savedPref = localStorage.getItem("sudokuExperimentalMode");
-  if (savedPref !== null) {
-    isExperimentalMode = JSON.parse(savedPref);
-  }
+  isExperimentalMode = readStoredBoolean(
+    localStorage,
+    "sudokuExperimentalMode",
+    isExperimentalMode,
+  );
 }
 
 function readTechniquePreferences() {
@@ -7413,8 +7680,9 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     return;
   }
 
-  const initialBoardForValidation = puzzleStringToGrid(initialPuzzleString);
-  if (!checkPuzzleUniqueness(initialBoardForValidation).isValid) {
+  // Validity follows from the givens alone, so it does not change while the
+  // board is being played and is answered from the cache isRatablePuzzle owns.
+  if (!isRatablePuzzle(initialPuzzleString)) {
     updateLamp("gray");
     syncCurrentHistoryEvaluationState(myEvaluationId);
     return;
@@ -7829,7 +8097,7 @@ function findTechniqueForPreference(pref, defaults) {
 }
 
 function hasCustomPreferences() {
-  const savedPrefs = localStorage.getItem("sudokuTechniquePrefs");
+  const savedPrefs = readStoredText(localStorage, "sudokuTechniquePrefs");
   if (!savedPrefs) return false;
 
   try {
@@ -7885,7 +8153,8 @@ function insertMissingDefaultsInOrder(list, defaults, knownIds, buildEntry) {
 
 function getActiveTechniques() {
   const defaults = getDefaultTechniques();
-  const hasSavedPrefs = localStorage.getItem("sudokuTechniquePrefs") !== null;
+  const hasSavedPrefs =
+    readStoredText(localStorage, "sudokuTechniquePrefs") !== null;
   const savedPrefs = readTechniquePreferences();
 
   if (!hasSavedPrefs) {
@@ -8353,17 +8622,29 @@ document.addEventListener("DOMContentLoaded", () => {
       );
 
       // 1. Save the exact dragged order and toggle states to local cache
-      localStorage.setItem("sudokuTechniquePrefs", JSON.stringify(prefs));
+      writeStoredText(
+        localStorage,
+        "sudokuTechniquePrefs",
+        JSON.stringify(prefs),
+      ) || notifyStorageWriteFailed();
       const difficultyEngine = document.getElementById(
         "difficulty-engine-select",
       )?.value;
       if (difficultyEngines.has(difficultyEngine)) {
-        localStorage.setItem(difficultyEngineStorageKey, difficultyEngine);
+        writeStoredText(
+          localStorage,
+          difficultyEngineStorageKey,
+          difficultyEngine,
+        ) || notifyStorageWriteFailed();
       }
       const displayMode = document.getElementById("display-mode-select").value;
       if (displayMode === "A" || displayMode === "B") {
         candidatePopupFormat = displayMode;
-        localStorage.setItem("sudokuDisplayFormat", candidatePopupFormat);
+        writeStoredText(
+          localStorage,
+          "sudokuDisplayFormat",
+          candidatePopupFormat,
+        ) || notifyStorageWriteFailed();
       }
       isExperimentalMode =
         document.getElementById("experimental-mode-toggle").checked &&
@@ -8410,12 +8691,16 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("pref-default-btn")
     .addEventListener("click", async () => {
       // 1. Wipe the local cache
-      localStorage.removeItem("sudokuTechniquePrefs");
-      localStorage.removeItem(difficultyEngineStorageKey);
+      removeStored(localStorage, "sudokuTechniquePrefs");
+      removeStored(localStorage, difficultyEngineStorageKey);
 
       // 3. Reset the candidate display layout to its default.
       candidatePopupFormat = "A";
-      localStorage.setItem("sudokuDisplayFormat", candidatePopupFormat);
+      writeStoredText(
+        localStorage,
+        "sudokuDisplayFormat",
+        candidatePopupFormat,
+      ) || notifyStorageWriteFailed();
       isExperimentalMode = false;
       saveExperimentalModePreference();
 
@@ -9148,17 +9433,36 @@ function encodeBoardState() {
 }
 
 // --- URL Parameter Handling ---
+// --- URL PARAMETER HANDLING ---
+
+// A link that did not load leaves the caller to fall back to the daily puzzle,
+// and that fallback writes its own messages over this one. So the reason is
+// held here and shown once afterwards, as a key rather than a string, so a
+// later language switch still relabels it.
+let pendingUrlLoadError = null;
+
+function flushPendingUrlLoadError() {
+  if (!pendingUrlLoadError) return;
+  const key = pendingUrlLoadError;
+  pendingUrlLoadError = null;
+  showMessage(t(key), "red");
+}
+
 async function handleUrlParameters() {
   const urlParams = new URLSearchParams(window.location.search);
-  let puzzleStr = urlParams.get("puzzle");
-  let stateStr = urlParams.get("state");
+  // URLSearchParams has already decoded these. Decoding a second time could
+  // only corrupt a legitimate value or throw on a malformed escape, which used
+  // to take the whole initialization down with it.
+  const puzzleStr = urlParams.get("puzzle");
+  const stateStr = urlParams.get("state");
   const mode = urlParams.get("mode");
 
+  pendingUrlLoadError = null;
+
   if (stateStr) {
-    stateStr = decodeURIComponent(stateStr);
     const decodedState = decodeBoardState(stateStr);
     if (!decodedState) {
-      showMessage(t("ui_invalid_puzzle_string_error"), "red");
+      pendingUrlLoadError = "ui_invalid_puzzle_string_error";
       return false;
     }
     const initialStr = decodedState.initialPuzzleString;
@@ -9167,7 +9471,11 @@ async function handleUrlParameters() {
     levelSelect.value = "";
     puzzleStringInput.value = initialStr;
 
-    await loadPuzzle(initialStr);
+    // Nothing below may touch the board unless the puzzle really loaded.
+    if (!(await loadPuzzle(initialStr))) {
+      pendingUrlLoadError = "ui_invalid_puzzle_string_error";
+      return false;
+    }
 
     userCells.forEach((uc) => {
       if (uc.type === "user") {
@@ -9197,14 +9505,16 @@ async function handleUrlParameters() {
     }
     return true; // Successfully loaded from URL
   } else if (puzzleStr) {
-    puzzleStr = decodeURIComponent(puzzleStr);
-    puzzleStr = puzzleStr.replace(/0/g, ".");
+    const cleanedStr = puzzleStr.replace(/0/g, ".");
 
     dateSelect.value = "";
     levelSelect.value = "";
-    puzzleStringInput.value = puzzleStr;
+    puzzleStringInput.value = cleanedStr;
 
-    await loadPuzzle(puzzleStr);
+    if (!(await loadPuzzle(cleanedStr))) {
+      pendingUrlLoadError = "ui_invalid_puzzle_string_error";
+      return false;
+    }
 
     if (mode === "solver") {
       hadUsedSolver = true;

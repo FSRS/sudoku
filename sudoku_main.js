@@ -37,7 +37,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function applyTheme() {
-    const savedTheme = localStorage.getItem("theme");
+    // Matches the inline theme script in sudoku.html: a storage that refuses to
+    // answer means the system preference decides, not that the page stops.
+    let savedTheme = null;
+    try {
+      savedTheme = localStorage.getItem("theme");
+    } catch (error) {
+      console.warn("Failed to read the saved theme; using defaults.", error);
+    }
     const systemDark = window.matchMedia(
       "(prefers-color-scheme: dark)",
     ).matches;
@@ -87,9 +94,12 @@ document.addEventListener("DOMContentLoaded", () => {
       // 1. Check if the user is loading a puzzle via URL parameters first
       const loadedFromUrl = await handleUrlParameters();
 
-      // 2. If no URL parameters were found, load the default daily puzzle
+      // 2. If the URL carried nothing, or what it carried would not load,
+      // fall back to the daily puzzle and only then say why the link failed --
+      // the fallback writes its own messages on the way.
       if (!loadedFromUrl) {
-        findAndLoadSelectedPuzzle();
+        await findAndLoadSelectedPuzzle();
+        flushPendingUrlLoadError();
       }
     } catch (error) {
       console.error("Error loading puzzles:", error);
