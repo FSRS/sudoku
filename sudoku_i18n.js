@@ -903,6 +903,11 @@ const TRANSLATIONS = {
     teks_TVO_type_1: "Trivalue Oddagon Type 1",
     teks_TVO_type_1_digits: "using Digits ({0}{1}{2})",
     teks_TVO_type_1_guardians: "({0}{1}{2}){3}, Guardians {4}",
+    teks_TVO_type_2: "Trivalue Oddagon Type 2",
+    teks_TVO_type_3: "Trivalue Oddagon Type 3",
+    teks_TVO_type_3_VNS_detail:
+      "({0}{1}{2}){3}, Guardians {4}, Virtual naked set ({5}){6}",
+    teks_TVO_type_5: "Trivalue Oddagon Type 5",
     teks_TVO_XZ: "Trivalue Oddagon XZ Rule",
     teks_TVO_XZ_digits: "using Digits ({0}{1}{2})",
     teks_TVO_XZ_ALS_detail: "({0}{1}{2}){3}, Guardians {4}, ALS ({5}){6}",
@@ -1829,6 +1834,11 @@ const TRANSLATIONS = {
     teks_TVO_type_1: "삼중값 홀수각형 유형 1",
     teks_TVO_type_1_digits: "숫자 ({0}{1}{2}) 사용",
     teks_TVO_type_1_guardians: "({0}{1}{2}){3}, 수호자 {4}",
+    teks_TVO_type_2: "삼중값 홀수각형 유형 2",
+    teks_TVO_type_3: "삼중값 홀수각형 유형 3",
+    teks_TVO_type_3_VNS_detail:
+      "({0}{1}{2}){3}, 수호자 {4}, 가상의 드러난 집합 ({5}){6}",
+    teks_TVO_type_5: "삼중값 홀수각형 유형 5",
     teks_TVO_XZ: "삼중값 홀수각형 XZ",
     teks_TVO_XZ_digits: "숫자 ({0}{1}{2}) 사용",
     teks_TVO_XZ_ALS_detail:

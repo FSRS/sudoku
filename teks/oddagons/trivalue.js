@@ -9,18 +9,105 @@ Object.assign(techniques, {
     [2, 10, 18],
   ],
 
+  _buildTrivalueOddagonVisualPlan: (
+    loop,
+    guardianIds,
+    baseDigits,
+    removals,
+    pencils,
+    subsetCells = [],
+  ) => ({
+    highlight: { digit: null, state: 0 },
+    cellColors: [
+      ...loop.map((id) => ({
+        r: Math.floor(id / 9),
+        c: id % 9,
+        color: 7,
+        mode: "add",
+      })),
+      ...subsetCells.map((id) => ({
+        r: Math.floor(id / 9),
+        c: id % 9,
+        color: 6,
+        mode: "add",
+      })),
+    ],
+    candidateColors: [
+      ...loop.flatMap((id) => {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        return baseDigits
+          .filter((num) => pencils[r][c].has(num))
+          .map((num) => ({ r, c, num, color: 7 }));
+      }),
+      ...guardianIds.flatMap((id) => {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        return [...pencils[r][c]]
+          .filter((num) => !baseDigits.includes(num))
+          .map((num) => ({ r, c, num, color: 3 }));
+      }),
+      ...subsetCells.flatMap((id) => {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        return [...pencils[r][c]].map((num) => ({
+          r,
+          c,
+          num,
+          color: 4,
+        }));
+      }),
+    ],
+    candidateMarks: removals.map(({ r, c, num }) => ({
+      r,
+      c,
+      num,
+      marker: "slash",
+      color: 0,
+    })),
+  }),
+
   trivalueOddagon: (board, pencils, findAll = false) => {
     const results = [];
     const popcount = techniques._bits.popcount;
     const placements = techniques._trivalueOddagonPlacements;
     let xzAlses = null;
 
+    const getHouses = (id) => {
+      const r = Math.floor(id / 9);
+      const c = id % 9;
+      return [r, 9 + c, 18 + techniques._getBoxIndex(r, c)];
+    };
+    const housesMap = Array.from({ length: 27 }, () => []);
+    for (let id = 0; id < 81; id++) {
+      for (const house of getHouses(id)) housesMap[house].push(id);
+    }
+    const getSharedHouses = (ids) => {
+      if (ids.length === 0) return [];
+      const shared = new Set(getHouses(ids[0]));
+      for (const id of ids.slice(1)) {
+        const houses = new Set(getHouses(id));
+        for (const house of shared) {
+          if (!houses.has(house)) shared.delete(house);
+        }
+      }
+      return [...shared];
+    };
+    const getCommonPeers = (ids) => {
+      if (ids.length === 0) return 0n;
+      let peers = PEER_MAP[ids[0]];
+      for (const id of ids.slice(1)) peers &= PEER_MAP[id];
+      return peers;
+    };
+
     const cellMasks = new Array(81).fill(0);
+    const allCellMasks = new Array(81).fill(0);
     const usableInBlock = new Array(9).fill(0);
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         if (board[r][c] !== 0) continue;
         const mask = techniques._bits.maskFromSet(pencils[r][c]);
+        allCellMasks[r * 9 + c] = mask;
         if (popcount(mask) < 2) continue;
         cellMasks[r * 9 + c] = mask;
         usableInBlock[techniques._getBoxIndex(r, c)]++;
@@ -95,6 +182,21 @@ Object.assign(techniques, {
           .map((cell) => `r${Math.floor(cell / 9) + 1}c${(cell % 9) + 1}`)
           .join("-") + "-"
       );
+    };
+
+    const guardiansString = (guardianIds, baseMask) => {
+      let guardianMask = 0;
+      for (const id of guardianIds) guardianMask |= cellMasks[id] & ~baseMask;
+      return techniques._bits
+        .maskToDigits(guardianMask)
+        .map((digit) => {
+          const bit = 1 << (digit - 1);
+          const digitCells = guardianIds
+            .filter((id) => cellMasks[id] & bit)
+            .map((id) => [Math.floor(id / 9), id % 9]);
+          return `(${digit})${techniques._formatCellsRC(digitCells)}`;
+        })
+        .join(",");
     };
 
     for (let topBand = 0; topBand < 2; topBand++) {
@@ -204,10 +306,7 @@ Object.assign(techniques, {
                       results.push(result);
                     }
 
-                    // XZ Rule
-                    if (popcount(union) !== 5) continue;
                     const unionDigits = techniques._bits.maskToDigits(union);
-                    const patternSet = new Set(cells);
                     for (let i = 0; i < unionDigits.length - 2; i++) {
                       for (let j = i + 1; j < unionDigits.length - 1; j++) {
                         for (let k = j + 1; k < unionDigits.length; k++) {
@@ -215,6 +314,199 @@ Object.assign(techniques, {
                             unionDigits[i],
                             unionDigits[j],
                             unionDigits[k],
+                          ];
+                          const baseMask = baseDigits.reduce(
+                            (mask, digit) => mask | (1 << (digit - 1)),
+                            0,
+                          );
+                          if (
+                            cells.some(
+                              (id) => popcount(cellMasks[id] & baseMask) < 2,
+                            )
+                          ) {
+                            continue;
+                          }
+
+                          const guardianIds = cells.filter(
+                            (id) => cellMasks[id] & ~baseMask,
+                          );
+                          if (guardianIds.length === 0) continue;
+                          let guardianMask = 0;
+                          for (const id of guardianIds) {
+                            guardianMask |= cellMasks[id] & ~baseMask;
+                          }
+                          const guardianDigits =
+                            techniques._bits.maskToDigits(guardianMask);
+                          const guardiansStr = guardiansString(
+                            guardianIds,
+                            baseMask,
+                          );
+
+                          // Types 2 and 5: every guardian is the same digit.
+                          if (
+                            guardianDigits.length === 1 &&
+                            guardianIds.length >= 2
+                          ) {
+                            const guardianDigit = guardianDigits[0];
+                            const commonPeers = getCommonPeers(guardianIds);
+                            const elimCells = [];
+                            for (let id = 0; id < 81; id++) {
+                              const r = Math.floor(id / 9);
+                              const c = id % 9;
+                              if (
+                                (commonPeers & (1n << BigInt(id))) !== 0n &&
+                                board[r][c] === 0 &&
+                                pencils[r][c].has(guardianDigit)
+                              ) {
+                                elimCells.push({ r, c, num: guardianDigit });
+                              }
+                            }
+
+                            if (elimCells.length > 0) {
+                              const result = {
+                                change: true,
+                                type: "remove",
+                                cells: elimCells,
+                                hint: {
+                                  name: t(
+                                    guardianIds.length === 2
+                                      ? "teks_TVO_type_2"
+                                      : "teks_TVO_type_5",
+                                  ),
+                                  mainInfo: t(
+                                    "teks_TVO_type_1_digits",
+                                    ...baseDigits,
+                                  ),
+                                  detail: t(
+                                    "teks_TVO_type_1_guardians",
+                                    ...baseDigits,
+                                    loopPath(cells),
+                                    guardiansStr,
+                                  ),
+                                },
+                                visualPlan:
+                                  techniques._buildTrivalueOddagonVisualPlan(
+                                    cells,
+                                    guardianIds,
+                                    baseDigits,
+                                    elimCells,
+                                    pencils,
+                                  ),
+                              };
+
+                              if (!findAll) return result;
+                              results.push(result);
+                            }
+                          }
+
+                          // Type 3: the guardian union is a virtual cell that
+                          // reduces an ALS in their shared house to a naked set.
+                          for (const house of getSharedHouses(guardianIds)) {
+                            const otherCells = housesMap[house].filter((id) => {
+                              const r = Math.floor(id / 9);
+                              const c = id % 9;
+                              return board[r][c] === 0 && !cells.includes(id);
+                            });
+                            const minimumSize = popcount(guardianMask) - 1;
+                            for (
+                              let size = Math.max(1, minimumSize);
+                              size <= otherCells.length;
+                              size++
+                            ) {
+                              for (const combo of techniques.combinations(
+                                otherCells,
+                                size,
+                              )) {
+                                let comboMask = 0;
+                                for (const id of combo) {
+                                  comboMask |= allCellMasks[id];
+                                }
+                                if (
+                                  popcount(comboMask) !== size + 1 ||
+                                  (comboMask & guardianMask) !== guardianMask
+                                ) {
+                                  continue;
+                                }
+
+                                const elimCells = [];
+                                for (const id of housesMap[house]) {
+                                  if (
+                                    cells.includes(id) ||
+                                    combo.includes(id)
+                                  ) {
+                                    continue;
+                                  }
+                                  const r = Math.floor(id / 9);
+                                  const c = id % 9;
+                                  if (board[r][c] !== 0) continue;
+                                  const removable =
+                                    allCellMasks[id] & comboMask;
+                                  for (const num of techniques._bits.maskToDigits(
+                                    removable,
+                                  )) {
+                                    elimCells.push({ r, c, num });
+                                  }
+                                }
+                                if (elimCells.length === 0) continue;
+
+                                const subsetStr = techniques._formatCellsRC(
+                                  combo.map((id) => [
+                                    Math.floor(id / 9),
+                                    id % 9,
+                                  ]),
+                                );
+                                const result = {
+                                  change: true,
+                                  type: "remove",
+                                  cells: elimCells,
+                                  hint: {
+                                    name: t("teks_TVO_type_3"),
+                                    mainInfo: t(
+                                      "teks_TVO_type_1_digits",
+                                      ...baseDigits,
+                                    ),
+                                    detail: t(
+                                      "teks_TVO_type_3_VNS_detail",
+                                      ...baseDigits,
+                                      loopPath(cells),
+                                      guardiansStr,
+                                      techniques._bits
+                                        .maskToDigits(comboMask)
+                                        .join(""),
+                                      subsetStr,
+                                    ),
+                                  },
+                                  visualPlan:
+                                    techniques._buildTrivalueOddagonVisualPlan(
+                                      cells,
+                                      guardianIds,
+                                      baseDigits,
+                                      elimCells,
+                                      pencils,
+                                      combo,
+                                    ),
+                                };
+
+                                if (!findAll) return result;
+                                results.push(result);
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    // XZ Rule
+                    if (popcount(union) !== 5) continue;
+                    const xzUnionDigits = techniques._bits.maskToDigits(union);
+                    const patternSet = new Set(cells);
+                    for (let i = 0; i < xzUnionDigits.length - 2; i++) {
+                      for (let j = i + 1; j < xzUnionDigits.length - 1; j++) {
+                        for (let k = j + 1; k < xzUnionDigits.length; k++) {
+                          const baseDigits = [
+                            xzUnionDigits[i],
+                            xzUnionDigits[j],
+                            xzUnionDigits[k],
                           ];
                           const baseMask = baseDigits.reduce(
                             (mask, digit) => mask | (1 << (digit - 1)),
