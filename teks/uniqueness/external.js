@@ -79,21 +79,32 @@ Object.assign(techniques, {
     const makeVisualPlan = (body, d1, d2, guardians, removals, extra = {}) => {
       const cellColors = [];
       const candidateColors = [];
-      const paint = (cells, digits, color) => {
+      const paint = (
+        cells,
+        digits,
+        { cellColor, candidateColor = cellColor },
+      ) => {
         for (const [r, c] of cells) {
-          cellColors.push({ r, c, color });
+          if (cellColor !== undefined) {
+            cellColors.push({ r, c, color: cellColor });
+          }
           for (const num of digits) {
             if (pencils[r][c].has(num)) {
-              candidateColors.push({ r, c, num, color });
+              candidateColors.push({ r, c, num, color: candidateColor });
             }
           }
         }
       };
 
-      paint(body, [d1, d2], 7);
+      paint(body, [d1, d2], { cellColor: 7 });
       const uniqueGuardians = uniqueCells(guardians);
-      paint(uniqueGuardians, [d1, d2], 6);
-      paint(extra.subsetCells || [], extra.subsetDigits || [], 5);
+      paint(uniqueGuardians, [d1, d2], {
+        cellColor: 6,
+        candidateColor: 3,
+      });
+      paint(extra.subsetCells || [], extra.subsetDigits || [], {
+        cellColor: 5,
+      });
 
       const guardianKeys = new Set(
         uniqueGuardians.map(([r, c]) => cellKey(r, c)),
@@ -105,12 +116,14 @@ Object.assign(techniques, {
           isGuardian
             ? new Set([d1, d2, ...(extra.ahsDigits || [])])
             : extra.ahsDigits || [],
-          isGuardian ? 6 : 5,
+          { cellColor: isGuardian ? 6 : 5 },
         );
       }
       for (const [r, c] of extra.wings || []) {
-        paint([[r, c]], pencils[r][c], 4);
+        paint([[r, c]], pencils[r][c], { cellColor: 4 });
       }
+
+      paint(uniqueGuardians, [d1, d2], { candidateColor: 3 });
 
       return {
         highlight: { digit: null, state: 0 },
