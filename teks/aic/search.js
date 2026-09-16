@@ -314,27 +314,18 @@ Object.assign(techniques, {
     const extractRemovals = (maskArray) => {
       const removals = [];
       for (let d = 0; d < 9; d++) {
-        for (let p = 0; p < 3; p++) {
-          let mask = maskArray[d][p];
-          let bitPos = 0;
-          while (mask > 0) {
-            if ((mask & 1) !== 0) {
-              const id = p * 27 + bitPos;
-              const r = Math.floor(id / 9);
-              const c = id % 9;
-              const num = d + 1;
-              if (pencils[r][c] && pencils[r][c].has(num)) {
-                if (
-                  !removals.some(
-                    (rem) => rem.r === r && rem.c === c && rem.num === num,
-                  )
-                ) {
-                  removals.push({ r, c, num });
-                }
-              }
+        for (const id of techniques._getCellBits(maskArray[d])) {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          const num = d + 1;
+          if (pencils[r][c] && pencils[r][c].has(num)) {
+            if (
+              !removals.some(
+                (rem) => rem.r === r && rem.c === c && rem.num === num,
+              )
+            ) {
+              removals.push({ r, c, num });
             }
-            mask >>>= 1;
-            bitPos++;
           }
         }
       }
@@ -774,24 +765,17 @@ Object.assign(techniques, {
                       const cellsZ = als.candMap[z].map(([r, c]) => r * 9 + c);
                       const nodeZ = getNode(cellsZ, z);
 
-                      for (let p = 0; p < 3; p++) {
-                        let mask = nodeZ.NandBitset[z - 1][p];
-                        let bitPos = 0;
-                        while (mask > 0) {
-                          if ((mask & 1) !== 0) {
-                            const id = p * 27 + bitPos;
-                            const r = Math.floor(id / 9);
-                            const c = id % 9;
-                            if (
-                              pencils[r][c] &&
-                              pencils[r][c].has(z) &&
-                              !alsCellIds.has(id)
-                            ) {
-                              ringRemovals.push({ r, c, num: z });
-                            }
-                          }
-                          mask >>>= 1;
-                          bitPos++;
+                      for (const id of techniques._getCellBits(
+                        nodeZ.NandBitset[z - 1],
+                      )) {
+                        const r = Math.floor(id / 9);
+                        const c = id % 9;
+                        if (
+                          pencils[r][c] &&
+                          pencils[r][c].has(z) &&
+                          !alsCellIds.has(id)
+                        ) {
+                          ringRemovals.push({ r, c, num: z });
                         }
                       }
                     }
@@ -824,20 +808,13 @@ Object.assign(techniques, {
                   // XOR forces exactly one cell in coverNode to be true for digit d,
                   // so eliminate d from all cells that see ALL cells of coverNode (i.e., apply NandBitset).
                   const d = fish.d;
-                  for (let p = 0; p < 3; p++) {
-                    let mask = coverNode.NandBitset[d - 1][p];
-                    let bitPos = 0;
-                    while (mask > 0) {
-                      if ((mask & 1) !== 0) {
-                        const id = p * 27 + bitPos;
-                        const r = Math.floor(id / 9);
-                        const c = id % 9;
-                        if (pencils[r][c] && pencils[r][c].has(d)) {
-                          ringRemovals.push({ r, c, num: d });
-                        }
-                      }
-                      mask >>>= 1;
-                      bitPos++;
+                  for (const id of techniques._getCellBits(
+                    coverNode.NandBitset[d - 1],
+                  )) {
+                    const r = Math.floor(id / 9);
+                    const c = id % 9;
+                    if (pencils[r][c] && pencils[r][c].has(d)) {
+                      ringRemovals.push({ r, c, num: d });
                     }
                   }
                 }

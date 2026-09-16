@@ -214,14 +214,8 @@ Object.assign(techniques, {
     const forEachBitsetCandidate = (bitset, visit) => {
       for (let digitIndex = 0; digitIndex < 9; digitIndex++) {
         const base = digitIndex * 81;
-        for (let part = 0; part < 3; part++) {
-          let bits = bitset[digitIndex][part] >>> 0;
-          while (bits !== 0) {
-            const low = bits & -bits;
-            const id = part * 27 + (31 - Math.clz32(low));
-            if (id < 81) visit(base + id);
-            bits = (bits & (bits - 1)) >>> 0;
-          }
+        for (const id of techniques._getCellBits(bitset[digitIndex])) {
+          visit(base + id);
         }
       }
     };
@@ -657,14 +651,8 @@ Object.assign(techniques, {
     };
     const addMaskCandidates = (parts, digitIndex) => {
       const base = digitIndex * 81;
-      for (let part = 0; part < 3; part++) {
-        let bits = parts[part] >>> 0;
-        while (bits !== 0) {
-          const low = bits & -bits;
-          const id = part * 27 + (31 - Math.clz32(low));
-          if (id < 81) addElim(base + id);
-          bits = (bits & (bits - 1)) >>> 0;
-        }
+      for (const id of techniques._getCellBits(parts)) {
+        addElim(base + id);
       }
     };
 
@@ -675,11 +663,7 @@ Object.assign(techniques, {
         const leftParts = leftMask[digitIndex];
         const rightParts = rightMask[digitIndex];
         addMaskCandidates(
-          [
-            leftParts[0] & rightParts[0],
-            leftParts[1] & rightParts[1],
-            leftParts[2] & rightParts[2],
-          ],
+          techniques._cellBitsetAnd(leftParts, rightParts),
           digitIndex,
         );
       }

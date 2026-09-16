@@ -8,11 +8,9 @@ Object.assign(techniques, {
         if (board[r][c] === 0) {
           // If it's an unsolved cell
           const id = r * 9 + c;
-          const part = Math.floor(id / 27);
-          const bit = id % 27;
 
           for (const d of pencils[r][c]) {
-            candidateBitsets[d - 1][part] |= 1 << bit;
+            techniques._setCellBit(candidateBitsets[d - 1], id);
           }
         }
       }
@@ -30,22 +28,9 @@ Object.assign(techniques, {
     for (let d = 1; d <= 9; d++) {
       const bitset = candidateBitsets[d - 1]; // The three 27-bit parts for this digit
 
-      for (let part = 0; part < 3; part++) {
-        let mask = bitset[part];
-        let bitPos = 0;
-
-        // Iterate through the set bits using shifting
-        while (mask > 0) {
-          if ((mask & 1) !== 0) {
-            const id = part * 27 + bitPos;
-
-            // Generate a basic node: single cell, single digit
-            // Because we pass arrays with a length of 1, both processes trigger in the constructor.
-            nodes.push(new AICNode([id], [d]));
-          }
-          mask >>>= 1; // Zero-fill right shift to safely proceed to the next bit
-          bitPos++;
-        }
+      for (const id of techniques._getCellBits(bitset)) {
+        // Generate a basic node: single cell, single digit.
+        nodes.push(new AICNode([id], [d]));
       }
     }
 
@@ -695,7 +680,7 @@ Object.assign(techniques, {
         if (board[r][c] === 0 && pencils[r][c].has(num)) {
           const id = r * 9 + c;
           cellsWithNum.push(id);
-          cb[Math.floor(id / 27)] |= 1 << (id % 27);
+          techniques._setCellBit(cb, id);
           allNumMask |= CELL_MASK[id];
         }
       }
@@ -704,22 +689,8 @@ Object.assign(techniques, {
     const units = Array.from({ length: 27 }, () => []);
 
     for (let i = 0; i < 27; i++) {
-      const inter = [
-        cb[0] & UNIT_BITSETS[i][0],
-        cb[1] & UNIT_BITSETS[i][1],
-        cb[2] & UNIT_BITSETS[i][2],
-      ];
-      const res = [];
-      for (let p = 0; p < 3; p++) {
-        let m = inter[p];
-        let bit = 0;
-        while (m > 0) {
-          if (m & 1) res.push(p * 27 + bit);
-          m >>= 1;
-          bit++;
-        }
-      }
-      units[i] = res;
+      const inter = techniques._cellBitsetAnd(cb, UNIT_BITSETS[i]);
+      units[i] = techniques._getCellBits(inter);
     }
 
     techniques._templatingCache[num] = {

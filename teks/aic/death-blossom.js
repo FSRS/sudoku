@@ -210,37 +210,28 @@ Object.assign(techniques, {
       const maskToElims = (mask) => {
         const found = [];
         for (let d = 0; d < 9; d++) {
-          for (let p = 0; p < 3; p++) {
-            let m = mask[d][p];
-            let bitPos = 0;
-            while (m > 0) {
-              if (m & 1) {
-                const id = p * 27 + bitPos;
-                const er = Math.floor(id / 9);
-                const ec = id % 9;
-                const num = d + 1;
+          for (const id of techniques._getCellBits(mask[d])) {
+            const er = Math.floor(id / 9);
+            const ec = id % 9;
+            const num = d + 1;
 
-                // Ensure it's not the stem itself
-                let isStemCandidate = false;
-                if (isCell) {
-                  if (er === stem.r && ec === stem.c) isStemCandidate = true;
-                } else if (isRegion) {
-                  if (num === stem.digit && stem.cells.includes(id))
-                    isStemCandidate = true;
-                } else if (stem.startCandidateKeys.has(`${id}:${num}`)) {
-                  isStemCandidate = true;
-                }
+            // Ensure it's not the stem itself
+            let isStemCandidate = false;
+            if (isCell) {
+              if (er === stem.r && ec === stem.c) isStemCandidate = true;
+            } else if (isRegion) {
+              if (num === stem.digit && stem.cells.includes(id))
+                isStemCandidate = true;
+            } else if (stem.startCandidateKeys.has(`${id}:${num}`)) {
+              isStemCandidate = true;
+            }
 
-                if (
-                  pencils[er][ec] &&
-                  pencils[er][ec].has(num) &&
-                  !isStemCandidate
-                ) {
-                  found.push({ r: er, c: ec, num });
-                }
-              }
-              m >>>= 1;
-              bitPos++;
+            if (
+              pencils[er][ec] &&
+              pencils[er][ec].has(num) &&
+              !isStemCandidate
+            ) {
+              found.push({ r: er, c: ec, num });
             }
           }
         }

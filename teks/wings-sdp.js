@@ -250,8 +250,8 @@ Object.assign(techniques, {
       const y = lowest(cell1.mask & (cell1.mask - 1)) + 1;
 
       const wingBits = [0, 0, 0];
-      wingBits[CELL_PART[cell1.id]] |= CELL_BIT[cell1.id];
-      wingBits[CELL_PART[cell2.id]] |= CELL_BIT[cell2.id];
+      techniques._setCellBit(wingBits, cell1.id);
+      techniques._setCellBit(wingBits, cell2.id);
 
       for (const linkDigit of [x, y]) {
         const elimDigit = linkDigit === x ? y : x;

@@ -126,13 +126,11 @@ Object.assign(techniques, {
 
             for (const [r, c] of currentCells) {
               const id = r * 9 + c;
-              const part = Math.floor(id / 27);
-              const bitPos = id % 27;
 
-              positions[part] |= 1 << bitPos;
+              techniques._setCellBit(positions, id);
 
               for (const d of pencils[r][c]) {
-                candidatePositions[d - 1][part] |= 1 << bitPos;
+                techniques._setCellBit(candidatePositions[d - 1], id);
                 if (!candMap[d]) candMap[d] = [];
                 candMap[d].push([r, c]);
               }
