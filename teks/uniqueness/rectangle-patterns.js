@@ -40,67 +40,86 @@ Object.assign(techniques, {
     filledValues = null,
   ) => {
     const rects = [];
-    const cellHas = filledValues
-      ? (r, c, digit) => {
-          const value = filledValues[r * 9 + c];
-          return value === 0 ? pencils[r][c].has(digit) : value === digit;
-        }
-      : (r, c, digit) => pencils[r][c].has(digit);
-    const canFormPattern = (r1, r2, c1, c2, x, y) =>
-      cellHas(r1, c1, x) &&
-      cellHas(r1, c2, y) &&
-      cellHas(r2, c1, y) &&
-      cellHas(r2, c2, x);
+    const g = buildGrid(pencils);
+    let hasMask = g.cand;
+    let rowBits = g.row;
+    if (filledValues) {
+      hasMask = new Uint16Array(g.cand);
+      rowBits = new Int32Array(g.row);
+      for (let id = 0; id < 81; id++) {
+        const value = filledValues[id];
+        if (!value) continue;
+        hasMask[id] = 1 << (value - 1);
+        rowBits[(value - 1) * 9 + ((id / 9) | 0)] |= 1 << (id % 9);
+      }
+    }
     for (let d1 = 1; d1 <= 8; d1++) {
+      const bit1 = 1 << (d1 - 1);
       for (let d2 = d1 + 1; d2 <= 9; d2++) {
+        const bit2 = 1 << (d2 - 1);
+        const pairMask = bit1 | bit2;
         for (let r1 = 0; r1 < 8; r1++) {
+          const topCols =
+            rowBits[(d1 - 1) * 9 + r1] | rowBits[(d2 - 1) * 9 + r1];
+          if (topCols === 0) continue;
+          const topBand = (r1 / 3) | 0;
           for (let r2 = r1 + 1; r2 < 9; r2++) {
-            const cols = [];
-            for (let c = 0; c < 9; c++) {
-              const r1_has = cellHas(r1, c, d1) || cellHas(r1, c, d2);
-              const r2_has = cellHas(r2, c, d1) || cellHas(r2, c, d2);
-              if (r1_has && r2_has) {
-                cols.push(c);
-              }
-            }
-            if (cols.length < 2) continue;
+            const cols =
+              topCols &
+              (rowBits[(d1 - 1) * 9 + r2] | rowBits[(d2 - 1) * 9 + r2]);
+            if ((cols & (cols - 1)) === 0) continue;
+            const sameBand = topBand === ((r2 / 3) | 0);
+            let left = cols;
+            while (left) {
+              const c1 = lowest(left);
+              left &= left - 1;
+              let right = left;
+              while (right) {
+                const c2 = lowest(right);
+                right &= right - 1;
+                if (sameBand === (((c1 / 3) | 0) === ((c2 / 3) | 0))) continue;
 
-            for (const colPair of techniques.combinations(cols, 2)) {
-              const [c1, c2] = colPair;
-              if (
-                !(
-                  (Math.floor(r1 / 3) === Math.floor(r2 / 3)) !==
-                  (Math.floor(c1 / 3) === Math.floor(c2 / 3))
-                )
-              )
-                continue;
+                const topLeft = hasMask[r1 * 9 + c1];
+                const topRight = hasMask[r1 * 9 + c2];
+                const bottomLeft = hasMask[r2 * 9 + c1];
+                const bottomRight = hasMask[r2 * 9 + c2];
+                if (
+                  !(
+                    topLeft & bit1 &&
+                    topRight & bit2 &&
+                    bottomLeft & bit2 &&
+                    bottomRight & bit1
+                  ) &&
+                  !(
+                    topLeft & bit2 &&
+                    topRight & bit1 &&
+                    bottomLeft & bit1 &&
+                    bottomRight & bit2
+                  )
+                ) {
+                  continue;
+                }
 
-              if (
-                !canFormPattern(r1, r2, c1, c2, d1, d2) &&
-                !canFormPattern(r1, r2, c1, c2, d2, d1)
-              ) {
-                continue;
-              }
+                if (
+                  requireBivalueFloor &&
+                  g.cand[r1 * 9 + c1] !== pairMask &&
+                  g.cand[r1 * 9 + c2] !== pairMask &&
+                  g.cand[r2 * 9 + c1] !== pairMask &&
+                  g.cand[r2 * 9 + c2] !== pairMask
+                ) {
+                  continue;
+                }
 
-              const currentCells = [
-                [r1, c1],
-                [r1, c2],
-                [r2, c1],
-                [r2, c2],
-              ];
-
-              if (requireBivalueFloor) {
-                const hasBivalueFloor = currentCells.some(([r, c]) => {
-                  const cands = pencils[r][c];
-                  return cands.size === 2 && cands.has(d1) && cands.has(d2);
+                rects.push({
+                  cells: [
+                    [r1, c1],
+                    [r1, c2],
+                    [r2, c1],
+                    [r2, c2],
+                  ],
+                  digits: [d1, d2],
                 });
-                if (!hasBivalueFloor) continue;
               }
-
-              rects.push({
-                cells: currentCells,
-                digits: [d1, d2],
-              });
             }
           }
         }

@@ -116,12 +116,12 @@ Object.assign(techniques, {
     board = null,
   ) => {
     const pairMasks = [];
-    const digitFrequency = new Uint8Array(10);
     const bitCount = techniques._bits.popcount;
+    const bitFor = techniques._bits.bitFor;
+    let seenOnce = 0;
+    let eligibleMask = 0;
 
     for (const [[r1, c1], [r2, c2]] of pairs) {
-      // Ordinary EURs cannot use solved cells. Avoidable EURs represent a
-      // non-given placement as a singleton domain and validate it separately.
       if (
         !filledValues &&
         (pencils[r1][c1].size < 2 || pencils[r2][c2].size < 2)
@@ -130,28 +130,21 @@ Object.assign(techniques, {
       }
 
       let mask = 0;
-
-      // FIX: Use UNION instead of INTERSECTION to allow incomplete EUR base cells
       const value1 = filledValues && filledValues[r1 * 9 + c1];
       const value2 = filledValues && filledValues[r2 * 9 + c2];
-      if (value1) mask |= 1 << value1;
-      else for (const digit of pencils[r1][c1]) mask |= 1 << digit;
-      if (value2) mask |= 1 << value2;
-      else for (const digit of pencils[r2][c2]) mask |= 1 << digit;
+      if (value1) mask |= bitFor(value1);
+      else for (const digit of pencils[r1][c1]) mask |= bitFor(digit);
+      if (value2) mask |= bitFor(value2);
+      else for (const digit of pencils[r2][c2]) mask |= bitFor(digit);
 
       if (bitCount(mask) < 2) return;
       pairMasks.push(mask);
 
-      for (let digit = 1; digit <= 9; digit++) {
-        if (mask & (1 << digit)) digitFrequency[digit]++;
-      }
+      eligibleMask |= seenOnce & mask;
+      seenOnce |= mask;
     }
 
-    // A deadly digit must be supported by at least two corresponding pairs.
-    const eligibleDigits = [];
-    for (let digit = 1; digit <= 9; digit++) {
-      if (digitFrequency[digit] >= 2) eligibleDigits.push(digit);
-    }
+    const eligibleDigits = techniques._bits.maskToDigits(eligibleMask);
     if (eligibleDigits.length < pairs.length) return;
 
     const cells = pairs.flat();
@@ -169,15 +162,21 @@ Object.assign(techniques, {
       pairs.length,
     )) {
       let coreMask = 0;
-      for (const digit of digits) coreMask |= 1 << digit;
+      for (const digit of digits) coreMask |= bitFor(digit);
 
-      // The union of each pair must contain at least 2 core digits
-      if (pairMasks.some((mask) => bitCount(mask & coreMask) < 2)) continue;
+      let covered = true;
+      for (let i = 0; i < pairMasks.length; i++) {
+        if (bitCount(pairMasks[i] & coreMask) < 2) {
+          covered = false;
+          break;
+        }
+      }
+      if (!covered) continue;
 
       if (filledValues) {
         if (
           placedCells.some(
-            ([r, c]) => (coreMask & (1 << filledValues[r * 9 + c])) === 0,
+            ([r, c]) => (coreMask & bitFor(filledValues[r * 9 + c])) === 0,
           )
         ) {
           continue;
@@ -212,64 +211,87 @@ Object.assign(techniques, {
   ) {
     const rectangles = [];
     const found = new Set();
-    const indexes = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    const g = buildGrid(pencils);
+    const bitCount = techniques._bits.popcount;
+    const unionMask = (idA, idB) => {
+      const valueA = filledValues && filledValues[idA];
+      const valueB = filledValues && filledValues[idB];
+      return (
+        (valueA ? 1 << (valueA - 1) : g.cand[idA]) |
+        (valueB ? 1 << (valueB - 1) : g.cand[idB])
+      );
+    };
+    const pairUsable = (idA, idB) => {
+      if (
+        !filledValues &&
+        (bitCount(g.cand[idA]) < 2 || bitCount(g.cand[idB]) < 2)
+      ) {
+        return false;
+      }
+      return bitCount(unionMask(idA, idB)) >= 2;
+    };
+    const addFrom = (lines, toPair, isNx2) => {
+      techniques._checkAndAddER(
+        lines.map(toPair),
+        pencils,
+        rectangles,
+        isNx2,
+        found,
+        filledValues,
+        board,
+      );
+    };
 
     for (let r1 = 0; r1 < 8; r1++) {
       for (let r2 = r1 + 1; r2 < 9; r2++) {
-        const columnSets = [];
+        const toPair = (c) => [
+          [r1, c],
+          [r2, c],
+        ];
         if (Math.floor(r1 / 3) === Math.floor(r2 / 3)) {
+          const usable = [];
+          for (let c = 0; c < 9; c++) {
+            if (pairUsable(r1 * 9 + c, r2 * 9 + c)) usable.push(c);
+          }
           for (let size = 3; size <= 7; size++) {
-            columnSets.push(...techniques.combinations(indexes, size));
+            if (usable.length < size) break;
+            for (const cols of techniques.combinations(usable, size)) {
+              addFrom(cols, toPair, false);
+            }
           }
         } else {
           for (let stack = 0; stack < 3; stack++) {
-            columnSets.push([stack * 3, stack * 3 + 1, stack * 3 + 2]);
+            const cols = [stack * 3, stack * 3 + 1, stack * 3 + 2];
+            if (cols.some((c) => !pairUsable(r1 * 9 + c, r2 * 9 + c))) continue;
+            addFrom(cols, toPair, false);
           }
-        }
-        for (const cols of columnSets) {
-          const pairs = cols.map((c) => [
-            [r1, c],
-            [r2, c],
-          ]);
-          techniques._checkAndAddER(
-            pairs,
-            pencils,
-            rectangles,
-            false,
-            found,
-            filledValues,
-            board,
-          );
         }
       }
     }
 
     for (let c1 = 0; c1 < 8; c1++) {
       for (let c2 = c1 + 1; c2 < 9; c2++) {
-        const rowSets = [];
+        const toPair = (r) => [
+          [r, c1],
+          [r, c2],
+        ];
         if (Math.floor(c1 / 3) === Math.floor(c2 / 3)) {
+          const usable = [];
+          for (let r = 0; r < 9; r++) {
+            if (pairUsable(r * 9 + c1, r * 9 + c2)) usable.push(r);
+          }
           for (let size = 3; size <= 7; size++) {
-            rowSets.push(...techniques.combinations(indexes, size));
+            if (usable.length < size) break;
+            for (const rows of techniques.combinations(usable, size)) {
+              addFrom(rows, toPair, true);
+            }
           }
         } else {
           for (let band = 0; band < 3; band++) {
-            rowSets.push([band * 3, band * 3 + 1, band * 3 + 2]);
+            const rows = [band * 3, band * 3 + 1, band * 3 + 2];
+            if (rows.some((r) => !pairUsable(r * 9 + c1, r * 9 + c2))) continue;
+            addFrom(rows, toPair, true);
           }
-        }
-        for (const rows of rowSets) {
-          const pairs = rows.map((r) => [
-            [r, c1],
-            [r, c2],
-          ]);
-          techniques._checkAndAddER(
-            pairs,
-            pencils,
-            rectangles,
-            true,
-            found,
-            filledValues,
-            board,
-          );
         }
       }
     }
@@ -691,7 +713,6 @@ Object.assign(techniques, {
                   removals.push({ r: e2r, c: e2c, num: v });
               });
               if (removals.length > 0) {
-                // Use formatRC to automatically compress the two extra cells
                 const restrictedCellsStr = formatRC([
                   [e1r, e1c],
                   [e2r, e2c],
@@ -742,7 +763,6 @@ Object.assign(techniques, {
 
             let is_restricted = false;
             if (!is_nx2) {
-              // Row-pair ER, check rows for X-Wing
               const r1_locs = techniques
                 ._getUnitCells("row", e1r)
                 .filter(([_r, _c]) => pencils[_r][_c].has(d));
@@ -760,7 +780,6 @@ Object.assign(techniques, {
                 is_restricted = true;
               }
             } else {
-              // Column-pair ER, check cols for X-Wing
               const c1_locs = techniques
                 ._getUnitCells("col", e1c)
                 .filter(([_r, _c]) => pencils[_r][_c].has(d));
