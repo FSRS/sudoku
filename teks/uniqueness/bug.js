@@ -60,7 +60,9 @@ Object.assign(techniques, {
               num: n,
             }));
 
-          return {
+          // Only one candidate of the cell can be the true one, so findAll
+          // reports this single proof rather than scanning the rest.
+          const result = {
             change: true,
             type: "remove",
             cells: removals,
@@ -91,11 +93,12 @@ Object.assign(techniques, {
               })),
             },
           };
+          return findAll ? [result] : result;
         }
       }
     }
 
-    return { change: false };
+    return findAll ? [] : { change: false };
   },
 
   bugPlusN: (board, pencils, findAll = false) => {

@@ -9,7 +9,7 @@ Object.assign(techniques, {
       }
     }
 
-    if (bivalueCells.length < 3) return { change: false };
+    if (bivalueCells.length < 3) return findAll ? [] : { change: false };
     const results = [];
     for (const pivot of bivalueCells) {
       const [x, y] = pivot.cands;
