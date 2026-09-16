@@ -236,37 +236,96 @@ function checkPuzzleUniqueness(board) {
   return { isValid: true, message: t("puzzle_unique_solution") };
 }
 
+const CANDIDATE_POPCOUNT = new Uint8Array(512);
+for (let mask = 1; mask < 512; mask++) {
+  CANDIDATE_POPCOUNT[mask] = CANDIDATE_POPCOUNT[mask >> 1] + (mask & 1);
+}
+
+const BOX_OF_CELL = new Uint8Array(81);
+for (let i = 0; i < 81; i++) {
+  BOX_OF_CELL[i] = ((i / 27) | 0) * 3 + (((i % 9) / 3) | 0);
+}
+
 /**
  * Counts the number of solutions for a given board up to a specified limit.
- * The board is left exactly as it was passed in, including when the search
- * stops at the limit.
+ * The board is left exactly as it was passed in: the search reads it once and
+ * from there works on masks of its own, so it never writes to it at all.
  * @param {number[][]} board - The Sudoku board to solve.
  * @param {number} limit - The maximum number of solutions to find before stopping.
  * @returns {number} The number of solutions found (up to the limit).
  */
 function countSolutions(board, limit = 10000) {
+  const rowMask = new Int16Array(9);
+  const colMask = new Int16Array(9);
+  const boxMask = new Int16Array(9);
+  const filled = new Uint8Array(81);
+  const empties = [];
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const i = r * 9 + c;
+      const value = board[r][c];
+      if (value === 0) {
+        empties.push(i);
+        continue;
+      }
+      filled[i] = 1;
+      const bit = 1 << (value - 1);
+      rowMask[r] |= bit;
+      colMask[c] |= bit;
+      boxMask[BOX_OF_CELL[i]] |= bit;
+    }
+  }
+
+  const emptyCount = empties.length;
   let count = 0;
 
   function search() {
-    const find = findEmpty(board);
-    if (!find) {
+    let bestCell = -1;
+    let bestCandidates = 0;
+    let bestRemaining = 10;
+
+    for (let k = 0; k < emptyCount; k++) {
+      const i = empties[k];
+      if (filled[i] !== 0) continue;
+      const candidates =
+        0x1ff &
+        ~(rowMask[(i / 9) | 0] | colMask[i % 9] | boxMask[BOX_OF_CELL[i]]);
+      const remaining = CANDIDATE_POPCOUNT[candidates];
+      if (remaining < bestRemaining) {
+        bestRemaining = remaining;
+        bestCell = i;
+        bestCandidates = candidates;
+        if (remaining <= 1) break;
+      }
+    }
+
+    if (bestCell === -1) {
       count++;
       return count >= limit; // Stop if we've reached the limit
     }
 
-    const [row, col] = find;
-    for (let num = 1; num <= 9; num++) {
-      if (isValid(board, row, col, num)) {
-        board[row][col] = num;
-        if (search()) {
-          // Undo this frame's placement on the way out; stopping early must not
-          // leave the caller's board holding a half-finished solution.
-          board[row][col] = 0;
-          return true; // Propagate the stop signal
-        }
+    const row = (bestCell / 9) | 0;
+    const col = bestCell % 9;
+    const box = BOX_OF_CELL[bestCell];
+    filled[bestCell] = 1;
+
+    for (let rest = bestCandidates; rest !== 0; rest &= rest - 1) {
+      const bit = rest & -rest;
+      rowMask[row] |= bit;
+      colMask[col] |= bit;
+      boxMask[box] |= bit;
+      const stop = search();
+      rowMask[row] ^= bit;
+      colMask[col] ^= bit;
+      boxMask[box] ^= bit;
+      if (stop) {
+        filled[bestCell] = 0;
+        return true;
       }
     }
-    board[row][col] = 0; // Backtrack
+
+    filled[bestCell] = 0;
     return false;
   }
 
