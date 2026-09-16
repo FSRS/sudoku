@@ -1,35 +1,24 @@
 Object.assign(techniques, {
   buildCandidateBitsets: (board, pencils) => {
-    // 9 arrays, each with 3 integers (representing 27 bits each)
     const candidateBitsets = Array.from({ length: 9 }, () => [0, 0, 0]);
-
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         if (board[r][c] === 0) {
-          // If it's an unsolved cell
           const id = r * 9 + c;
-
           for (const d of pencils[r][c]) {
             techniques._setCellBit(candidateBitsets[d - 1], id);
           }
         }
       }
     }
-
     return candidateBitsets;
   },
 
-  /**
-   * Generates the basic "one cell, one digit" nodes straight from the bitset
-   */
   generateBasicNodesFromBitsets: (candidateBitsets) => {
     const nodes = [];
-
     for (let d = 1; d <= 9; d++) {
-      const bitset = candidateBitsets[d - 1]; // The three 27-bit parts for this digit
-
+      const bitset = candidateBitsets[d - 1];
       for (const id of techniques._getCellBits(bitset)) {
-        // Generate a basic node: single cell, single digit.
         nodes.push(new AICNode([id], [d]));
       }
     }
@@ -37,9 +26,6 @@ Object.assign(techniques, {
     return nodes;
   },
 
-  /**
-   * Checks if bitset1 is completely covered by (is a subset of) bitset2.
-   */
   isBitsetSubset: (bitset1, bitset2) => {
     for (let d = 0; d < 9; d++) {
       for (let p = 0; p < 3; p++) {
@@ -51,10 +37,6 @@ Object.assign(techniques, {
     return true;
   },
 
-  /**
-   * Returns the intersection (bitwise AND) of two bitsets.
-   * Returns both a boolean (if any overlap exists) and the resulting bitset.
-   */
   getBitsetIntersection: (bitset1, bitset2) => {
     const intersection = Array.from({ length: 9 }, () => [0, 0, 0]);
     let hasOverlap = false;
@@ -70,14 +52,14 @@ Object.assign(techniques, {
     return { hasOverlap, intersection };
   },
 
-  // Updated to use UNIT_BITSETS
   buildBilocationOrMap: (nodes) => {
     const orMap = new Map();
     nodes.forEach((n) => orMap.set(n, new Set()));
 
     for (let d = 1; d <= 9; d++) {
       const dNodes = nodes.filter(
-        (n) => n.digits.includes(d) && n.cells.length === 1,
+        (n) =>
+          n.cells.length === 1 && n.digits.length === 1 && n.digits[0] === d,
       );
 
       for (let u = 0; u < 27; u++) {
@@ -138,10 +120,9 @@ Object.assign(techniques, {
           }
         }
 
-        if (presence.length <= 2) continue; // Pure Bilocation handles this
+        if (presence.length <= 2) continue;
 
         if (u < 18) {
-          // Line (Row or Col) -> Check Box Intersections
           const boxMap = new Map();
           presence.forEach((id) => {
             const bId =
@@ -155,7 +136,6 @@ Object.assign(techniques, {
             addLink(groups[0], groups[1], d);
           }
         } else {
-          // Box -> Check Line Intersections
           const rowMap = new Map();
           const colMap = new Map();
           presence.forEach((id) => {
@@ -176,7 +156,6 @@ Object.assign(techniques, {
             addLink(groups[0], groups[1], d);
           }
           if (rowMap.size >= 2 && colMap.size >= 2) {
-            // 1 Row + 1 Col (5 cell overlap case)
             let foundCross = false;
             for (const r of rowMap.keys()) {
               if (foundCross) break;
@@ -201,19 +180,17 @@ Object.assign(techniques, {
         }
       }
     }
-
     return orMap;
   },
 
-  /**
-   * Constructs Bivalue OR Map (Same cell, exactly 2 digits)
-   */
   buildBivalueOrMap: (nodes) => {
     const orMap = new Map();
     nodes.forEach((n) => orMap.set(n, new Set()));
 
     const cellMap = new Map();
     for (const node of nodes) {
+      if (node.cells.length !== 1 || node.digits.length !== 1) continue;
+
       const cId = node.cells[0];
       if (!cellMap.has(cId)) cellMap.set(cId, []);
       cellMap.get(cId).push(node);
@@ -221,7 +198,6 @@ Object.assign(techniques, {
 
     for (const [_, cellNodes] of cellMap.entries()) {
       if (cellNodes.length === 2) {
-        // Bivalue!
         orMap.get(cellNodes[0]).add(cellNodes[1]);
         orMap.get(cellNodes[1]).add(cellNodes[0]);
       }
@@ -233,10 +209,7 @@ Object.assign(techniques, {
     const normalizedOptions =
       options && typeof options === "object" ? options : {};
 
-    // ALS sizes that must not be removed by subset reduction.
     const preserveAlsSizes = new Set(normalizedOptions.preserveAlsSizes || []);
-
-    // When several ALSs generate the same node pair, prefer this size.
     const preferredAlsSize = normalizedOptions.preferredAlsSize ?? null;
     const preferSmallestAls = normalizedOptions.preferSmallestAls === true;
     const requireAlsCellSubsetForDominance =
@@ -283,9 +256,6 @@ Object.assign(techniques, {
       return subNode.cells.every((id) => superNode.cells.includes(id));
     };
 
-    // Subset-reduction stage. isSubset() only holds between nodes of the
-    // same digit, so a link can only be dominated by one carrying the same
-    // unordered digit pair - bucket by that pair instead of scanning all.
     const finalLinks = [];
     const linksByDigitPair = new Map();
     for (const link of candidateLinks) {
@@ -304,11 +274,6 @@ Object.assign(techniques, {
       const candidate = candidateLinks[i];
       const { nodeA, nodeB, als } = candidate;
 
-      /*
-       * WXYZ-Wing requires the actual three-cell ALS provenance.
-       * Keep requested ALS sizes even when another ALS supplies a
-       * smaller equivalent OR-link representation.
-       */
       if (preserveAlsSizes.has(als.cells.length)) {
         finalLinks.push(candidate);
         continue;
@@ -363,13 +328,6 @@ Object.assign(techniques, {
 
     const alsMap = new Map();
 
-    /*
-     * Register an ALS for a node pair.
-     *
-     * In the generic map this retains the previous last-write behavior.
-     * In the WXYZ-specific map, a three-cell ALS takes priority over
-     * an equivalent larger ALS.
-     */
     const registerAls = (nodeA, nodeB, als) => {
       if (!alsLinkRegistry.has(nodeA)) {
         alsLinkRegistry.set(nodeA, new Map());
@@ -402,12 +360,10 @@ Object.assign(techniques, {
         }
       }
 
-      // Original behavior when no ALS size has priority.
       pairMap.set(nodeB, als);
     };
 
     for (const { nodeA, nodeB, als } of finalLinks) {
-      // One-cell ALS links are represented by BivalueOrMap.
       if (als.cells.length <= 1) continue;
 
       if (!alsMap.has(nodeA)) alsMap.set(nodeA, new Set());
@@ -461,7 +417,6 @@ Object.assign(techniques, {
       );
     };
 
-    // Precompute placed counts
     const placedCounts = Array(10).fill(0);
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -472,7 +427,6 @@ Object.assign(techniques, {
     for (let d = 1; d <= 9; d++) {
       if (9 - placedCounts[d] < 4) continue; // Early prune: Min fish size 2 needs 4 open slots
 
-      // Group candidate cell IDs by row and column for digit d
       const rowCells = Array.from({ length: 9 }, () => []);
       const colCells = Array.from({ length: 9 }, () => []);
 
@@ -489,12 +443,10 @@ Object.assign(techniques, {
       for (let n = 2; n <= 4; n++) {
         if (9 - placedCounts[d] < 2 * n) continue;
 
-        // Base Types: 0 = Rows, 1 = Cols
         for (let baseType = 0; baseType <= 1; baseType++) {
           const isBaseRow = baseType === 0;
           const baseHouses = isBaseRow ? rowCells : colCells;
 
-          // Pre-collect ONLY houses that actually contain candidate d
           const validBaseHouses = [];
           for (let i = 0; i < 9; i++) {
             if (baseHouses[i].length > 0) validBaseHouses.push(i);
@@ -504,7 +456,6 @@ Object.assign(techniques, {
           const baseCombos = getCombinations(validBaseHouses, n);
 
           for (const bases of baseCombos) {
-            // Skip if all base units are in the same chute
             const firstChute = Math.floor(bases[0] / 3);
             const spansSingleChute = bases.every(
               (b) => Math.floor(b / 3) === firstChute,
@@ -516,30 +467,25 @@ Object.assign(techniques, {
               baseCells.push(...baseHouses[b]);
             }
 
-            // Find unique cover units intersected by these base cells
             const occupiedCovers = new Set();
             for (const id of baseCells) {
               const coverIdx = isBaseRow ? id % 9 : Math.floor(id / 9);
               occupiedCovers.add(coverIdx);
             }
 
-            // If base cells span fewer cover houses than n, it can't form an size-n finned fish
             if (occupiedCovers.size < n) continue;
 
-            // Generate cover combinations ONLY from occupied cover houses
             const coverCombos = getCombinations(Array.from(occupiedCovers), n);
 
             for (const covers of coverCombos) {
               const coverSet = new Set(covers);
               const fins = [];
 
-              // Map to group body parts on a single pass
               const bodyPartsByCover = new Map();
               for (const cv of covers) {
                 bodyPartsByCover.set(cv, []);
               }
 
-              // Distribute base cells into body parts or fins
               for (const id of baseCells) {
                 const coverIdx = isBaseRow ? id % 9 : Math.floor(id / 9);
                 if (coverSet.has(coverIdx)) {
@@ -549,10 +495,8 @@ Object.assign(techniques, {
                 }
               }
 
-              // Finned fish constraint check
               if (fins.length === 0 || fins.length > 4) continue;
 
-              // Extract fish body cells from grouped parts
               const fishBody = [];
               for (const part of bodyPartsByCover.values()) {
                 fishBody.push(...part);
@@ -561,10 +505,9 @@ Object.assign(techniques, {
               const basesStr = getUnitName(isBaseRow, bases);
               const coversStr = getUnitName(!isBaseRow, covers);
 
-              // --- Rank-1 check: do all fins share a common house? ---
+              // --- Rank-1 check ---
               let isRank1 = false;
               if (fins.length > 0) {
-                // Check row
                 const finRows = new Set(fins.map((id) => Math.floor(id / 9)));
                 const finCols = new Set(fins.map((id) => id % 9));
                 const finBoxes = new Set(
@@ -580,7 +523,6 @@ Object.assign(techniques, {
                   finBoxes.size === 1;
               }
 
-              // Build all valid cover-body nodes for this fish configuration
               const coverBodyNodes = [];
               for (const cv of covers) {
                 const bodyPart = bodyPartsByCover.get(cv);
@@ -595,13 +537,11 @@ Object.assign(techniques, {
                 coversStr,
                 allCells: [...fins, ...fishBody],
                 isRank1,
-                coverBodyNodes, // All body-part nodes indexed by cover (for XOR ring elim)
+                coverBodyNodes,
               };
 
               const finNode = getNode(fins, d);
               if (!hasNandCandidates(finNode)) continue;
-
-              // Process each cover unit's body parts (only link covers with valid NAND candidates)
               for (const bodyNode of coverBodyNodes) {
                 if (hasNandCandidates(bodyNode)) {
                   addLink(finNode, bodyNode, fishObj);
@@ -615,20 +555,15 @@ Object.assign(techniques, {
     return orMap;
   },
 
-  /**
-   * Merges maps for the generic AIC (combining Bilocation and Bivalue)
-   */
   mergeOrMaps: (map1, map2) => {
     const merged = new Map();
 
-    // 1. Copy all keys and sets from map1
     if (map1) {
       for (const [node, set1] of map1.entries()) {
         merged.set(node, new Set(set1));
       }
     }
 
-    // 2. Merge in keys and sets from map2
     if (map2) {
       for (const [node, set2] of map2.entries()) {
         if (!merged.has(node)) {
@@ -706,10 +641,6 @@ Object.assign(techniques, {
   _solvedBoardCache: { signature: null, board: null },
   _sharedAICCache: { signature: null, cache: null },
 
-  /**
-   * Signature of the current position, covering placed digits and pencilmarks.
-   * Used to decide whether a cached node/link graph is still valid.
-   */
   _positionSignature: (board, pencils) => {
     let signature = "";
     for (let r = 0; r < 9; r++) {
@@ -726,11 +657,6 @@ Object.assign(techniques, {
     return signature;
   },
 
-  /**
-   * Restores the node/link graph built for this exact position, so that the
-   * three blossom variants (and any later call on the same position) share
-   * one build instead of repeating it.
-   */
   _useSharedAICCache: (board, pencils) => {
     const signature = techniques._positionSignature(board, pencils);
     const shared = techniques._sharedAICCache;
@@ -742,11 +668,6 @@ Object.assign(techniques, {
     shared.cache = techniques._aicCache;
   },
 
-  /**
-   * Solves the given board with a bitmask solver and caches the result by
-   * board signature, so repeated technique calls on the same position solve
-   * only once.
-   */
   _getSolvedBoard: (board) => {
     const signature = board.map((row) => row.join("")).join("");
     const cache = techniques._solvedBoardCache;
@@ -864,14 +785,12 @@ Object.assign(techniques, {
     map.get(u.key).push(v);
   },
 
-  // --- Map Merger Helper ---
   _mergeMaps: (...maps) => {
     const result = new Map();
     for (const m of maps) {
       for (const [key, neighbors] of m) {
         if (!result.has(key)) result.set(key, []);
         const target = result.get(key);
-        // Avoid duplicates if necessary, though simpler to just push
         for (const n of neighbors) target.push(n);
       }
     }
