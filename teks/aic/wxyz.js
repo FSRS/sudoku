@@ -2,21 +2,11 @@
   const UNITS = [];
   for (const type of ["box", "row", "col"]) {
     for (let i = 0; i < 9; i++) {
-      UNITS.push({
-        type,
-        cells: techniques._getUnitCells(type, i).map(([r, c]) => r * 9 + c),
-      });
+      UNITS.push({ type, cells: UNIT_IDS[UNIT_OFFSET[type] + i] });
     }
   }
   const boxOf = (id) =>
     Math.floor(Math.floor(id / 9) / 3) * 3 + Math.floor((id % 9) / 3);
-  const lowBit = (m) => 31 - Math.clz32(m & -m);
-  const PART = new Int8Array(81);
-  const BIT = new Int32Array(81);
-  for (let id = 0; id < 81; id++) {
-    PART[id] = Math.floor(id / 27);
-    BIT[id] = 1 << (id % 27);
-  }
 
   const collectThreeCellAls = (cellMask) => {
     const popcount = techniques._bits.popcount;
@@ -48,12 +38,12 @@
             }
             const cells = [a, b, c];
             const pos = [0, 0, 0];
-            for (const id of cells) pos[PART[id]] |= BIT[id];
+            for (const id of cells) pos[CELL_PART[id]] |= CELL_BIT[id];
             const posOf = new Array(10);
             const commonPeers = new Array(10);
             let digits = union;
             while (digits !== 0) {
-              const d = lowBit(digits);
+              const d = lowest(digits);
               digits &= digits - 1;
               const p = [0, 0, 0];
               let c0 = -1;
@@ -61,7 +51,7 @@
               let c2 = -1;
               for (const id of cells) {
                 if (cellMask[id] & (1 << d)) {
-                  p[PART[id]] |= BIT[id];
+                  p[CELL_PART[id]] |= CELL_BIT[id];
                   const pb = PEER_BITSETS[id];
                   c0 &= pb[0];
                   c1 &= pb[1];
@@ -91,8 +81,8 @@
       const c = id % 9;
       if (board[r][c] !== 0) continue;
       let m = 0;
-      const part = PART[id];
-      const bit = BIT[id];
+      const part = CELL_PART[id];
+      const bit = CELL_BIT[id];
       for (const d of pencils[r][c]) {
         m |= 1 << d;
         if (part === 0) cand0[d] |= bit;
@@ -101,7 +91,7 @@
       }
       cellMask[id] = m;
       if (techniques._bits.popcount(m) === 2) {
-        const key = lowBit(m) * 10 + (31 - Math.clz32(m));
+        const key = lowest(m) * 10 + (31 - Math.clz32(m));
         (bivaluesByPair[key] || (bivaluesByPair[key] = [])).push(id);
         bivalueCount++;
       }
@@ -134,18 +124,18 @@
       const np2 = ~pos[2];
       let rest = mask;
       while (rest !== 0) {
-        const x = lowBit(rest);
+        const x = lowest(rest);
         rest &= rest - 1;
         let rest2 = rest;
         while (rest2 !== 0) {
-          const z = lowBit(rest2);
+          const z = lowest(rest2);
           rest2 &= rest2 - 1;
           const bucket = bivaluesByPair[x * 10 + z];
           if (!bucket) continue;
           const px = posOf[x];
           const pz = posOf[z];
           for (const a of bucket) {
-            if ((pos[PART[a]] & BIT[a]) !== 0) continue;
+            if ((pos[CELL_PART[a]] & CELL_BIT[a]) !== 0) continue;
             const pb = PEER_BITSETS[a];
             const nb0 = ~pb[0];
             const nb1 = ~pb[1];
@@ -166,7 +156,7 @@
               collect(removals, x, pb[0] & cx[0], pb[1] & cx[1], pb[2] & cx[2]);
               let others = mask & ~((1 << x) | (1 << z));
               while (others !== 0) {
-                const w = lowBit(others);
+                const w = lowest(others);
                 others &= others - 1;
                 const cw = commonPeers[w];
                 collect(removals, w, cw[0] & np0, cw[1] & np1, cw[2] & np2);
