@@ -32,7 +32,6 @@
         for (let j = i + 1; j < n - 1; j++) {
           const b = empty[j];
           const mb = cellMask[b];
-          // A naked pair inside the triple disqualifies it, as in _collectAllALS.
           if (popcount(ma | mb) === 2) continue;
           for (let k = j + 1; k < n; k++) {
             const c = empty[k];
@@ -40,7 +39,6 @@
             const union = ma | mb | mc;
             if (popcount(union) !== 4) continue;
             if (popcount(ma | mc) === 2 || popcount(mb | mc) === 2) continue;
-            // A line triple confined to one box is the box's ALS.
             if (
               unit.type !== "box" &&
               boxOf(a) === boxOf(b) &&
@@ -310,7 +308,7 @@
         hint: {
           name: ring ? t("teks_msg_doubly_linked") + name : name,
           mainInfo: t("teks_start_with", eureka.split("-")[0]),
-          detail: `[4] ${eureka}`,
+          detail: eureka,
         },
         visualPlan: {
           highlight: { digit: null, state: 0 },
