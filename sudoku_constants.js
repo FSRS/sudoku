@@ -144,10 +144,6 @@ let cellColorPalette;
 let candidateColorPalette;
 
 let boardState = [];
-// Array of 9 items (for digits 1-9).
-// Each item is an array of 3 ints [part0, part1, part2] representing the 81 cells.
-let currentCandidateBitsets = Array.from({ length: 9 }, () => [0, 0, 0]);
-let virtualCandidateBitsets = Array.from({ length: 9 }, () => [0, 0, 0]);
 let selectedCell = { row: null, col: null };
 let currentMode = "concrete";
 let coloringSubMode = "cell";
