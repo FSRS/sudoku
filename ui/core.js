@@ -249,15 +249,9 @@ function isRatablePuzzle(puzzle) {
 function getDifficultyRatingText(puzzle, onReady) {
   // Puzzles this project does not support never reach an engine.
   if (!isRatablePuzzle(puzzle)) return "";
+  if (!window.Rating?.rate) return "";
 
   const engine = getDifficultyEngine();
-  if (engine === "skfr") {
-    if (!window.getSkfrRating) return "";
-    const rating = window.getSkfrRating(puzzle);
-    return rating === null ? "" : ` (skfr ${rating})`;
-  }
-
-  if (!window.SeFast?.rate) return "";
   const key = `${engine}:${puzzle}`;
   const cached = difficultyRatingCache.get(key);
   if (cached?.status === "resolved") return cached.text;
@@ -270,8 +264,8 @@ function getDifficultyRatingText(puzzle, onReady) {
   const pendingText = ` (${difficultyEngineLabels[engine]} ${t("ui_rating_pending")})`;
   if (!cached) {
     difficultyRatingCache.set(key, { status: "pending" });
-    const mode = engine === "se" ? "current" : "se121";
-    window.SeFast.rate(puzzle, mode).then(
+    const mode = engine === "old-se" ? "se121" : engine;
+    window.Rating.rate(puzzle, mode).then(
       ({ er }) => {
         const text = Number.isFinite(er)
           ? formatDifficultyRating(engine, er)

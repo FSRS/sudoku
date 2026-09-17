@@ -2,14 +2,17 @@
   "use strict";
 
   const scriptUrl = document.currentScript && document.currentScript.src;
-  const workerUrl = new URL("sefast_worker.js", scriptUrl || location.href);
+  const workerUrl = new URL("rating_worker.js", scriptUrl || location.href);
   const DEFAULT_TIMEOUT_MS = 600000;
   const MAX_CONSECUTIVE_RESTARTS = 2;
 
+  // 0 and 1 are the SE engine's own numbering, so the module means the same
+  // thing whether or not skfr was built into it.
   const modeNumber = (mode) => {
-    if (mode === 0 || mode === "current") return 0;
+    if (mode === 0 || mode === "se") return 0;
     if (mode === 1 || mode === "se121" || mode === "1.2.1") return 1;
-    throw new TypeError("SE mode must be current or se121");
+    if (mode === 2 || mode === "skfr") return 2;
+    throw new TypeError("rating mode must be se, se121 or skfr");
   };
 
   const failure = (code, message) => {
@@ -18,7 +21,7 @@
     return error;
   };
 
-  class SeFastClient {
+  class RatingClient {
     constructor(options = {}) {
       this.nextId = 1;
       this.pending = new Map();
@@ -42,7 +45,7 @@
       worker.onerror = (event) => {
         if (worker !== this.worker) return;
         this.dropWorker(
-          failure("worker-error", event.message || "sefast worker failed"),
+          failure("worker-error", event.message || "rating worker failed"),
           "failed",
         );
       };
@@ -72,10 +75,11 @@
       }
     }
 
-    rate(puzzle, mode = "current", options = {}) {
-      if (typeof puzzle !== "string" || !/^[.1-9]{81}$/.test(puzzle)) {
+    rate(puzzle, mode = "se", options = {}) {
+      // Pasted puzzles spell blanks either way, so both reach every engine.
+      if (typeof puzzle !== "string" || !/^[.0-9]{81}$/.test(puzzle)) {
         return Promise.reject(
-          new TypeError("puzzle must contain 81 characters from . and 1-9"),
+          new TypeError("puzzle must contain 81 characters from ., 0 and 1-9"),
         );
       }
       let modeValue;
@@ -86,14 +90,14 @@
       }
       if (this.state === "terminated") {
         return Promise.reject(
-          failure("terminated", "sefast worker terminated"),
+          failure("terminated", "rating worker terminated"),
         );
       }
       if (!this.worker) {
         if (this.restarts >= MAX_CONSECUTIVE_RESTARTS) {
           this.state = "failed";
           return Promise.reject(
-            failure("unavailable", "sefast worker is unavailable"),
+            failure("unavailable", "rating worker is unavailable"),
           );
         }
         this.restarts++;
@@ -104,7 +108,7 @@
           return Promise.reject(
             failure(
               "unavailable",
-              error?.message || "sefast worker could not start",
+              error?.message || "rating worker could not start",
             ),
           );
         }
@@ -118,7 +122,7 @@
             ? setTimeout(
                 () =>
                   this.dropWorker(
-                    failure("timeout", "sefast rating timed out"),
+                    failure("timeout", "rating timed out"),
                     "failed",
                   ),
                 timeoutMs,
@@ -131,7 +135,7 @@
           this.dropWorker(
             failure(
               "post-failed",
-              error?.message || "sefast worker rejected the request",
+              error?.message || "rating worker rejected the request",
             ),
             "failed",
           );
@@ -141,15 +145,36 @@
 
     terminate() {
       this.dropWorker(
-        failure("terminated", "sefast worker terminated"),
+        failure("terminated", "rating worker terminated"),
         "terminated",
       );
     }
   }
 
-  const defaultClient = new SeFastClient();
+  // One client per mode, built on first use. SE ratings can run for minutes, so
+  // a skfr request must not queue behind one -- switching away from a stalled
+  // engine is exactly when the other one has to answer at once.
+  const defaultClients = new Map();
+  const clientFor = (mode) => {
+    let client = defaultClients.get(mode);
+    if (!client) {
+      client = new RatingClient();
+      defaultClients.set(mode, client);
+    }
+    return client;
+  };
 
-  async function ratePuzzles(puzzles, mode = "current", options = {}) {
+  function rate(puzzle, mode = "se", options) {
+    let modeValue;
+    try {
+      modeValue = modeNumber(mode);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    return clientFor(modeValue).rate(puzzle, modeValue, options);
+  }
+
+  async function ratePuzzles(puzzles, mode = "se", options = {}) {
     const concurrency = Math.max(
       1,
       Math.min(
@@ -159,7 +184,7 @@
     );
     const clients = Array.from(
       { length: concurrency },
-      () => new SeFastClient({ timeoutMs: options.timeoutMs }),
+      () => new RatingClient({ timeoutMs: options.timeoutMs }),
     );
     const results = new Array(puzzles.length);
     let next = 0;
@@ -178,10 +203,9 @@
     }
   }
 
-  global.SeFast = {
-    rate: (puzzle, mode, options) => defaultClient.rate(puzzle, mode, options),
+  global.Rating = {
+    rate,
     ratePuzzles,
-    createClient: (options) => new SeFastClient(options),
+    createClient: (options) => new RatingClient(options),
   };
-  global.getSeFastRating = global.SeFast.rate;
 })(window);
