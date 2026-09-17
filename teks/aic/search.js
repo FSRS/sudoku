@@ -14,6 +14,8 @@ Object.assign(techniques, {
       useAlsOnly = false,
       endSameDigits = false,
       allowedOrLinkTypes = null,
+      maxPathNodes = null,
+      orLinkRule = null,
     } = config;
     const techniqueName = nameOverride || t("teks_AIC_name");
 
@@ -180,16 +182,35 @@ Object.assign(techniques, {
       (n) => aicOrMap.has(n) && aicOrMap.get(n).size > 0,
     );
 
+    // Reachability membership lives in node-index bitsets; the arrays keep
+    // discovery order, which decides which hint is found first.
+    const wordCount = (interestedNodes.length + 31) >>> 5;
+
     interestedNodes.forEach((node, idx) => {
       node.index = idx;
 
-      node.OrNodes = new Set(aicOrMap.get(node));
-      node.OrNandNodes = new Set();
       node.NandNodes = new Set();
+      node.OrList = Array.from(aicOrMap.get(node));
+      node.OrFrontier = node.OrList.slice();
+      node.OrNandFrontier = [];
+      node.OrBits = new Uint32Array(wordCount);
+      node.OrNandBits = new Uint32Array(wordCount);
 
-      node.OrFrontier = new Set(node.OrNodes);
-      node.OrNandFrontier = new Set();
+      // Digits whose NandBitset has any bit; a pair of nodes without a common
+      // digit here cannot share an elimination.
+      let nandDigits = 0;
+      for (let d = 0; d < 9; d++) {
+        const part = node.NandBitset[d];
+        if ((part[0] | part[1] | part[2]) !== 0) nandDigits |= 1 << d;
+      }
+      node.nandDigits = nandDigits;
     });
+
+    for (const node of interestedNodes) {
+      for (const other of node.OrList) {
+        node.OrBits[other.index >>> 5] |= 1 << (other.index & 31);
+      }
+    }
 
     // Index nodes so NAND construction does not scan every node pair.
     const nodesByDigit = Array.from({ length: 10 }, () => []);
@@ -215,7 +236,14 @@ Object.assign(techniques, {
       for (const B of nodesByDigit[aDigit]) {
         if (A === B) continue;
 
-        if (techniques.isBitsetSubset(B.NodeBitset, A.NandBitset)) {
+        // B is a single-digit node of aDigit, so only that digit's words matter.
+        const bBits = B.NodeBitset[aDigit - 1];
+        const aNand = A.NandBitset[aDigit - 1];
+        if (
+          (bBits[0] & aNand[0]) === bBits[0] &&
+          (bBits[1] & aNand[1]) === bBits[1] &&
+          (bBits[2] & aNand[2]) === bBits[2]
+        ) {
           A.NandNodes.add(B);
         }
       }
@@ -331,7 +359,7 @@ Object.assign(techniques, {
 
       const bestDepth = pathFilter
         ? null
-        : new Map([[`${startNode.index}:1`, 1]]);
+        : new Map([[startNode.index * 2 + 1, 1]]);
 
       while (head < states.length) {
         const stateIndex = head++;
@@ -372,10 +400,20 @@ Object.assign(techniques, {
             continue;
           }
 
+          // A positional OR-link rule rejects a link where the finished path
+          // would fail the filter anyway, before the branch is explored.
+          if (
+            isNextOr &&
+            orLinkRule &&
+            !orLinkRule((depth - 1) >> 1, getOrLinkType(node, nxt))
+          ) {
+            continue;
+          }
+
           // The destination is checked before dominance pruning so a ring can
           // return to its starting node.
           if (bestDepth && nxt !== endNode) {
-            const stateKey = `${nxt.index}:${nextIsOr ? 1 : 0}`;
+            const stateKey = nxt.index * 2 + (nextIsOr ? 1 : 0);
             const previousDepth = bestDepth.get(stateKey);
 
             if (previousDepth !== undefined && previousDepth <= nextDepth) {
@@ -627,13 +665,16 @@ Object.assign(techniques, {
 
       // Expand NAND links only from newly discovered OR nodes.
       for (const A of interestedNodes) {
-        const nextFrontier = new Set();
+        const nextFrontier = [];
+        const bits = A.OrNandBits;
 
         for (const B of A.OrFrontier) {
           for (const C of B.NandNodes) {
-            if (!A.OrNandNodes.has(C)) {
-              A.OrNandNodes.add(C);
-              nextFrontier.add(C);
+            const word = C.index >>> 5;
+            const mask = 1 << (C.index & 31);
+            if ((bits[word] & mask) === 0) {
+              bits[word] |= mask;
+              nextFrontier.push(C);
               anyExpansion = true;
             }
           }
@@ -642,15 +683,24 @@ Object.assign(techniques, {
         A.OrNandFrontier = nextFrontier;
       }
 
-      // Expand OR links only from newly discovered OR-NAND nodes.
+      // Expand OR links only from newly discovered OR-NAND nodes. C.OrList is
+      // read live, so a node expanded earlier in this pass already contributes
+      // its new OR nodes, exactly as the Set version did.
       for (const A of interestedNodes) {
-        const nextFrontier = new Set();
+        const nextFrontier = [];
+        const bits = A.OrBits;
+        const orList = A.OrList;
 
         for (const C of A.OrNandFrontier) {
-          for (const D of C.OrNodes) {
-            if (!A.OrNodes.has(D)) {
-              A.OrNodes.add(D);
-              nextFrontier.add(D);
+          const candidates = C.OrList;
+          for (let i = 0; i < candidates.length; i++) {
+            const D = candidates[i];
+            const word = D.index >>> 5;
+            const mask = 1 << (D.index & 31);
+            if ((bits[word] & mask) === 0) {
+              bits[word] |= mask;
+              orList.push(D);
+              nextFrontier.push(D);
               anyExpansion = true;
             }
           }
@@ -671,13 +721,14 @@ Object.assign(techniques, {
       }
 
       let maxPathLen = getMaxPathLenForCycle(cycle);
+      if (maxPathNodes) maxPathLen = Math.min(maxPathLen, maxPathNodes);
 
       // Priority 1: AIC Ring
       for (const A of interestedNodes) {
-        for (const D of A.OrNodes) {
+        for (const D of A.OrList) {
           if (D.index <= A.index || !A.NandNodes.has(D)) continue;
           if (SameDigits && A.digits[0] !== D.digits[0]) continue;
-          if (deadRings.has(`${A.index}_${D.index}`)) continue;
+          if (deadRings.has(A.index * 65536 + D.index)) continue;
 
           const path = findAICPath(A, D, maxPathLen, "ring");
 
@@ -812,7 +863,7 @@ Object.assign(techniques, {
                 results.push(res);
               }
             } else {
-              deadRings.add(`${A.index}_${D.index}`);
+              deadRings.add(A.index * 65536 + D.index);
             }
           }
         }
@@ -824,7 +875,7 @@ Object.assign(techniques, {
       // Priority 2: DN Loop
       if (!bivalueOnly) {
         for (const A of interestedNodes) {
-          for (const D of A.OrNodes) {
+          for (const D of A.OrList) {
             if (D.index < A.index) continue;
             if (SameDigits && A.digits[0] !== D.digits[0]) continue;
             // Strict equality (original): A and D are the same node
@@ -909,16 +960,32 @@ Object.assign(techniques, {
 
       // Priority 3: Standard AIC
       for (const A of interestedNodes) {
-        for (const D of A.OrNodes) {
+        for (const D of A.OrList) {
           if (D.index <= A.index) continue;
-          if (deadRings.has(`${A.index}_${D.index}`)) continue;
+          if (deadRings.has(A.index * 65536 + D.index)) continue;
           if (SameDigits && A.digits[0] !== D.digits[0]) continue;
 
-          const { hasOverlap, intersection } = techniques.getBitsetIntersection(
-            A.NandBitset,
-            D.NandBitset,
-          );
+          // Most pairs share no elimination; test that without allocating.
+          const commonDigits = A.nandDigits & D.nandDigits;
+          let hasOverlap = false;
+          if (commonDigits !== 0) {
+            const aNand = A.NandBitset;
+            const dNand = D.NandBitset;
+            for (let d = 0; d < 9; d++) {
+              if (((commonDigits >> d) & 1) === 0) continue;
+              const x = aNand[d];
+              const y = dNand[d];
+              if (((x[0] & y[0]) | (x[1] & y[1]) | (x[2] & y[2])) !== 0) {
+                hasOverlap = true;
+                break;
+              }
+            }
+          }
           if (hasOverlap) {
+            const { intersection } = techniques.getBitsetIntersection(
+              A.NandBitset,
+              D.NandBitset,
+            );
             const aicRemovals = extractRemovals(intersection);
 
             if (aicRemovals.length > 0) {
@@ -1068,6 +1135,8 @@ Object.assign(techniques, {
         maxCycle: 2,
         nameOverride: t("teks_ALS_XY_Wing"),
         allowedOrLinkTypes: ["als", "bivalue"],
+        // The filter only accepts six-node paths, so never search deeper.
+        maxPathNodes: 6,
 
         pathFilter: (path, cache, { kind, getOrLinkType }) => {
           if (path.length !== 6) return false;
@@ -1100,6 +1169,11 @@ Object.assign(techniques, {
         maxCycle: 2,
         nameOverride: t("teks_ALS_W_Wing"),
         allowedOrLinkTypes: ["als", "bivalue", "region"],
+        // Same shape as pathFilter below, checked link by link while searching.
+        orLinkRule: (orIndex, type) =>
+          orIndex % 2 === 0
+            ? type === "als" || type === "bivalue"
+            : type === "region",
 
         pathFilter: (path, cache, { kind, getOrLinkType }) => {
           const isIntraAls = (type) => type === "als" || type === "bivalue";

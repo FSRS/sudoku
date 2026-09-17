@@ -104,16 +104,52 @@ Object.assign(techniques, {
       memoStore.nodes !== allNodes ||
       memoStore.length !== allNodes.length
     ) {
-      memoStore = { nodes: allNodes, length: allNodes.length, map: new Map() };
+      // Buckets for the scan below, plus each node's position so the hits
+      // keep allNodes order (it decides which branch is written first).
+      const byDigit = Array.from({ length: 10 }, () => []);
+      const byCell = Array.from({ length: 81 }, () => []);
+      const position = new Map();
+      allNodes.forEach((node, index) => {
+        position.set(node, index);
+        if (node.digits.length !== 1) return;
+        byDigit[node.digits[0]].push(node);
+        if (node.cells.length === 1) byCell[node.cells[0]].push(node);
+      });
+      memoStore = {
+        nodes: allNodes,
+        length: allNodes.length,
+        map: new Map(),
+        byDigit,
+        byCell,
+        position,
+      };
       cache.NandSubsetMemo = memoStore;
     }
     const scanNandSubset = (startNode) => {
       let hits = memoStore.map.get(startNode);
       if (hits !== undefined) return hits;
-      hits = allNodes.filter(
-        (node) =>
-          node !== startNode &&
-          techniques.isBitsetSubset(node.NodeBitset, startNode.NandBitset),
+
+      // A start node is basic: its weak-link set is the digit's common peers
+      // plus the other digits of its own cell, so only those buckets can match.
+      const digit = startNode.digits[0];
+      const nand = startNode.NandBitset[digit - 1];
+      hits = [];
+      for (const node of memoStore.byDigit[digit]) {
+        if (node === startNode) continue;
+        const bits = node.NodeBitset[digit - 1];
+        if (
+          (bits[0] & nand[0]) === bits[0] &&
+          (bits[1] & nand[1]) === bits[1] &&
+          (bits[2] & nand[2]) === bits[2]
+        ) {
+          hits.push(node);
+        }
+      }
+      for (const node of memoStore.byCell[startNode.cells[0]]) {
+        if (node.digits[0] !== digit) hits.push(node);
+      }
+      hits.sort(
+        (a, b) => memoStore.position.get(a) - memoStore.position.get(b),
       );
       memoStore.map.set(startNode, hits);
       return hits;

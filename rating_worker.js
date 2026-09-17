@@ -20,7 +20,9 @@ self.onmessage = async ({ data }) => {
     const raw = engine.rate(puzzle, mode);
     if (raw.startsWith("ERROR,")) throw new Error(raw);
     // An empty reply is the engine declining the puzzle, not a rating of zero.
-    const [er = null, ep = null, ed = null] = raw ? raw.split(",").map(Number) : [];
+    const [er = null, ep = null, ed = null] = raw
+      ? raw.split(",").map(Number)
+      : [];
     self.postMessage({ id, result: { er, ep, ed } });
   } catch (error) {
     self.postMessage({ id, error: String(error?.message || error) });

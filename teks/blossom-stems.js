@@ -93,33 +93,54 @@ Object.assign(techniques, {
                   digits[second],
                   digits[third],
                 ];
-                const startCandidates = startDigits.flatMap((digit) =>
-                  cellsByDigit[digit].map((id) => ({ id, digit })),
-                );
-                if (
-                  startCandidates.length < 3 ||
-                  startCandidates.length > maxAalsCandidates
-                ) {
-                  continue;
-                }
+                const size =
+                  cellsByDigit[startDigits[0]].length +
+                  cellsByDigit[startDigits[1]].length +
+                  cellsByDigit[startDigits[2]].length;
+                if (size < 3 || size > maxAalsCandidates) continue;
+
+                // Thousands of AALS stems exist per position and the callers
+                // stop at the first hit, so the stem object is built only when
+                // the iteration reaches it.
+                const stemCells = [...cells];
                 stems.push({
-                  size: startCandidates.length,
-                  kind: "aals",
-                  unit,
-                  cells: [...cells],
-                  houseName: unitLabel(unit),
-                  startDigits,
-                  startCandidates,
-                  startCandidateKeys: new Set(
-                    startCandidates.map(({ id, digit }) => `${id}:${digit}`),
-                  ),
+                  size,
+                  materialize: () => {
+                    const startCandidates = startDigits.flatMap((digit) =>
+                      cellsByDigit[digit].map((id) => ({ id, digit })),
+                    );
+                    return {
+                      size,
+                      kind: "aals",
+                      unit,
+                      cells: stemCells,
+                      houseName: unitLabel(unit),
+                      startDigits,
+                      startCandidates,
+                      startCandidateKeys: new Set(
+                        startCandidates.map(
+                          ({ id, digit }) => `${id}:${digit}`,
+                        ),
+                      ),
+                    };
+                  },
                 });
               }
             }
           }
         };
 
-        const chooseCells = (start, size, cells) => {
+        const cellMasks = eligibleCells.map((id) => {
+          let mask = 0;
+          for (const digit of pencils[Math.floor(id / 9)][id % 9]) {
+            mask |= 1 << digit;
+          }
+          return mask;
+        });
+
+        // An AALS on k cells holds exactly k + 2 digits, and adding a cell
+        // never removes a digit, so a partial set past that bound is dead.
+        const chooseCells = (start, size, cells, digitMask) => {
           if (cells.length === size) {
             addAalsStems(cells);
             return;
@@ -130,18 +151,23 @@ Object.assign(techniques, {
             index <= eligibleCells.length - needed;
             index++
           ) {
+            const nextMask = digitMask | cellMasks[index];
+            if (techniques._bits.popcount(nextMask) > size + 2) continue;
             cells.push(eligibleCells[index]);
-            chooseCells(index + 1, size, cells);
+            chooseCells(index + 1, size, cells, nextMask);
             cells.pop();
           }
         };
 
         for (let size = 2; size <= Math.min(7, eligibleCells.length); size++) {
-          chooseCells(0, size, []);
+          chooseCells(0, size, [], 0);
         }
       }
     }
     stems.sort((left, right) => left.size - right.size);
-    return stems;
+    if (kind !== "aals") return stems;
+    return (function* () {
+      for (const stem of stems) yield stem.materialize();
+    })();
   },
 });

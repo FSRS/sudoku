@@ -51,9 +51,7 @@ Object.assign(techniques, {
     paths.forEach((path, pathIndex) => {
       const isBurringLoop = pathIndex === 0;
       const pathColorIndices = isBurringLoop ? [4, 2] : [7, 5, 8, 3];
-      const lineColorIndex = isBurringLoop
-        ? 0
-        : 1 + ((pathIndex - 1) % 8);
+      const lineColorIndex = isBurringLoop ? 0 : 1 + ((pathIndex - 1) % 8);
       path.forEach((node, nodeIndex) => {
         const color = pathColorIndices[nodeIndex % pathColorIndices.length];
         for (const id of node.cells) {
@@ -754,7 +752,8 @@ Object.assign(techniques, {
 
     const getAlsText = (left, right, als) => {
       const ids = als.cells.map(([r, c]) => r * 9 + c);
-      const preferBox = als.unitName && als.unitName.includes(t("teks_unit_box"));
+      const preferBox =
+        als.unitName && als.unitName.includes(t("teks_unit_box"));
       return `(${left.digits[0]}=${right.digits[0]})${getLoc(ids, preferBox)}`;
     };
 

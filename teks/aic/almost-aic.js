@@ -127,10 +127,16 @@ Object.assign(techniques, {
       const digit = node.digits[0];
       const targets = new Set();
 
+      // Every node in the bucket carries only `digit`, so three words decide
+      // whether it sits inside this node's weak-link set.
+      const nand = node.NandBitset[digit - 1];
       for (const other of nodesByDigit[digit]) {
+        if (other === node) continue;
+        const bits = other.NodeBitset[digit - 1];
         if (
-          other !== node &&
-          techniques.isBitsetSubset(other.NodeBitset, node.NandBitset)
+          (bits[0] & nand[0]) === bits[0] &&
+          (bits[1] & nand[1]) === bits[1] &&
+          (bits[2] & nand[2]) === bits[2]
         ) {
           targets.add(nodeIndex.get(other));
         }
