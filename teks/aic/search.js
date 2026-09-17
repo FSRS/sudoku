@@ -6,7 +6,6 @@ Object.assign(techniques, {
       bivalueOnly,
       useGrouped,
       useAlsXZ,
-      useWxyz,
       useAls,
       useFish,
       maxCycle,
@@ -15,8 +14,6 @@ Object.assign(techniques, {
       useAlsOnly = false,
       endSameDigits = false,
       allowedOrLinkTypes = null,
-      preserveAlsSizes = null,
-      preferredAlsSize = null,
     } = config;
     const techniqueName = nameOverride || t("teks_AIC_name");
 
@@ -86,62 +83,20 @@ Object.assign(techniques, {
       }
       aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.GroupedOrMap);
     }
-    let activeAlsLinkRegistry = cache.AlsLinkRegistry;
+    const activeAlsLinkRegistry = cache.AlsLinkRegistry;
     const activeGroupedLinkRegistry = cache.GroupedLinkRegistry;
 
     if (useAls) {
-      const normalizedPreserveSizes = Array.isArray(preserveAlsSizes)
-        ? [...new Set(preserveAlsSizes)].sort((a, b) => a - b)
-        : [];
-
-      const usesTechniqueAlsPolicy =
-        normalizedPreserveSizes.length > 0 || preferredAlsSize !== null;
-
-      if (usesTechniqueAlsPolicy) {
-        const policyKey =
-          `${normalizedPreserveSizes.join(",")}|` +
-          `${preferredAlsSize ?? "none"}`;
-
-        let policyEntry = cache.AlsPolicyCache.get(policyKey);
-
-        if (!policyEntry) {
-          const registry = new Map();
-
-          const map = techniques.buildAlsOrMap(
-            board,
-            pencils,
-            (cells, d) => getNode(cells, [d]),
-            registry,
-            {
-              preserveAlsSizes: normalizedPreserveSizes,
-              preferredAlsSize,
-            },
-          );
-
-          policyEntry = {
-            map,
-            registry,
-          };
-
-          cache.AlsPolicyCache.set(policyKey, policyEntry);
-        }
-
-        activeAlsLinkRegistry = policyEntry.registry;
-
-        aicOrMap = techniques.mergeOrMaps(aicOrMap, policyEntry.map);
-      } else {
-        // Existing generic optimized ALS map.
-        if (cache.AlsMap.size === 0) {
-          cache.AlsMap = techniques.buildAlsOrMap(
-            board,
-            pencils,
-            (cells, d) => getNode(cells, [d]),
-            cache.AlsLinkRegistry,
-          );
-        }
-
-        aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.AlsMap);
+      if (cache.AlsMap.size === 0) {
+        cache.AlsMap = techniques.buildAlsOrMap(
+          board,
+          pencils,
+          (cells, d) => getNode(cells, [d]),
+          cache.AlsLinkRegistry,
+        );
       }
+
+      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.AlsMap);
     }
 
     let activeFishLinkRegistry = cache.FishLinkRegistry;
@@ -867,7 +822,7 @@ Object.assign(techniques, {
       if (techniqueName === t("teks_ALS_W_Wing")) maxPathLen = 6;
 
       // Priority 2: DN Loop
-      if (!bivalueOnly && !useWxyz) {
+      if (!bivalueOnly) {
         for (const A of interestedNodes) {
           for (const D of A.OrNodes) {
             if (D.index < A.index) continue;
@@ -1076,54 +1031,6 @@ Object.assign(techniques, {
         useAls: false,
         maxCycle: 3,
         nameOverride: t("teks_Grouped_AIC"),
-      },
-      findAll,
-    );
-  },
-
-  wxyzWing: (board, pencils, findAll = false) => {
-    return techniques._findAic(
-      board,
-      pencils,
-      {
-        singleDigit: false,
-        bivalueOnly: false,
-        useGrouped: false,
-        useAlsXZ: true,
-        useWxyz: true,
-        useAls: true,
-        maxCycle: 1,
-        nameOverride: t("teks_WXYZ_Wing"),
-        preserveAlsSizes: [3],
-        preferredAlsSize: 3,
-        allowedOrLinkTypes: ["als", "bivalue"],
-
-        pathFilter: (path, cache, { getOrLinkType, getAlsForLink }) => {
-          if (path.length !== 4) {
-            return false;
-          }
-
-          const isBivalue = (nodeA, nodeB) =>
-            getOrLinkType(nodeA, nodeB) === "bivalue";
-
-          const isThreeCellAls = (nodeA, nodeB) => {
-            const als = getAlsForLink(nodeA, nodeB);
-
-            return (
-              getOrLinkType(nodeA, nodeB) === "als" && als?.cells.length === 3
-            );
-          };
-
-          const firstIsBivalue = isBivalue(path[0], path[1]);
-          const firstIsAls3 = isThreeCellAls(path[0], path[1]);
-
-          const secondIsBivalue = isBivalue(path[2], path[3]);
-          const secondIsAls3 = isThreeCellAls(path[2], path[3]);
-
-          return (
-            (firstIsBivalue && secondIsAls3) || (secondIsBivalue && firstIsAls3)
-          );
-        },
       },
       findAll,
     );

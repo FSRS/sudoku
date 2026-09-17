@@ -209,8 +209,6 @@ Object.assign(techniques, {
     const normalizedOptions =
       options && typeof options === "object" ? options : {};
 
-    const preserveAlsSizes = new Set(normalizedOptions.preserveAlsSizes || []);
-    const preferredAlsSize = normalizedOptions.preferredAlsSize ?? null;
     const preferSmallestAls = normalizedOptions.preferSmallestAls === true;
     const requireAlsCellSubsetForDominance =
       normalizedOptions.requireAlsCellSubsetForDominance === true;
@@ -273,11 +271,6 @@ Object.assign(techniques, {
     for (let i = 0; i < candidateLinks.length; i++) {
       const candidate = candidateLinks[i];
       const { nodeA, nodeB, als } = candidate;
-
-      if (preserveAlsSizes.has(als.cells.length)) {
-        finalLinks.push(candidate);
-        continue;
-      }
 
       let isDominated = false;
 
@@ -344,20 +337,6 @@ Object.assign(techniques, {
       if (preferSmallestAls) {
         if (als.cells.length < existing.cells.length) pairMap.set(nodeB, als);
         return;
-      }
-
-      if (preferredAlsSize !== null) {
-        const existingIsPreferred = existing.cells.length === preferredAlsSize;
-        const newIsPreferred = als.cells.length === preferredAlsSize;
-
-        if (newIsPreferred && !existingIsPreferred) {
-          pairMap.set(nodeB, als);
-          return;
-        }
-
-        if (existingIsPreferred && !newIsPreferred) {
-          return;
-        }
       }
 
       pairMap.set(nodeB, als);

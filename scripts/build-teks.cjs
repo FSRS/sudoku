@@ -25,6 +25,7 @@ const sources = [
   "firework.js",
   "aic/graph.js",
   "aic/search.js",
+  "aic/wxyz.js",
   "aic/blossom-als.js",
   "aic/death-blossom.js",
   "aic/almost-aic.js",
