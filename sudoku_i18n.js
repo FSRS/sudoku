@@ -1683,7 +1683,7 @@ const TRANSLATIONS = {
     teks_SdC_row: "행",
     teks_SdC_col: "열",
     teks_SdC_detail: "교차로 {0}, 교차로 밖 {1} 및 {2}, 숫자 ({3})",
-    teks_SdC_duplicate_digit_suffix: ", ({0})(이)가 두 번 나타남.",
+    teks_SdC_duplicate_digit_suffix: ", ({0})이(가) 두 번 나타남.",
     teks_SdC_intersection: "{1}번 {0}과 {2}번 상자의 교차로",
     teks_firework_triple: "삼중 불꽃놀이",
     teks_firework_quadruple: "사중 불꽃놀이",
@@ -1693,7 +1693,7 @@ const TRANSLATIONS = {
     teks_firework_quadruple_position: "({0})r{1}c{2}b{3}, ({4})r{5}c{6}b{7}",
     teks_AIC_name: "교대 추론 사슬",
     teks_AIC_box: "상자",
-    teks_start_with: "{0}로 시작",
+    teks_start_with: "{0}으로(로) 시작",
     teks_AIC_chain_name: "사슬",
     teks_DNL: "불연속 고리",
     teks_msg_chain_term: "사슬",
@@ -1763,7 +1763,7 @@ const TRANSLATIONS = {
       "({0}{1}){3}, 수호자 {2}, 가상의 드러난 부분집합을 위한 추가 칸 {4}",
     teks_BVO_type_4: "이중값 홀수각형 유형 4",
     teks_BVO_type_4_guardians_detail:
-      "({0}{1}){3}, 수호자 {2}가 인접한 두 칸에 위치함",
+      "({0}{1}){3}, 수호자 {2}이(가) 인접한 두 칸에 위치함",
     teks_BW: "꺾인 날개",
     teks_BW_digit: "숫자 ({0}) 사용",
     teks_BW_guardians: "({0}){1}, 수호자 {2}",
@@ -1813,7 +1813,7 @@ const TRANSLATIONS = {
     teks_BUG_type_2_guardians: "수호자 {0}",
     teks_BUG_type_3_guardians: "수호자 {0}",
     teks_BUG_type_3_VNS_detail:
-      "수호자 {0}, 가상의 드러난 부분집합 ({1})을 위한 추가 칸 {2}",
+      "수호자 {0}, 가상의 드러난 부분집합 ({1})을(를) 위한 추가 칸 {2}",
     teks_BUG_type_4_ConPair_detail: "수호자 {0}, {2}의 이중 위치 ({1})",
     teks_BUG_plus_n_guardians: "수호자 {0}",
     teks_GSP: "거스의 대칭 배치",
@@ -1911,39 +1911,35 @@ const JOSA_PAIRS = {
   "을(를)": ["을", "를"],
   "이(가)": ["이", "가"],
   "과(와)": ["과", "와"],
+  "으로(로)": ["으로", "로"],
 };
 
-const DIGIT_ENDS_IN_CONSONANT = [
-  true,
-  true,
-  false,
-  true,
-  false,
-  false,
-  true,
-  true,
-  true,
-  false,
-];
+const DIGIT_FINAL_JONG = [21, 8, 0, 16, 0, 0, 1, 8, 8, 0];
 const JOSA_SILENT = new Set([")", "]", "}", ">", '"', "'", " "]);
 
-function endsInConsonant(text, from) {
+function finalJong(text, from) {
   for (let i = from; i >= 0; i--) {
     const ch = text[i];
     if (JOSA_SILENT.has(ch)) continue;
-    if (ch >= "0" && ch <= "9") return DIGIT_ENDS_IN_CONSONANT[Number(ch)];
+    if (ch >= "0" && ch <= "9") return DIGIT_FINAL_JONG[Number(ch)];
     const code = ch.charCodeAt(0);
-    if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0;
+    if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28;
     return null;
   }
   return null;
 }
 
 function resolveJosa(text) {
-  return text.replace(/을\(를\)|이\(가\)|과\(와\)/g, (pair, offset) => {
-    const consonant = endsInConsonant(text, offset - 1);
-    return consonant === null ? pair : JOSA_PAIRS[pair][consonant ? 0 : 1];
-  });
+  return text.replace(
+    /을\(를\)|이\(가\)|과\(와\)|으로\(로\)/g,
+    (pair, offset) => {
+      const jong = finalJong(text, offset - 1);
+      if (jong === null) return pair;
+      const consonant =
+        pair === "으로(로)" ? jong !== 0 && jong !== 8 : jong !== 0;
+      return JOSA_PAIRS[pair][consonant ? 0 : 1];
+    },
+  );
 }
 
 /**
