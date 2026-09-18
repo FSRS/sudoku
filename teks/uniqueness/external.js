@@ -69,6 +69,7 @@ Object.assign(techniques, {
           subsetCands: extra.subsetDigits,
         },
         pencils,
+        removals,
       );
       const paint = (
         cells,
@@ -112,13 +113,6 @@ Object.assign(techniques, {
 
       paint(uniqueGuardians, [d1, d2], { candidateColor: 3 });
 
-      plan.candidateMarks = removals.map(({ r, c, num }) => ({
-        r,
-        c,
-        num,
-        marker: "slash",
-        color: 0,
-      }));
       return plan;
     };
 

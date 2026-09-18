@@ -142,6 +142,7 @@ Object.assign(techniques, {
     digits,
     extraData,
     sourcePencils,
+    removals,
   ) => {
     const coreDigits = new Set(digits);
     const placedIds = new Set(
@@ -193,6 +194,13 @@ Object.assign(techniques, {
       },
       cellColors,
       candidateColors,
+      candidateMarks: removals.map(({ r, c, num }) => ({
+        r,
+        c,
+        num,
+        marker: "slash",
+        color: 0,
+      })),
       links,
     };
   },

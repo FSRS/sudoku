@@ -434,6 +434,7 @@ Object.assign(techniques, {
         digits,
         extraData,
         pencils,
+        removals,
       );
 
       if (type === 6) {
@@ -459,13 +460,6 @@ Object.assign(techniques, {
         });
       }
 
-      plan.candidateMarks = removals.map(({ r, c, num }) => ({
-        r,
-        c,
-        num,
-        marker: "slash",
-        color: 0,
-      }));
       return plan;
     };
 

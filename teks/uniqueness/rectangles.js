@@ -78,6 +78,7 @@ Object.assign(techniques, {
         [d1, d2],
         extraData,
         pencils,
+        removals,
       );
 
       if (type === 6) {
@@ -106,13 +107,6 @@ Object.assign(techniques, {
         });
       }
 
-      plan.candidateMarks = removals.map(({ r, c, num }) => ({
-        r,
-        c,
-        num,
-        marker: "slash",
-        color: 0,
-      }));
       return plan;
     };
 
