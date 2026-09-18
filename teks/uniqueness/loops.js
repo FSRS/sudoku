@@ -57,6 +57,17 @@ Object.assign(techniques, {
       }
       if (cell_list.length < 6) continue;
 
+      // Digits a guardian carries beyond the pair; 0 for floor cells.
+      const pairBits = (1 << (d1 - 1)) | (1 << (d2 - 1));
+      const extraMask = new Uint16Array(81);
+      for (const id of cell_list) {
+        let mask = 0;
+        for (const digit of pencils[Math.floor(id / 9)][id % 9]) {
+          mask |= 1 << (digit - 1);
+        }
+        extraMask[id] = mask & ~pairBits;
+      }
+
       const neighbors = new Map();
       for (const id of cell_list) {
         const cell = [Math.floor(id / 9), id % 9];
@@ -75,6 +86,12 @@ Object.assign(techniques, {
         const path = [start];
         const used = new Set(path);
         let guardianCount = 0;
+        // Shared single extra digit of the guardians so far (-1 once broken)
+        // and their shared loop parity (-1 none, 2 mixed).  Three or more
+        // guardians only ever feed Type 2/5 (shared extra) or Type 6 (one
+        // parity), and both properties can only be lost as the path grows.
+        let guardianExtra = 0;
+        let guardianParity = -1;
         const houseCounts = new Uint8Array(27);
         const houseParityMasks = new Uint8Array(27);
         const getHouses = (id) => {
@@ -105,23 +122,39 @@ Object.assign(techniques, {
               )
             )
               continue;
+            let nextExtra = guardianExtra;
+            let nextParity = guardianParity;
+            if (isGuardian) {
+              const extra = extraMask[next];
+              if (guardianCount === 0) nextExtra = extra;
+              if (nextExtra !== extra || (extra & (extra - 1)) !== 0) {
+                nextExtra = -1;
+              }
+              nextParity =
+                guardianCount === 0 || guardianParity === parity ? parity : 2;
+              if (guardianCount >= 2 && nextExtra === -1 && nextParity === 2) {
+                continue;
+              }
+            }
 
             path.push(next);
             used.add(next);
             if (isGuardian) guardianCount++;
+            const oldGuardianExtra = guardianExtra;
+            const oldGuardianParity = guardianParity;
+            guardianExtra = nextExtra;
+            guardianParity = nextParity;
             for (const house of nextHouses) {
               houseCounts[house]++;
               houseParityMasks[house] |= parityBit;
             }
 
             let stop = false;
-            const isDeadlyBody = houseCounts.every(
-              (count) => count === 0 || count === 2,
-            );
             if (
               path.length >= 6 &&
               path.length % 2 === 0 &&
-              isDeadlyBody &&
+              guardianCount > 0 &&
+              houseCounts.every((count) => count === 0 || count === 2) &&
               techniques._sees(
                 [Math.floor(next / 9), next % 9],
                 [Math.floor(start / 9), start % 9],
@@ -153,6 +186,8 @@ Object.assign(techniques, {
             used.delete(next);
             path.pop();
             if (isGuardian) guardianCount--;
+            guardianExtra = oldGuardianExtra;
+            guardianParity = oldGuardianParity;
             if (stop) return true;
           }
           return false;
@@ -213,8 +248,18 @@ Object.assign(techniques, {
             cellList.push(id);
           }
         }
-        if (cellList.length < 6 || placed.size === 0 || floor.size === 0)
+        if (cellList.length < 6 || placed.size === 0 || floor.size < 2)
           continue;
+
+        const pairBits = (1 << (d1 - 1)) | (1 << (d2 - 1));
+        const extraMask = new Uint16Array(81);
+        for (const id of guardians) {
+          let mask = 0;
+          for (const digit of pencils[Math.floor(id / 9)][id % 9]) {
+            mask |= 1 << (digit - 1);
+          }
+          extraMask[id] = mask & ~pairBits;
+        }
 
         const neighbors = new Map();
         for (const id of cellList) {
@@ -239,6 +284,7 @@ Object.assign(techniques, {
             houseParityMasks[house] = 1;
           }
           let guardianCount = 0;
+          let guardianExtra = 0;
           let direction = placed.has(start)
             ? placed.get(start) === d1
               ? 1
@@ -265,6 +311,15 @@ Object.assign(techniques, {
               ) {
                 continue;
               }
+              let nextExtra = guardianExtra;
+              if (isGuardian) {
+                const extra = extraMask[next];
+                if (guardianCount === 0) nextExtra = extra;
+                if (nextExtra !== extra || (extra & (extra - 1)) !== 0) {
+                  nextExtra = -1;
+                }
+                if (guardianCount >= 2 && nextExtra === -1) continue;
+              }
 
               const oldDirection = direction;
               if (placed.has(next)) {
@@ -278,19 +333,19 @@ Object.assign(techniques, {
               path.push(next);
               used.add(next);
               if (isGuardian) guardianCount++;
+              const oldGuardianExtra = guardianExtra;
+              guardianExtra = nextExtra;
               for (const house of nextHouses) {
                 houseCounts[house]++;
                 houseParityMasks[house] |= parityBit;
               }
 
               let stop = false;
-              const isDeadlyBody = houseCounts.every(
-                (count) => count === 0 || count === 2,
-              );
               if (
                 path.length >= 6 &&
                 path.length % 2 === 0 &&
-                isDeadlyBody &&
+                guardianCount > 0 &&
+                houseCounts.every((count) => count === 0 || count === 2) &&
                 techniques._sees(
                   [Math.floor(next / 9), next % 9],
                   [Math.floor(start / 9), start % 9],
@@ -326,6 +381,7 @@ Object.assign(techniques, {
               used.delete(next);
               path.pop();
               if (isGuardian) guardianCount--;
+              guardianExtra = oldGuardianExtra;
               direction = oldDirection;
               if (stop) return true;
             }
@@ -430,19 +486,25 @@ Object.assign(techniques, {
       );
 
       const baseDigitsStr = `${d1}${d2}`;
-      const detailPrefix = avoidable
-        ? t(
-            "teks_AUL_base_guardians",
-            baseDigitsStr,
-            getBasePosStr(cells),
-            getGuardiansStr(extra_cells, d_set, pencils),
-          )
-        : t(
-            "teks_UL_base_guardians",
-            baseDigitsStr,
-            getBasePosStr(cells),
-            getGuardiansStr(extra_cells, d_set, pencils),
-          );
+      let detailPrefixCache = null;
+      const getDetailPrefix = () => {
+        if (detailPrefixCache === null) {
+          detailPrefixCache = avoidable
+            ? t(
+                "teks_AUL_base_guardians",
+                baseDigitsStr,
+                getBasePosStr(cells),
+                getGuardiansStr(extra_cells, d_set, pencils),
+              )
+            : t(
+                "teks_UL_base_guardians",
+                baseDigitsStr,
+                getBasePosStr(cells),
+                getGuardiansStr(extra_cells, d_set, pencils),
+              );
+        }
+        return detailPrefixCache;
+      };
 
       // --- Type 1 ---
       if (extra_cells.length === 1) {
@@ -460,7 +522,7 @@ Object.assign(techniques, {
                 avoidable ? "teks_AUL_digits" : "teks_UL_digits",
                 baseDigitsStr,
               ),
-              detail: detailPrefix,
+              detail: getDetailPrefix(),
             },
             visualPlan: getULVisualPlan(
               1,
@@ -528,7 +590,7 @@ Object.assign(techniques, {
                   avoidable ? "teks_AUL_digits" : "teks_UL_digits",
                   baseDigitsStr,
                 ),
-                detail: detailPrefix,
+                detail: getDetailPrefix(),
               },
               visualPlan: getULVisualPlan(
                 guardiansShareHouse ? 2 : 5,
@@ -634,7 +696,7 @@ Object.assign(techniques, {
                     avoidable
                       ? "teks_UL_subset_cells"
                       : "teks_EUR_subset_cells",
-                    detailPrefix,
+                    getDetailPrefix(),
                     subsetStr,
                   ),
                 },
@@ -720,7 +782,7 @@ Object.assign(techniques, {
                     mainInfo: t("teks_UL_digits", baseDigitsStr),
                     detail: t(
                       "teks_EUR_type_4_restricted_base_detail",
-                      detailPrefix,
+                      getDetailPrefix(),
                       d,
                       restrictedCellsStr,
                     ),
@@ -749,10 +811,6 @@ Object.assign(techniques, {
       // --- Type 6 ---
       // Avoidable loops intentionally do not define Type 6.
       if (!avoidable && extra_cells.length > 1) {
-        // A restricted base digit can occupy either parity of the loop, but
-        // not a mixture of both.  Therefore Type 6 only applies when every
-        // guardian belongs to the same parity of the loop order.  Whether
-        // guardians see one another is unrelated to this deduction.
         const guardianIds = new Set(
           extra_cells.map(([r, c]) => techniques._cellToId(r, c)),
         );
@@ -764,9 +822,6 @@ Object.assign(techniques, {
         });
 
         if (guardianParities.size === 1) {
-          // Group the loop cells by every house they occupy.  The loop
-          // finder guarantees two loop cells per occupied house; checking
-          // that explicitly here keeps the restriction test self-contained.
           const loopHouses = new Map();
           const addToHouse = (type, index, cell) => {
             const key = `${type}:${index}`;
@@ -785,9 +840,6 @@ Object.assign(techniques, {
           });
 
           for (const u of digits) {
-            // The base digit must be restricted to the two loop cells in
-            // every row, column, and box used by the loop.  This establishes
-            // the two alternating placements of that digit around the loop.
             const isRestrictedInAllLoopHouses = [...loopHouses.values()].every(
               ({ type, index, cellIds }) => {
                 if (cellIds.size !== 2) return false;
@@ -820,7 +872,7 @@ Object.assign(techniques, {
                 mainInfo: t("teks_UL_digits", baseDigitsStr),
                 detail: t(
                   "teks_UL_type_6_guardian_elimination_detail",
-                  detailPrefix,
+                  getDetailPrefix(),
                   u,
                 ),
               },

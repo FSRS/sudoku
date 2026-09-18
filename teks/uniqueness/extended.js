@@ -106,104 +106,6 @@ Object.assign(techniques, {
     return search(0);
   },
 
-  _checkAndAddER: (
-    pairs,
-    pencils,
-    er_list,
-    is_nx2,
-    found,
-    filledValues = null,
-    board = null,
-  ) => {
-    const pairMasks = [];
-    const bitCount = techniques._bits.popcount;
-    const bitFor = techniques._bits.bitFor;
-    let seenOnce = 0;
-    let eligibleMask = 0;
-
-    for (const [[r1, c1], [r2, c2]] of pairs) {
-      if (
-        !filledValues &&
-        (pencils[r1][c1].size < 2 || pencils[r2][c2].size < 2)
-      ) {
-        return;
-      }
-
-      let mask = 0;
-      const value1 = filledValues && filledValues[r1 * 9 + c1];
-      const value2 = filledValues && filledValues[r2 * 9 + c2];
-      if (value1) mask |= bitFor(value1);
-      else for (const digit of pencils[r1][c1]) mask |= bitFor(digit);
-      if (value2) mask |= bitFor(value2);
-      else for (const digit of pencils[r2][c2]) mask |= bitFor(digit);
-
-      if (bitCount(mask) < 2) return;
-      pairMasks.push(mask);
-
-      eligibleMask |= seenOnce & mask;
-      seenOnce |= mask;
-    }
-
-    const eligibleDigits = techniques._bits.maskToDigits(eligibleMask);
-    if (eligibleDigits.length < pairs.length) return;
-
-    const cells = pairs.flat();
-    const placedCells = filledValues
-      ? cells.filter(([r, c]) => filledValues[r * 9 + c] !== 0)
-      : [];
-    if (
-      filledValues &&
-      (placedCells.length === 0 || placedCells.length === cells.length)
-    ) {
-      return;
-    }
-    for (const digits of techniques.combinations(
-      eligibleDigits,
-      pairs.length,
-    )) {
-      let coreMask = 0;
-      for (const digit of digits) coreMask |= bitFor(digit);
-
-      let covered = true;
-      for (let i = 0; i < pairMasks.length; i++) {
-        if (bitCount(pairMasks[i] & coreMask) < 2) {
-          covered = false;
-          break;
-        }
-      }
-      if (!covered) continue;
-
-      if (filledValues) {
-        if (
-          placedCells.some(
-            ([r, c]) => (coreMask & bitFor(filledValues[r * 9 + c])) === 0,
-          )
-        ) {
-          continue;
-        }
-        if (
-          !techniques._avoidableERHasDeadlyFilling(
-            pairs,
-            digits,
-            board,
-            pencils,
-            filledValues,
-          )
-        ) {
-          continue;
-        }
-      }
-
-      const key = `${digits.join("")}:${cells
-        .map(([r, c]) => r * 9 + c)
-        .sort((a, b) => a - b)
-        .join(",")}`;
-      if (found.has(key)) continue;
-      found.add(key);
-      er_list.push({ cells, pairs, digits, is_nx2, placedCells });
-    }
-  },
-
   _findExtendedRectangles: function (
     pencils,
     filledValues = null,
@@ -212,42 +114,150 @@ Object.assign(techniques, {
     const rectangles = [];
     const found = new Set();
     const g = buildGrid(pencils);
-    const bitCount = techniques._bits.popcount;
-    const unionMask = (idA, idB) => {
-      const valueA = filledValues && filledValues[idA];
-      const valueB = filledValues && filledValues[idB];
-      return (
-        (valueA ? 1 << (valueA - 1) : g.cand[idA]) |
-        (valueB ? 1 << (valueB - 1) : g.cand[idB])
-      );
-    };
+    const popcount = techniques._bits.popcount;
+    const maskToDigits = techniques._bits.maskToDigits;
+    const cellMask = new Uint16Array(81);
+    for (let id = 0; id < 81; id++) {
+      const value = filledValues ? filledValues[id] : 0;
+      cellMask[id] = value ? 1 << (value - 1) : g.cand[id];
+    }
     const pairUsable = (idA, idB) => {
-      if (
-        !filledValues &&
-        (bitCount(g.cand[idA]) < 2 || bitCount(g.cand[idB]) < 2)
-      ) {
+      const maskA = cellMask[idA];
+      const maskB = cellMask[idB];
+      if (maskA === 0 || maskB === 0) return false;
+      if (!filledValues && (popcount(maskA) < 2 || popcount(maskB) < 2)) {
         return false;
       }
-      return bitCount(unionMask(idA, idB)) >= 2;
+      return popcount(maskA | maskB) >= 2;
     };
-    const addFrom = (lines, toPair, isNx2) => {
-      techniques._checkAndAddER(
-        lines.map(toPair),
-        pencils,
-        rectangles,
-        isNx2,
-        found,
-        filledValues,
-        board,
-      );
+
+    const ids = new Uint8Array(14);
+    const pairMasks = new Uint16Array(7);
+    let pairs = null;
+    let cells = null;
+    let placedCells = null;
+
+    const addPattern = (coreMask, count, isNx2) => {
+      for (let i = 0; i < count; i++) {
+        if (popcount(pairMasks[i] & coreMask) < 2) return;
+      }
+      if (filledValues) {
+        for (let i = 0; i < 2 * count; i++) {
+          const value = filledValues[ids[i]];
+          if (value && (coreMask & (1 << (value - 1))) === 0) return;
+        }
+      }
+      let guardians = 0;
+      let commonExtra = 0;
+      let singleCommonExtra = true;
+      for (let i = 0; i < 2 * count; i++) {
+        const extra = cellMask[ids[i]] & ~coreMask;
+        if (extra === 0) continue;
+        guardians++;
+        if (guardians === 1) commonExtra = extra;
+        if (extra !== commonExtra || (extra & (extra - 1)) !== 0) {
+          singleCommonExtra = false;
+        }
+      }
+      if (guardians === 0) return;
+      if (guardians >= 4 && !singleCommonExtra) return;
+      if (pairs === null) {
+        pairs = [];
+        for (let i = 0; i < count; i++) {
+          const idA = ids[2 * i];
+          const idB = ids[2 * i + 1];
+          pairs.push([
+            [Math.floor(idA / 9), idA % 9],
+            [Math.floor(idB / 9), idB % 9],
+          ]);
+        }
+        cells = pairs.flat();
+        placedCells = filledValues
+          ? cells.filter(([r, c]) => filledValues[r * 9 + c] !== 0)
+          : [];
+      }
+      const digits = maskToDigits(coreMask);
+      if (
+        filledValues &&
+        !techniques._avoidableERHasDeadlyFilling(
+          pairs,
+          digits,
+          board,
+          pencils,
+          filledValues,
+        )
+      ) {
+        return;
+      }
+      const key =
+        digits.join("") +
+        ":" +
+        cells
+          .map(([r, c]) => r * 9 + c)
+          .sort((a, b) => a - b)
+          .join(",");
+      if (found.has(key)) return;
+      found.add(key);
+      rectangles.push({ cells, pairs, digits, is_nx2: isNx2, placedCells });
+    };
+
+    const chooseCore = (eligible, need, fromBit, coreMask, count, isNx2) => {
+      if (need === 0) {
+        addPattern(coreMask, count, isNx2);
+        return;
+      }
+      for (let bit = fromBit; bit <= 9 - need; bit++) {
+        if ((eligible >> bit) & 1) {
+          chooseCore(
+            eligible,
+            need - 1,
+            bit + 1,
+            coreMask | (1 << bit),
+            count,
+            isNx2,
+          );
+        }
+      }
+    };
+
+    const checkPattern = (count, isNx2) => {
+      let seenOnce = 0;
+      let seenTwice = 0;
+      for (let i = 0; i < count; i++) {
+        const mask = cellMask[ids[2 * i]] | cellMask[ids[2 * i + 1]];
+        pairMasks[i] = mask;
+        seenTwice |= seenOnce & mask;
+        seenOnce |= mask;
+      }
+      if (popcount(seenTwice) < count) return;
+      if (filledValues) {
+        let placedCount = 0;
+        for (let i = 0; i < 2 * count; i++) {
+          if (filledValues[ids[i]]) placedCount++;
+        }
+        if (placedCount === 0 || placedCount === 2 * count) return;
+      }
+      pairs = null;
+      chooseCore(seenTwice, count, 0, 0, count, isNx2);
+    };
+
+    const chooseLines = (usable, need, from, depth, place, isNx2) => {
+      if (need === 0) {
+        checkPattern(depth, isNx2);
+        return;
+      }
+      for (let i = from; i <= usable.length - need; i++) {
+        place(usable[i], depth);
+        chooseLines(usable, need - 1, i + 1, depth + 1, place, isNx2);
+      }
     };
 
     for (let r1 = 0; r1 < 8; r1++) {
       for (let r2 = r1 + 1; r2 < 9; r2++) {
-        const toPair = (c) => [
-          [r1, c],
-          [r2, c],
-        ];
+        const place = (c, slot) => {
+          ids[2 * slot] = r1 * 9 + c;
+          ids[2 * slot + 1] = r2 * 9 + c;
+        };
         if (Math.floor(r1 / 3) === Math.floor(r2 / 3)) {
           const usable = [];
           for (let c = 0; c < 9; c++) {
@@ -255,15 +265,22 @@ Object.assign(techniques, {
           }
           for (let size = 3; size <= 7; size++) {
             if (usable.length < size) break;
-            for (const cols of techniques.combinations(usable, size)) {
-              addFrom(cols, toPair, false);
-            }
+            chooseLines(usable, size, 0, 0, place, false);
           }
         } else {
           for (let stack = 0; stack < 3; stack++) {
-            const cols = [stack * 3, stack * 3 + 1, stack * 3 + 2];
-            if (cols.some((c) => !pairUsable(r1 * 9 + c, r2 * 9 + c))) continue;
-            addFrom(cols, toPair, false);
+            const c0 = stack * 3;
+            if (
+              !pairUsable(r1 * 9 + c0, r2 * 9 + c0) ||
+              !pairUsable(r1 * 9 + c0 + 1, r2 * 9 + c0 + 1) ||
+              !pairUsable(r1 * 9 + c0 + 2, r2 * 9 + c0 + 2)
+            ) {
+              continue;
+            }
+            place(c0, 0);
+            place(c0 + 1, 1);
+            place(c0 + 2, 2);
+            checkPattern(3, false);
           }
         }
       }
@@ -271,10 +288,10 @@ Object.assign(techniques, {
 
     for (let c1 = 0; c1 < 8; c1++) {
       for (let c2 = c1 + 1; c2 < 9; c2++) {
-        const toPair = (r) => [
-          [r, c1],
-          [r, c2],
-        ];
+        const place = (r, slot) => {
+          ids[2 * slot] = r * 9 + c1;
+          ids[2 * slot + 1] = r * 9 + c2;
+        };
         if (Math.floor(c1 / 3) === Math.floor(c2 / 3)) {
           const usable = [];
           for (let r = 0; r < 9; r++) {
@@ -282,15 +299,22 @@ Object.assign(techniques, {
           }
           for (let size = 3; size <= 7; size++) {
             if (usable.length < size) break;
-            for (const rows of techniques.combinations(usable, size)) {
-              addFrom(rows, toPair, true);
-            }
+            chooseLines(usable, size, 0, 0, place, true);
           }
         } else {
           for (let band = 0; band < 3; band++) {
-            const rows = [band * 3, band * 3 + 1, band * 3 + 2];
-            if (rows.some((r) => !pairUsable(r * 9 + c1, r * 9 + c2))) continue;
-            addFrom(rows, toPair, true);
+            const r0 = band * 3;
+            if (
+              !pairUsable(r0 * 9 + c1, r0 * 9 + c2) ||
+              !pairUsable((r0 + 1) * 9 + c1, (r0 + 1) * 9 + c2) ||
+              !pairUsable((r0 + 2) * 9 + c1, (r0 + 2) * 9 + c2)
+            ) {
+              continue;
+            }
+            place(r0, 0);
+            place(r0 + 1, 1);
+            place(r0 + 2, 2);
+            checkPattern(3, true);
           }
         }
       }
@@ -421,19 +445,25 @@ Object.assign(techniques, {
       );
 
       const baseDigitsStr = digits.sort().join("");
-      const detailPrefix = avoidable
-        ? t(
-            "teks_AEUR_base_guardians",
-            baseDigitsStr,
-            getBasePosStr(cells),
-            getGuardiansStr(extra_cells, core_digits, pencils),
-          )
-        : t(
-            "teks_EUR_base_guardians",
-            baseDigitsStr,
-            getBasePosStr(cells),
-            getGuardiansStr(extra_cells, core_digits, pencils),
-          );
+      let detailPrefixCache = null;
+      const getDetailPrefix = () => {
+        if (detailPrefixCache === null) {
+          detailPrefixCache = avoidable
+            ? t(
+                "teks_AEUR_base_guardians",
+                baseDigitsStr,
+                getBasePosStr(cells),
+                getGuardiansStr(extra_cells, core_digits, pencils),
+              )
+            : t(
+                "teks_EUR_base_guardians",
+                baseDigitsStr,
+                getBasePosStr(cells),
+                getGuardiansStr(extra_cells, core_digits, pencils),
+              );
+        }
+        return detailPrefixCache;
+      };
 
       // --- Type 1 ---
       if (extra_cells.length === 1) {
@@ -452,7 +482,7 @@ Object.assign(techniques, {
                 avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
                 baseDigitsStr,
               ),
-              detail: detailPrefix,
+              detail: getDetailPrefix(),
             },
             visualPlan: getEURVisualPlan(
               1,
@@ -522,7 +552,7 @@ Object.assign(techniques, {
                   avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
                   baseDigitsStr,
                 ),
-                detail: detailPrefix,
+                detail: getDetailPrefix(),
               },
               visualPlan: getEURVisualPlan(
                 guardiansShareHouse ? 2 : 5,
@@ -631,7 +661,11 @@ Object.assign(techniques, {
                     avoidable ? "teks_AEUR_digits" : "teks_EUR_digits",
                     baseDigitsStr,
                   ),
-                  detail: t("teks_EUR_subset_cells", detailPrefix, subsetStr),
+                  detail: t(
+                    "teks_EUR_subset_cells",
+                    getDetailPrefix(),
+                    subsetStr,
+                  ),
                 },
                 visualPlan: getEURVisualPlan(
                   3,
@@ -730,7 +764,7 @@ Object.assign(techniques, {
                     ),
                     detail: t(
                       "teks_EUR_type_4_restricted_base_detail",
-                      detailPrefix,
+                      getDetailPrefix(),
                       d,
                       restrictedCellsStr,
                     ),
@@ -816,7 +850,7 @@ Object.assign(techniques, {
                     ),
                     detail: t(
                       "teks_EUR_type_6_guardian_elimination_detail",
-                      detailPrefix,
+                      getDetailPrefix(),
                       d,
                     ),
                   },
