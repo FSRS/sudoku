@@ -617,7 +617,6 @@ Object.assign(techniques, {
     return techniques._templatingCache[num];
   },
 
-  _solvedBoardCache: { signature: null, board: null },
   _sharedAICCache: { signature: null, cache: null },
 
   _positionSignature: (board, pencils) => {
@@ -645,88 +644,6 @@ Object.assign(techniques, {
     }
     shared.signature = signature;
     shared.cache = techniques._aicCache;
-  },
-
-  _getSolvedBoard: (board) => {
-    const signature = board.map((row) => row.join("")).join("");
-    const cache = techniques._solvedBoardCache;
-    if (cache.signature === signature) return cache.board;
-
-    const grid = new Int8Array(81);
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) grid[r * 9 + c] = board[r][c];
-    }
-    const rowMasks = new Int32Array(9);
-    const colMasks = new Int32Array(9);
-    const boxMasks = new Int32Array(9);
-    const boxOf = (id) =>
-      Math.floor(Math.floor(id / 9) / 3) * 3 + Math.floor((id % 9) / 3);
-    for (let id = 0; id < 81; id++) {
-      const digit = grid[id];
-      if (!digit) continue;
-      const bit = 1 << digit;
-      rowMasks[Math.floor(id / 9)] |= bit;
-      colMasks[id % 9] |= bit;
-      boxMasks[boxOf(id)] |= bit;
-    }
-
-    const allDigits = 0x3fe;
-    const fill = () => {
-      let bestId = -1;
-      let bestMask = 0;
-      let bestCount = 10;
-      for (let id = 0; id < 81; id++) {
-        if (grid[id]) continue;
-        const mask =
-          allDigits &
-          ~(
-            rowMasks[Math.floor(id / 9)] |
-            colMasks[id % 9] |
-            boxMasks[boxOf(id)]
-          );
-        let count = 0;
-        let bits = mask;
-        while (bits !== 0) {
-          bits &= bits - 1;
-          count++;
-        }
-        if (count === 0) return false;
-        if (count < bestCount) {
-          bestCount = count;
-          bestId = id;
-          bestMask = mask;
-          if (count === 1) break;
-        }
-      }
-      if (bestId < 0) return true;
-
-      const row = Math.floor(bestId / 9);
-      const col = bestId % 9;
-      const box = boxOf(bestId);
-      let bits = bestMask;
-      while (bits !== 0) {
-        const low = bits & -bits;
-        grid[bestId] = 31 - Math.clz32(low);
-        rowMasks[row] |= low;
-        colMasks[col] |= low;
-        boxMasks[box] |= low;
-        if (fill()) return true;
-        grid[bestId] = 0;
-        rowMasks[row] &= ~low;
-        colMasks[col] &= ~low;
-        boxMasks[box] &= ~low;
-        bits &= bits - 1;
-      }
-      return false;
-    };
-
-    cache.signature = signature;
-    cache.board = fill()
-      ? Array.from({ length: 9 }, (_, r) =>
-          Array.from({ length: 9 }, (_, c) => grid[r * 9 + c]),
-        )
-      : null;
-    return cache.board;
   },
 
   _resetAICCache: () => {
@@ -757,22 +674,5 @@ Object.assign(techniques, {
     techniques._sharedAICCache.signature = null;
     techniques._sharedAICCache.cache = null;
     techniques._resetAICCache();
-  },
-
-  _addLink: (map, u, v) => {
-    if (!map.has(u.key)) map.set(u.key, []);
-    map.get(u.key).push(v);
-  },
-
-  _mergeMaps: (...maps) => {
-    const result = new Map();
-    for (const m of maps) {
-      for (const [key, neighbors] of m) {
-        if (!result.has(key)) result.set(key, []);
-        const target = result.get(key);
-        for (const n of neighbors) target.push(n);
-      }
-    }
-    return result;
   },
 });

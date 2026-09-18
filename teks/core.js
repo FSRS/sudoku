@@ -8,33 +8,6 @@ window.resetComplexFishMemo = function () {
   _memoComplexFish.mutant = new Set();
 };
 
-window.addCellColor = function (r, c, color) {
-  const existing = boardState[r][c].cellColor;
-  if (!existing) {
-    boardState[r][c].cellColor = [color]; // Starts as array to support splitting
-  } else if (Array.isArray(existing)) {
-    if (!existing.includes(color)) existing.push(color);
-  } else {
-    if (existing !== color) boardState[r][c].cellColor = [existing, color];
-  }
-};
-
-window.addCandidateCircle = function (r, c, num, color) {
-  boardState[r][c].candCircles.set(num, color);
-};
-
-window.addCandidateColor = function (r, c, num, color) {
-  const existing = boardState[r][c].pencilColors.get(num);
-  if (!existing) {
-    boardState[r][c].pencilColors.set(num, [color]);
-  } else if (Array.isArray(existing)) {
-    if (!existing.includes(color)) existing.push(color);
-  } else {
-    if (existing !== color)
-      boardState[r][c].pencilColors.set(num, [existing, color]);
-  }
-};
-
 const CELL_PART = new Uint8Array(81);
 const CELL_BIT = new Int32Array(81);
 for (let id = 0; id < 81; id++) {

@@ -7,20 +7,28 @@ Object.assign(techniques, {
       highlightState = plan.highlight.state;
     }
 
-    for (const { r, c, color, mode } of plan.cellColors || []) {
-      if (mode === "add") {
-        window.addCellColor(r, c, cellColorPalette[color]);
-      } else {
-        boardState[r][c].cellColor = cellColorPalette[color];
+    const addColor = (existing, value) => {
+      if (!existing) return [value]; // Starts as array to support splitting
+      if (Array.isArray(existing)) {
+        if (!existing.includes(value)) existing.push(value);
+        return existing;
       }
+      return existing === value ? existing : [existing, value];
+    };
+
+    for (const { r, c, color, mode } of plan.cellColors || []) {
+      const cell = boardState[r][c];
+      const value = cellColorPalette[color];
+      cell.cellColor = mode === "add" ? addColor(cell.cellColor, value) : value;
     }
 
     for (const { r, c, num, color, mode } of plan.candidateColors || []) {
-      if (mode === "add") {
-        window.addCandidateColor(r, c, num, candidateColorPalette[color]);
-      } else {
-        boardState[r][c].pencilColors.set(num, candidateColorPalette[color]);
-      }
+      const colors = boardState[r][c].pencilColors;
+      const value = candidateColorPalette[color];
+      colors.set(
+        num,
+        mode === "add" ? addColor(colors.get(num), value) : value,
+      );
     }
 
     for (const { r, c, num, marker, color } of plan.candidateMarks || []) {
@@ -128,17 +136,6 @@ Object.assign(techniques, {
     };
   },
 
-  _applySingleDigitChainVisuals: (digit, nodes, removals, grouped = false) => {
-    techniques._applyVisualPlan(
-      techniques._buildSingleDigitChainVisualPlan(
-        digit,
-        nodes,
-        removals,
-        grouped,
-      ),
-    );
-  },
-
   _buildDeadlyPatternBaseVisualPlan: (
     type,
     cells,
@@ -198,20 +195,5 @@ Object.assign(techniques, {
       candidateColors,
       links,
     };
-  },
-
-  _applyDeadlyPatternBaseVisuals: (type, cells, digits, extraData) => {
-    const sourcePencils = boardState.map((row) =>
-      row.map((cell) => cell.pencils),
-    );
-    techniques._applyVisualPlan(
-      techniques._buildDeadlyPatternBaseVisualPlan(
-        type,
-        cells,
-        digits,
-        extraData,
-        sourcePencils,
-      ),
-    );
   },
 });

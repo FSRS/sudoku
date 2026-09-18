@@ -72,53 +72,19 @@ Object.assign(techniques, {
     const getBasePosStr = techniques._formatRectangleBounds;
 
     const getURVisualPlan = (type, cells, d1, d2, removals, extraData = {}) => {
-      const placedIds = new Set(
-        (extraData.placedCells || []).map(([r, c]) => r * 9 + c),
+      const plan = techniques._buildDeadlyPatternBaseVisualPlan(
+        type,
+        cells,
+        [d1, d2],
+        extraData,
+        pencils,
       );
-      const candidateColors = cells.flatMap(([r, c]) =>
-        Array.from(pencils[r][c], (num) => ({
-          r,
-          c,
-          num,
-          color: num === d1 || num === d2 ? 7 : 3,
-        })),
-      );
-      const cellColors = cells.map(([r, c]) => ({
-        r,
-        c,
-        color: placedIds.has(r * 9 + c) ? 6 : 7,
-      }));
-      const links = [];
-
-      if (type === 3) {
-        for (const [r, c] of extraData.subsetCells) {
-          cellColors.push({ r, c, color: placedIds.size > 0 ? 5 : 6 });
-          for (const num of pencils[r][c]) {
-            if (extraData.subsetCands.has(num)) {
-              candidateColors.push({ r, c, num, color: 4 });
-            }
-          }
-        }
-      }
-
-      if (type === 4) {
-        links.push({
-          r1: extraData.e1[0],
-          c1: extraData.e1[1],
-          n1: extraData.restrictedDigit,
-          r2: extraData.e2[0],
-          c2: extraData.e2[1],
-          n2: extraData.restrictedDigit,
-          color: 0,
-          style: "solid",
-        });
-      }
 
       if (type === 6) {
         const u = extraData.restrictedDigit;
         const rows = [...new Set(cells.map((c) => c[0]))];
         const cols = [...new Set(cells.map((c) => c[1]))];
-        links.push({
+        plan.links.push({
           r1: rows[0],
           c1: cols[0],
           n1: u,
@@ -128,7 +94,7 @@ Object.assign(techniques, {
           color: 0,
           style: "solid",
         });
-        links.push({
+        plan.links.push({
           r1: rows[1],
           c1: cols[0],
           n1: u,
@@ -140,22 +106,14 @@ Object.assign(techniques, {
         });
       }
 
-      return {
-        highlight: {
-          digit: type === 4 || type === 6 ? extraData.restrictedDigit : null,
-          state: type === 4 || type === 6 ? 1 : 0,
-        },
-        cellColors,
-        candidateColors,
-        candidateMarks: removals.map(({ r, c, num }) => ({
-          r,
-          c,
-          num,
-          marker: "slash",
-          color: 0,
-        })),
-        links,
-      };
+      plan.candidateMarks = removals.map(({ r, c, num }) => ({
+        r,
+        c,
+        num,
+        marker: "slash",
+        color: 0,
+      }));
+      return plan;
     };
 
     const getURXyWingVisualPlan = (

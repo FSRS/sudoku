@@ -8,7 +8,6 @@ const COLORING_BUF = {
 };
 
 Object.assign(techniques, {
-  _getCandId: (r, c, n) => (r * 9 + c) * 9 + (n - 1),
 
   // Helper: Parse the 0-728 ID back into { r, c, n }
   _parseCandId: (id) => {

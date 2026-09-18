@@ -57,8 +57,19 @@ Object.assign(techniques, {
       `${type === "row" ? "r" : type === "col" ? "c" : "b"}${index + 1}`;
 
     const makeVisualPlan = (body, d1, d2, guardians, removals, extra = {}) => {
-      const cellColors = [];
-      const candidateColors = [];
+      // Rectangle body (+ Type 3 subset) comes from the shared deadly-pattern
+      // builder; only the external guardians, AHS and wings are UET-specific.
+      const plan = techniques._buildDeadlyPatternBaseVisualPlan(
+        extra.subsetCells ? 3 : 2,
+        body,
+        [d1, d2],
+        {
+          placedCells: body.filter(([r, c]) => board[r][c] !== 0),
+          subsetCells: extra.subsetCells,
+          subsetCands: extra.subsetDigits,
+        },
+        pencils,
+      );
       const paint = (
         cells,
         digits,
@@ -66,24 +77,20 @@ Object.assign(techniques, {
       ) => {
         for (const [r, c] of cells) {
           if (cellColor !== undefined) {
-            cellColors.push({ r, c, color: cellColor });
+            plan.cellColors.push({ r, c, color: cellColor });
           }
           for (const num of digits) {
             if (pencils[r][c].has(num)) {
-              candidateColors.push({ r, c, num, color: candidateColor });
+              plan.candidateColors.push({ r, c, num, color: candidateColor });
             }
           }
         }
       };
 
-      paint(body, [d1, d2], { cellColor: 7 });
       const uniqueGuardians = uniqueCells(guardians);
       paint(uniqueGuardians, [d1, d2], {
         cellColor: 6,
         candidateColor: 3,
-      });
-      paint(extra.subsetCells || [], extra.subsetDigits || [], {
-        cellColor: 5,
       });
 
       const guardianKeys = new Set(
@@ -105,18 +112,14 @@ Object.assign(techniques, {
 
       paint(uniqueGuardians, [d1, d2], { candidateColor: 3 });
 
-      return {
-        highlight: { digit: null, state: 0 },
-        cellColors,
-        candidateColors,
-        candidateMarks: removals.map(({ r, c, num }) => ({
-          r,
-          c,
-          num,
-          marker: "slash",
-          color: 0,
-        })),
-      };
+      plan.candidateMarks = removals.map(({ r, c, num }) => ({
+        r,
+        c,
+        num,
+        marker: "slash",
+        color: 0,
+      }));
+      return plan;
     };
 
     const publish = (

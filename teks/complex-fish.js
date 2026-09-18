@@ -552,30 +552,6 @@ Object.assign(techniques, {
     return findAll ? results : { change: false };
   },
 
-  finnedFrankenSwordfish: (board, pencils, findAll = false) => {
-    return techniques._complexFishCore(board, pencils, 3, false, findAll);
-  },
-
-  finnedMutantSwordfish: (board, pencils, findAll = false) => {
-    return techniques._complexFishCore(board, pencils, 3, true, findAll);
-  },
-
-  finnedFrankenJellyfish: (board, pencils, findAll = false) => {
-    return techniques._complexFishCore(board, pencils, 4, false, findAll);
-  },
-
-  finnedMutantJellyfish: (board, pencils, findAll = false) => {
-    return techniques._complexFishCore(board, pencils, 4, true, findAll);
-  },
-
-  finnedFrankenSquirmbag: (board, pencils, findAll = false) => {
-    return techniques._complexFishCore(board, pencils, 5, false, findAll);
-  },
-
-  finnedMutantSquirmbag: (board, pencils, findAll = false) => {
-    return techniques._complexFishCore(board, pencils, 5, true, findAll);
-  },
-
   complexFish: (board, pencils, fishSize, findAll = false) => {
     if (findAll) {
       return [
