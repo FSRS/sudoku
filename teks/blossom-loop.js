@@ -705,47 +705,11 @@ Object.assign(techniques, {
       }
     };
 
-    const getLoc = (cells, preferBox = false) => {
-      const ids = [...new Set(cells)].sort((a, b) => a - b);
-      if (ids.length === 0) return "";
-
-      if (ids.length === 1) {
-        const r = Math.floor(ids[0] / 9);
-        const c = ids[0] % 9;
-        if (preferBox) {
-          const box = Math.floor(r / 3) * 3 + Math.floor(c / 3) + 1;
-          const position = (r % 3) * 3 + (c % 3) + 1;
-          return `b${box}p${position}`;
-        }
-        return `r${r + 1}c${c + 1}`;
-      }
-
-      const rows = [...new Set(ids.map((id) => Math.floor(id / 9) + 1))];
-      const cols = [...new Set(ids.map((id) => (id % 9) + 1))];
-      const boxes = [
-        ...new Set(
-          ids.map(
-            (id) =>
-              Math.floor(Math.floor(id / 9) / 3) * 3 +
-              Math.floor((id % 9) / 3) +
-              1,
-          ),
-        ),
-      ];
-      if (preferBox && boxes.length === 1) {
-        const positions = ids.map((id) => {
-          const r = Math.floor(id / 9) % 3;
-          const c = (id % 9) % 3;
-          return r * 3 + c + 1;
-        });
-        return `b${boxes[0]}p${positions.join("")}`;
-      }
-      if (rows.length === 1) return `r${rows[0]}c${cols.join("")}`;
-      if (cols.length === 1) return `r${rows.join("")}c${cols[0]}`;
-      return ids
-        .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
-        .join("");
-    };
+    const getLoc = (cells, preferBox = false) =>
+      techniques._formatAicLocation(
+        [...new Set(cells)].sort((a, b) => a - b),
+        preferBox,
+      );
 
     const getAlsForLink = (left, right) =>
       blossomAlsLinkRegistry.get(left)?.get(right) || null;

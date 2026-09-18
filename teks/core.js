@@ -332,33 +332,96 @@ Object.assign(techniques, {
   // --- UNIT CACHING ---
   _getUnitCellsCached: (unitIndex) => UNIT_CELLS[unitIndex],
 
+  // Accepts {r,c} objects, [r,c] pairs, or 0..80 cell ids.
   _normalizeCells: (cells) =>
-    cells.map((cell) => [
-      cell.r !== undefined ? cell.r : cell[0],
-      cell.c !== undefined ? cell.c : cell[1],
-    ]),
+    cells.map((cell) =>
+      typeof cell === "number"
+        ? [Math.floor(cell / 9), cell % 9]
+        : [
+            cell.r !== undefined ? cell.r : cell[0],
+            cell.c !== undefined ? cell.c : cell[1],
+          ],
+    ),
 
+  // Compresses a cell list into the shortest readable notation
   _formatCellsRC: (cells) => {
     if (!cells || cells.length === 0) return "";
-    const normalized = techniques._normalizeCells(cells);
-    if (normalized.length === 1) {
-      return `r${normalized[0][0] + 1}c${normalized[0][1] + 1}`;
+    const ids = [
+      ...new Set(techniques._normalizeCells(cells).map(([r, c]) => r * 9 + c)),
+    ].sort((a, b) => a - b);
+    if (ids.length === 1) {
+      return `r${Math.floor(ids[0] / 9) + 1}c${(ids[0] % 9) + 1}`;
     }
-    if (normalized.every((cell) => cell[0] === normalized[0][0])) {
-      const columns = normalized
-        .map((cell) => cell[1] + 1)
+
+    const lineToken = (isRow, line, members) => {
+      const digits = members.map((n) => n + 1).join("");
+      return isRow ? `r${line + 1}c${digits}` : `r${digits}c${line + 1}`;
+    };
+
+    const greedy = () => {
+      const remaining = new Set(ids);
+      const tokens = [];
+      while (remaining.size > 0) {
+        const byRow = new Map();
+        const byCol = new Map();
+        for (const id of remaining) {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (!byRow.has(r)) byRow.set(r, []);
+          byRow.get(r).push(c);
+          if (!byCol.has(c)) byCol.set(c, []);
+          byCol.get(c).push(r);
+        }
+        let best = null;
+        for (const [r, cols] of byRow) {
+          if (!best || cols.length > best.members.length) {
+            best = { isRow: true, line: r, members: cols };
+          }
+        }
+        for (const [c, rows] of byCol) {
+          if (rows.length > best.members.length) {
+            best = { isRow: false, line: c, members: rows };
+          }
+        }
+        const members = best.members;
+        if (best.isRow) {
+          tokens.push({
+            r: best.line,
+            c: members[0],
+            text: lineToken(true, best.line, members),
+          });
+          for (const c of members) remaining.delete(best.line * 9 + c);
+        } else {
+          tokens.push({
+            r: members[0],
+            c: best.line,
+            text: lineToken(false, best.line, members),
+          });
+          for (const r of members) remaining.delete(r * 9 + best.line);
+        }
+      }
+      tokens.sort((a, b) => a.r - b.r || a.c - b.c);
+      return tokens.map((token) => token.text).join(",");
+    };
+
+    const byLine = (isRow) => {
+      const groups = new Map();
+      for (const id of ids) {
+        const line = isRow ? Math.floor(id / 9) : id % 9;
+        if (!groups.has(line)) groups.set(line, []);
+        groups.get(line).push(isRow ? id % 9 : Math.floor(id / 9));
+      }
+      return [...groups.keys()]
         .sort((a, b) => a - b)
-        .join("");
-      return `r${normalized[0][0] + 1}c${columns}`;
+        .map((line) => lineToken(isRow, line, groups.get(line)))
+        .join(",");
+    };
+
+    let shortest = greedy();
+    for (const text of [byLine(true), byLine(false)]) {
+      if (text.length < shortest.length) shortest = text;
     }
-    if (normalized.every((cell) => cell[1] === normalized[0][1])) {
-      const rows = normalized
-        .map((cell) => cell[0] + 1)
-        .sort((a, b) => a - b)
-        .join("");
-      return `r${rows}c${normalized[0][1] + 1}`;
-    }
-    return normalized.map(([r, c]) => `r${r + 1}c${c + 1}`).join(",");
+    return shortest;
   },
 
   _formatBoxPoints: (cells, boxIndex) => {

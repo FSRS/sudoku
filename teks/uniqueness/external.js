@@ -30,27 +30,7 @@ Object.assign(techniques, {
         .sort((a, b) => a - b)
         .map(idToCell);
     const formatBody = techniques._formatRectangleBounds;
-    const formatCompactCells = (cells) => {
-      const unique = uniqueCells(cells);
-      const groupBy = (primaryIndex, secondaryIndex, primaryPrefix) => {
-        const groups = new Map();
-        unique.forEach((cell) => {
-          const primary = cell[primaryIndex];
-          if (!groups.has(primary)) groups.set(primary, []);
-          groups.get(primary).push(cell[secondaryIndex] + 1);
-        });
-        return [...groups]
-          .map(([primary, secondary]) =>
-            primaryPrefix === "r"
-              ? `r${primary + 1}c${secondary.join("")}`
-              : `r${secondary.join("")}c${primary + 1}`,
-          )
-          .join(",");
-      };
-      const byRow = groupBy(0, 1, "r");
-      const byColumn = groupBy(1, 0, "c");
-      return byColumn.length < byRow.length ? byColumn : byRow;
-    };
+    const formatCompactCells = techniques._formatCellsRC;
     const formatCandidateCells = (cells, getDigits) => {
       const byDigits = new Map();
       uniqueCells(cells).forEach(([r, c]) => {

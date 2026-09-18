@@ -166,31 +166,7 @@ Object.assign(techniques, {
         }
       }
 
-      const formatCells = (cells) => {
-        const rows = new Set(cells.map(({ r }) => r));
-        const cols = new Set(cells.map(({ c }) => c));
-        const groupByRow = rows.size <= cols.size;
-        const groups = new Map();
-
-        for (const { r, c } of cells) {
-          const key = groupByRow ? r : c;
-          if (!groups.has(key)) groups.set(key, []);
-          groups.get(key).push(groupByRow ? c : r);
-        }
-
-        return Array.from(groups.entries())
-          .sort(([a], [b]) => a - b)
-          .map(([key, values]) => {
-            const positions = values
-              .sort((a, b) => a - b)
-              .map((value) => value + 1)
-              .join("");
-            return groupByRow
-              ? `r${key + 1}c${positions}`
-              : `r${positions}c${key + 1}`;
-          })
-          .join(",");
-      };
+      const formatCells = techniques._formatCellsRC;
 
       return Array.from(guardiansByDigit.entries())
         .sort(([a], [b]) => a - b)

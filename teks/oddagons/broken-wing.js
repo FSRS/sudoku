@@ -2,39 +2,7 @@ Object.assign(techniques, {
   brokenWing: (board, pencils, findAll = false) => {
     const results = [];
 
-    const getCompactLoc = (cellIds) => {
-      if (cellIds.length === 0) return "";
-      if (cellIds.length === 1)
-        return `r${Math.floor(cellIds[0] / 9) + 1}c${(cellIds[0] % 9) + 1}`;
-
-      const rows = new Set(cellIds.map((id) => Math.floor(id / 9)));
-      const cols = new Set(cellIds.map((id) => id % 9));
-
-      // Group by the dimension that produces fewer groups
-      const groupByRow = rows.size <= cols.size;
-      const groups = new Map();
-
-      for (const id of cellIds) {
-        const r = Math.floor(id / 9);
-        const c = id % 9;
-        const key = groupByRow ? r : c;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(groupByRow ? c : r);
-      }
-
-      return Array.from(groups.entries())
-        .sort(([k1], [k2]) => k1 - k2)
-        .map(([key, values]) => {
-          const positions = values
-            .sort((a, b) => a - b)
-            .map((value) => value + 1)
-            .join("");
-          return groupByRow
-            ? `r${key + 1}c${positions}`
-            : `r${positions}c${key + 1}`;
-        })
-        .join(",");
-    };
+    const getCompactLoc = techniques._formatCellsRC;
 
     // The odd-length loop itself may use at most two cells from each house.
     // Guardians are deliberately excluded: they are tracked separately and can

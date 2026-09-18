@@ -64,15 +64,7 @@ Object.assign(techniques, {
           return guardians ? [`(${guardians})r${r + 1}c${c + 1}`] : [];
         })
         .join(",");
-    const formatCellIds = (ids) => {
-      const rows = [...new Set(ids.map((id) => Math.floor(id / 9) + 1))];
-      const columns = [...new Set(ids.map((id) => (id % 9) + 1))];
-      if (rows.length === 1) return `r${rows[0]}c${columns.join("")}`;
-      if (columns.length === 1) return `r${rows.join("")}c${columns[0]}`;
-      return ids
-        .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
-        .join(",");
-    };
+    const formatCellIds = techniques._formatCellsRC;
     const formatLinkDetails = (links) => {
       const bivalueCells = links
         .filter(({ kind }) => kind === "biCell")

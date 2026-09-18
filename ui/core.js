@@ -142,65 +142,6 @@ function formatDifficultyRating(engine, rating10) {
 }
 
 /**
- * Compresses a cell list into the shortest readable notation by repeatedly
- * merging the cells that share a row (r6c45) or a column (r89c1), whichever
- * covers more cells. Ties keep the row form.
- * e.g. r6c4,r6c5,r8c1,r9c1,r9c3,r9c5 -> r6c45,r8c1,r9c135
- */
-function formatCellList(cells) {
-  const remaining = new Map();
-  for (const cell of cells) {
-    remaining.set(cell.r * 9 + cell.c, { r: cell.r, c: cell.c });
-  }
-
-  const tokens = [];
-  while (remaining.size > 0) {
-    const byRow = new Map();
-    const byCol = new Map();
-    for (const { r, c } of remaining.values()) {
-      if (!byRow.has(r)) byRow.set(r, []);
-      byRow.get(r).push(c);
-      if (!byCol.has(c)) byCol.set(c, []);
-      byCol.get(c).push(r);
-    }
-
-    let best = null;
-    for (const [r, cols] of byRow) {
-      if (!best || cols.length > best.members.length) {
-        best = { isRow: true, line: r, members: cols };
-      }
-    }
-    for (const [c, rows] of byCol) {
-      // Strict > so an equally large column group never displaces the row form.
-      if (rows.length > best.members.length) {
-        best = { isRow: false, line: c, members: rows };
-      }
-    }
-
-    const members = best.members.sort((a, b) => a - b);
-    const digits = members.map((n) => n + 1).join("");
-    if (best.isRow) {
-      tokens.push({
-        r: best.line,
-        c: members[0],
-        text: `r${best.line + 1}c${digits}`,
-      });
-      for (const c of members) remaining.delete(best.line * 9 + c);
-    } else {
-      tokens.push({
-        r: members[0],
-        c: best.line,
-        text: `r${digits}c${best.line + 1}`,
-      });
-      for (const r of members) remaining.delete(r * 9 + best.line);
-    }
-  }
-
-  tokens.sort((a, b) => a.r - b.r || a.c - b.c);
-  return tokens.map((token) => token.text).join(",");
-}
-
-/**
  * Renders what a technique result does, for the hint / solver / VAT messages.
  */
 function formatResultAction(result, separator = ", ") {
@@ -218,7 +159,7 @@ function formatResultAction(result, separator = ", ") {
 
   const groups = [];
   for (const d of Array.from(removalsByDigit.keys()).sort((a, b) => a - b)) {
-    groups.push(`${formatCellList(removalsByDigit.get(d))}<>${d}`);
+    groups.push(`${techniques._formatCellsRC(removalsByDigit.get(d))}<>${d}`);
   }
 
   return groups.join(separator);

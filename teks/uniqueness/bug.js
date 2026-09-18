@@ -138,26 +138,7 @@ Object.assign(techniques, {
       (sameCell(a, b) && a.num !== b.num) ||
       (a.num === b.num && !sameCell(a, b) && sees(a, b));
 
-    const formatCells = (cells) => {
-      const unique = [];
-      const seen = new Set();
-      for (const cell of cells) {
-        const key = `${cell.r},${cell.c}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          unique.push(cell);
-        }
-      }
-      unique.sort((a, b) => a.r - b.r || a.c - b.c);
-      if (unique.length === 0) return "";
-      if (unique.every((cell) => cell.r === unique[0].r)) {
-        return `r${unique[0].r + 1}c${unique.map((cell) => cell.c + 1).join("")}`;
-      }
-      if (unique.every((cell) => cell.c === unique[0].c)) {
-        return `r${unique.map((cell) => cell.r + 1).join("")}c${unique[0].c + 1}`;
-      }
-      return unique.map((cell) => `r${cell.r + 1}c${cell.c + 1}`).join(",");
-    };
+    const formatCells = techniques._formatCellsRC;
     const formatCandidates = (candidates) => {
       const cellsByDigit = new Map();
       for (const { r, c, num } of candidates) {
