@@ -165,18 +165,6 @@ function formatResultAction(result, separator = ", ") {
   return groups.join(separator);
 }
 
-/**
- * Rating an unsupported puzzle is meaningless, and a multi-solution grid can
- * keep the single SE worker busy indefinitely with no way to cancel it, which
- * would stall every later rating too. Memoized because the solver summary is
- * re-rendered on every language change and step navigation.
- * @param {string} puzzle - The 81-character puzzle string.
- * @returns {boolean} Whether the puzzle is safe to hand to a rating engine.
- */
-/**
- * Builds the numeric 9x9 grid the uniqueness checker expects from an
- * 81-character puzzle string. Blanks ("." or "0") stay 0.
- */
 function isRatablePuzzle(puzzle) {
   if (typeof puzzle !== "string" || !/^[.0-9]{81}$/.test(puzzle)) return false;
   const cached = puzzleValidityCache.get(puzzle);
@@ -207,11 +195,11 @@ function getDifficultyRatingText(puzzle, onReady) {
     difficultyRatingCache.set(key, { status: "pending" });
     const mode = engine === "old-se" ? "se121" : engine;
     window.Rating.rate(puzzle, mode).then(
-      ({ er }) => {
-        const text = Number.isFinite(er)
-          ? formatDifficultyRating(engine, er)
+      (rating) => {
+        const text = Number.isFinite(rating?.er)
+          ? formatDifficultyRating(engine, rating.er)
           : "";
-        difficultyRatingCache.set(key, { status: "resolved", text });
+        difficultyRatingCache.set(key, { status: "resolved", text, rating });
         onReady();
       },
       (error) => {
@@ -231,13 +219,31 @@ function getDifficultyRatingText(puzzle, onReady) {
   return pendingText;
 }
 
-/**
- * Stores what the bottom-left level label should say and paints it. Solver
- * Mode replaces the descriptive suffix ("ELITE", "Unlimited") with the rating
- * engine's number, and the pending text is localized, so the label is rebuilt
- * from these inputs on every mode, rating and language change.
- * @param {?{kind: string, level: number}} label
- */
+function getDifficultyRatingDetail(puzzle) {
+  const engine = getDifficultyEngine();
+  const cached = difficultyRatingCache.get(`${engine}:${puzzle}`);
+  if (cached?.status !== "resolved") return "";
+  const rating = cached.rating || {};
+  return [
+    ["ER", rating.er],
+    ["EP", rating.ep],
+    ["ED", rating.ed],
+  ]
+    .filter(([, value]) => Number.isFinite(value))
+    .map(([name, value]) => `${name}=${(value / 10).toFixed(1)}`)
+    .join(" ");
+}
+
+function createRatingLabelElement(text, detail) {
+  const el = document.createElement("span");
+  el.textContent = text;
+  if (detail) {
+    el.dataset.tooltip = detail;
+    attachTooltipEvents(el);
+  }
+  return el;
+}
+
 function setPuzzleLevelLabel(label) {
   puzzleLevelLabel = label;
   renderPuzzleLevelLabel();
@@ -249,9 +255,13 @@ function renderPuzzleLevelLabel() {
     return;
   }
 
+  const staleRating = puzzleLevelEl.firstElementChild;
+  if (staleRating) {
+    hideTooltip(staleRating);
+    if (activeTooltipElement === staleRating) activeTooltipElement = null;
+  }
+
   const { kind, level } = puzzleLevelLabel;
-  // Customized techniques mark every evaluated number in the UI, so the level
-  // carries the star too, whichever puzzle kind produced it.
   const star = hasCustomPreferences() ? "*" : "";
 
   if (isSolverMode && initialPuzzleString) {
@@ -259,9 +269,14 @@ function renderPuzzleLevelLabel() {
       initialPuzzleString,
       renderPuzzleLevelLabel,
     );
-    // An engine that cannot rate this puzzle leaves the normal label alone.
     if (rating) {
-      puzzleLevelEl.textContent = `Lv. ${level}${star}${rating}`;
+      puzzleLevelEl.textContent = `Lv. ${level}${star}`;
+      puzzleLevelEl.appendChild(
+        createRatingLabelElement(
+          rating,
+          getDifficultyRatingDetail(initialPuzzleString),
+        ),
+      );
       return;
     }
   }
