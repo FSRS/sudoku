@@ -61,9 +61,13 @@
     ["ui_AIC", "alternatingInferenceChain", null, 7, 280],
     ["ui_Grouped_AIC", "groupedAIC", null, 8, 300],
     ["ui_ALS_XZ", "alsXZ", null, 8, 300],
+    ["ui_AHS_XZ", "ahsXZ", null, 8, 300],
     ["ui_ALS_XY_Wing", "alsXYWing", null, 9, 320],
     ["ui_ALS_W_Wing", "alsWWing", null, 9, 330],
     ["ui_ALS_AIC", "alsAic", null, 9, 340],
+    ["ui_AHS_XY_Wing", "ahsXYWing", null, 9, 320],
+    ["ui_AHS_W_Wing", "ahsWWing", null, 9, 330],
+    ["ui_AHS_AIC", "ahsAic", null, 9, 340],
     [
       "ui_DB",
       "deathBlossom",
@@ -170,6 +174,9 @@
       ["ui_ALS_XZ", "ui_ALS_AIC"],
       ["ui_ALS_XY_Wing", "ui_ALS_AIC"],
       ["ui_ALS_W_Wing", "ui_ALS_AIC"],
+      ["ui_AHS_XZ", "ui_AHS_AIC"],
+      ["ui_AHS_XY_Wing", "ui_AHS_AIC"],
+      ["ui_AHS_W_Wing", "ui_AHS_AIC"],
     ].map(Object.freeze),
   );
 

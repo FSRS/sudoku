@@ -6626,6 +6626,7 @@ function buildSolverSummary() {
 
     const shortTech = tech
       .replace(/Almost Locked Set/g, "ALS")
+      .replace(/Almost Hidden Set/g, "AHS")
       .replace(/Alternating Inference Chain/g, "AIC");
 
     // 3. Technique Name (Fluid Width)
