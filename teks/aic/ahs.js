@@ -1473,8 +1473,9 @@
         for (const id of ahs.cellIds) {
           const r = Math.floor(id / 9);
           const c = id % 9;
+          // "add" so a digit shared by two AHSes shows both colours.
           for (const num of maskDigits(cand[id] & ahs.digitMask)) {
-            candidateColors.push({ r, c, num, color });
+            candidateColors.push({ r, c, num, color, mode: "add" });
           }
         }
       }
