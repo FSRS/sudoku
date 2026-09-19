@@ -1545,9 +1545,28 @@
         return best;
       };
       const drawGroup = (item, idx) => {
-        if (item.isHls || item.cells.length < 2 || item.digits.length !== 1)
-          return;
+        if (item.isHls || ahsGateItems.has(item)) return;
         const color = idx % 2 === 0 ? 5 : 4;
+        // A multi-digit node in one cell (a pivot) is grouped by linking its
+        // digits, as a multi-cell node is by linking its cells.
+        if (item.cells.length === 1 && item.digits.length > 1) {
+          const r = Math.floor(item.cells[0] / 9);
+          const c = item.cells[0] % 9;
+          for (let i = 0; i < item.digits.length - 1; i++) {
+            links.push({
+              r1: r,
+              c1: c,
+              n1: item.digits[i],
+              r2: r,
+              c2: c,
+              n2: item.digits[i + 1],
+              color,
+              style: "solid",
+            });
+          }
+          return;
+        }
+        if (item.cells.length < 2 || item.digits.length !== 1) return;
         for (let i = 0; i < item.cells.length - 1; i++) {
           links.push({
             r1: Math.floor(item.cells[i] / 9),

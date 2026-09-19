@@ -163,7 +163,7 @@ const TRANSLATIONS = {
     level_tip_6:
       "Lv. 6: Finned Fishes, X-Chain, XY-Chain, Oddagons, Firework, WXYZ-Wing, Sue de Coq",
     level_tip_7: "Lv. 7: Grouped X-Chain, Alternating Inference Chain",
-    level_tip_8: "Lv. 8: Grouped Alternating Inference Chain, ALS-XZ, AHS-XZ",
+    level_tip_8: "Lv. 8: Grouped Alternating Inference Chain, ALS-XZ",
     level_tip_9: "Lv. 9: ALS-AIC, AHS-AIC",
     level_tip_10: "Lv. 10: Death Blossom, Complex Fishes, Complex AIC",
     level_tip_11: "Lv. 11: Almost AIC",
@@ -1089,7 +1089,7 @@ const TRANSLATIONS = {
     level_tip_6:
       "Lv. 6: 지느러미 물고기류, X-사슬, XY-사슬, 홀수각형, 불꽃놀이, WXYZ-윙, 수 드 콕",
     level_tip_7: "Lv. 7: 그룹 X-사슬, 교대 추론 사슬",
-    level_tip_8: "Lv. 8: 그룹 AIC, 거의 드러난 집합 XZ, 거의 숨은 집합 XZ",
+    level_tip_8: "Lv. 8: 그룹 AIC, 거의 드러난 집합 XZ",
     level_tip_9:
       "Lv. 9: 거의 드러난 집합 교대 추론 사슬, 거의 숨은 집합 교대 추론 사슬",
     level_tip_10: "Lv. 10: 죽음의 꽃, 복합 물고기류, 복합 AIC",
