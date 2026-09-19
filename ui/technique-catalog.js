@@ -141,27 +141,24 @@
     "ui_UL",
     "ui_EUR",
   ]);
-  const mandatoryIds = Object.freeze([
-    "ui_eliminate_cands",
-    "ui_FH_vague_hint",
-  ]);
+  const mandatoryIds = Object.freeze(["ui_eliminate_cands", "ui_FH"]);
   const hierarchyIds = Object.freeze(
     [
-      ["ui_crane_vague_hint", "ui_ER", "ui_X_Chain_vague_hint"],
-      ["ui_skyscraper_vague_hint", "ui_finned_X_Wing", "ui_X_Chain_vague_hint"],
-      ["ui_TSK_vague_hint", "ui_Grouped_TSK", "ui_X_Chain_vague_hint"],
+      ["ui_crane", "ui_ER", "ui_X_Chain"],
+      ["ui_skyscraper", "ui_finned_X_Wing", "ui_X_Chain"],
+      ["ui_TSK", "ui_Grouped_TSK", "ui_X_Chain"],
       ["ui_W_Wing", "ui_grouped_W_Wing"],
-      ["ui_RP", "ui_X_Chain_vague_hint"],
-      ["ui_RP", "ui_XY_Chain_vague_hint"],
-      ["ui_X_Wing", "ui_X_Chain_vague_hint"],
-      ["ui_LockedP", "ui_NakedP", "ui_XY_Chain_vague_hint"],
+      ["ui_RP", "ui_X_Chain"],
+      ["ui_RP", "ui_XY_Chain"],
+      ["ui_X_Wing", "ui_X_Chain"],
+      ["ui_LockedP", "ui_NakedP", "ui_XY_Chain"],
       ["ui_LockedT", "ui_NakedT"],
       ["ui_LockedP", "ui_LockedCand"],
       ["ui_LockedT", "ui_LockedCand"],
       ["ui_HiddenP", "ui_AIC"],
       ["ui_SimpleColor", "ui_Medusa"],
-      ["ui_X_Chain_vague_hint", "ui_grouped_X_Chain", "ui_Grouped_AIC"],
-      ["ui_XY_Wing", "ui_XY_Chain_vague_hint", "ui_AIC", "ui_Grouped_AIC"],
+      ["ui_X_Chain", "ui_grouped_X_Chain", "ui_Grouped_AIC"],
+      ["ui_XY_Wing", "ui_XY_Chain", "ui_AIC", "ui_Grouped_AIC"],
       ["ui_W_Wing", "ui_AIC"],
       ["ui_grouped_W_Wing", "ui_Grouped_AIC"],
       ["ui_ALP", "ui_Grouped_AIC", "ui_ALS_AIC", "ui_Complex_AIC"],

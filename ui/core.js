@@ -7663,7 +7663,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   const star = hasCustomPreferences() ? "*" : "";
   if (emptyCount <= 3) {
     updateLamp("white", { level: 0 });
-    vagueHintMessage = t("ui_FH_vague_hint");
+    vagueHintMessage = t("ui_FH");
 
     lastValidScore = 4 * emptyCount;
 
