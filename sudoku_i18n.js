@@ -384,7 +384,6 @@ const TRANSLATIONS = {
     ui_unlimited_level_option: "Unlimited Lv. {0}{1}",
     ui_fetching_puzzle_status: "Fetching puzzle...",
     solver_progress_remaining: "Remaining {0}/{1}",
-    solver_progress_searching: "Searching {0}",
     ui_daily_level_not_found_error: "Puzzle level not found in daily file",
     ui_daily_puzzle_not_found_error: "No puzzle found for this date and level.",
     ui_msg_level_11_fallback:
@@ -466,6 +465,7 @@ const TRANSLATIONS = {
     ui_level_score: "Level: {0}, Score: {1}",
     ui_custom_lv: "Custom Lv. {0}{1}",
     ui_custom_lv_12: "Custom Lv. 12{0}",
+    ui_technique_search_times: "Technique search times:",
     ui_eval_completed_in_ms: "Evaluation completed in {0} ms",
     ui_BUG_plus_1: "BUG+1",
     ui_UR: "Unique Rectangle",
@@ -1310,7 +1310,6 @@ const TRANSLATIONS = {
     ui_unlimited_level_option: "Unlimited Lv. {0}{1}",
     ui_fetching_puzzle_status: "퍼즐을 가져오는 중...",
     solver_progress_remaining: "남은 후보숫자 {0}/{1}",
-    solver_progress_searching: "{0} 탐색 중",
     ui_daily_level_not_found_error:
       "일일 파일에서 퍼즐 레벨을 찾을 수 없습니다",
     ui_daily_puzzle_not_found_error:
@@ -1396,6 +1395,7 @@ const TRANSLATIONS = {
     ui_level_score: "레벨: {0}, 점수: {1}",
     ui_custom_lv: "Custom Lv. {0}{1}",
     ui_custom_lv_12: "Custom Lv. 12{0}",
+    ui_technique_search_times: "기법별 탐색 시간:",
     ui_eval_completed_in_ms: "난이도 평가 완료까지 걸린 시간: {0} ms",
     ui_BUG_plus_1: "BUG+1",
     ui_UR: "유일한 직사각형",

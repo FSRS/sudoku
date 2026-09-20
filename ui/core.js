@@ -6865,7 +6865,7 @@ function countRemainingCandidates(pencils) {
 let solverProgressPrevHtml = null;
 let solverProgressPrevClass = null;
 
-function renderSolverProgress(remaining, total, techName) {
+function renderSolverProgress(remaining, total) {
   if (!messageArea.querySelector(".solver-progress")) {
     solverProgressPrevHtml = messageArea.innerHTML;
     solverProgressPrevClass = messageArea.className;
@@ -6874,8 +6874,7 @@ function renderSolverProgress(remaining, total, techName) {
   }
   messageArea.innerHTML =
     `<span class="solver-progress">` +
-    `<span>${t("solver_progress_remaining", remaining, total)}</span>` +
-    `<span class="solver-progress-stage">${t("solver_progress_searching", techName)}</span>` +
+    t("solver_progress_remaining", remaining, total) +
     `</span>`;
 }
 
@@ -7720,6 +7719,8 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     ? countRemainingCandidates(startingPencils)
     : 0;
   let lastProgressPaint = solveStartTime;
+  // Filled only in debug mode, reported once the evaluation is done.
+  const techniqueSearchMs = new Map();
   if (IS_DEBUG_MODE) {
     console.clear();
     console.log(t("ui_starting_new_difficulty_eval"));
@@ -7788,7 +7789,6 @@ async function runBoardDifficultyEvaluation(opts = {}) {
             renderSolverProgress(
               countRemainingCandidates(startingPencils),
               progressTotalCandidates,
-              tech.name,
             );
             await yieldForSolverProgress();
             if (myEvaluationId !== currentEvaluationId) return;
@@ -7797,6 +7797,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
           }
         }
         // Run Technique
+        const searchStart = IS_DEBUG_MODE ? performance.now() : 0;
         result = getBlossomWorkerKind(tech.func)
           ? await runBlossomTechniqueInWorker(
               tech.func,
@@ -7804,6 +7805,13 @@ async function runBoardDifficultyEvaluation(opts = {}) {
               startingPencils,
             )
           : tech.func(virtualBoard, startingPencils);
+        if (IS_DEBUG_MODE) {
+          techniqueSearchMs.set(
+            tech.name,
+            (techniqueSearchMs.get(tech.name) || 0) +
+              (performance.now() - searchStart),
+          );
+        }
         if (myEvaluationId !== currentEvaluationId) return;
         // Store in Cache (if safe)
         if (cacheKey) techniqueResultCache.set(cacheKey, result);
@@ -7995,6 +8003,10 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   }
   if (IS_DEBUG_MODE) {
     const solveEndTime = performance.now();
+    console.log(t("ui_technique_search_times"));
+    [...techniqueSearchMs]
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([name, ms]) => console.log(`  ${name} (${ms.toFixed(1)} ms)`));
     console.log(
       t("ui_eval_completed_in_ms", (solveEndTime - solveStartTime).toFixed(2)),
     );
