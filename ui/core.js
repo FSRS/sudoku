@@ -56,6 +56,8 @@ const shareSolverBtn = document.getElementById("share-solver-btn");
 const shareCancelBtn = document.getElementById("share-cancel-btn");
 const prefBtn = document.getElementById("pref-btn");
 const techniqueResultCache = new Map();
+const techniqueSearchMs = new Map();
+let puzzleLoadStartMs = 0;
 const difficultyRatingCache = new Map();
 const puzzleValidityCache = new Map();
 const minDateNum = 20260301;
@@ -4714,6 +4716,8 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }
 
   techniqueResultCache.clear();
+  techniqueSearchMs.clear();
+  puzzleLoadStartMs = performance.now();
   vagueHintMessage = "";
   lampTimestamps = {};
   previousLampColor = null;
@@ -4992,6 +4996,14 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }, 15000); // Shows 15 seconds after the puzzle loads (5s after the Auto-Pencil tip)
 
   // checkCompletion();
+  if (IS_DEBUG_MODE) {
+    console.log(
+      t(
+        "ui_load_completed_in_ms",
+        (performance.now() - puzzleLoadStartMs).toFixed(2),
+      ),
+    );
+  }
   return true;
 }
 
@@ -7719,8 +7731,6 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     ? countRemainingCandidates(startingPencils)
     : 0;
   let lastProgressPaint = solveStartTime;
-  // Filled only in debug mode, reported once the evaluation is done.
-  const techniqueSearchMs = new Map();
   if (IS_DEBUG_MODE) {
     console.clear();
     console.log(t("ui_starting_new_difficulty_eval"));
@@ -8002,14 +8012,10 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     }
   }
   if (IS_DEBUG_MODE) {
-    const solveEndTime = performance.now();
     console.log(t("ui_technique_search_times"));
     [...techniqueSearchMs]
       .sort((a, b) => b[1] - a[1])
       .forEach(([name, ms]) => console.log(`  ${name} (${ms.toFixed(1)} ms)`));
-    console.log(
-      t("ui_eval_completed_in_ms", (solveEndTime - solveStartTime).toFixed(2)),
-    );
     console.log("-----------------------------------------------");
   }
   syncCurrentHistoryEvaluationState(myEvaluationId);
