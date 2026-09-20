@@ -582,23 +582,28 @@ Object.assign(techniques, {
 
   _getTemplating: (board, pencils, num) => {
     if (!techniques._templatingCache) techniques._templatingCache = {};
-    if (techniques._templatingCache[num])
-      return techniques._templatingCache[num];
 
-    let cb = [0, 0, 0];
-    const cellsWithNum = [];
-    let allNumMask = 0n;
-
+    const cb = [0, 0, 0];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         if (board[r][c] === 0 && pencils[r][c].has(num)) {
-          const id = r * 9 + c;
-          cellsWithNum.push(id);
-          techniques._setCellBit(cb, id);
-          allNumMask |= CELL_MASK[id];
+          techniques._setCellBit(cb, r * 9 + c);
         }
       }
     }
+
+    const cached = techniques._templatingCache[num];
+    if (
+      cached &&
+      cached.cb[0] === cb[0] &&
+      cached.cb[1] === cb[1] &&
+      cached.cb[2] === cb[2]
+    )
+      return cached;
+
+    const cellsWithNum = techniques._getCellBits(cb);
+    let allNumMask = 0n;
+    for (const id of cellsWithNum) allNumMask |= CELL_MASK[id];
 
     const units = Array.from({ length: 27 }, () => []);
 
@@ -615,6 +620,78 @@ Object.assign(techniques, {
     };
 
     return techniques._templatingCache[num];
+  },
+
+  _getTemplatePatterns: (board, pencils, num) => {
+    const entry = techniques._getTemplating(board, pencils, num);
+    if (entry.patterns) return entry.patterns;
+
+    const { units, cellsWithNum } = entry;
+
+    const rowToInds = Array.from({ length: 9 }, () => []);
+    const rowsWith = [];
+
+    for (let r = 0; r < 9; r++) {
+      const present = units[r]; // Row is 0-8 in units
+      if (present.length > 0) {
+        rowToInds[r] = present;
+        rowsWith.push(r);
+      }
+    }
+
+    const orderRows = (firstRow) => {
+      return rowsWith
+        .filter((r) => r !== firstRow)
+        .sort((a, b) => rowToInds[a].length - rowToInds[b].length);
+    };
+
+    // DFS to find valid patterns
+    const findPatternIncluding = (i0) => {
+      const r0 = Math.floor(i0 / 9);
+      if (!rowToInds[r0].includes(i0)) return [];
+
+      const rowsSeq = [r0, ...orderRows(r0)];
+      const out = [i0];
+
+      const dfs = (pos, usedCols, usedBoxes) => {
+        if (pos === rowsSeq.length) return true;
+        const r = rowsSeq[pos];
+        for (const idx of rowToInds[r]) {
+          const c = idx % 9;
+          const b = boxOf(r, c);
+          if ((usedCols >> c) & 1 || (usedBoxes >> b) & 1) continue;
+
+          out.push(idx);
+          if (dfs(pos + 1, usedCols | (1 << c), usedBoxes | (1 << b)))
+            return true;
+          out.pop();
+        }
+        return false;
+      };
+
+      const initCol = i0 % 9;
+      const initBox = boxOf((i0 / 9) | 0, i0 % 9);
+      if (!dfs(1, 1 << initCol, 1 << initBox)) return [];
+      return out;
+    };
+
+    const possible = [0, 0, 0];
+    const impossible = [0, 0, 0];
+    let impossibleMask = 0n;
+
+    for (const idx of cellsWithNum) {
+      if (possible[CELL_PART[idx]] & CELL_BIT[idx]) continue;
+      const sel = findPatternIncluding(idx);
+      if (sel.length === 0) {
+        techniques._setCellBit(impossible, idx);
+        impossibleMask |= CELL_MASK[idx];
+      } else {
+        for (const j of sel) techniques._setCellBit(possible, j);
+      }
+    }
+
+    entry.patterns = { possible, impossible, impossibleMask };
+    return entry.patterns;
   },
 
   _sharedAICCache: { signature: null, cache: null },

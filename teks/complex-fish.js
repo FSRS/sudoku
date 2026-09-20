@@ -14,7 +14,6 @@ Object.assign(techniques, {
       techniques._bits.popcount(a[0]) +
       techniques._bits.popcount(a[1]) +
       techniques._bits.popcount(a[2]);
-    const setBit = techniques._setCellBit;
     const testBit = (a, id) =>
       (a[Math.floor(id / 27)] & (1 << (id % 27))) !== 0;
     const getBits = techniques._getCellBits;
@@ -28,7 +27,7 @@ Object.assign(techniques, {
 
     for (let num = 1; num <= 9; num++) {
       const templating = techniques._getTemplating(board, pencils, num);
-      const { cb, cellsWithNum, units } = templating;
+      const { cb, cellsWithNum } = templating;
 
       if (cellsWithNum.length === 0) continue;
 
@@ -39,73 +38,12 @@ Object.assign(techniques, {
         : _memoComplexFish.franken;
       if (memoSet.has(memoKey)) continue;
 
-      // --- TEMPLATING STEP (Optimization) ---
-      const rowToInds = Array.from({ length: 9 }, () => []);
-      const rowsWith = [];
-
-      for (let r = 0; r < 9; r++) {
-        const present = units[r]; // Row is 0-8 in units
-        if (present.length > 0) {
-          rowToInds[r] = present;
-          rowsWith.push(r);
-        }
-      }
-
-      if (rowsWith.length === 0) {
-        memoSet.add(memoKey);
-        continue;
-      }
-
-      const orderRows = (firstRow) => {
-        return rowsWith
-          .filter((r) => r !== firstRow)
-          .sort((a, b) => rowToInds[a].length - rowToInds[b].length);
-      };
-
-      // DFS to find valid patterns
-      const findPatternIncluding = (i0) => {
-        const r0 = Math.floor(i0 / 9);
-        if (!rowToInds[r0].includes(i0)) return [];
-
-        const rowsSeq = [r0, ...orderRows(r0)];
-        const out = [i0];
-
-        const dfs = (pos, usedCols, usedBoxes) => {
-          if (pos === rowsSeq.length) return true;
-          const r = rowsSeq[pos];
-          for (const idx of rowToInds[r]) {
-            const c = idx % 9;
-            const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-            if ((usedCols >> c) & 1 || (usedBoxes >> b) & 1) continue;
-
-            out.push(idx);
-            if (dfs(pos + 1, usedCols | (1 << c), usedBoxes | (1 << b)))
-              return true;
-            out.pop();
-          }
-          return false;
-        };
-
-        const initCol = i0 % 9;
-        const initBox = Math.floor(i0 / 9 / 3) * 3 + Math.floor((i0 % 9) / 3);
-        if (!dfs(1, 1 << initCol, 1 << initBox)) return [];
-        return out;
-      };
-
-      let possibleCells = [0, 0, 0];
-      let impossibleCells = [0, 0, 0];
-
-      const cbBits = getBits(cb);
-      for (const idx of cbBits) {
-        if (!testBit(possibleCells, idx)) {
-          const sel = findPatternIncluding(idx);
-          if (sel.length === 0) {
-            setBit(impossibleCells, idx);
-          } else {
-            for (const j of sel) setBit(possibleCells, j);
-          }
-        }
-      }
+      // Templating Step
+      const { impossible: impossibleCells } = techniques._getTemplatePatterns(
+        board,
+        pencils,
+        num,
+      );
 
       if (isZero(impossibleCells)) {
         memoSet.add(memoKey);

@@ -1,12 +1,7 @@
 Object.assign(techniques, {
   brokenWing: (board, pencils, findAll = false) => {
     const results = [];
-
     const getCompactLoc = techniques._formatCellsRC;
-
-    // The odd-length loop itself may use at most two cells from each house.
-    // Guardians are deliberately excluded: they are tracked separately and can
-    // share houses with the loop (or with other guardians).
     const canExtendOddLoop = (path, id) => {
       const row = Math.floor(id / 9);
       const col = id % 9;
@@ -26,8 +21,6 @@ Object.assign(techniques, {
       return rowCount < 2 && colCount < 2 && boxCount < 2;
     };
 
-    // Check all candidates at the shortest valid odd loop length before
-    // considering loops that are two cells longer.
     const maxLen = 11;
     for (let pathLength = 5; pathLength <= maxLen; pathLength += 2) {
       for (let num = 1; num <= 9; num++) {
@@ -36,12 +29,20 @@ Object.assign(techniques, {
 
         if (cellsWithNum.length < 5) continue;
 
+        // Templating Step
+        const { impossibleMask } = techniques._getTemplatePatterns(
+          board,
+          pencils,
+          num,
+        );
+        if (impossibleMask === 0n) continue;
+
         const adj = {};
         for (let i = 0; i < cellsWithNum.length; i++) {
           adj[cellsWithNum[i]] = [];
         }
 
-        // --- TEMPLATING STEP (Optimization) ---
+        // Link Graph
         for (let i = 0; i < 27; i++) {
           const present = units[i];
           if (present.length >= 2) {
@@ -63,7 +64,7 @@ Object.assign(techniques, {
               current: start,
               path: [start],
               guards: new Set(),
-              targets: allNumMask,
+              targets: allNumMask & impossibleMask,
             },
           ];
 
@@ -78,7 +79,7 @@ Object.assign(techniques, {
                 edgeTargets &= PEER_MAP[g];
               }
 
-              // --- Pruning Step ---
+              // Pruning Step
               if (edgeTargets === 0n) continue;
 
               if (edge.to === start && path.length === pathLength) {
