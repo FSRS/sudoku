@@ -122,8 +122,6 @@
     positionsForbidden(sx, sy) ||
     positionsForbidden(sy, sx);
 
-  // A hidden locked set is only meaningful if its cells can actually take its
-  // digits one each (Hall's condition). Two cells always can.
   const hallSeen = new Int32Array(512);
   let hallStamp = 0;
   const hasPerfectMatching = (cellMasks) => {
@@ -162,8 +160,6 @@
     });
   };
 
-  // Node factory that registers composite single-digit nodes (grouped) in the
-  // shared cache exactly as _findAic does, so later AIC calls see one graph.
   const sharedGetNode = (cache) => (cells, digits) => {
     const dArr = Array.isArray(digits) ? digits : [digits];
     const key = nodeKey(cells, dArr);
@@ -217,7 +213,6 @@
       }
     }
 
-    // posMask[u * 9 + k]: positions (0..8) inside house u holding digit k + 1.
     const posMask = new Int32Array(27 * 9);
     for (let u = 0; u < 27; u++) {
       const ids = UNIT_IDS[u];
@@ -235,6 +230,7 @@
     // 1. AHS enumeration: n digits (n >= 2) confined to n + 1 cells of a house.
     const ahses = [];
     const union = new Int32Array(512);
+    const cellUnion = new Int32Array(512);
     for (let u = 0; u < 27; u++) {
       const ids = UNIT_IDS[u];
       let emptyMask = 0;
@@ -256,11 +252,6 @@
         const cellsMask = union[m];
         if (pop(cellsMask) !== n + 1) continue;
 
-        // A hidden subset inside the digits (k digits on exactly k cells)
-        // or a naked subset inside the cells (k cells on exactly k digits)
-        // is locked already; dropping it leaves a smaller AHS saying the
-        // same thing, so this one is redundant (ALS drops naked subsets the
-        // same way).
         let reducible = false;
         for (let s = (m - 1) & m; s !== 0; s = (s - 1) & m) {
           if (pop(union[s]) === pop(s)) {
@@ -276,18 +267,17 @@
           pm &= pm - 1;
         }
         const cellCount = cellIds.length;
-        const cellCand = cellIds.map((id) => cand[id]);
         const subLimit = 1 << cellCount;
-        for (let sub = 3; sub < subLimit && !reducible; sub++) {
+        cellUnion[0] = 0;
+        for (let sub = 1; sub < subLimit; sub++) {
+          const low = sub & -sub;
+          cellUnion[sub] = cellUnion[sub ^ low] | cand[cellIds[lowest(low)]];
           const size = pop(sub);
           if (size < 2 || size >= cellCount) continue;
-          let digitUnion = 0;
-          let s = sub;
-          while (s) {
-            digitUnion |= cellCand[lowest(s)];
-            s &= s - 1;
+          if (pop(cellUnion[sub]) === size) {
+            reducible = true;
+            break;
           }
-          if (pop(digitUnion) === size) reducible = true;
         }
         if (reducible) continue;
 
@@ -344,6 +334,7 @@
 
     let hlsCandidates = 0;
     let hlsEntries = 0;
+    const hlsUnion = new Int32Array(512);
     for (const ahs of ahses) {
       const { cellIds, cellDigitMask } = ahs;
       const cellNodes = cellIds.map((id, i) =>
@@ -359,20 +350,18 @@
 
       const k = cellIds.length;
       const limit = 1 << k;
-      for (let sub = 3; sub < limit; sub++) {
+      hlsUnion[0] = 0;
+      for (let sub = 1; sub < limit; sub++) {
+        const low = sub & -sub;
+        hlsUnion[sub] = hlsUnion[sub ^ low] | cellDigitMask[lowest(low)];
         const size = pop(sub);
         if (size < 2 || size >= k) continue;
-        let digitUnion = 0;
-        let s = sub;
-        while (s) {
-          digitUnion |= cellDigitMask[lowest(s)];
-          s &= s - 1;
-        }
+        const digitUnion = hlsUnion[sub];
         if (pop(digitUnion) !== size) continue;
         hlsCandidates++;
         const subIds = [];
         const subMasks = [];
-        s = sub;
+        let s = sub;
         while (s) {
           const i = lowest(s);
           subIds.push(cellIds[i]);
@@ -381,9 +370,6 @@
         }
         if (!hasPerfectMatching(subMasks)) continue;
         hlsEntries++;
-        // dCells[k]: the HLS cells holding digit k + 1. NandBitset per the
-        // specification: cells seeing every d-cell, and the peers of a cell
-        // whose only AHS digit is d.
         const dCells = emptyNand();
         for (let i = 0; i < subIds.length; i++) {
           let dm = subMasks[i];
@@ -430,12 +416,6 @@
     count("graph.hlsEntries", hlsEntries);
     t0 = now();
 
-    // 3. Neg nodes: for every distinct cell node, one node standing for every
-    //    HLS that excludes the cell (in every AHS the cell node belongs to).
-    //    It is always its own object, even when a basic or cell node states
-    //    the same digits: its only OR links are the HLS-cell gates, so a path
-    //    can only use HLS reasoning after entering through one, and each HLS
-    //    remains a separate justification.
     const negNodes = [];
     const negCache = new Map();
     const getNegNode = (id, compMask) => {
@@ -475,10 +455,6 @@
     count("graph.negCount", negNodes.length);
     t0 = now();
 
-    // 4. Pivots: for each HLS, every outside cell collects the digits the HLS
-    //    forbids there (the maximal set). The intra-cell gate to the
-    //    complement is only worth building when the complement can continue:
-    //    it is a basic node, an existing node, or fits another pivot set.
     let pivotCount = 0;
     const pivotDigits = new Int32Array(81);
     const forbidMasks = Array.from({ length: 81 }, () => []);
@@ -543,9 +519,6 @@
     count("graph.ownNodes", ownNodes.length);
     t0 = now();
 
-    // 5. Union of every OR link any AHS technique may use; the NAND relation
-    //    is fixed per position, so it is built once over this universe and
-    //    each technique keeps the part among its own interested nodes.
     if (cache.BilocationOrMap.size === 0) {
       cache.BilocationOrMap = techniques.buildBilocationOrMap(cache.AllNodes);
     }
@@ -585,7 +558,6 @@
 
     const singleByDigit = Array.from({ length: 10 }, () => []);
     const byCell = Array.from({ length: 81 }, () => []);
-    // nodesAt[id * 9 + k]: universe nodes holding digit k + 1 in cell id.
     const nodesAt = Array.from({ length: 81 * 9 }, () => []);
     for (const n of universe) {
       for (let k = 0; k < 9; k++) {
@@ -639,11 +611,26 @@
       const nSides = sidesOf(N);
       const bSides = sidesOf(B);
       for (let i = 1; i < nSides.length; i++) {
-        for (const sb of bSides)
-          if (sidesNand(N, nSides[i], B, sb)) return true;
+        if (nodeForbidden(B, nSides[i])) return true;
+      }
+      for (let j = nSides.length > 1 ? 0 : 1; j < bSides.length; j++) {
+        if (nodeForbidden(N, bSides[j])) return true;
+      }
+      if (bSides.length > 1 && nodeForbidden(B, nSides[0])) return true;
+      // Only an HLS side locks digits into cells, so a plain side never
+      // forbids by position and is only tested as the other side.
+      for (let i = 1; i < nSides.length; i++) {
+        const sn = nSides[i];
+        if (positionsForbidden(sn, bSides[0])) return true;
+        for (let j = 1; j < bSides.length; j++) {
+          const sb = bSides[j];
+          if (positionsForbidden(sn, sb) || positionsForbidden(sb, sn)) {
+            return true;
+          }
+        }
       }
       for (let j = 1; j < bSides.length; j++) {
-        if (sidesNand(N, nSides[0], B, bSides[j])) return true;
+        if (positionsForbidden(bSides[j], nSides[0])) return true;
       }
       return false;
     };
@@ -716,6 +703,11 @@
   };
 
   // --- Search ---
+  // Removal packs dedupe on (row, column, digit); the stamp keeps the scratch
+  // across packs, as the Hall check does.
+  const packSeen = new Int32Array(4096);
+  let packStamp = 0;
+
   const findAhsAic = (board, pencils, config, findAll = false) => {
     const {
       kind,
@@ -870,12 +862,16 @@
     const deadRings = new Set();
 
     const canonicalRemovalPack = (removals) => {
-      const seen = new Uint8Array(4096);
+      if (packStamp === 0x7fffffff) {
+        packSeen.fill(0);
+        packStamp = 0;
+      }
+      packStamp++;
       const unique = [];
       for (const el of removals) {
         const key = (el.r << 8) | (el.c << 4) | el.num;
-        if (seen[key] === 0) {
-          seen[key] = 1;
+        if (packSeen[key] !== packStamp) {
+          packSeen[key] = packStamp;
           unique.push(el);
         }
       }
@@ -885,10 +881,11 @@
       return { removals: unique, key };
     };
 
-    const pushBits = (out, bits, d) => {
+    // Candidates of digit d that both bitsets hold.
+    const pushBoth = (out, x, y, d) => {
       const cb = candBits[d - 1];
       for (let part = 0; part < 3; part++) {
-        let m = bits[part] & cb[part];
+        let m = x[part] & y[part] & cb[part];
         while (m) {
           const id = part * 27 + lowest(m);
           out.push({ r: Math.floor(id / 9), c: id % 9, num: d });
@@ -902,16 +899,53 @@
       while (common) {
         const k = lowest(common);
         common &= common - 1;
-        const x = sa.nand[k];
-        const y = sd.nand[k];
-        pushBits(out, [x[0] & y[0], x[1] & y[1], x[2] & y[2]], k + 1);
+        pushBoth(out, sa.nand[k], sd.nand[k], k + 1);
       }
     };
+    // What pushBoth would push, asked of as cheaply as the caller allows:
+    // whether anything is forbidden, or how much. All three must stay in step.
+    const hasIntersection = (sa, sd) => {
+      let common = sa.nandDigits & sd.nandDigits;
+      while (common) {
+        const k = lowest(common);
+        common &= common - 1;
+        const x = sa.nand[k];
+        const y = sd.nand[k];
+        const cb = candBits[k];
+        const m =
+          (x[0] & y[0] & cb[0]) | (x[1] & y[1] & cb[1]) | (x[2] & y[2] & cb[2]);
+        if (m !== 0) return true;
+      }
+      return false;
+    };
+    const intersectionCount = (sa, sd) => {
+      let n = 0;
+      let common = sa.nandDigits & sd.nandDigits;
+      while (common) {
+        const k = lowest(common);
+        common &= common - 1;
+        const x = sa.nand[k];
+        const y = sd.nand[k];
+        const cb = candBits[k];
+        n +=
+          pop(x[0] & y[0] & cb[0]) +
+          pop(x[1] & y[1] & cb[1]) +
+          pop(x[2] & y[2] & cb[2]);
+      }
+      return n;
+    };
     // Search-time view of a graph node: everything it can justify at once.
-    const unionSideOf = (node) =>
-      node.hlsRefs
-        ? { nand: node.ahsNand, nandDigits: node.ahsNandDigits }
-        : plainSideOf(node);
+    // Both parts are built once per graph, so the wrapper is kept as well.
+    const unionSideOf = (node) => {
+      if (!node.hlsRefs) return plainSideOf(node);
+      if (!node.ahsUnionSide) {
+        node.ahsUnionSide = {
+          nand: node.ahsNand,
+          nandDigits: node.ahsNandDigits,
+        };
+      }
+      return node.ahsUnionSide;
+    };
 
     const acceptsPath = (path, kind_) =>
       !pathFilter ||
@@ -1019,25 +1053,19 @@
       return null;
     };
 
-    // Ring search of a pattern kind from one start node A for every target
-    // D at once. It returns the same first path per D as the per-pair search:
-    // that search only differs by pruning states that cannot reach its D, so
-    // the surviving states arrive in the same order. Pruning here uses the
-    // exact-distance layers of the ring pattern computed backwards from A
-    // (closing NAND, then the typed OR links in reverse), so a state survives
-    // only when it can still close a ring of an allowed length.
     const findRingsFrom = (A, targets, lengths) => {
       const maxNodes = Math.max(...lengths);
       const layers = new Map();
       for (const L of lengths) {
         const arr = new Array(L);
         let prev = new Uint32Array(wordCount);
-        prev[A.index >>> 5] |= 1 << (A.index & 31);
-        for (let j = 1; j < L; j++) {
+        for (const target of targets) {
+          prev[target.index >>> 5] |= 1 << (target.index & 31);
+        }
+        arr[1] = prev;
+        for (let j = 2; j < L; j++) {
           const next = new Uint32Array(wordCount);
           const isNand = (j & 1) === 1;
-          // Layer j (even) is the OR link into the node L - j of the path,
-          // whose gate index is (L - j) / 2.
           const role = isNand ? null : orRole(L / 2 - j / 2);
           for (let w = 0; w < wordCount; w++) {
             let m = prev[w];
@@ -1060,8 +1088,6 @@
         }
         layers.set(L, arr);
       }
-      // A node at path position nextDepth - 1 sits L - nextDepth + 1 links
-      // before A on the reversed ring.
       const canClose = (nxt, nextDepth) => {
         for (const L of lengths) {
           const j = L - nextDepth + 1;
@@ -1161,9 +1187,6 @@
     });
     const itemsNand = (a, b) => sidesNand(a, a.side, b, b.side);
 
-    // Candidate items for a neg node shown through the HLSes of the AHSes
-    // that link it to its partner cell node, smallest HLS first (the plain
-    // cell form first when the gate role allows it).
     const negItemCache = new Map();
     const negItemsOf = (node, partner, role) => {
       const key =
@@ -1185,9 +1208,6 @@
       }
       return items;
     };
-    // Candidate items for every node, decided gate by gate: in a same-cell
-    // AHS gate exactly one side is the neg node, and only it may be shown as
-    // an HLS.
     const candidateOptions = (path) => {
       const L = path.length;
       const options = new Array(L);
@@ -1249,18 +1269,11 @@
             const cpu = commonPeersOfBits(u.side.dCells[k]);
             if (!partSubset(v.side.dCells[k], cpu)) continue;
             const cpv = commonPeersOfBits(v.side.dCells[k]);
-            pushBits(
-              out,
-              [cpu[0] & cpv[0], cpu[1] & cpv[1], cpu[2] & cpv[2]],
-              k + 1,
-            );
+            pushBoth(out, cpu, cpv, k + 1);
           }
         } else if (u.isHls || v.isHls) {
           const H = u.isHls ? u : v;
           const P = u.isHls ? v : u;
-          // A pivot holding every digit of the HLS (DOF 1) that sees all the
-          // positions of each digit: whichever side holds, every HLS digit is
-          // placed among the pivot and the HLS cells.
           if (P.cells.length !== 1 || P.digitMask !== H.digitMask) continue;
           const pb = PEER_BITSETS[P.cells[0]];
           let seesAll = true;
@@ -1272,8 +1285,7 @@
           }
           if (!seesAll) continue;
           const cp = commonPeersOfBits(H.cellBits || cellBitsOf(H.cells));
-          const common = [pb[0] & cp[0], pb[1] & cp[1], pb[2] & cp[2]];
-          for (const d of maskDigits(H.digitMask)) pushBits(out, common, d);
+          for (const d of maskDigits(H.digitMask)) pushBoth(out, pb, cp, d);
         }
       }
     };
@@ -1291,21 +1303,16 @@
       return canonicalRemovalPack(out);
     };
 
-    // Union-based upper bound on what a ring could eliminate; empty means no
-    // instantiation can do better, so the pair is dead.
     const ringMayEliminate = (path) => {
       const L = path.length;
-      const out = [];
       for (let i = 1; i < L - 1; i += 2) {
-        intersectionRemovals(
-          unionSideOf(path[i]),
-          unionSideOf(path[i + 1]),
-          out,
-        );
-        if (out.length) return true;
+        if (hasIntersection(unionSideOf(path[i]), unionSideOf(path[i + 1]))) {
+          return true;
+        }
       }
-      intersectionRemovals(unionSideOf(path[L - 1]), unionSideOf(path[0]), out);
-      if (out.length) return true;
+      if (hasIntersection(unionSideOf(path[L - 1]), unionSideOf(path[0]))) {
+        return true;
+      }
       for (let i = 0; i < L; i += 2) {
         const u = path[i];
         const v = path[(i + 1) % L];
@@ -1354,8 +1361,6 @@
       return false;
     };
 
-    // Choose one item per node so that every weak link holds between the
-    // chosen items; chain ends pick the pair that proves the most.
     const instantiate = (path, isRing) => {
       const L = path.length;
       const options = candidateOptions(path);
@@ -1386,9 +1391,9 @@
         let best = null;
         for (const a of options[0]) {
           for (const b of options[L - 1]) {
-            const probe = [];
-            intersectionRemovals(a.side, b.side, probe);
-            const n = canonicalRemovalPack(probe).removals.length;
+            // One intersection cannot repeat a candidate, so the canonical
+            // pack would only sort it: the count is the same.
+            const n = intersectionCount(a.side, b.side);
             if (!best || n > best.n) best = { a, b, n };
           }
         }
@@ -1762,10 +1767,9 @@
           if (D.index <= A.index) continue;
           if (deadRings.has(A.index * 65536 + D.index)) continue;
           const sd = unionSideOf(D);
-          if ((sa.nandDigits & sd.nandDigits) === 0) continue;
+          if (!hasIntersection(sa, sd)) continue;
           const probe = [];
           intersectionRemovals(sa, sd, probe);
-          if (probe.length === 0) continue;
           // The union proves at least this much; skip pairs seen already.
           const { key: probeKey } = canonicalRemovalPack(probe);
           if (stringifiedFoundRemovals.has(probeKey)) continue;
