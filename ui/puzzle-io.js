@@ -35,6 +35,28 @@
     );
   }
 
+  function createPuzzleIdentity(puzzleData, puzzleString) {
+    if (!puzzleData || typeof puzzleData !== "object") return null;
+
+    const date = puzzleData.date;
+    const level = puzzleData.level;
+    const puzzle = decompressPuzzleString(puzzleString)
+      .replace(/0/g, ".")
+      .replace(/\s/g, "");
+    const hasValidDate = date === "unlimited" || Number.isInteger(date);
+
+    if (
+      !hasValidDate ||
+      !Number.isInteger(level) ||
+      puzzle.length !== 81 ||
+      !/^[1-9.]+$/.test(puzzle)
+    ) {
+      return null;
+    }
+
+    return Object.freeze({ date, level, puzzle });
+  }
+
   function parseLibraryBoardField(field) {
     const values = Array(81).fill(0);
     const givens = Array(81).fill(false);
@@ -282,18 +304,38 @@
   }
 
   function readJsonArray(storage, key) {
-    const value = readStoredText(storage, key);
-    if (!value) return [];
+    const result = readJsonArrayResult(storage, key);
+    return result.ok ? result.value : [];
+  }
+
+
+  function readJsonArrayResult(storage, key) {
+    let value;
+    try {
+      value = storage.getItem(key);
+    } catch (error) {
+      console.warn(`Failed to read ${key}; preserving stored data.`, error);
+      return { ok: false, value: null, error };
+    }
+
+    if (!value) return { ok: true, value: [] };
+
     try {
       const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) {
+        const error = new TypeError(`${key} is not a JSON array.`);
+        console.warn(`Failed to read ${key}; preserving stored data.`, error);
+        return { ok: false, value: null, error };
+      }
+      return { ok: true, value: parsed };
     } catch (error) {
-      console.warn(`Failed to read ${key}; using defaults.`, error);
-      return [];
+      console.warn(`Failed to read ${key}; preserving stored data.`, error);
+      return { ok: false, value: null, error };
     }
   }
 
   root.SudokuPuzzleIO = Object.freeze({
+    createPuzzleIdentity,
     decodeBoardState,
     decompressPuzzleString,
     encodeBoardState,
@@ -302,6 +344,7 @@
     parsePuzzleInput,
     puzzleStringToGrid,
     readJsonArray,
+    readJsonArrayResult,
     readStoredBoolean,
     readStoredEnum,
     readStoredText,

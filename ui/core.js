@@ -1,5 +1,6 @@
 // --- DOM Element Selections ---
 const {
+  createPuzzleIdentity,
   decodeBoardState,
   decompressPuzzleString,
   encodeBoardState: encodeSharedBoardState,
@@ -7,6 +8,7 @@ const {
   parsePuzzleInput,
   puzzleStringToGrid,
   readJsonArray,
+  readJsonArrayResult,
   readStoredBoolean,
   readStoredEnum,
   readStoredText,
@@ -84,6 +86,10 @@ let currentlyHoveredElement = null;
 let pausedElapsedTimes = {};
 let puzzleTimers = {}; // { "dateLevel": { elapsedMs, startTime } }
 let currentPuzzleKey = null; // Track which puzzle is currently active
+// The save target belongs to the loaded board, never to the selectors. During
+// a puzzle transition this is null so an old callback cannot save a partially
+// loaded board under either puzzle's identity.
+let activePuzzleIdentity = null;
 let isLoadingSavedGame = false;
 let currentHintData = null;
 let hintClickCount = 0;
@@ -4055,6 +4061,7 @@ async function populateSelectors() {
  */
 async function loadSavedDailyPuzzle(date, level) {
   const allSaves = readAllSaves();
+  if (!allSaves) return false;
 
   const savedGame = allSaves.find(
     (save) => isSaveRecord(save) && save.date === date && save.level === level,
@@ -4076,6 +4083,13 @@ async function loadSavedDailyPuzzle(date, level) {
 }
 
 async function findAndLoadSelectedPuzzle() {
+  // The change event fires after the selectors point at the destination. Save
+  // the board that is still on screen before anything clears or replaces it.
+  // savePuzzleProgress uses activePuzzleIdentity, so this cannot target the
+  // newly selected puzzle by mistake.
+  flushScheduledPuzzleProgress();
+  activePuzzleIdentity = null;
+
   const requestId = ++puzzleSelectionRequestId;
   puzzleLoadRequestId++;
 
@@ -4088,7 +4102,7 @@ async function findAndLoadSelectedPuzzle() {
     let level = parseInt(levelSelect.value, 10);
 
     // CHECK FOR SAVED GAME
-    const savedGame = readAllSaves().find(
+    const savedGame = (readAllSaves() || []).find(
       (s) => isSaveRecord(s) && s.date === "unlimited" && s.level === level,
     );
 
@@ -4159,7 +4173,7 @@ async function findAndLoadSelectedPuzzle() {
           modal.classList.add("hidden");
           modal.classList.remove("flex");
           // Remove the old save since user chose New Game
-          removeCurrentPuzzleSave();
+          removeCurrentPuzzleSave({ date: "unlimited", level });
           puzzleLoadRequestId++;
           fetchUnlimitedPuzzle(level, ++puzzleSelectionRequestId);
         };
@@ -4693,6 +4707,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   puzzleString = parsedInput.source;
 
   flushScheduledPuzzleProgress();
+  activePuzzleIdentity = null;
   if (!libraryState) {
     puzzleString = puzzleString.replace(/0/g, ".");
 
@@ -4870,6 +4885,13 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
       if (loadId !== puzzleLoadRequestId) return false;
     }
   }
+
+  // From here on, board mutations and delayed saves belong to this exact
+  // puzzle. Custom puzzles return null and intentionally remain unsaved.
+  activePuzzleIdentity = createPuzzleIdentity(
+    puzzleData,
+    initialPuzzleString,
+  );
   // --- APPLY SAVED PROGRESS ---
   if (puzzleData) {
     // For Unlimited, puzzleData is constructed manually
@@ -5034,10 +5056,20 @@ function clearUserBoard() {
 
 /**
  * Reads the saved-games array out of localStorage.
- * @returns {Array} The stored saves, or [] when missing/corrupt.
+ * A failed/corrupt read blocks collection writes for the rest of this page
+ * session. Otherwise a later successful read could overwrite progress that
+ * was temporarily unavailable when the puzzle loaded.
+ * @returns {?Array} The stored saves, [] when missing, or null on failure.
  */
+let areSaveCollectionWritesBlocked = false;
+
 function readAllSaves() {
-  return readJsonArray(localStorage, "sudokuSaves");
+  const result = readJsonArrayResult(localStorage, "sudokuSaves");
+  if (!result.ok) {
+    areSaveCollectionWritesBlocked = true;
+    return null;
+  }
+  return result.value;
 }
 
 const isDigit = (value) => Number.isInteger(value) && value >= 1 && value <= 9;
@@ -5253,23 +5285,20 @@ function savePuzzleProgress() {
 
   if (isSolverMode) return;
 
-  // Allow saving if it's a standard daily puzzle OR an Unlimited puzzle
-  const isUnlimited = dateSelect.value === "unlimited";
-
-  // Do not save strictly custom (user-entered) puzzles or during auto-solve
-  if ((isCustomPuzzle && !isUnlimited) || isSolvingViaButton) return;
-
-  const selectedDate = isUnlimited
-    ? "unlimited"
-    : parseInt(dateSelect.value, 10);
-  const selectedLevel = parseInt(levelSelect.value, 10);
-
+  // The dropdowns may already point at the next puzzle while this board still
+  // belongs to the previous one. Only the identity committed by loadPuzzle is
+  // allowed to select a storage record.
+  const saveIdentity = activePuzzleIdentity;
   if (
-    (!selectedDate && selectedDate !== "unlimited") ||
-    isNaN(selectedLevel) ||
-    !initialPuzzleString
-  )
+    !saveIdentity ||
+    isSolvingViaButton ||
+    initialPuzzleString !== saveIdentity.puzzle
+  ) {
     return;
+  }
+
+  const selectedDate = saveIdentity.date;
+  const selectedLevel = saveIdentity.level;
 
   // Lines and marks on given cells are user work too: every editable cell can
   // be bare while the board still carries the user's thinking.
@@ -5297,6 +5326,10 @@ function savePuzzleProgress() {
   }
 
   const allSaves = readAllSaves();
+  if (!allSaves || areSaveCollectionWritesBlocked) {
+    notifyStorageWriteFailed();
+    return;
+  }
 
   // Find existing save for this specific Date + Level
   const existingSaveIndex = allSaves.findIndex(
@@ -5308,7 +5341,7 @@ function savePuzzleProgress() {
     const currentSave = {
       date: selectedDate,
       level: selectedLevel,
-      puzzle: initialPuzzleString,
+      puzzle: saveIdentity.puzzle,
       progress: serializeProgress(),
       lines: usableLines,
       givenMarks,
@@ -5348,18 +5381,23 @@ function savePuzzleProgress() {
   }
 }
 
-function removeCurrentPuzzleSave() {
-  const isUnlimited = dateSelect.value === "unlimited";
-  if (isCustomPuzzle && !isUnlimited) return;
+function removeCurrentPuzzleSave(identity = activePuzzleIdentity) {
+  if (!identity) return;
 
-  const selectedDate = isUnlimited
-    ? "unlimited"
-    : parseInt(dateSelect.value, 10);
-  const selectedLevel = parseInt(levelSelect.value, 10);
-  if ((!selectedDate && selectedDate !== "unlimited") || isNaN(selectedLevel))
+  const selectedDate = identity.date;
+  const selectedLevel = identity.level;
+  if (
+    (selectedDate !== "unlimited" && !Number.isInteger(selectedDate)) ||
+    !Number.isInteger(selectedLevel)
+  ) {
     return;
+  }
 
   const allSaves = readAllSaves();
+  if (!allSaves || areSaveCollectionWritesBlocked) {
+    notifyStorageWriteFailed();
+    return;
+  }
 
   const existingSaveIndex = allSaves.findIndex(
     (s) =>
@@ -5382,6 +5420,7 @@ function removeCurrentPuzzleSave() {
  */
 function applySavedProgress(puzzleData) {
   const allSaves = readAllSaves();
+  if (!allSaves) return 0;
 
   const savedGameIndex = allSaves.findIndex(
     (s) =>
@@ -5397,6 +5436,7 @@ function applySavedProgress(puzzleData) {
   // Checked before anything is applied: this used to run after the record's
   // lines and hint flag had already been put on the board.
   if (savedGame.puzzle !== decompressPuzzleString(puzzleData.puzzle)) {
+    if (areSaveCollectionWritesBlocked) return 0;
     allSaves.splice(savedGameIndex, 1);
     if (
       !writeStoredText(localStorage, "sudokuSaves", JSON.stringify(allSaves))
