@@ -429,6 +429,22 @@ html.dark .offline-cache-dot {
   pointer-events: none; /* don't block clicks */
 }
 
+.pencil-grid.cand-highlighted {
+  position: relative;
+}
+
+.pencil-grid.cand-highlighted::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--cand-hl-col, 0) * 100% / 3 + 2px);
+  top: calc(var(--cand-hl-row, 0) * 100% / 3 + 2px);
+  width: calc(100% / 3 - 4px);
+  height: calc(100% / 3 - 4px);
+  border-radius: 4px;
+  background-color: #f6cefc;
+  pointer-events: none;
+}
+
 /* -- 3x3 Box Borders -- */
 .sudoku-grid .grid-row .sudoku-cell:nth-child(3),
 .sudoku-grid .grid-row .sudoku-cell:nth-child(6) {
@@ -1064,6 +1080,9 @@ html.dark {
   }
   .sudoku-cell.highlighted.has-color::after {
     border: 3px solid rgba(250, 204, 21, 0.1); /* softer glow */
+  }
+  .pencil-grid.cand-highlighted::before {
+    background-color: #374151;
   }
 
   .draw-line,

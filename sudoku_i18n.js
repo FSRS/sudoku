@@ -133,6 +133,9 @@ const TRANSLATIONS = {
     pref_display_mode: "Display Mode",
     pref_display_mode_a: "Phone",
     pref_display_mode_b: "Numpad",
+    pref_highlight_mode: "Highlight",
+    pref_highlight_mode_cell: "Whole Cell",
+    pref_highlight_mode_candidate: "Candidate Only",
     pref_experimental_mode: "Experimental Mode",
     pref_experimental_mode_tooltip_desktop:
       "Direct candidates: left/right-click to set/erase in Number mode.",
@@ -1058,6 +1061,9 @@ const TRANSLATIONS = {
     pref_display_mode: "표시 모드",
     pref_display_mode_a: "전화기",
     pref_display_mode_b: "숫자패드",
+    pref_highlight_mode: "강조 표시",
+    pref_highlight_mode_cell: "칸 전체",
+    pref_highlight_mode_candidate: "후보수만",
     pref_experimental_mode: "실험실 모드",
     pref_experimental_mode_tooltip_desktop: "좌/우클릭으로 후보수 설정/지우기",
     pref_experimental_mode_tooltip_mobile:

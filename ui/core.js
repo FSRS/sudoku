@@ -104,6 +104,7 @@ let userBoardSnapshot = null;
 let userLinesSnapshot = null;
 let userHighlightStateSnapshot = 0;
 let userHighlightedDigitSnapshot = null;
+let highlightMode = "cell";
 
 let solverSteps = [];
 let currentSolverStep = 0;
@@ -1431,7 +1432,9 @@ function renderBoard() {
     if (highlightState === 1 && highlightedDigit !== null) {
       if (
         state.value === highlightedDigit ||
-        (state.value === 0 && state.pencils.has(highlightedDigit))
+        (state.value === 0 &&
+          state.pencils.has(highlightedDigit) &&
+          highlightMode !== "candidate")
       ) {
         cell.classList.add("highlighted");
       }
@@ -1444,6 +1447,22 @@ function renderBoard() {
     // 2. Update Content Elements
     const content = cell.querySelector(".cell-content");
     const pencilGrid = cell.querySelector(".pencil-grid");
+
+    const highlightSlot =
+      highlightMode === "candidate" &&
+      highlightState === 1 &&
+      state.value === 0 &&
+      state.pencils.has(highlightedDigit)
+        ? currentOrder.indexOf(highlightedDigit)
+        : -1;
+    pencilGrid.classList.toggle("cand-highlighted", highlightSlot >= 0);
+    if (highlightSlot >= 0) {
+      pencilGrid.style.setProperty(
+        "--cand-hl-row",
+        Math.floor(highlightSlot / 3),
+      );
+      pencilGrid.style.setProperty("--cand-hl-col", highlightSlot % 3);
+    }
 
     Array.from(content.childNodes).forEach((node) => {
       if (node.nodeType === Node.TEXT_NODE) node.remove();
@@ -2052,6 +2071,7 @@ function setupEventListeners() {
   gridContainer.addEventListener("dragstart", (e) => e.preventDefault());
 
   loadDisplayModePreference();
+  loadHighlightModePreference();
   loadExperimentalModePreference();
 
   window.addEventListener("pagehide", flushScheduledPuzzleProgress);
@@ -7591,6 +7611,15 @@ function loadDisplayModePreference() {
   );
 }
 
+function loadHighlightModePreference() {
+  highlightMode = readStoredEnum(
+    localStorage,
+    "sudokuHighlightMode",
+    ["cell", "candidate"],
+    highlightMode,
+  );
+}
+
 /**
  * Loads the experimental mode preference from localStorage on startup. This
  * runs before the puzzle loads, so it must not be able to stop startup: a
@@ -8306,6 +8335,8 @@ function openPreferencesModal() {
   listContainer.innerHTML = "";
   ensureDifficultyEnginePreference();
   document.getElementById("display-mode-select").value = candidatePopupFormat;
+  const highlightModeSelect = document.getElementById("highlight-mode-select");
+  if (highlightModeSelect) highlightModeSelect.value = highlightMode;
   document.getElementById("experimental-mode-toggle").checked =
     isExperimentalMode;
 
@@ -8655,6 +8686,17 @@ document.addEventListener("DOMContentLoaded", () => {
           candidatePopupFormat,
         ) || notifyStorageWriteFailed();
       }
+      const selectedHighlightMode = document.getElementById(
+        "highlight-mode-select",
+      )?.value;
+      if (
+        selectedHighlightMode === "cell" ||
+        selectedHighlightMode === "candidate"
+      ) {
+        highlightMode = selectedHighlightMode;
+        writeStoredText(localStorage, "sudokuHighlightMode", highlightMode) ||
+          notifyStorageWriteFailed();
+      }
       isExperimentalMode =
         document.getElementById("experimental-mode-toggle").checked &&
         !arePencilsHidden;
@@ -8710,6 +8752,9 @@ document.addEventListener("DOMContentLoaded", () => {
         "sudokuDisplayFormat",
         candidatePopupFormat,
       ) || notifyStorageWriteFailed();
+      highlightMode = "cell";
+      writeStoredText(localStorage, "sudokuHighlightMode", highlightMode) ||
+        notifyStorageWriteFailed();
       isExperimentalMode = false;
       saveExperimentalModePreference();
 
