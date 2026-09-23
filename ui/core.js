@@ -693,21 +693,44 @@ function initInstallPrompt() {
   });
 }
 
+/** Moves a colour to the same slot of another palette; unknown colours stay. */
+function mapColor(color, oldPal, newPal) {
+  if (!color) return color;
+  if (Array.isArray(color))
+    return color.map((c) => {
+      const idx = oldPal.indexOf(c);
+      return idx !== -1 && newPal[idx] ? newPal[idx] : c;
+    });
+  const idx = oldPal.indexOf(color);
+  return idx !== -1 && newPal[idx] ? newPal[idx] : color;
+}
+
+/** The ramps a theme paints cells, candidates and lines with. */
+function getThemePalettes(isDark) {
+  if (isDark) {
+    return {
+      cell: colorPalette800,
+      candidate: colorPalette400,
+      line: colorPalette600,
+    };
+  }
+  return {
+    cell: colorPalette300,
+    //candidate: colorPalette700,
+    // line: colorPalette500,
+    candidate: colorPalette600,
+    line: colorPalette450,
+  };
+}
+
 function updateColorPalettes() {
   const isDark = document.documentElement.classList.contains("dark");
   // Markers keep the same ramp in both themes, so they never need remapping.
   markColorPalette = colorPalette500;
-  if (isDark) {
-    cellColorPalette = colorPalette800;
-    candidateColorPalette = colorPalette400;
-    lineColorPalette = colorPalette600;
-  } else {
-    cellColorPalette = colorPalette300;
-    //candidateColorPalette = colorPalette700;
-    // lineColorPalette = colorPalette500;
-    candidateColorPalette = colorPalette600;
-    lineColorPalette = colorPalette450;
-  }
+  const palettes = getThemePalettes(isDark);
+  cellColorPalette = palettes.cell;
+  candidateColorPalette = palettes.candidate;
+  lineColorPalette = palettes.line;
 }
 
 function swapThemeColors() {
@@ -723,18 +746,6 @@ function swapThemeColors() {
   const newCellPalette = cellColorPalette;
   const newCandPalette = candidateColorPalette;
   const newLinePalette = lineColorPalette;
-
-  // Helper function to find a color's index and map it to the new palette
-  const mapColor = (color, oldPal, newPal) => {
-    if (!color) return color;
-    if (Array.isArray(color))
-      return color.map((c) => {
-        const idx = oldPal.indexOf(c);
-        return idx !== -1 && newPal[idx] ? newPal[idx] : c;
-      });
-    const idx = oldPal.indexOf(color);
-    return idx !== -1 && newPal[idx] ? newPal[idx] : color;
-  };
 
   const mapCellColors = (cell) => {
     cell.cellColor = mapColor(cell.cellColor, oldCellPalette, newCellPalette);
@@ -1354,6 +1365,35 @@ function getGradientBackground(colors, direction = "to right") {
   return gradient;
 }
 
+function getReadableInk(colors) {
+  const luminance = (hex) => {
+    const [r, g, b] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const darkInk = "#111827";
+  const levels = colors.map(luminance);
+  const onWhite = 1.05 / (Math.max(...levels) + 0.05);
+  const onDark = (Math.min(...levels) + 0.05) / (luminance(darkInk) + 0.05);
+  return onDark > onWhite ? darkInk : "#ffffff";
+}
+
+function applyCandidateHighlightColor(pencilGrid, color) {
+  if (!color) {
+    pencilGrid.style.removeProperty("--cand-hl-fill");
+    pencilGrid.style.removeProperty("--cand-hl-ink");
+    return;
+  }
+  const colors = Array.isArray(color) ? color : [color];
+  pencilGrid.style.setProperty(
+    "--cand-hl-fill",
+    getGradientBackground(colors, "to bottom"),
+  );
+  pencilGrid.style.setProperty("--cand-hl-ink", getReadableInk(colors));
+}
+
 function toggleColor(existingColor, newColor) {
   if (!newColor) return existingColor;
   if (!existingColor) return newColor;
@@ -1462,6 +1502,10 @@ function renderBoard() {
         Math.floor(highlightSlot / 3),
       );
       pencilGrid.style.setProperty("--cand-hl-col", highlightSlot % 3);
+      applyCandidateHighlightColor(
+        pencilGrid,
+        state.pencilColors.get(highlightedDigit),
+      );
     }
 
     Array.from(content.childNodes).forEach((node) => {
@@ -1482,6 +1526,7 @@ function renderBoard() {
         marks.forEach((mark, index) => {
           const digit = currentOrder[index];
           mark.dataset.num = digit;
+          mark.classList.toggle("cand-hl", index === highlightSlot);
 
           if (state.pencils.has(digit)) {
             mark.textContent = digit;
@@ -2123,7 +2168,9 @@ function setupEventListeners() {
         const num = parseInt(mark.dataset.num);
         const pColor = cellState.pencilColors.get(num);
 
-        if (Array.isArray(pColor)) {
+        if (mark.classList.contains("cand-hl")) {
+          applyCandidateHighlightColor(mark.parentElement, selectedColor);
+        } else if (Array.isArray(pColor)) {
           // Multi-colored: Apply solid gradient hack
           mark.style.backgroundImage = `linear-gradient(${selectedColor}, ${selectedColor})`;
         } else {
@@ -2167,6 +2214,12 @@ function setupEventListeners() {
         const num = parseInt(mark.dataset.num);
         // Restore gradient or solid from the board state
         applyPencilMarkColor(mark, cellState.pencilColors.get(num));
+        if (mark.classList.contains("cand-hl")) {
+          applyCandidateHighlightColor(
+            mark.parentElement,
+            cellState.pencilColors.get(num),
+          );
+        }
       }
     }
   });
@@ -3934,7 +3987,12 @@ function handleNumberPadClick(e) {
             const num = parseInt(currentlyHoveredElement.dataset.num);
             const pColor = cellState.pencilColors.get(num);
 
-            if (Array.isArray(pColor)) {
+            if (currentlyHoveredElement.classList.contains("cand-hl")) {
+              applyCandidateHighlightColor(
+                currentlyHoveredElement.parentElement,
+                selectedColor,
+              );
+            } else if (Array.isArray(pColor)) {
               currentlyHoveredElement.style.backgroundImage = `linear-gradient(${selectedColor}, ${selectedColor})`;
             } else {
               currentlyHoveredElement.style.color = selectedColor;
@@ -5097,6 +5155,12 @@ const isCoordinate = (value) =>
   Number.isInteger(value) && value >= 0 && value <= 8;
 const isPlainObject = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
+// Colours are stored as the palette strings the board paints with. Cell and
+// candidate colours stack, so those may also be an array of several.
+const isColor = (value) => typeof value === "string";
+const isColorStack = (value) =>
+  isColor(value) ||
+  (Array.isArray(value) && value.length > 0 && value.every(isColor));
 
 /**
  * The shape a stored save must have before its fields are read. Guards every
@@ -5134,12 +5198,12 @@ function parseDigitList(list) {
 }
 
 /** Maps keyed by candidate digit travel as [digit, value] pairs. */
-function parseDigitMap(entries) {
+function parseDigitMap(entries, isValue) {
   if (entries === undefined || entries === null) return [];
   if (!Array.isArray(entries)) return null;
   for (const entry of entries) {
     if (!Array.isArray(entry) || entry.length !== 2) return null;
-    if (!isDigit(entry[0]) || !Number.isInteger(entry[1])) return null;
+    if (!isDigit(entry[0]) || !isValue(entry[1])) return null;
   }
   return entries;
 }
@@ -5153,14 +5217,14 @@ function parseSavedCell(savedCell) {
   if (value !== 0 && !isDigit(value)) return null;
 
   const pencils = parseDigitList(savedCell.p);
-  const pencilColors = parseDigitMap(savedCell.pc);
-  const candCircles = parseDigitMap(savedCell.cr);
-  const candSlashes = parseDigitMap(savedCell.sx);
+  const pencilColors = parseDigitMap(savedCell.pc, isColorStack);
+  const candCircles = parseDigitMap(savedCell.cr, isColor);
+  const candSlashes = parseDigitMap(savedCell.sx, isColor);
   if (!pencils || !pencilColors || !candCircles || !candSlashes) return null;
 
   const cellColor =
     savedCell.cc === undefined || savedCell.cc === null ? null : savedCell.cc;
-  if (cellColor !== null && !Number.isInteger(cellColor)) return null;
+  if (cellColor !== null && !isColorStack(cellColor)) return null;
 
   return { value, pencils, cellColor, pencilColors, candCircles, candSlashes };
 }
@@ -5472,6 +5536,26 @@ function applySavedProgress(puzzleData) {
   const restored = parseSavedProgress(savedGame);
   if (!restored) return 0;
 
+  // A record keeps the hex of the theme it was written in. Colours from the
+  // other theme move to the same slot of this one, as the theme toggle does for
+  // the board on screen; left alone they paint the other theme's ramp and the
+  // colour buttons can no longer toggle them off.
+  const isDark = document.documentElement.classList.contains("dark");
+  const otherPalettes = getThemePalettes(!isDark);
+  const currentPalettes = getThemePalettes(isDark);
+  const toCurrentTheme = (color, kind) =>
+    mapColor(color, otherPalettes[kind], currentPalettes[kind]);
+  const toCurrentThemeCandidates = (entries) =>
+    new Map(
+      entries.map(([digit, color]) => [
+        digit,
+        toCurrentTheme(color, "candidate"),
+      ]),
+    );
+
+  for (const line of restored.lines) {
+    line.color = toCurrentTheme(line.color, "line");
+  }
   drawnLines = restored.lines;
   hadUsedHint = restored.usedHint;
   hasUsedAutoPencil = restored.usedAutoPencil;
@@ -5532,8 +5616,8 @@ function applySavedProgress(puzzleData) {
     if (currentCell.isGiven) continue;
     currentCell.value = cell.value;
     currentCell.pencils = new Set(cell.pencils);
-    currentCell.cellColor = cell.cellColor;
-    currentCell.pencilColors = new Map(cell.pencilColors);
+    currentCell.cellColor = toCurrentTheme(cell.cellColor, "cell");
+    currentCell.pencilColors = toCurrentThemeCandidates(cell.pencilColors);
     currentCell.candCircles = new Map(cell.candCircles);
     currentCell.candSlashes = new Map(cell.candSlashes);
   }
@@ -5541,8 +5625,8 @@ function applySavedProgress(puzzleData) {
   for (const [index, marks] of restored.givenMarks) {
     const currentCell = boardState[Math.floor(index / 9)][index % 9];
     if (!currentCell.isGiven) continue;
-    currentCell.cellColor = marks.cellColor;
-    currentCell.pencilColors = new Map(marks.pencilColors);
+    currentCell.cellColor = toCurrentTheme(marks.cellColor, "cell");
+    currentCell.pencilColors = toCurrentThemeCandidates(marks.pencilColors);
     currentCell.candCircles = new Map(marks.candCircles);
     currentCell.candSlashes = new Map(marks.candSlashes);
   }
