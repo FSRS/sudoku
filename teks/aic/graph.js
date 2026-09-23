@@ -360,6 +360,11 @@ Object.assign(techniques, {
     return alsMap;
   },
 
+  // A finned fish is an OR gate between its fins and each cover's body.
+  // Fins in one house make a rank-1 fish; fins spread over more houses
+  // (a "DOF 2" fish) are opt-in.
+  _aicUseDof2Fish: false,
+
   buildFishOrMap: (board, pencils, getNode, fishLinkRegistry) => {
     const orMap = new Map();
 
@@ -501,6 +506,7 @@ Object.assign(techniques, {
                   finCols.size === 1 ||
                   finBoxes.size === 1;
               }
+              if (!isRank1 && techniques._aicUseDof2Fish !== true) continue;
 
               const coverBodyNodes = [];
               for (const cv of covers) {

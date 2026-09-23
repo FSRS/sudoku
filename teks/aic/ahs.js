@@ -1,6 +1,9 @@
 (() => {
   // Eureka strings mark HLS nodes as "{hls}"; set to false to hide the tag.
   techniques._ahsEurekaHlsTag = true;
+  // HLS reasoning (odd-cell nodes, HLS views, pivots) is opt-in. Without it
+  // the graph holds only the AHS cell nodes and their OR gates.
+  techniques._ahsUseHls = false;
 
   // Assign an object to collect per-phase timings (ms) and counts.
   techniques._ahsProfile = null;
@@ -332,6 +335,7 @@
       }
     };
 
+    const useHls = techniques._ahsUseHls === true;
     let hlsCandidates = 0;
     let hlsEntries = 0;
     const hlsUnion = new Int32Array(512);
@@ -348,6 +352,7 @@
         }
       }
 
+      if (!useHls) continue;
       const k = cellIds.length;
       const limit = 1 << k;
       hlsUnion[0] = 0;

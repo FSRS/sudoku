@@ -105,6 +105,9 @@ let userLinesSnapshot = null;
 let userHighlightStateSnapshot = 0;
 let userHighlightedDigitSnapshot = null;
 let highlightMode = "cell";
+// Solver logic switches; both default to off.
+let useAhsHls = false;
+let useDof2Fish = false;
 
 let solverSteps = [];
 let currentSolverStep = 0;
@@ -2118,6 +2121,7 @@ function setupEventListeners() {
   loadDisplayModePreference();
   loadHighlightModePreference();
   loadExperimentalModePreference();
+  loadSolverLogicPreferences();
 
   window.addEventListener("pagehide", flushScheduledPuzzleProgress);
   document.addEventListener("visibilitychange", () => {
@@ -6480,7 +6484,7 @@ async function searchAndAppendVatLevel(
 function getActiveTechniqueOrder() {
   let prefs;
 
-  if (hasCustomPreferences()) {
+  if (hasCustomTechniquePreferences()) {
     prefs = readTechniquePreferences();
   } else {
     // Fallback to your default array if they haven't saved custom prefs
@@ -7721,6 +7725,43 @@ function readTechniquePreferences() {
   return readJsonArray(localStorage, "sudokuTechniquePrefs");
 }
 
+// --- Solver logic preferences (HLS in AHS, DOF 2 fish in chains) ---
+/**
+ * Hands the switches to the engine. The AIC cache holds graphs built under
+ * the previous switches, so it is dropped with them.
+ */
+function applySolverLogicPreferences() {
+  if (typeof techniques === "undefined") return;
+  techniques._ahsUseHls = useAhsHls;
+  techniques._aicUseDof2Fish = useDof2Fish;
+  techniques._releaseAICCache();
+}
+
+function loadSolverLogicPreferences() {
+  useAhsHls = readStoredBoolean(localStorage, "sudokuUseAhsHls", useAhsHls);
+  useDof2Fish = readStoredBoolean(
+    localStorage,
+    "sudokuUseDof2Fish",
+    useDof2Fish,
+  );
+  applySolverLogicPreferences();
+}
+
+function saveSolverLogicPreferences() {
+  const wroteHls = writeStoredText(
+    localStorage,
+    "sudokuUseAhsHls",
+    JSON.stringify(useAhsHls),
+  );
+  const wroteFish = writeStoredText(
+    localStorage,
+    "sudokuUseDof2Fish",
+    JSON.stringify(useDof2Fish),
+  );
+  if (!wroteHls || !wroteFish) notifyStorageWriteFailed();
+  applySolverLogicPreferences();
+}
+
 // --- Difficulty Evaluation Logic ---
 const getThemeColor = (level) => {
   // Check if browser is in dark mode
@@ -8218,7 +8259,17 @@ function findTechniqueForPreference(pref, defaults) {
   );
 }
 
+/**
+ * Whether the environment differs from the defaults (the "*" badge): a
+ * customised technique list, or a solver switch that changes what the
+ * techniques find.
+ */
 function hasCustomPreferences() {
+  return useAhsHls || useDof2Fish || hasCustomTechniquePreferences();
+}
+
+/** Whether the saved technique list differs from the defaults. */
+function hasCustomTechniquePreferences() {
   const savedPrefs = readStoredText(localStorage, "sudokuTechniquePrefs");
   if (!savedPrefs) return false;
 
@@ -8410,6 +8461,22 @@ function getTechniqueListScrollTop(scrollContainer, listContainer) {
   return listRect.top - scrollRect.top + scrollContainer.scrollTop;
 }
 
+// Shows one preferences sheet. A page without the tab row keeps every
+// setting on a single sheet, so there is nothing to switch.
+function setPreferencesTab(name) {
+  document.querySelectorAll("[data-pref-tab]").forEach((tab) => {
+    const isSelected = tab.dataset.prefTab === name;
+    tab.setAttribute("aria-selected", String(isSelected));
+    document
+      .getElementById(tab.getAttribute("aria-controls"))
+      ?.classList.toggle("hidden", !isSelected);
+  });
+  const scrollContainer = document.getElementById(
+    "preferences-scroll-container",
+  );
+  if (scrollContainer) scrollContainer.scrollTop = 0;
+}
+
 function openPreferencesModal() {
   const modal = document.getElementById("preferences-modal");
   const scrollContainer = document.getElementById(
@@ -8423,6 +8490,12 @@ function openPreferencesModal() {
   if (highlightModeSelect) highlightModeSelect.value = highlightMode;
   document.getElementById("experimental-mode-toggle").checked =
     isExperimentalMode;
+  // These rows may be missing from an older page; skip them then.
+  const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
+  if (ahsHlsToggle) ahsHlsToggle.checked = useAhsHls;
+  const dof2FishToggle = document.getElementById("dof2-fish-toggle");
+  if (dof2FishToggle) dof2FishToggle.checked = useDof2Fish;
+  setPreferencesTab("general");
 
   // Native overscroll handles bounce and momentum perfectly
   scrollContainer.scrollTop = 0;
@@ -8716,6 +8789,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // that runs before the first Blossom call.
   warmBlossomWorkers();
 
+  // --- TABS ---
+  document.querySelectorAll("[data-pref-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => setPreferencesTab(tab.dataset.prefTab));
+  });
+
   // --- SAVE BUTTON ---
   document
     .getElementById("pref-save-btn")
@@ -8785,6 +8863,11 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("experimental-mode-toggle").checked &&
         !arePencilsHidden;
       saveExperimentalModePreference();
+      const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
+      if (ahsHlsToggle) useAhsHls = ahsHlsToggle.checked;
+      const dof2FishToggle = document.getElementById("dof2-fish-toggle");
+      if (dof2FishToggle) useDof2Fish = dof2FishToggle.checked;
+      saveSolverLogicPreferences();
       updateControls();
       renderPuzzleLevelLabel();
       renderBoard();
@@ -8841,6 +8924,9 @@ document.addEventListener("DOMContentLoaded", () => {
         notifyStorageWriteFailed();
       isExperimentalMode = false;
       saveExperimentalModePreference();
+      useAhsHls = false;
+      useDof2Fish = false;
+      saveSolverLogicPreferences();
 
       updateControls();
       renderPuzzleLevelLabel();

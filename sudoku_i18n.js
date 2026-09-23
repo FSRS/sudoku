@@ -128,6 +128,8 @@ const TRANSLATIONS = {
 
     // === Preferences modal ===
     modal_pref_title: "Preferences",
+    pref_tab_general: "General",
+    pref_tab_techniques: "Techniques",
     pref_theme: "Toggle Theme",
     pref_difficulty_engine: "Difficulty rating",
     pref_display_mode: "Display Mode",
@@ -144,6 +146,8 @@ const TRANSLATIONS = {
     ui_rating_pending: "rating...",
     ui_rating_stalled: "no response",
     pref_uniqueness: "Enable Uniqueness Techniques",
+    pref_ahs_hls: "Use hls in AHS logic",
+    pref_dof2_fish: "Use DOF 2 Fish in Chain",
     pref_drag_hint: "Drag & drop to reorder solver priority.",
     btn_pref_reset: "Reset",
     btn_pref_save: "Save",
@@ -1056,6 +1060,8 @@ const TRANSLATIONS = {
 
     // === Preferences modal ===
     modal_pref_title: "환경설정",
+    pref_tab_general: "일반",
+    pref_tab_techniques: "기법",
     pref_theme: "테마 변경",
     pref_difficulty_engine: "난이도 측정 시스템",
     pref_display_mode: "표시 모드",
@@ -1071,6 +1077,8 @@ const TRANSLATIONS = {
     ui_rating_pending: "측정 중...",
     ui_rating_stalled: "응답 없음",
     pref_uniqueness: "유일성 논법 활성화",
+    pref_ahs_hls: "AHS에서 hls 사용",
+    pref_dof2_fish: "사슬에서 자유도 2인 물고기 사용",
     pref_drag_hint:
       "드래그 & 드롭으로 솔버의 우선순위를 재정렬 할 수 있습니다.",
     btn_pref_reset: "초기화",
