@@ -709,9 +709,15 @@ html.dark .offline-cache-dot {
   border: 1px solid var(--nc-border-color);
 }
 
-/* Fix the Preferences Modal height so switching tabs does not move it */
+/* Start the Preferences Modal where a full-height one would, so the short
+   General tab keeps the tab row in place when switching tabs */
+#preferences-modal {
+  align-items: flex-start;
+  padding-top: 7.5vh;
+}
+
+/* Constrain the Preferences Modal height */
 #preferences-modal > div {
-  height: 85vh;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
