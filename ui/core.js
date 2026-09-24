@@ -6482,22 +6482,7 @@ async function searchAndAppendVatLevel(
 
 // Helper function using your existing preference logic
 function getActiveTechniqueOrder() {
-  let prefs;
-
-  if (hasCustomTechniquePreferences()) {
-    prefs = readTechniquePreferences();
-  } else {
-    // Fallback to your default array if they haven't saved custom prefs
-    prefs = getDefaultTechniques();
-  }
-
-  // Filter out disabled techniques and return an array of just the string IDs
-  // e.g., ["eliminateCandidates", "fullHouse", "nakedSingle", ...]
-  const defaults = getDefaultTechniques();
-  return prefs
-    .filter((pref) => pref.enabled !== false)
-    .map((pref) => findTechniqueForPreference(pref, defaults)?.id)
-    .filter(Boolean);
+  return getActiveTechniques().map((tech) => tech.id);
 }
 
 function buildSolverTimeline() {
@@ -8236,7 +8221,12 @@ const getTechniqueHierarchies = () =>
   SudokuTechniqueCatalog.getHierarchyNames(t);
 
 function getDefaultTechniques() {
-  return SudokuTechniqueCatalog.createDefaultTechniques(techniques, t);
+  return SudokuTechniqueCatalog.createDefaultTechniques(techniques, t).map(
+    (tech) =>
+      tech.id === "ui_AHS_W_Wing"
+        ? { ...tech, defaultEnabled: useAhsHls }
+        : tech,
+  );
 }
 
 function findTechniqueForPreference(pref, defaults) {
@@ -8492,7 +8482,17 @@ function openPreferencesModal() {
     isExperimentalMode;
   // These rows may be missing from an older page; skip them then.
   const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
-  if (ahsHlsToggle) ahsHlsToggle.checked = useAhsHls;
+  if (ahsHlsToggle) {
+    ahsHlsToggle.checked = useAhsHls;
+    // Sync only on a user change; opening the dialog preserves manual overrides.
+    ahsHlsToggle.onchange = () => {
+      const wingToggle = listContainer.querySelector(
+        '[data-tech-id="ui_AHS_W_Wing"] .tech-checkbox',
+      );
+      wingToggle.checked = ahsHlsToggle.checked;
+      updateListLabels();
+    };
+  }
   const dof2FishToggle = document.getElementById("dof2-fish-toggle");
   if (dof2FishToggle) dof2FishToggle.checked = useDof2Fish;
   setPreferencesTab("general");

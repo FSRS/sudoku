@@ -461,63 +461,66 @@
     t0 = now();
 
     let pivotCount = 0;
-    const pivotDigits = new Int32Array(81);
-    const forbidMasks = Array.from({ length: 81 }, () => []);
-    const pivotPairs = [];
-    const seenPairs = new Set();
-    for (const ahs of ahses) {
-      const excluded = ahs.cellBits;
-      for (const h of ahs.hls) {
-        const touched = [];
-        let dm = h.digits;
-        while (dm) {
-          const k = lowest(dm);
-          dm &= dm - 1;
-          const nb = h.side.nand[k];
-          const cb = candBits[k];
-          for (let part = 0; part < 3; part++) {
-            let m = nb[part] & cb[part] & ~excluded[part];
-            while (m) {
-              const id = part * 27 + lowest(m);
-              if (pivotDigits[id] === 0) touched.push(id);
-              pivotDigits[id] |= 1 << k;
-              m &= m - 1;
+    // With HLS off, intra-cell OR gates come only from the bivalue map.
+    if (useHls) {
+      const pivotDigits = new Int32Array(81);
+      const forbidMasks = Array.from({ length: 81 }, () => []);
+      const pivotPairs = [];
+      const seenPairs = new Set();
+      for (const ahs of ahses) {
+        const excluded = ahs.cellBits;
+        for (const h of ahs.hls) {
+          const touched = [];
+          let dm = h.digits;
+          while (dm) {
+            const k = lowest(dm);
+            dm &= dm - 1;
+            const nb = h.side.nand[k];
+            const cb = candBits[k];
+            for (let part = 0; part < 3; part++) {
+              let m = nb[part] & cb[part] & ~excluded[part];
+              while (m) {
+                const id = part * 27 + lowest(m);
+                if (pivotDigits[id] === 0) touched.push(id);
+                pivotDigits[id] |= 1 << k;
+                m &= m - 1;
+              }
+            }
+          }
+          for (const id of touched) {
+            const s = pivotDigits[id];
+            pivotDigits[id] = 0;
+            if (s === cand[id]) continue;
+            const key = id * 512 + s;
+            if (seenPairs.has(key)) continue;
+            seenPairs.add(key);
+            forbidMasks[id].push(s);
+            pivotPairs.push(id, s);
+          }
+        }
+      }
+      for (let i = 0; i < pivotPairs.length; i += 2) {
+        const id = pivotPairs[i];
+        const s = pivotPairs[i + 1];
+        const comp = cand[id] & ~s;
+        const compDigits = maskDigits(comp);
+        let useful =
+          compDigits.length === 1 || peekNode([id], compDigits) !== null;
+        if (!useful) {
+          for (const m of forbidMasks[id]) {
+            if ((comp & ~m) === 0) {
+              useful = true;
+              break;
             }
           }
         }
-        for (const id of touched) {
-          const s = pivotDigits[id];
-          pivotDigits[id] = 0;
-          if (s === cand[id]) continue;
-          const key = id * 512 + s;
-          if (seenPairs.has(key)) continue;
-          seenPairs.add(key);
-          forbidMasks[id].push(s);
-          pivotPairs.push(id, s);
-        }
+        if (!useful) continue;
+        const pivot = getNode([id], maskDigits(s));
+        const other = getNode([id], compDigits);
+        if (orMap.get(pivot)?.has(other)) continue;
+        addOr(pivot, other, null);
+        pivotCount++;
       }
-    }
-    for (let i = 0; i < pivotPairs.length; i += 2) {
-      const id = pivotPairs[i];
-      const s = pivotPairs[i + 1];
-      const comp = cand[id] & ~s;
-      const compDigits = maskDigits(comp);
-      let useful =
-        compDigits.length === 1 || peekNode([id], compDigits) !== null;
-      if (!useful) {
-        for (const m of forbidMasks[id]) {
-          if ((comp & ~m) === 0) {
-            useful = true;
-            break;
-          }
-        }
-      }
-      if (!useful) continue;
-      const pivot = getNode([id], maskDigits(s));
-      const other = getNode([id], compDigits);
-      if (orMap.get(pivot)?.has(other)) continue;
-      addOr(pivot, other, null);
-      pivotCount++;
     }
     tick("graph.pivots", t0);
     count("graph.pivotCount", pivotCount);

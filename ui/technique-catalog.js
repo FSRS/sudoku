@@ -66,7 +66,7 @@
     ["ui_ALS_AIC", "alsAic", null, 9, 340],
     ["ui_AHS_XZ", "ahsXZ", null, 9, 320],
     ["ui_AHS_XY_Wing", "ahsXYWing", null, 9, 340],
-    ["ui_AHS_W_Wing", "ahsWWing", null, 9, 350],
+    ["ui_AHS_W_Wing", "ahsWWing", null, 9, 350, false],
     ["ui_AHS_AIC", "ahsAic", null, 9, 360],
     [
       "ui_DB",
