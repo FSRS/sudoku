@@ -895,7 +895,7 @@ Object.assign(techniques, {
             const trueNode = aSubsetOfD ? D : A;
             const removalBitset = trueNode.NandBitset;
             let dnRemovals = extractRemovals(removalBitset);
-            if (endSameDigits) {
+            if (singleDigit || endSameDigits) {
               dnRemovals = dnRemovals.filter(
                 (removal) => removal.num === A.digits[0],
               );
