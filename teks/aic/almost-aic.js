@@ -316,7 +316,7 @@ Object.assign(techniques, {
 
     const getLoc = techniques._formatAicLocation;
 
-    const getCompactFinLoc = techniques._formatCompactAicLocation;
+    const getFishLoc = techniques._formatFishNodeLocation;
 
     // One Eureka term per strong link, following the AIC core formatting.
     const strongTerm = (u, v, lastDigit) => {
@@ -334,8 +334,9 @@ Object.assign(techniques, {
       const fish = fishLinkRegistry.get(u)?.get(v);
       if (fish) {
         return {
-          text: `(${fish.d})(${getCompactFinLoc(u.cells)}=${getCompactFinLoc(
-            v.cells,
+          text: `(${fish.d})(${getFishLoc(fish, u)}=${getFishLoc(
+            fish,
+            v,
           )})(${fish.basesStr}\\${fish.coversStr})`,
           digit: fish.d,
         };

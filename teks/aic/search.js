@@ -436,7 +436,7 @@ Object.assign(techniques, {
     };
 
     const getLoc = techniques._formatAicLocation;
-    const getCompactFinLoc = techniques._formatCompactAicLocation;
+    const getFishLoc = techniques._formatFishNodeLocation;
 
     const buildCompactEureka = (path, isRing) => {
       let str = "";
@@ -457,7 +457,7 @@ Object.assign(techniques, {
           orGateStr = `(${u.digits[0]}=${v.digits[0]})${getLoc(alsIds, preferBox)}`;
           lastDigit = v.digits[0];
         } else if (fish) {
-          orGateStr = `(${fish.d})(${getCompactFinLoc(u.cells)}=${getCompactFinLoc(v.cells)})(${fish.basesStr}\\${fish.coversStr})`;
+          orGateStr = `(${fish.d})(${getFishLoc(fish, u)}=${getFishLoc(fish, v)})(${fish.basesStr}\\${fish.coversStr})`;
           lastDigit = fish.d;
         } else if (
           u.digits[0] !== v.digits[0] &&
@@ -750,6 +750,17 @@ Object.assign(techniques, {
               );
             if (hasOverlap) ringRemovals.push(...extractRemovals(intersection));
 
+            // One end of each strong link holds: what both forbid goes too.
+            for (let i = 0; i < path.length; i += 2) {
+              const { hasOverlap, intersection } =
+                techniques.getBitsetIntersection(
+                  path[i].NandBitset,
+                  path[i + 1].NandBitset,
+                );
+              if (hasOverlap)
+                ringRemovals.push(...extractRemovals(intersection));
+            }
+
             if (useAls) {
               for (let i = 0; i < path.length; i += 2) {
                 const u = path[i];
@@ -800,7 +811,7 @@ Object.assign(techniques, {
                 const u = path[i];
                 const v = path[(i + 1) % path.length];
                 const fish = activeFishLinkRegistry.get(u)?.get(v);
-                if (fish && fish.isRank1) {
+                if (fish && fish.isDof1) {
                   ringFishCoverNodesInRing.add(u);
                   ringFishCoverNodesInRing.add(v);
                   ringFishObjs.push({ fish, linkedNodes: new Set([u, v]) });

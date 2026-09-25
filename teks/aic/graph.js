@@ -361,9 +361,15 @@ Object.assign(techniques, {
   },
 
   // A finned fish is an OR gate between its fins and each cover's body.
-  // Fins in one house make a rank-1 fish; fins spread over more houses
+  // Fins in one house make a DOF 1 fish; fins spread over more houses
   // (a "DOF 2" fish) are opt-in.
   _aicUseDof2Fish: false,
+
+  // Fins whose cover is a box are written as box points.
+  _formatFishNodeLocation: (fish, node) =>
+    fish.finsInOneBox && node === fish.finNode
+      ? techniques._formatAicLocation(node.cells, true)
+      : techniques._formatCompactAicLocation(node.cells),
 
   buildFishOrMap: (board, pencils, getNode, fishLinkRegistry) => {
     const orMap = new Map();
@@ -489,8 +495,9 @@ Object.assign(techniques, {
               const basesStr = getUnitName(isBaseRow, bases);
               const coversStr = getUnitName(!isBaseRow, covers);
 
-              // --- Rank-1 check ---
-              let isRank1 = false;
+              // --- DOF 1 check ---
+              let isDof1 = false;
+              let finsInOneBox = false;
               if (fins.length > 0) {
                 const finRows = new Set(fins.map((id) => Math.floor(id / 9)));
                 const finCols = new Set(fins.map((id) => id % 9));
@@ -501,12 +508,11 @@ Object.assign(techniques, {
                       Math.floor((id % 9) / 3),
                   ),
                 );
-                isRank1 =
-                  finRows.size === 1 ||
-                  finCols.size === 1 ||
-                  finBoxes.size === 1;
+                finsInOneBox = finBoxes.size === 1;
+                isDof1 =
+                  finRows.size === 1 || finCols.size === 1 || finsInOneBox;
               }
-              if (!isRank1 && techniques._aicUseDof2Fish !== true) continue;
+              if (!isDof1 && techniques._aicUseDof2Fish !== true) continue;
 
               const coverBodyNodes = [];
               for (const cv of covers) {
@@ -516,16 +522,18 @@ Object.assign(techniques, {
                 }
               }
 
+              const finNode = getNode(fins, d);
               const fishObj = {
                 d,
                 basesStr,
                 coversStr,
                 allCells: [...fins, ...fishBody],
-                isRank1,
+                isDof1,
+                finNode,
+                finsInOneBox,
                 coverBodyNodes,
               };
 
-              const finNode = getNode(fins, d);
               if (!hasNandCandidates(finNode)) continue;
               for (const bodyNode of coverBodyNodes) {
                 if (hasNandCandidates(bodyNode)) {

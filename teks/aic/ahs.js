@@ -1,8 +1,9 @@
 (() => {
   // Eureka strings mark HLS nodes as "{hls}"; set to false to hide the tag.
   techniques._ahsEurekaHlsTag = true;
-  // HLS reasoning (odd-cell nodes, HLS views, pivots) is opt-in. Without it
-  // the graph holds only the AHS cell nodes and their OR gates.
+  // HLS reasoning (leftover-cell nodes, HLS views, pivots, HLS=HLS gates) is
+  // opt-in. Without it the graph holds only the AHS cell nodes and their OR
+  // gates.
   techniques._ahsUseHls = false;
 
   // Assign an object to collect per-phase timings (ms) and counts.
@@ -455,6 +456,102 @@
         addOr(cellNode, neg, ahs);
       }
     }
+
+    // The n digits of an AHS fill n of its n + 1 cells; the one cell left
+    // over takes a non-AHS digit. Two HLSes of one AHS with no cell in common
+    // form a strong link: the leftover cell lies in at most one of them, so
+    // the other holds. An HLS stands for "the leftover cell is outside it",
+    // a leftover-set node over the non-AHS candidates of the cells outside
+    // it that can be left over. The node is one per AHS and leftover set,
+    // separate from the shared leftover-cell node of the same cell, and is
+    // linked only through what this AHS's HLSes prove (views only, never its
+    // own candidates), so every path through an HLS=HLS gate can be shown
+    // as the HLSes the gate names.
+    const leftoverSetCache = new Map();
+    let leftoverSetCount = 0;
+    let hlsPairCount = 0;
+    const getLeftoverSetNode = (ahs, setMask) => {
+      const key = ahs.id * 512 + setMask;
+      let node = leftoverSetCache.get(key);
+      if (node) return node;
+      const ids = [];
+      const comps = [];
+      let m = setMask;
+      while (m) {
+        const i = lowest(m);
+        m &= m - 1;
+        ids.push(ahs.cellIds[i]);
+        comps.push(cand[ahs.cellIds[i]] & ~ahs.cellDigitMask[i]);
+      }
+      let union = 0;
+      for (const c of comps) union |= c;
+      node = new AICNode(ids, maskDigits(union));
+      if (ids.length > 1) {
+        // The node is exactly these candidates, not every digit in every
+        // cell; what it forbids is what clashes with each of them.
+        for (let k = 0; k < 9; k++) {
+          node.NodeBitset[k] = [0, 0, 0];
+          node.NandBitset[k] = [0x7ffffff, 0x7ffffff, 0x7ffffff];
+        }
+        for (let i = 0; i < ids.length; i++) {
+          const id = ids[i];
+          const pb = PEER_BITSETS[id];
+          const own = [0, 0, 0];
+          own[CELL_PART[id]] = CELL_BIT[id];
+          let dm = comps[i];
+          while (dm) {
+            const k = lowest(dm);
+            dm &= dm - 1;
+            node.NodeBitset[k][CELL_PART[id]] |= CELL_BIT[id];
+            for (let e = 0; e < 9; e++) {
+              const nb = node.NandBitset[e];
+              const clash = e === k ? pb : own;
+              nb[0] &= clash[0];
+              nb[1] &= clash[1];
+              nb[2] &= clash[2];
+            }
+          }
+        }
+      }
+      node.isNeg = true;
+      node.viewsOnly = true;
+      node.hlsRefs = [];
+      node.ahsNand = emptyNand();
+      for (const h of ahs.hls) {
+        if (h.mask & setMask) continue;
+        node.hlsRefs.push({ ahs, cellIdx: -1, h });
+        orInto(node.ahsNand, h.side.nand);
+      }
+      leftoverSetCache.set(key, node);
+      ownNodes.push(node);
+      negNodes.push(node);
+      leftoverSetCount++;
+      return node;
+    };
+    for (const ahs of ahses) {
+      let leftoverMask = 0;
+      for (let i = 0; i < ahs.cellIds.length; i++) {
+        if (cand[ahs.cellIds[i]] & ~ahs.cellDigitMask[i]) leftoverMask |= 1 << i;
+      }
+      ahs.leftoverMask = leftoverMask;
+      const hls = ahs.hls;
+      for (let i = 0; i < hls.length; i++) {
+        const ti = leftoverMask & ~hls[i].mask;
+        if (ti === 0) continue;
+        for (let j = i + 1; j < hls.length; j++) {
+          if (hls[i].mask & hls[j].mask) continue;
+          const tj = leftoverMask & ~hls[j].mask;
+          if (tj === 0) continue;
+          const a = getLeftoverSetNode(ahs, ti);
+          const b = getLeftoverSetNode(ahs, tj);
+          if (!a || !b || a === b) continue;
+          addOr(a, b, ahs);
+          hlsPairCount++;
+        }
+      }
+    }
+    count("graph.leftoverSetNodes", leftoverSetCount);
+    count("graph.hlsPairs", hlsPairCount);
     for (const neg of negNodes) neg.ahsNandDigits = nandDigitsOf(neg.ahsNand);
     tick("graph.neg", t0);
     count("graph.negCount", negNodes.length);
@@ -579,13 +676,14 @@
           }
         }
       }
+      if (n.viewsOnly) continue;
       if (n.digits.length === 1) singleByDigit[n.digits[0]].push(n);
       if (n.cells.length === 1) byCell[n.cells[0]].push(n);
     }
 
     // Rule 1: same digit, every cell of B sees every cell of A.
     for (const A of universe) {
-      if (A.digits.length !== 1) continue;
+      if (A.digits.length !== 1 || A.viewsOnly) continue;
       const k = A.digits[0] - 1;
       const aNand = A.NandBitset[k];
       for (const B of singleByDigit[k + 1]) {
@@ -618,18 +716,29 @@
       }
       const nSides = sidesOf(N);
       const bSides = sidesOf(B);
-      for (let i = 1; i < nSides.length; i++) {
-        if (nodeForbidden(B, nSides[i])) return true;
+      // A views-only node is shown as one of its HLSes, never as its own
+      // candidates, so nothing is proved from or against its plain side.
+      const nPlain = !N.viewsOnly;
+      const bPlain = !B.viewsOnly;
+      if (bPlain) {
+        for (let i = 1; i < nSides.length; i++) {
+          if (nodeForbidden(B, nSides[i])) return true;
+        }
       }
-      for (let j = nSides.length > 1 ? 0 : 1; j < bSides.length; j++) {
-        if (nodeForbidden(N, bSides[j])) return true;
+      if (nPlain) {
+        const j0 = nSides.length > 1 && bPlain ? 0 : 1;
+        for (let j = j0; j < bSides.length; j++) {
+          if (nodeForbidden(N, bSides[j])) return true;
+        }
+        if (bPlain && bSides.length > 1 && nodeForbidden(B, nSides[0])) {
+          return true;
+        }
       }
-      if (bSides.length > 1 && nodeForbidden(B, nSides[0])) return true;
       // Only an HLS side locks digits into cells, so a plain side never
       // forbids by position and is only tested as the other side.
       for (let i = 1; i < nSides.length; i++) {
         const sn = nSides[i];
-        if (positionsForbidden(sn, bSides[0])) return true;
+        if (bPlain && positionsForbidden(sn, bSides[0])) return true;
         for (let j = 1; j < bSides.length; j++) {
           const sb = bSides[j];
           if (positionsForbidden(sn, sb) || positionsForbidden(sb, sn)) {
@@ -637,8 +746,10 @@
           }
         }
       }
-      for (let j = 1; j < bSides.length; j++) {
-        if (positionsForbidden(bSides[j], nSides[0])) return true;
+      if (nPlain) {
+        for (let j = 1; j < bSides.length; j++) {
+          if (positionsForbidden(bSides[j], nSides[0])) return true;
+        }
       }
       return false;
     };
@@ -664,8 +775,16 @@
               const B = list[i];
               if (stamp[B.uIndex] === stampId) continue;
               stamp[B.uIndex] = stampId;
-              // Same-cell pairs are rule 2's business.
-              if (B.cells.length === 1 && B.cells[0] === N.cells[0]) continue;
+              // Same-cell pairs of single cells are rule 2's business,
+              // unless the leftover node is views-only and rule 2 skipped it.
+              if (
+                !N.viewsOnly &&
+                N.cells.length === 1 &&
+                B.cells.length === 1 &&
+                B.cells[0] === N.cells[0]
+              ) {
+                continue;
+              }
               tests++;
               if (negNand(N, B)) link(N, B);
             }
@@ -968,12 +1087,22 @@
     // reachable by an alternating walk of up to this many links.
     let coverageLinks = 0;
 
-    const findPath = (startNode, endNode, maxNodes, kind_) => {
+    // A path search that can be resumed: next(false) gives the first path,
+    // next(true) the first path that touches no views-only node, which is
+    // the path the graph without HLS=HLS gates would have given.
+    const startPath = (startNode, endNode, maxNodes, kind_) => {
       const endOrBits = endNode.OrBits;
       const endOrNandBits = endNode.OrNandBits;
       const EMPTY = new Set();
       const states = [
-        { node: startNode, isNextOr: true, parent: -1, depth: 1, ahs: 0 },
+        {
+          node: startNode,
+          isNextOr: true,
+          parent: -1,
+          depth: 1,
+          ahs: 0,
+          fresh: startNode.viewsOnly ? 1 : 0,
+        },
       ];
       let head = 0;
 
@@ -995,70 +1124,99 @@
         return false;
       };
 
-      // Dominance pruning keys on (node, parity, used an AHS gate yet).
+      // Dominance pruning keys on (node, parity, used an AHS gate yet). A
+      // state through a views-only node is dominated by any earlier state at
+      // its key; one through none only by such states, so the fallback path
+      // is the one the graph without HLS=HLS gates would give.
       const bestDepth = pathFilter
         ? null
         : new Map([[startNode.index * 4 + 2, 1]]);
+      const bestOldDepth =
+        pathFilter || states[0].fresh === 1
+          ? null
+          : new Map([[startNode.index * 4 + 2, 1]]);
 
-      while (head < states.length) {
-        const stateIndex = head++;
-        const state = states[stateIndex];
-        const { node, isNextOr, depth } = state;
+      const next = (wantOld) => {
+        while (head < states.length) {
+          const stateIndex = head++;
+          const state = states[stateIndex];
+          const { node, isNextOr, depth } = state;
+          // A fallback search only walks states through no views-only node.
+          if (wantOld && state.fresh === 1) continue;
 
-        if (node === endNode) {
-          if (!isNextOr && (!requireAhs || state.ahs === 1)) {
-            const path = reconstructPath(stateIndex);
-            if (acceptsPath(path, kind_)) return path;
+          if (node === endNode) {
+            if (
+              !isNextOr &&
+              (!requireAhs || state.ahs === 1) &&
+              (!wantOld || state.fresh === 0)
+            ) {
+              const path = reconstructPath(stateIndex);
+              if (acceptsPath(path, kind_)) return path;
+            }
+            continue;
           }
-          continue;
-        }
-        if (depth >= maxNodes) continue;
+          if (depth >= maxNodes) continue;
 
-        const nextNodes = isNextOr
-          ? roleList(node, (depth - 1) >> 1)
-          : node.NandNodes || EMPTY;
-        const nextIsOr = !isNextOr;
-        const nextDepth = depth + 1;
+          const nextNodes = isNextOr
+            ? roleList(node, (depth - 1) >> 1)
+            : node.NandNodes || EMPTY;
+          const nextIsOr = !isNextOr;
+          const nextDepth = depth + 1;
 
-        for (const nxt of nextNodes) {
-          if (ancestorContains(stateIndex, nxt)) continue;
-          // The rest of the path is a walk from nxt to endNode; the closure
-          // bitsets of endNode bound what such a walk can reach.
-          if (nxt !== endNode) {
-            const remaining = maxNodes - nextDepth;
-            if (remaining <= 0) continue;
-            if (remaining <= coverageLinks) {
-              const bits = nextIsOr ? endOrBits : endOrNandBits;
-              if ((bits[nxt.index >>> 5] & (1 << (nxt.index & 31))) === 0) {
-                continue;
+          for (const nxt of nextNodes) {
+            if (ancestorContains(stateIndex, nxt)) continue;
+            // The rest of the path is a walk from nxt to endNode; the
+            // closure bitsets of endNode bound what such a walk can reach.
+            if (nxt !== endNode) {
+              const remaining = maxNodes - nextDepth;
+              if (remaining <= 0) continue;
+              if (remaining <= coverageLinks) {
+                const bits = nextIsOr ? endOrBits : endOrNandBits;
+                if ((bits[nxt.index >>> 5] & (1 << (nxt.index & 31))) === 0) {
+                  continue;
+                }
               }
             }
-          }
-          // The AIC kind must use at least one AHS with two or more digits;
-          // a bilocation alone would make it an ordinary AIC.
-          const nextAhs =
-            state.ahs === 1 || (isNextOr && isRegisteredAhsGate(node, nxt))
-              ? 1
-              : 0;
+            // The AIC kind must use at least one AHS with two or more
+            // digits; a bilocation alone would make it an ordinary AIC.
+            const nextAhs =
+              state.ahs === 1 || (isNextOr && isRegisteredAhsGate(node, nxt))
+                ? 1
+                : 0;
+            const nextFresh = state.fresh === 1 || nxt.viewsOnly ? 1 : 0;
+            if (wantOld && nextFresh === 1) continue;
 
-          if (bestDepth && nxt !== endNode) {
-            const stateKey = nxt.index * 4 + (nextIsOr ? 2 : 0) + nextAhs;
-            const previousDepth = bestDepth.get(stateKey);
-            if (previousDepth !== undefined && previousDepth <= nextDepth) {
-              continue;
+            if (bestDepth && nxt !== endNode) {
+              const stateKey = nxt.index * 4 + (nextIsOr ? 2 : 0) + nextAhs;
+              const previousDepth = bestDepth.get(stateKey);
+              if (nextFresh === 1) {
+                if (previousDepth !== undefined && previousDepth <= nextDepth) {
+                  continue;
+                }
+              } else {
+                const previousOld = bestOldDepth.get(stateKey);
+                if (previousOld !== undefined && previousOld <= nextDepth) {
+                  continue;
+                }
+                bestOldDepth.set(stateKey, nextDepth);
+              }
+              if (previousDepth === undefined || previousDepth > nextDepth) {
+                bestDepth.set(stateKey, nextDepth);
+              }
             }
-            bestDepth.set(stateKey, nextDepth);
+            states.push({
+              node: nxt,
+              isNextOr: nextIsOr,
+              parent: stateIndex,
+              depth: nextDepth,
+              ahs: nextAhs,
+              fresh: nextFresh,
+            });
           }
-          states.push({
-            node: nxt,
-            isNextOr: nextIsOr,
-            parent: stateIndex,
-            depth: nextDepth,
-            ahs: nextAhs,
-          });
         }
-      }
-      return null;
+        return null;
+      };
+      return { next };
     };
 
     const findRingsFrom = (A, targets, lengths) => {
@@ -1109,7 +1267,16 @@
 
       const targetSet = new Set(targets);
       const resolved = new Map();
-      const states = [{ node: A, isNextOr: true, parent: -1, depth: 1 }];
+      const resolvedOld = new Map();
+      const states = [
+        {
+          node: A,
+          isNextOr: true,
+          parent: -1,
+          depth: 1,
+          fresh: A.viewsOnly ? 1 : 0,
+        },
+      ];
       let head = 0;
       const reconstructPath = (stateIndex) => {
         const path = [];
@@ -1127,39 +1294,72 @@
         }
         return false;
       };
-      while (head < states.length) {
-        const stateIndex = head++;
-        const { node, isNextOr, depth } = states[stateIndex];
-        if (
-          depth > 1 &&
-          !isNextOr &&
-          targetSet.has(node) &&
-          !resolved.has(node)
-        ) {
-          const path = reconstructPath(stateIndex);
-          if (acceptsPath(path, "ring")) {
-            resolved.set(node, path);
-            if (resolved.size === targets.length) return resolved;
+      // Phase 1 stops once every target has its first ring; phase 2 goes
+      // on for the targets whose first ring could not be shown until each
+      // has its first ring through no views-only node.
+      let wantOld = false;
+      let pendingSet = null;
+      let wanted = 0;
+      const run = () => {
+        while (head < states.length) {
+          const stateIndex = head++;
+          const { node, isNextOr, depth, fresh } = states[stateIndex];
+          // Phase 2 only walks states through no views-only node.
+          if (wantOld && fresh === 1) continue;
+          if (
+            depth > 1 &&
+            !isNextOr &&
+            targetSet.has(node) &&
+            (!resolved.has(node) || (fresh === 0 && !resolvedOld.has(node)))
+          ) {
+            const path = reconstructPath(stateIndex);
+            if (acceptsPath(path, "ring")) {
+              if (!resolved.has(node)) {
+                resolved.set(node, path);
+                if (!wantOld && resolved.size === targets.length) return;
+              }
+              if (fresh === 0 && !resolvedOld.has(node)) {
+                resolvedOld.set(node, path);
+                if (wantOld && pendingSet.has(node) && --wanted === 0) return;
+              }
+            }
+          }
+          if (depth >= maxNodes) continue;
+          const nextNodes = isNextOr
+            ? roleList(node, (depth - 1) >> 1)
+            : node.NandNodes;
+          const nextIsOr = !isNextOr;
+          const nextDepth = depth + 1;
+          for (const nxt of nextNodes) {
+            if (ancestorContains(stateIndex, nxt)) continue;
+            if (wantOld && nxt.viewsOnly) continue;
+            if (!canClose(nxt, nextDepth)) continue;
+            states.push({
+              node: nxt,
+              isNextOr: nextIsOr,
+              parent: stateIndex,
+              depth: nextDepth,
+              fresh: fresh === 1 || nxt.viewsOnly ? 1 : 0,
+            });
           }
         }
-        if (depth >= maxNodes) continue;
-        const nextNodes = isNextOr
-          ? roleList(node, (depth - 1) >> 1)
-          : node.NandNodes;
-        const nextIsOr = !isNextOr;
-        const nextDepth = depth + 1;
-        for (const nxt of nextNodes) {
-          if (ancestorContains(stateIndex, nxt)) continue;
-          if (!canClose(nxt, nextDepth)) continue;
-          states.push({
-            node: nxt,
-            isNextOr: nextIsOr,
-            parent: stateIndex,
-            depth: nextDepth,
-          });
-        }
-      }
-      return resolved;
+      };
+      run();
+      return {
+        found: resolved,
+        resumeOld: (pending) => {
+          wantOld = true;
+          pendingSet = new Set(pending);
+          wanted = 0;
+          for (const D of pending) if (!resolvedOld.has(D)) wanted++;
+          if (wanted > 0) run();
+          const out = new Map();
+          for (const D of pending) {
+            if (resolvedOld.has(D)) out.set(D, resolvedOld.get(D));
+          }
+          return out;
+        },
+      };
     };
 
     // --- instantiation: one concrete justification per node ---
@@ -1186,6 +1386,7 @@
     const viewItem = (node, view) => ({
       node,
       cells: view.cells,
+      cellBits: view.cellBits,
       digits: view.digits,
       digitMask: view.digitMask,
       NodeBitset: view.NodeBitset,
@@ -1216,6 +1417,23 @@
       }
       return items;
     };
+    const hlsItemCache = new Map();
+    const hlsItemsOf = (node, ahs) => {
+      const key = node.index * 4096 + ahs.id;
+      let items = hlsItemCache.get(key);
+      if (items === undefined) {
+        const refs = node.hlsRefs.filter((ref) => ref.ahs === ahs);
+        if (refs.length === 0) items = null;
+        else {
+          refs.sort((a, b) => pop(a.h.mask) - pop(b.h.mask));
+          items = refs.map((ref) =>
+            viewItem(node, graph.viewOf(ref.ahs, ref.h)),
+          );
+        }
+        hlsItemCache.set(key, items);
+      }
+      return items;
+    };
     const candidateOptions = (path) => {
       const L = path.length;
       const options = new Array(L);
@@ -1226,7 +1444,19 @@
         const b = path[j];
         options[i] = [plainItemOf(a)];
         options[j] = [plainItemOf(b)];
-        if (!sameCell(a, b) || !isRegisteredAhsGate(a, b)) continue;
+        if (!isRegisteredAhsGate(a, b)) continue;
+        if (a.hlsRefs && b.hlsRefs) {
+          // HLS=HLS gate: each side is one HLS of the AHS linking them.
+          const ahs = ahsReg.get(a).get(b);
+          const ia = hlsItemsOf(a, ahs);
+          const ib = hlsItemsOf(b, ahs);
+          if (ia && ib) {
+            options[i] = ia;
+            options[j] = ib;
+          }
+          continue;
+        }
+        if (!sameCell(a, b)) continue;
         const role = gateRole(g >> 1);
         if (role === "cell") continue;
         if (a.hlsRefs) {
@@ -1304,6 +1534,10 @@
           intersectionRemovals(items[i].side, items[i + 1].side, out);
         }
         intersectionRemovals(items[items.length - 1].side, items[0].side, out);
+        // One end of each strong link holds: what both forbid goes too.
+        for (let i = 0; i < items.length; i += 2) {
+          intersectionRemovals(items[i].side, items[i + 1].side, out);
+        }
         ringExtraRemovals(items, out);
       } else {
         intersectionRemovals(items[0].side, items[items.length - 1].side, out);
@@ -1322,10 +1556,25 @@
         return true;
       }
       for (let i = 0; i < L; i += 2) {
+        if (hasIntersection(unionSideOf(path[i]), unionSideOf(path[i + 1]))) {
+          return true;
+        }
+      }
+      for (let i = 0; i < L; i += 2) {
         const u = path[i];
         const v = path[(i + 1) % L];
         const ahs = ahsReg.get(u)?.get(v);
         if (!ahs || sameCell(u, v)) continue;
+        if (u.hlsRefs && v.hlsRefs) {
+          for (const ru of u.hlsRefs) {
+            if (ru.ahs !== ahs) continue;
+            for (const rv of v.hlsRefs) {
+              if (rv.ahs !== ahs) continue;
+              if (ahs.leftoverMask & ~(ru.h.mask | rv.h.mask)) return true;
+            }
+          }
+          continue;
+        }
         const used = cellBitsOf([...u.cells, ...v.cells]);
         for (const id of ahs.cellIds) {
           if (used[CELL_PART[id]] & CELL_BIT[id]) continue;
@@ -1369,17 +1618,42 @@
       return false;
     };
 
+    const itemsOverlap = (a, b) =>
+      (a.cellBits[0] & b.cellBits[0]) !== 0 ||
+      (a.cellBits[1] & b.cellBits[1]) !== 0 ||
+      (a.cellBits[2] & b.cellBits[2]) !== 0;
+    const isHlsGate = (path, i, j) =>
+      !!(path[i].hlsRefs && path[j].hlsRefs) &&
+      isRegisteredAhsGate(path[i], path[j]);
     const instantiate = (path, isRing) => {
       const L = path.length;
       const options = candidateOptions(path);
       const chosen = new Array(L).fill(null);
+      // On an HLS=HLS gate the two HLSes shown should share no cell, as the
+      // link is stated; once one side is chosen, the other side's views that
+      // avoid it come first. Overlapping views remain valid and are the
+      // fallback when nothing disjoint proves the step.
+      const ordered = (idx) => {
+        const mate = idx % 2 === 0 ? idx + 1 : idx - 1;
+        const m = chosen[mate];
+        if (!m || !m.isHls || !isHlsGate(path, idx, mate)) return options[idx];
+        const disjoint = options[idx].filter(
+          (item) => item.isHls && !itemsOverlap(item, m),
+        );
+        if (disjoint.length === 0 || disjoint.length === options[idx].length) {
+          return options[idx];
+        }
+        return disjoint.concat(
+          options[idx].filter((item) => !disjoint.includes(item)),
+        );
+      };
       const weak = [];
       for (let i = 1; i < L - 1; i += 2) weak.push([i, i + 1]);
       if (isRing) weak.push([L - 1, 0]);
       for (const [i, j] of weak) {
         let found = false;
-        for (const a of options[i]) {
-          for (const b of options[j]) {
+        for (const a of ordered(i)) {
+          for (const b of ordered(j)) {
             if (itemsNand(a, b)) {
               chosen[i] = a;
               chosen[j] = b;
@@ -1395,14 +1669,25 @@
         }
       }
       if (!isRing) {
-        // Free ends: the pair with the most eliminations, smallest first.
+        // Free ends: the pair with the most eliminations, smallest first;
+        // among equals, the one whose HLS=HLS gates stay cell-disjoint.
         let best = null;
+        const mateA = chosen[1];
+        const mateB = chosen[L - 2];
+        const gateA = L > 1 && isHlsGate(path, 0, 1);
+        const gateB = L > 1 && isHlsGate(path, L - 1, L - 2);
+        const disjointFrom = (item, mate, gate) =>
+          gate && item.isHls && mate.isHls && !itemsOverlap(item, mate) ? 1 : 0;
         for (const a of options[0]) {
+          const da = disjointFrom(a, mateA, gateA);
           for (const b of options[L - 1]) {
             // One intersection cannot repeat a candidate, so the canonical
             // pack would only sort it: the count is the same.
             const n = intersectionCount(a.side, b.side);
-            if (!best || n > best.n) best = { a, b, n };
+            const pref = da + disjointFrom(b, mateB, gateB);
+            if (!best || n > best.n || (n === best.n && pref > best.pref)) {
+              best = { a, b, n, pref };
+            }
           }
         }
         if (!best || best.n === 0) {
@@ -1413,6 +1698,16 @@
         chosen[L - 1] = best.b;
       }
       for (let i = 0; i < L; i++) if (!chosen[i]) chosen[i] = options[i][0];
+      for (let i = 0; i < L; i += 2) {
+        const j = (i + 1) % L;
+        if (!chosen[i].isHls || !chosen[j].isHls || !isHlsGate(path, i, j)) {
+          continue;
+        }
+        count("call.hlsGates", 1);
+        if (itemsOverlap(chosen[i], chosen[j])) {
+          count("call.hlsGatesOverlap", 1);
+        }
+      }
       const { removals, key } = removalsForItems(chosen, isRing);
       if (removals.length === 0) {
         count("call.instFailEmpty", 1);
@@ -1703,20 +1998,29 @@
       else if (maxPathNodes) ringLen = Math.min(ringLen, maxPathNodes);
 
       // Priority 1: rings
-      const ringResult = (pairKey, path) => {
+      // A ring or chain whose first path cannot be shown because of an
+      // HLS=HLS gate falls back to the first path through no views-only
+      // node, the path the graph without these gates would give, so adding
+      // them never hides a result.
+      const isFreshPath = (path) => path.some((n) => n.viewsOnly === true);
+      // A result, null for no ring, or RETRY: take the fallback path.
+      const RETRY = {};
+      const ringResult = (pairKey, path, canRetry) => {
         // A two-node ring is a hidden subset in disguise; leave it to them.
-        if (path.length < 4 || !ringMayEliminate(path)) {
-          deadRings.add(pairKey);
-          return null;
+        if (path.length >= 4 && ringMayEliminate(path)) {
+          const inst = instantiate(path, true);
+          if (inst) {
+            if (stringifiedFoundRemovals.has(inst.key)) return null;
+            stringifiedFoundRemovals.add(inst.key);
+            return buildResult(inst.removals, ringName, inst.items, true);
+          }
         }
-        const inst = instantiate(path, true);
-        if (!inst) {
-          deadRings.add(pairKey);
-          return null;
+        if (canRetry && isFreshPath(path)) {
+          count("call.refindRing", 1);
+          return RETRY;
         }
-        if (stringifiedFoundRemovals.has(inst.key)) return null;
-        stringifiedFoundRemovals.add(inst.key);
-        return buildResult(inst.removals, ringName, inst.items, true);
+        deadRings.add(pairKey);
+        return null;
       };
       t0 = now();
       if (ringLengths) {
@@ -1734,17 +2038,43 @@
             targets.push(D);
           }
           if (targets.length === 0) continue;
-          const found = findRingsFrom(A, targets, lengths);
+          const search = findRingsFrom(A, targets, lengths);
+          const pending = [];
           for (const D of targets) {
-            const path = found.get(D);
+            const path = search.found.get(D);
             if (!path) continue;
-            const res = ringResult(A.index * 65536 + D.index, path);
+            const res = ringResult(
+              A.index * 65536 + D.index,
+              path,
+              !A.viewsOnly && !D.viewsOnly,
+            );
+            if (res === RETRY) {
+              pending.push(D);
+              continue;
+            }
             if (!res) continue;
             if (!findAll) {
               tick("call.rings", t0);
               return res;
             }
             results.push(res);
+          }
+          if (pending.length > 0) {
+            const t1 = now();
+            const old = search.resumeOld(pending);
+            tick("call.ringsRefind", t1);
+            count("call.refindRingBfs", 1);
+            for (const D of pending) {
+              const path = old.get(D);
+              if (!path) continue;
+              const res = ringResult(A.index * 65536 + D.index, path, false);
+              if (!res) continue;
+              if (!findAll) {
+                tick("call.rings", t0);
+                return res;
+              }
+              results.push(res);
+            }
           }
         }
       } else {
@@ -1753,9 +2083,20 @@
             if (D.index <= A.index || !A.NandNodes.has(D)) continue;
             const pairKey = A.index * 65536 + D.index;
             if (deadRings.has(pairKey)) continue;
-            const path = findPath(A, D, ringLen, "ring");
+            // A pair with a views-only end has no fallback path.
+            const freshPair = A.viewsOnly === true || D.viewsOnly === true;
+            count("call.ringPairs", 1);
+            const search = startPath(A, D, ringLen, "ring");
+            const path = search.next(false);
             if (!path) continue;
-            const res = ringResult(pairKey, path);
+            let res = ringResult(pairKey, path, !freshPair);
+            if (res === RETRY) {
+              const t1 = now();
+              const again = search.next(true);
+              tick("call.ringsRefind", t1);
+              count("call.refindRingBfs", 1);
+              res = again ? ringResult(pairKey, again, false) : null;
+            }
             if (!res) continue;
             if (!findAll) {
               tick("call.rings", t0);
@@ -1782,9 +2123,23 @@
           const { key: probeKey } = canonicalRemovalPack(probe);
           if (stringifiedFoundRemovals.has(probeKey)) continue;
 
-          const path = findPath(A, D, chainLen, "chain");
-          if (!path) continue;
-          const inst = instantiate(path, false);
+          count("call.chainPairs", 1);
+          const search = startPath(A, D, chainLen, "chain");
+          let path = search.next(false);
+          let inst = path ? instantiate(path, false) : null;
+          if (
+            path &&
+            !inst &&
+            isFreshPath(path) &&
+            !A.viewsOnly &&
+            !D.viewsOnly
+          ) {
+            count("call.refindChain", 1);
+            const t1 = now();
+            path = search.next(true);
+            tick("call.chainsRefind", t1);
+            inst = path ? instantiate(path, false) : null;
+          }
           if (!inst) continue;
           if (stringifiedFoundRemovals.has(inst.key)) continue;
           stringifiedFoundRemovals.add(inst.key);
