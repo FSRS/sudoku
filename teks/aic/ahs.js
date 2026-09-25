@@ -1545,26 +1545,112 @@
       return canonicalRemovalPack(out);
     };
 
+    // How instantiate may show path[i], as candidateOptions picks it: as its
+    // own candidates, as one of its HLSes, or either. A leftover-cell node
+    // follows its same-cell gate's role; a views-only node is always an HLS.
+    const SHOW_PLAIN = 1;
+    const SHOW_HLS = 2;
+    const showAs = (path, i) => {
+      const a = path[i];
+      if (!a.hlsRefs) return SHOW_PLAIN;
+      const b = path[i ^ 1];
+      if (!isRegisteredAhsGate(a, b)) return SHOW_PLAIN;
+      if (b.hlsRefs) return SHOW_HLS;
+      if (!sameCell(a, b)) return SHOW_PLAIN;
+      const role = gateRole(i >> 1);
+      return role === "cell"
+        ? SHOW_PLAIN
+        : role === "ahs"
+          ? SHOW_HLS
+          : SHOW_PLAIN | SHOW_HLS;
+    };
+    // Everything a node shown that way can justify at once.
+    const ringSideOf = (node, show) => {
+      if (show === SHOW_PLAIN) return plainSideOf(node);
+      if (show === SHOW_HLS) return unionSideOf(node);
+      if (!node.ahsEitherSide) {
+        const nand = emptyNand();
+        orInto(nand, node.NandBitset);
+        orInto(nand, node.ahsNand);
+        node.ahsEitherSide = { nand, nandDigits: nandDigitsOf(nand) };
+      }
+      return node.ahsEitherSide;
+    };
+    // A leftover-cell node shown as an HLS makes its gate cell = HLS, so the
+    // AHS cells outside both hold AHS digits. instantiate can show path[n]
+    // as such an HLS only if it clashes with an option of the weak partner.
+    const gateLeavesMemo = new Map();
+    const hlsGateMayLeave = (path, show, n) => {
+      const L = path.length;
+      const N = path[n];
+      const w = n & 1 ? (n + 1) % L : (n + L - 1) % L;
+      const W = path[w];
+      const key = (N.index * 65536 + W.index) * 4 + show[w];
+      let may = gateLeavesMemo.get(key);
+      if (may !== undefined) return may;
+      const partner = [];
+      if (show[w] & SHOW_PLAIN) partner.push(W, plainSideOf(W));
+      if (show[w] & SHOW_HLS) {
+        for (const ref of W.hlsRefs) {
+          const view = graph.viewOf(ref.ahs, ref.h);
+          partner.push(view, view.side);
+        }
+      }
+      may = false;
+      for (const ref of N.hlsRefs) {
+        if ((ref.ahs.leftoverMask & ~ref.h.mask & ~(1 << ref.cellIdx)) === 0) {
+          continue;
+        }
+        const view = graph.viewOf(ref.ahs, ref.h);
+        for (let k = 0; k < partner.length && !may; k += 2) {
+          may = sidesNand(view, view.side, partner[k], partner[k + 1]);
+        }
+        if (may) break;
+      }
+      gateLeavesMemo.set(key, may);
+      return may;
+    };
+    // Some HLS of N with exactly the pivot's digits could trigger DOF 1.
+    const hlsMatchesPivot = (N, P) => {
+      if (P.cells.length !== 1) return false;
+      for (const ref of N.hlsRefs) {
+        if (ref.h.digits === P.digitMask) return true;
+      }
+      return false;
+    };
+
+    // A superset test of what instantiate(path, true) can eliminate.
     const ringMayEliminate = (path) => {
       const L = path.length;
+      const show = new Array(L);
+      const sides = new Array(L);
+      for (let i = 0; i < L; i++) {
+        show[i] = showAs(path, i);
+        sides[i] = ringSideOf(path[i], show[i]);
+      }
       for (let i = 1; i < L - 1; i += 2) {
-        if (hasIntersection(unionSideOf(path[i]), unionSideOf(path[i + 1]))) {
-          return true;
-        }
+        if (hasIntersection(sides[i], sides[i + 1])) return true;
       }
-      if (hasIntersection(unionSideOf(path[L - 1]), unionSideOf(path[0]))) {
-        return true;
-      }
+      if (hasIntersection(sides[L - 1], sides[0])) return true;
       for (let i = 0; i < L; i += 2) {
-        if (hasIntersection(unionSideOf(path[i]), unionSideOf(path[i + 1]))) {
-          return true;
-        }
+        if (hasIntersection(sides[i], sides[i + 1])) return true;
       }
       for (let i = 0; i < L; i += 2) {
         const u = path[i];
         const v = path[(i + 1) % L];
         const ahs = ahsReg.get(u)?.get(v);
-        if (!ahs || sameCell(u, v)) continue;
+        if (!ahs) continue;
+        if (sameCell(u, v)) {
+          const n = u.hlsRefs ? i : v.hlsRefs ? i + 1 : -1;
+          if (
+            n >= 0 &&
+            (show[n] & SHOW_HLS) !== 0 &&
+            hlsGateMayLeave(path, show, n)
+          ) {
+            return true;
+          }
+          continue;
+        }
         if (u.hlsRefs && v.hlsRefs) {
           for (const ru of u.hlsRefs) {
             if (ru.ahs !== ahs) continue;
@@ -1582,10 +1668,16 @@
         }
       }
       const weak = [];
-      for (let i = 1; i < L - 1; i += 2) weak.push([path[i], path[i + 1]]);
-      weak.push([path[L - 1], path[0]]);
-      for (const [u, v] of weak) {
-        if (u.hlsRefs && v.hlsRefs) {
+      for (let i = 1; i < L - 1; i += 2) weak.push([i, i + 1]);
+      weak.push([L - 1, 0]);
+      for (const [i, j] of weak) {
+        const u = path[i];
+        const v = path[j];
+        const hu = (show[i] & SHOW_HLS) !== 0;
+        const hv = (show[j] & SHOW_HLS) !== 0;
+        const pu = (show[i] & SHOW_PLAIN) !== 0;
+        const pv = (show[j] & SHOW_PLAIN) !== 0;
+        if (hu && hv) {
           for (const ru of u.hlsRefs) {
             for (const rv of v.hlsRefs) {
               let m = ru.h.digits & rv.h.digits;
@@ -1605,15 +1697,10 @@
               }
             }
           }
-        } else if (u.hlsRefs || v.hlsRefs) {
-          const N = u.hlsRefs ? u : v;
-          const P = u.hlsRefs ? v : u;
-          if (P.cells.length !== 1) continue;
-          // Some HLS of N with exactly the pivot's digits could trigger DOF 1.
-          for (const ref of N.hlsRefs) {
-            if (ref.h.digits === P.digitMask) return true;
-          }
         }
+        // One shown as an HLS, the other as its own candidates.
+        if (hu && pv && hlsMatchesPivot(u, v)) return true;
+        if (hv && pu && hlsMatchesPivot(v, u)) return true;
       }
       return false;
     };
