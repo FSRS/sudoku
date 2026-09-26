@@ -862,7 +862,7 @@ const TRANSLATIONS = {
     teks_AR_type_2: "Avoidable Rectangle Type 2",
     teks_AR_type_3: "Avoidable Rectangle Type 3",
     teks_AR_type_5: "Avoidable Rectangle Type 5",
-    teks_HAR: "Hidden Avoidable Rectangle",
+    teks_HAR: "Avoidable Hidden Rectangle",
     teks_AR_digits: "using Digits ({0}{1})",
     teks_AR_base_detail: "Base ({0}{1}) in {2}, Guardians {3}",
     teks_AR_type_3_VNS_detail:
@@ -1804,7 +1804,7 @@ const TRANSLATIONS = {
     teks_AR_type_2: "회피 가능한 직사각형 유형 2",
     teks_AR_type_3: "회피 가능한 직사각형 유형 3",
     teks_AR_type_5: "회피 가능한 직사각형 유형 5",
-    teks_HAR: "숨은 회피 가능한 직사각형",
+    teks_HAR: "회피 가능한 숨은 직사각형",
     teks_AR_digits: "숫자 ({0}{1}) 사용",
     teks_AR_base_detail: "{2}의 기반 숫자 ({0}{1}), 수호자 {3}",
     teks_AR_type_3_VNS_detail:
