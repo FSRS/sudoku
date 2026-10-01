@@ -2,32 +2,6 @@
 
 daily minimal minigame
 
-## Only one cell Sudoku
-
-Puzzles are checked for uniqueness first, using fast prerequisites and counting
-at most two solutions when needed. Unique puzzles use classic mode; only
-puzzles with multiple solutions are checked for
-exactly one forced non-clue cell. The mode message appears above the grid. The
-level, board score, lamp and solver measure the work through that cell's
-placement; completing it finishes the puzzle. Uniqueness techniques are
-automatically excluded without changing saved technique preferences.
-
-Progress must preserve every solution allowed by the original clues. The lamp
-turns black for any placement outside the forced cell, or for removing a
-candidate that occurs in any original solution. Completion requires the correct
-target digit and valid progress everywhere else. Candidate checks use the same
-pencil note completeness convention as classic Sudoku; unentered or incomplete
-notes are regenerated for evaluation. Feasibility proofs are cached per puzzle.
-
-Initial and current board scores are hidden while playing this variant.
-In solver mode the level label uses the compact format `Lv. 1 (SE 2.5)`,
-with EP as the rating and both EP and ED in its tooltip; ER is unavailable.
-SE and old SE support this mode. skfr is temporarily unavailable for these
-puzzles: selecting it uses SE for the current puzzle while preserving the
-global preference. Classic Sudoku still uses unmodified skfr. The rating
-engine's pinned sources, patch and build instructions are in
-[rating-source](rating-source/README.md).
-
 ## Acknowledgements and Third-Party Libraries
 
 This project uses the skfr and SEROB engine to evaluate auxiliary puzzle difficulty.
