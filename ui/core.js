@@ -8205,8 +8205,11 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     const fallbackBoard = onlyOneCellTarget
       ? cloneVirtualBoard(virtualBoard) : solutionBoard.map((r) => [...r]);
     const fallbackPencils = onlyOneCellTarget
-      ? cloneVirtualPencils(startingPencils)
+      ? await getPuzzleValidation(initialPuzzleString).getPossiblePencils({
+        isCancelled: () => myEvaluationId !== currentEvaluationId,
+      })
       : Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
+    if (!fallbackPencils || myEvaluationId !== currentEvaluationId) return;
     if (onlyOneCellTarget) {
       const { r, c, num } = onlyOneCellTarget;
       fallbackBoard[r][c] = num;
