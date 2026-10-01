@@ -40,8 +40,8 @@
     // The whole module behind one call: 0 SE, 1 SE 1.2.1, 2 skfr -- 0 and 1 as
     // sefast_rate numbers them. Every mode answers "er,ep,ed" in tenths, and ""
     // when the engine declined the puzzle.
-    rate(puzzle, mode) {
-      return call("rating_rate", ["string", "number"], [puzzle, mode]);
+    rate(puzzle, mode, { onlyOneCell = false } = {}) {
+      return call(onlyOneCell ? "rating_rate_one_cell" : "rating_rate", ["string", "number"], [puzzle, mode]);
     },
 
     // The SE engine's own surface, keeping its 0 (current) / 1 (SE 1.2.1) modes.

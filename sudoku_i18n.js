@@ -188,6 +188,13 @@ const TRANSLATIONS = {
     error_no_solution: "Error: This puzzle has no solution.",
     error_multiple_solutions: "Error: This puzzle has {0} solutions.",
     puzzle_unique_solution: "Puzzle has a unique solution.",
+    puzzle_only_one_cell:
+      "Just one cell Sudoku: exactly one non-clue cell can be determined. Every other empty cell has multiple possible digits across valid solutions.",
+    ui_only_one_cell_lamp: "Difficulty until the only forced cell is solved",
+    pref_skfr_one_cell_fallback: "skfr (SE for Just one cell)",
+    ui_only_one_cell_solved: "The only forced cell is solved!{0}",
+    ui_only_one_cell_fallback:
+      "The logical solver could not finish. Exhaustive search confirms this cell; the other empty cells remain undetermined.",
 
     // === Main error (sudoku_main.js) ===
     error_load_puzzle:
@@ -1122,6 +1129,13 @@ const TRANSLATIONS = {
     error_no_solution: "오류: 이 퍼즐에는 해답이 없습니다.",
     error_multiple_solutions: "오류: 이 퍼즐에는 해답이 {0}개 있습니다.",
     puzzle_unique_solution: "퍼즐에 유일한 해답이 있습니다.",
+    puzzle_only_one_cell:
+      "한 칸 스도쿠: 단서가 아닌 칸 중 오직 한 칸만 확정할 수 있습니다. 나머지 빈칸은 유효한 해답마다 둘 이상의 숫자가 가능합니다.",
+    ui_only_one_cell_lamp: "유일하게 확정 가능한 한 칸을 풀 때까지의 난이도",
+    pref_skfr_one_cell_fallback: "skfr (한 칸 스도쿠는 SE)",
+    ui_only_one_cell_solved: "유일하게 확정 가능한 한 칸을 풀었습니다!{0}",
+    ui_only_one_cell_fallback:
+      "논리 풀이를 완료하지 못했습니다. 완전 탐색으로 이 한 칸을 확정했으며, 나머지 빈칸은 확정되지 않았습니다.",
 
     // === Main error (sudoku_main.js) ===
     error_load_puzzle:

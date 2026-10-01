@@ -124,116 +124,81 @@ function calculateAllPencils(board) {
 }
 
 /**
- * Checks if a puzzle board has a unique solution and returns the result.
+ * Checks uniqueness first, then recognizes Only one cell Sudoku if needed.
  * @param {number[][]} board - The initial puzzle board.
- * @returns {{isValid: boolean, message: string}} An object with the validation result.
+ * @returns {object} Validation, puzzle mode, and a complete solution witness.
  */
 function checkPuzzleUniqueness(board) {
-  // Pre-check 1: Clue count
-  const clueCount = board.flat().filter((v) => v !== 0).length;
-  if (clueCount < 17) {
-    return {
-      isValid: false,
-      message: t("error_few_clues"),
-    };
+  const reduced = board.map((row) => [...row]);
+  // Reject contradictory clues before either kind of solution proof.
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const value = reduced[r][c];
+      if (!Number.isInteger(value) || value < 0 || value > 9) {
+        return { isValid: false, message: t("error_no_solution") };
+      }
+      if (!value) continue;
+      reduced[r][c] = 0;
+      const valid = isValid(reduced, r, c, value);
+      reduced[r][c] = value;
+      if (!valid) return { isValid: false, message: t("error_initial_conflict") };
+    }
   }
 
-  // Pre-check 2: Missing numbers
-  const presentNumbers = new Set(board.flat().filter((v) => v !== 0));
-  if (presentNumbers.size < 8) {
-    return {
-      isValid: false,
-      message: t("error_missing_numbers"),
-    };
-  }
-  // Pre-Check 3
-  // Check for two empty rows in any horizontal band
-  for (let bandStartRow = 0; bandStartRow < 9; bandStartRow += 3) {
-    let emptyRowCount = 0;
-    for (let r_offset = 0; r_offset < 3; r_offset++) {
-      const r = bandStartRow + r_offset;
-      if (board[r].every((cell) => cell === 0)) {
-        emptyRowCount++;
-      }
+  // Keep the original uniqueness prechecks. If uniqueness is impossible,
+  // avoid a costly sparse-grid count and let the variant proof check existence.
+  const solutions = [];
+  if (canHaveUniqueSolution(board)) {
+    while (findAndPlaceOneHiddenSingle(reduced)) {
+      // Preserve the classic check's cheap propagation before the search.
     }
-    if (emptyRowCount >= 2) {
+    // Two witnesses are sufficient to disprove uniqueness; reuse both later.
+    const solutionCount = countSolutions(reduced, 2, solutions);
+    if (solutionCount === 0) {
+      return { isValid: false, message: t("error_no_solution") };
+    }
+    if (solutionCount === 1) {
       return {
-        isValid: false,
-        message: t("error_empty_rows"),
+        isValid: true,
+        mode: "standard",
+        solution: solutions[0],
+        message: t("puzzle_unique_solution"),
       };
     }
   }
-
-  // Check for two empty columns in any vertical band
-  for (let bandStartCol = 0; bandStartCol < 9; bandStartCol += 3) {
-    let emptyColCount = 0;
-    for (let c_offset = 0; c_offset < 3; c_offset++) {
-      const c = bandStartCol + c_offset;
-      let isColEmpty = true;
-      for (let r = 0; r < 9; r++) {
-        if (board[r][c] !== 0) {
-          isColEmpty = false;
-          break;
-        }
-      }
-      if (isColEmpty) {
-        emptyColCount++;
-      }
-    }
-    if (emptyColCount >= 2) {
-      return {
-        isValid: false,
-        message: t("error_empty_cols"),
-      };
-    }
+  const analysis = analyzeOnlyOneCell(board, solutions);
+  if (!analysis.solution) {
+    return { isValid: false, message: t("error_no_solution") };
   }
-
-  function isBoardValid(b) {
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        if (b[r][c] !== 0) {
-          const num = b[r][c];
-          b[r][c] = 0;
-          const valid = isValid(b, r, c, num);
-          b[r][c] = num;
-          if (!valid) return false;
-        }
-      }
-    }
-    return true;
-  }
-  // Pre-check 3: Initial conflicts (on a copy to be safe)
-  if (!isBoardValid(board.map((row) => [...row]))) {
+  if (analysis.target) {
     return {
-      isValid: false,
-      message: t("error_initial_conflict"),
+      isValid: true,
+      mode: "only-one-cell",
+      target: analysis.target,
+      solution: analysis.solution,
+      isProgressValid: createOnlyOneCellProgressValidator(board, analysis),
+      message: t("puzzle_only_one_cell"),
     };
   }
+  return {
+    isValid: false,
+    message: t("error_multiple_solutions", "2+"),
+  };
+}
 
-  const boardCopy = board.map((row) => [...row]);
-  while (findAndPlaceOneHiddenSingle(boardCopy)) {
-    // This loop simplifies the board before counting.
+function canHaveUniqueSolution(board) {
+  const clues = board.flat().filter((value) => value !== 0);
+  if (clues.length < 17 || new Set(clues).size < 8) return false;
+  for (let band = 0; band < 9; band += 3) {
+    let emptyRows = 0, emptyCols = 0;
+    for (let offset = 0; offset < 3; offset++) {
+      const index = band + offset;
+      if (board[index].every((value) => value === 0)) emptyRows++;
+      if (board.every((row) => row[index] === 0)) emptyCols++;
+    }
+    if (emptyRows >= 2 || emptyCols >= 2) return false;
   }
-
-  // Final Check: Count solutions (on a copy to be safe)
-  const solutionCount = countSolutions(boardCopy);
-
-  if (solutionCount === 0) {
-    return {
-      isValid: false,
-      message: t("error_no_solution"),
-    };
-  }
-  if (solutionCount > 1) {
-    const countLabel =
-      solutionCount >= 10000 ? "10,000+" : solutionCount.toLocaleString();
-    return {
-      isValid: false,
-      message: t("error_multiple_solutions", countLabel),
-    };
-  }
-
-  return { isValid: true, message: t("puzzle_unique_solution") };
+  return true;
 }
 
 const CANDIDATE_POPCOUNT = new Uint8Array(512);
@@ -246,31 +211,230 @@ for (let i = 0; i < 81; i++) {
   BOX_OF_CELL[i] = ((i / 27) | 0) * 3 + (((i % 9) / 3) | 0);
 }
 
+// Find one complete witness, optionally excluding one digit or respecting
+// pencil restrictions. MRV includes house/digit constraints, so a missing
+// digit with no home is rejected even in very sparse grids.
+function findSudokuSolution(
+  board,
+  { forbiddenCell = -1, forbiddenDigit = 0, pencils = null } = {},
+) {
+  const values = board.flat();
+  const rows = new Uint16Array(9);
+  const cols = new Uint16Array(9);
+  const boxes = new Uint16Array(9);
+  const allowed = new Uint16Array(81).fill(511);
+  for (let i = 0; i < 81; i++) {
+    const r = (i / 9) | 0;
+    const c = i % 9;
+    const b = BOX_OF_CELL[i];
+    const value = values[i];
+    if (!Number.isInteger(value) || value < 0 || value > 9) return null;
+    if (value) {
+      const bit = 1 << (value - 1);
+      if ((rows[r] | cols[c] | boxes[b]) & bit) return null;
+      rows[r] |= bit;
+      cols[c] |= bit;
+      boxes[b] |= bit;
+    } else if (pencils) {
+      allowed[i] = 0;
+      for (const digit of pencils[r][c]) allowed[i] |= 1 << (digit - 1);
+    }
+  }
+  if (forbiddenCell >= 0) {
+    if (values[forbiddenCell] === forbiddenDigit) return null;
+    allowed[forbiddenCell] &= ~(1 << (forbiddenDigit - 1));
+  }
+
+  function search() {
+    let bestCount = 10;
+    let moves = null;
+    const candidates = new Uint16Array(81);
+    for (let i = 0; i < 81; i++) {
+      if (values[i]) continue;
+      const mask = allowed[i] &
+        ~(rows[(i / 9) | 0] | cols[i % 9] | boxes[BOX_OF_CELL[i]]);
+      candidates[i] = mask;
+      const count = CANDIDATE_POPCOUNT[mask];
+      if (!count) return false;
+      if (count < bestCount) {
+        bestCount = count;
+        moves = [];
+        for (let rest = mask; rest; rest &= rest - 1) {
+          moves.push([i, rest & -rest]);
+        }
+      }
+    }
+    if (moves === null) return true;
+    if (bestCount > 1) {
+      for (let house = 0; house < 27; house++) {
+        const h = house % 9;
+        const used = house < 9 ? rows[h] : house < 18 ? cols[h] : boxes[h];
+        for (let rest = 511 & ~used; rest; rest &= rest - 1) {
+          const bit = rest & -rest;
+          const positions = [];
+          for (let k = 0; k < 9; k++) {
+            const i = house < 9 ? h * 9 + k
+              : house < 18 ? k * 9 + h
+                : ((h / 3) | 0) * 27 + (h % 3) * 3 + ((k / 3) | 0) * 9 + k % 3;
+            if (candidates[i] & bit) positions.push([i, bit]);
+          }
+          if (!positions.length) return false;
+          if (positions.length < bestCount) {
+            bestCount = positions.length;
+            moves = positions;
+          }
+        }
+      }
+    }
+    for (const [i, bit] of moves) {
+      const r = (i / 9) | 0;
+      const c = i % 9;
+      const b = BOX_OF_CELL[i];
+      values[i] = 32 - Math.clz32(bit);
+      rows[r] |= bit;
+      cols[c] |= bit;
+      boxes[b] |= bit;
+      if (search()) return true;
+      values[i] = 0;
+      rows[r] ^= bit;
+      cols[c] ^= bit;
+      boxes[b] ^= bit;
+    }
+    return false;
+  }
+  return search()
+    ? Array.from({ length: 9 }, (_, r) => values.slice(r * 9, r * 9 + 9))
+    : null;
+}
+
+function analyzeOnlyOneCell(board, witnesses = []) {
+  const solution = witnesses[0] || findSudokuSolution(board);
+  if (!solution) return { solution: null, target: null };
+  const blanks = [];
+  for (let i = 0; i < 81; i++) {
+    if (board[(i / 9) | 0][i % 9] === 0) blanks.push(i);
+  }
+  // A unique grid with one blank is ordinary Sudoku.
+  if (blanks.length < 2) return { solution, target: null };
+  const variable = new Set();
+  for (const witness of witnesses.slice(1)) {
+    for (const i of blanks) {
+      const r = (i / 9) | 0, c = i % 9;
+      if (witness[r][c] !== solution[r][c]) variable.add(i);
+    }
+  }
+  let target = null;
+  for (const i of blanks) {
+    if (variable.has(i)) continue;
+    const r = (i / 9) | 0;
+    const c = i % 9;
+    const alternative = findSudokuSolution(board, {
+      forbiddenCell: i,
+      forbiddenDigit: solution[r][c],
+    });
+    if (!alternative) {
+      // Two forced non-clue cells already disprove this variant.
+      if (target) return { solution, target: null };
+      target = { r, c, num: solution[r][c] };
+    } else {
+      // This pair of complete solutions proves variability for every cell
+      // where they differ. Never infer a forced cell from a sample alone.
+      for (const j of blanks) {
+        const jr = (j / 9) | 0;
+        const jc = j % 9;
+        if (alternative[jr][jc] !== solution[jr][jc]) variable.add(j);
+      }
+    }
+  }
+  return { solution, target };
+}
+
+// Progress must preserve EVERY completion of the original clues. Cache proofs
+// per puzzle, checking only removed candidates whose feasibility is unknown.
+// A witness also proves the feasibility of its digits in all other cells.
+function createOnlyOneCellProgressValidator(board, { solution, target }) {
+  const givens = board.map((row) => [...row]);
+  const possible = new Uint16Array(81);
+  const impossible = new Uint16Array(81);
+  for (let i = 0; i < 81; i++) {
+    const r = (i / 9) | 0, c = i % 9;
+    possible[i] = 1 << (solution[r][c] - 1);
+    if (givens[r][c]) continue;
+    for (let digit = 1; digit <= 9; digit++) {
+      if (!isValid(givens, r, c, digit)) impossible[i] |= 1 << (digit - 1);
+    }
+    if (r === target.r && c === target.c) impossible[i] = 511 & ~possible[i];
+  }
+
+  return function isProgressValid(values, pencils = null) {
+    // Only the proved target is a justified placement. Even a feasible value
+    // elsewhere excludes original solutions, and must not become a new clue.
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const value = values[r][c];
+        if (givens[r][c]) {
+          if (value !== givens[r][c]) return false;
+        } else if (value && (r !== target.r || c !== target.c || value !== target.num)) {
+          return false;
+        }
+      }
+    }
+    if (!pencils) return true;
+
+    for (let i = 0; i < 81; i++) {
+      const r = (i / 9) | 0, c = i % 9;
+      if (values[r][c]) continue;
+      let retained = 0;
+      for (const digit of pencils[r][c]) retained |= 1 << (digit - 1);
+      let removed = 511 & ~retained & ~impossible[i];
+      if (removed & possible[i]) return false;
+      for (; removed; removed &= removed - 1) {
+        const bit = removed & -removed;
+        const probe = givens.map((row) => [...row]);
+        probe[r][c] = 32 - Math.clz32(bit);
+        const witness = findSudokuSolution(probe);
+        if (witness) {
+          for (let j = 0; j < 81; j++) {
+            possible[j] |= 1 << (witness[(j / 9) | 0][j % 9] - 1);
+          }
+          return false;
+        }
+        impossible[i] |= bit;
+      }
+    }
+    return true;
+  };
+}
+
 /**
  * Counts the number of solutions for a given board up to a specified limit.
  * The board is left exactly as it was passed in: the search reads it once and
  * from there works on masks of its own, so it never writes to it at all.
  * @param {number[][]} board - The Sudoku board to solve.
  * @param {number} limit - The maximum number of solutions to find before stopping.
+ * @param {number[][][] | null} solutions - Optional output array for witnesses.
  * @returns {number} The number of solutions found (up to the limit).
  */
-function countSolutions(board, limit = 10000) {
+function countSolutions(board, limit = 10000, solutions = null) {
   const rowMask = new Int16Array(9);
   const colMask = new Int16Array(9);
   const boxMask = new Int16Array(9);
   const filled = new Uint8Array(81);
   const empties = [];
+  const values = solutions ? board.flat() : null;
 
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       const i = r * 9 + c;
       const value = board[r][c];
+      if (!Number.isInteger(value) || value < 0 || value > 9) return 0;
       if (value === 0) {
         empties.push(i);
         continue;
       }
       filled[i] = 1;
       const bit = 1 << (value - 1);
+      if ((rowMask[r] | colMask[c] | boxMask[BOX_OF_CELL[i]]) & bit) return 0;
       rowMask[r] |= bit;
       colMask[c] |= bit;
       boxMask[BOX_OF_CELL[i]] |= bit;
@@ -302,6 +466,9 @@ function countSolutions(board, limit = 10000) {
 
     if (bestCell === -1) {
       count++;
+      if (solutions) {
+        solutions.push(Array.from({ length: 9 }, (_, r) => values.slice(r * 9, r * 9 + 9)));
+      }
       return count >= limit; // Stop if we've reached the limit
     }
 
@@ -312,6 +479,7 @@ function countSolutions(board, limit = 10000) {
 
     for (let rest = bestCandidates; rest !== 0; rest &= rest - 1) {
       const bit = rest & -rest;
+      if (values) values[bestCell] = 32 - Math.clz32(bit);
       rowMask[row] |= bit;
       colMask[col] |= bit;
       boxMask[box] |= bit;
@@ -319,6 +487,7 @@ function countSolutions(board, limit = 10000) {
       rowMask[row] ^= bit;
       colMask[col] ^= bit;
       boxMask[box] ^= bit;
+      if (values) values[bestCell] = 0;
       if (stop) {
         filled[bestCell] = 0;
         return true;

@@ -62,6 +62,7 @@ const techniqueSearchMs = new Map();
 let puzzleLoadStartMs = 0;
 const difficultyRatingCache = new Map();
 const puzzleValidityCache = new Map();
+let onlyOneCellTarget = null;
 const minDateNum = 20260301;
 const level11DailyFallbackLastDate = 20260823;
 const difficultyEngineStorageKey = "sudokuDifficultyEngine";
@@ -149,6 +150,13 @@ function getDifficultyEngine() {
   return difficultyEngines.has(saved) ? saved : "skfr";
 }
 
+function getPuzzleDifficultyEngine(puzzle) {
+  const preferred = getDifficultyEngine();
+  // Keep the global preference; use SE only for this unsupported puzzle type.
+  return preferred === "skfr" && getPuzzleValidation(puzzle).mode === "only-one-cell"
+    ? "se" : preferred;
+}
+
 function formatDifficultyRating(engine, rating10) {
   return ` (${difficultyEngineLabels[engine]} ${(rating10 / 10).toFixed(1)})`;
 }
@@ -179,12 +187,38 @@ function formatResultAction(result, separator = ", ") {
 
 function isRatablePuzzle(puzzle) {
   if (typeof puzzle !== "string" || !/^[.0-9]{81}$/.test(puzzle)) return false;
+  return getPuzzleValidation(puzzle).isValid;
+}
+
+function getPuzzleValidation(puzzle) {
   const cached = puzzleValidityCache.get(puzzle);
   if (cached !== undefined) return cached;
 
-  const result = checkPuzzleUniqueness(puzzleStringToGrid(puzzle)).isValid;
+  const result = checkPuzzleUniqueness(puzzleStringToGrid(puzzle));
   puzzleValidityCache.set(puzzle, result);
   return result;
+}
+
+function isPuzzleGoalReached(board) {
+  if (onlyOneCellTarget) {
+    const { r, c, num } = onlyOneCellTarget;
+    return board[r][c] === num;
+  }
+  return board.flat().every((value) => value !== 0);
+}
+
+function renderPuzzleModeMessage() {
+  let banner = document.getElementById("puzzle-mode-message");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "puzzle-mode-message";
+    banner.className =
+      "text-center text-sm font-semibold text-blue-600 dark:text-blue-300 mb-2";
+    banner.setAttribute("role", "status");
+    gridContainer.insertAdjacentElement("beforebegin", banner);
+  }
+  banner.hidden = !onlyOneCellTarget;
+  banner.textContent = onlyOneCellTarget ? t("puzzle_only_one_cell") : "";
 }
 
 function getDifficultyRatingText(puzzle, onReady) {
@@ -192,7 +226,7 @@ function getDifficultyRatingText(puzzle, onReady) {
   if (!isRatablePuzzle(puzzle)) return "";
   if (!window.Rating?.rate) return "";
 
-  const engine = getDifficultyEngine();
+  const engine = getPuzzleDifficultyEngine(puzzle);
   const key = `${engine}:${puzzle}`;
   const cached = difficultyRatingCache.get(key);
   if (cached?.status === "resolved") return cached.text;
@@ -206,10 +240,13 @@ function getDifficultyRatingText(puzzle, onReady) {
   if (!cached) {
     difficultyRatingCache.set(key, { status: "pending" });
     const mode = engine === "old-se" ? "se121" : engine;
-    window.Rating.rate(puzzle, mode).then(
+    const onlyOneCell = getPuzzleValidation(puzzle).mode === "only-one-cell";
+    window.Rating.rate(puzzle, mode, { onlyOneCell }).then(
       (rating) => {
-        const text = Number.isFinite(rating?.er)
-          ? formatDifficultyRating(engine, rating.er)
+        // EP measures the work through the target placement in this variant.
+        const rating10 = onlyOneCell ? rating?.ep : rating?.er;
+        const text = Number.isFinite(rating10)
+          ? formatDifficultyRating(engine, rating10)
           : "";
         difficultyRatingCache.set(key, { status: "resolved", text, rating });
         onReady();
@@ -232,7 +269,7 @@ function getDifficultyRatingText(puzzle, onReady) {
 }
 
 function getDifficultyRatingDetail(puzzle) {
-  const engine = getDifficultyEngine();
+  const engine = getPuzzleDifficultyEngine(puzzle);
   const cached = difficultyRatingCache.get(`${engine}:${puzzle}`);
   if (cached?.status !== "resolved") return "";
   const rating = cached.rating || {};
@@ -241,7 +278,10 @@ function getDifficultyRatingDetail(puzzle) {
     ["EP", rating.ep],
     ["ED", rating.ed],
   ]
-    .filter(([, value]) => Number.isFinite(value))
+    .filter(
+      ([name, value]) => Number.isFinite(value) &&
+        (name !== "ER" || getPuzzleValidation(puzzle).mode !== "only-one-cell"),
+    )
     .map(([name, value]) => `${name}=${(value / 10).toFixed(1)}`)
     .join(" ");
 }
@@ -262,6 +302,9 @@ function setPuzzleLevelLabel(label) {
 }
 
 function renderPuzzleLevelLabel() {
+  renderPuzzleModeMessage();
+  // Keep the timer centered while hiding both scores during variant play.
+  puzzleScoreEl.style.visibility = onlyOneCellTarget && !isSolverMode ? "hidden" : "";
   if (!puzzleLevelLabel) {
     puzzleLevelEl.textContent = "";
     return;
@@ -347,6 +390,8 @@ function ensureDifficultyEnginePreference() {
     }
   }
   select.value = getDifficultyEngine();
+  select.querySelector('option[value="skfr"]').textContent = onlyOneCellTarget
+    ? t("pref_skfr_one_cell_fallback") : "skfr";
 }
 
 function waitForBrowserPaint() {
@@ -2025,6 +2070,10 @@ function updateLamp(color, { record = true, level = null } = {}) {
     tooltipText = tooltipText.replace(t("ui_difficulty_level_term"), "Lv.");
   }
 
+  if (onlyOneCellTarget && color !== "gray") {
+    tooltipText += ` — ${t("ui_only_one_cell_lamp")}`;
+  }
+
   difficultyLamp.dataset.tooltip = tooltipText;
 
   // If caller asked to skip timestamp bookkeeping (undo/redo / restore / loading), return now
@@ -2087,10 +2136,18 @@ function updateLamp(color, { record = true, level = null } = {}) {
 }
 
 /**
- * Checks if the current board state exactly matches the pre-computed solution.
- * @returns {boolean} True if the board matches the solution, otherwise false.
+ * Checks completion of the active goal, preserving all original solutions
+ * when only the forced cell needs to be solved.
+ * @returns {boolean} True if the puzzle's goal is complete.
  */
 function isBoardIdenticalToSolution() {
+  if (onlyOneCellTarget) {
+    const values = boardState.map((row) => row.map((cell) => cell.value));
+    return isPuzzleGoalReached(values) &&
+      getPuzzleValidation(initialPuzzleString).isProgressValid(
+        values, getEvaluationPencils(boardState),
+      );
+  }
   // If there's no solution board available (e.g., for an invalid puzzle), it can't be solved.
   if (!solutionBoard) {
     return false;
@@ -4536,13 +4593,7 @@ async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
 }
 
 function checkCompletion() {
-  for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-      if (boardState[r][c].value === 0) {
-        return;
-      }
-    }
-  }
+  if (!isBoardIdenticalToSolution()) return;
   if (validateBoard()) {
     savePuzzleTimer();
     if (!isCustomPuzzle) {
@@ -4565,7 +4616,7 @@ function checkCompletion() {
       messageArea.appendChild(congratsText);
       messageArea.appendChild(shareButton);
     } else {
-      showMessage(t("ui_solved_status", hadUsedHint ? "" : " ★"), "green");
+      showMessage(t(onlyOneCellTarget ? "ui_only_one_cell_solved" : "ui_solved_status", hadUsedHint ? "" : " ★"), "green");
     }
     triggerSolveAnimation();
     stopTimer();
@@ -4937,19 +4988,19 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     }
   }
 
-  const boardForValidation = puzzleStringToGrid(initialPuzzleString);
-
   let savedTime = 0;
   let wasSaveLoaded = false;
 
-  const initialBoardForSolution = boardForValidation.map((row) => [...row]);
-  solveSudoku(initialBoardForSolution);
-  solutionBoard = initialBoardForSolution;
+  const validity = getPuzzleValidation(initialPuzzleString);
+  onlyOneCellTarget = validity.target || null;
+  solutionBoard = validity.solution || null;
+  renderPuzzleModeMessage();
 
   if (isCustomPuzzle) {
-    const validity = checkPuzzleUniqueness(boardForValidation);
     if (!validity.isValid) {
-      setTimeout(() => showMessage(validity.message, "red"), 750);
+      setTimeout(() => {
+        if (loadId === puzzleLoadRequestId) showMessage(validity.message, "red");
+      }, 750);
     }
   }
 
@@ -5045,9 +5096,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
 
   saveState();
 
-  const alreadySolved =
-    isBoardIdenticalToSolution() &&
-    boardState.flat().every((cell) => cell.value !== 0);
+  const alreadySolved = isBoardIdenticalToSolution();
 
   if (savedTime > 0 && !timerInterval && !alreadySolved) {
     startTimer(savedTime);
@@ -5721,7 +5770,7 @@ async function solve() {
   const emptyCount = countEmptyCells();
 
   // If fully solved correctly: skip popups, do NOT lose star, and start from beginning
-  if (emptyCount === 0 && isBoardIdenticalToSolution()) {
+  if (isBoardIdenticalToSolution()) {
     const originalState = cloneBoardState(boardState);
 
     // Back up lamp state before the scratch evaluation overwrites it
@@ -5750,7 +5799,7 @@ async function solve() {
   }
 
   // If nearly solved (<= 3 empty cells) but not fully correct/completed
-  if (emptyCount <= 3) {
+  if (!onlyOneCellTarget && emptyCount <= 3) {
     showMessage(t("ui_nearly_complete_solver_disabled"), "orange");
     return;
   }
@@ -6640,11 +6689,11 @@ function renderSolverStep(index) {
     // Level 12 records no score, and a lone star would annotate nothing.
     setPuzzleScoreText(` (${lastValidScore}${star})`, "");
   } else if (step.type === "done") {
-    msg = t("ui_puzzle_fully_solved");
+    msg = onlyOneCellTarget ? t("ui_only_one_cell_solved", "") : t("ui_puzzle_fully_solved");
     msgColor = "green";
     setPuzzleScoreText(` (0${star})`, `(0${star})`);
   } else if (step.type === "bruteforce") {
-    msg = t("ui_solver_fallback_solution");
+    msg = t(onlyOneCellTarget ? "ui_only_one_cell_fallback" : "ui_solver_fallback_solution");
     msgColor = "red";
   } else if (step.type === "step") {
     const h = step.result.hint;
@@ -7795,6 +7844,22 @@ async function evaluateBoardDifficulty(opts = {}) {
   }
 }
 
+function getEvaluationPencils(board) {
+  let emptyCount = 0;
+  let emptyWithNoPencils = 0;
+  for (const row of board) {
+    for (const cell of row) {
+      if (cell.value === 0) {
+        emptyCount++;
+        if (cell.pencils.size === 0) emptyWithNoPencils++;
+      }
+    }
+  }
+  // Preserve the existing convention for unentered or incomplete pencil notes.
+  if (emptyCount <= 3 || emptyWithNoPencils >= 4) return calculateAllPencils(board);
+  return board.map((row) => row.map((cell) => new Set(cell.pencils)));
+}
+
 async function runBoardDifficultyEvaluation(opts = {}) {
   const { waitForFrame = true, force = false, showProgress = false } = opts;
   if (isSolverMode && !force) return;
@@ -7829,35 +7894,30 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     return;
   }
   const currentBoardForEval = cloneBoardState(boardState);
-  let emptyCount = 0;
-  let emptyWithNoPencils = 0;
-  for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-      if (currentBoardForEval[r][c].value === 0) {
-        emptyCount++;
-        if (currentBoardForEval[r][c].pencils.size === 0) emptyWithNoPencils++;
-      }
-    }
-  }
-  let startingPencils;
-  if (emptyCount <= 3 || emptyWithNoPencils >= 4) {
-    startingPencils = calculateAllPencils(currentBoardForEval);
-  } else {
-    startingPencils = currentBoardForEval.map((row) =>
-      row.map((cell) => new Set(cell.pencils)),
-    );
-  }
+  const emptyCount = currentBoardForEval.flat().filter((cell) => cell.value === 0).length;
+  const startingPencils = getEvaluationPencils(currentBoardForEval);
   const virtualBoard = currentBoardForEval.map((row) =>
     row.map((cell) => cell.value),
   );
+  // Every original completion must remain possible, not just one witness.
+  const isVariantProgressValid = onlyOneCellTarget
+    ? getPuzzleValidation(initialPuzzleString).isProgressValid : null;
+  if (isVariantProgressValid && !isVariantProgressValid(virtualBoard, startingPencils)) {
+    updateLamp("black");
+    vagueHintMessage = "";
+    currentHintData = null;
+    solverSteps = [];
+    syncCurrentHistoryEvaluationState(myEvaluationId);
+    return;
+  }
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       // Wrong digit entered, or the solution's candidate pencilled away.
-      const contradicted =
+      const contradicted = !onlyOneCellTarget && (
         virtualBoard[r][c] !== 0
           ? virtualBoard[r][c] !== solutionBoard[r][c]
           : startingPencils[r][c].size > 0 &&
-            !startingPencils[r][c].has(solutionBoard[r][c]);
+            !startingPencils[r][c].has(solutionBoard[r][c]));
       if (contradicted) {
         updateLamp("black");
         vagueHintMessage = "";
@@ -7867,7 +7927,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     }
   }
   const star = hasCustomPreferences() ? "*" : "";
-  if (emptyCount <= 3) {
+  if (!onlyOneCellTarget && emptyCount <= 3) {
     updateLamp("white", { level: 0 });
     vagueHintMessage = t("ui_FH");
 
@@ -7945,7 +8005,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
       lastYieldTime = performance.now();
     }
 
-    const isSolved = virtualBoard.flat().every((v) => v !== 0);
+    const isSolved = isPuzzleGoalReached(virtualBoard);
     if (isSolved) break;
 
     progressMade = false;
@@ -8072,7 +8132,17 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     }
   }
   if (waitForFrame && myEvaluationId !== currentEvaluationId) return;
-  isSolved = virtualBoard.flat().every((v) => v !== 0);
+  // Apply the same rule to the solver's deductions, including the step that
+  // reaches the target. A surviving completion alone cannot justify a step.
+  if (isVariantProgressValid && !isVariantProgressValid(virtualBoard, startingPencils)) {
+    updateLamp("black");
+    vagueHintMessage = "";
+    currentHintData = null;
+    solverSteps = [];
+    syncCurrentHistoryEvaluationState(myEvaluationId);
+    return;
+  }
+  const isSolved = isPuzzleGoalReached(virtualBoard);
   if (isSolved) {
     lastValidScore = evaluatedScore;
 
@@ -8132,13 +8202,21 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     // NEW: CAPTURE BRUTE FORCE STATE
     solverSteps[0].score = lastValidScore;
     solverSteps[0].level = maxDifficulty;
+    const fallbackBoard = onlyOneCellTarget
+      ? cloneVirtualBoard(virtualBoard) : solutionBoard.map((r) => [...r]);
+    const fallbackPencils = onlyOneCellTarget
+      ? cloneVirtualPencils(startingPencils)
+      : Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
+    if (onlyOneCellTarget) {
+      const { r, c, num } = onlyOneCellTarget;
+      fallbackBoard[r][c] = num;
+      fallbackPencils[r][c].clear();
+    }
     solverSteps.push({
       type: "bruteforce",
       techName: "bruteforce",
-      board: solutionBoard.map((r) => [...r]),
-      pencils: Array(9)
-        .fill(null)
-        .map(() => Array(9).fill(new Set())),
+      board: fallbackBoard,
+      pencils: fallbackPencils,
     });
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore}`;
@@ -8157,7 +8235,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
 
     // === Final magenta detection ===
     let foundBug = false;
-    for (let r = 0; r < 9; r++) {
+    for (let r = 0; !onlyOneCellTarget && r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         // If the cell is unsolved in virtualBoard
         if (virtualBoard[r][c] === 0) {
@@ -8265,7 +8343,7 @@ function hasCustomTechniquePreferences() {
 
   try {
     const defaults = getDefaultTechniques();
-    const active = getActiveTechniques();
+    const active = getActiveTechniques({ forPuzzle: false });
     const defaultActive = defaults.filter((t) => t.defaultEnabled);
 
     // 1. Check if the number of active techniques changed (toggled on/off)
@@ -8314,14 +8392,19 @@ function insertMissingDefaultsInOrder(list, defaults, knownIds, buildEntry) {
   });
 }
 
-function getActiveTechniques() {
+function getActiveTechniques({ forPuzzle = true } = {}) {
   const defaults = getDefaultTechniques();
+  const orderForPuzzle = (list) => orderMandatoryTechniquesFirst(
+    forPuzzle && onlyOneCellTarget
+      ? list.filter((tech) => !getUniquenessTechniques().includes(tech.name))
+      : list,
+  );
   const hasSavedPrefs =
     readStoredText(localStorage, "sudokuTechniquePrefs") !== null;
   const savedPrefs = readTechniquePreferences();
 
   if (!hasSavedPrefs) {
-    return orderMandatoryTechniquesFirst(
+    return orderForPuzzle(
       defaults.filter((t) => t.defaultEnabled),
     );
   }
@@ -8345,7 +8428,7 @@ function getActiveTechniques() {
   insertMissingDefaultsInOrder(active, defaults, savedTechniqueIds, (tech) =>
     tech.defaultEnabled ? tech : null,
   );
-  return orderMandatoryTechniquesFirst(active);
+  return orderForPuzzle(active);
 }
 
 // Scans the DOM list top-to-bottom to calculate which level section an item is currently under

@@ -3,6 +3,8 @@
 
   const scriptUrl = document.currentScript && document.currentScript.src;
   const workerUrl = new URL("rating_worker.js", scriptUrl || location.href);
+  // Keep the worker, native glue and Wasm on the same API revision.
+  workerUrl.searchParams.set("v", "one-cell-se-1");
   const DEFAULT_TIMEOUT_MS = 600000;
   const MAX_CONSECUTIVE_RESTARTS = 2;
 
@@ -130,7 +132,7 @@
             : null;
         this.pending.set(id, { resolve, reject, timer });
         try {
-          this.worker.postMessage({ id, puzzle, mode: modeValue });
+          this.worker.postMessage({ id, puzzle, mode: modeValue, onlyOneCell: options.onlyOneCell === true });
         } catch (error) {
           this.dropWorker(
             failure(
@@ -193,7 +195,7 @@
         clients.map(async (client) => {
           while (next < puzzles.length) {
             const index = next++;
-            results[index] = await client.rate(puzzles[index], mode);
+            results[index] = await client.rate(puzzles[index], mode, options);
           }
         }),
       );
