@@ -5102,13 +5102,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
 
   renderBoard();
   renderLines();
-  savePuzzleTimer();
-
-  currentPuzzleKey = puzzleData
-    ? `${puzzleData.date}-${puzzleData.level}`
-    : null;
-
-  loadPuzzleTimer(savedTime);
+  activatePuzzleTimer(puzzleData, savedTime);
 
   // Evaluate AGAIN to update the Lamp color based on current (potentially resumed) progress
   isLoadingSavedGame = false;
@@ -7618,6 +7612,21 @@ function loadPuzzleTimer(savedTimeFromStorage) {
   // MODIFIED: Set time but DO NOT start the interval automatically
   currentElapsedTime = timeToStart > 0 ? timeToStart : 0;
   puzzleTimerEl.textContent = formatTime(currentElapsedTime);
+}
+
+function activatePuzzleTimer(puzzleData, savedTime) {
+  savePuzzleTimer();
+  currentPuzzleKey = puzzleData
+    ? `${puzzleData.date}-${puzzleData.level}`
+    : null;
+
+  // A file-mode level can serve many different puzzles. Its old timer must not
+  // carry over when no saved progress was restored for the new puzzle.
+  if (isFilePuzzleMode(puzzleData?.date) && savedTime === 0) {
+    delete puzzleTimers[currentPuzzleKey];
+  }
+
+  loadPuzzleTimer(savedTime);
 }
 
 function syncCurrentHistoryEvaluationState(
