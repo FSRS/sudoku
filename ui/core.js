@@ -5020,6 +5020,13 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   solutionBoard = validity.solution || null;
   renderPuzzleModeMessage();
 
+  if (onlyOneCellTarget) {
+    await validity.precompute({
+      isCancelled: () => loadId !== puzzleLoadRequestId,
+    });
+    if (loadId !== puzzleLoadRequestId) return false;
+  }
+
   if (isCustomPuzzle) {
     if (!validity.isValid) {
       setTimeout(() => {
@@ -7931,6 +7938,15 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     syncCurrentHistoryEvaluationState(myEvaluationId);
     return;
   }
+  const validity = getPuzzleValidation(initialPuzzleString);
+  // An edit can schedule an evaluation while puzzle loading is still yielding.
+  // Wait for complete masks before comparing progress or displaying a result.
+  if (onlyOneCellTarget && !validity.isPrecomputed()) {
+    await validity.precompute({
+      isCancelled: () => myEvaluationId !== currentEvaluationId,
+    });
+    if (myEvaluationId !== currentEvaluationId) return;
+  }
   const currentBoardForEval = cloneBoardState(boardState);
   const emptyCount = currentBoardForEval
     .flat()
@@ -7941,7 +7957,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   );
   // Every original completion must remain possible, not just one witness.
   const isVariantProgressValid = onlyOneCellTarget
-    ? getPuzzleValidation(initialPuzzleString).isProgressValid
+    ? validity.isProgressValid
     : null;
   if (
     isVariantProgressValid &&
@@ -8250,27 +8266,20 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     // NEW: CAPTURE BRUTE FORCE STATE
     solverSteps[0].score = lastValidScore;
     solverSteps[0].level = maxDifficulty;
-    const fallbackBoard = onlyOneCellTarget
-      ? cloneVirtualBoard(virtualBoard)
-      : solutionBoard.map((r) => [...r]);
-    const fallbackPencils = onlyOneCellTarget
-      ? await getPuzzleValidation(initialPuzzleString).getPossiblePencils({
-          isCancelled: () => myEvaluationId !== currentEvaluationId,
-        })
-      : Array.from({ length: 9 }, () =>
-          Array.from({ length: 9 }, () => new Set()),
-        );
-    if (!fallbackPencils || myEvaluationId !== currentEvaluationId) return;
-    if (onlyOneCellTarget) {
-      const { r, c, num } = onlyOneCellTarget;
-      fallbackBoard[r][c] = num;
-      fallbackPencils[r][c].clear();
-    }
+    const fallback = onlyOneCellTarget
+      ? validity.getFinalState()
+      : {
+          board: solutionBoard.map((r) => [...r]),
+          pencils: Array.from({ length: 9 }, () =>
+            Array.from({ length: 9 }, () => new Set()),
+          ),
+        };
+    if (myEvaluationId !== currentEvaluationId) return;
     solverSteps.push({
       type: "bruteforce",
       techName: "bruteforce",
-      board: fallbackBoard,
-      pencils: fallbackPencils,
+      board: fallback.board,
+      pencils: fallback.pencils,
     });
     if (currentPuzzleScore > 0) {
       puzzleScoreEl.textContent = `~${currentPuzzleScore}`;

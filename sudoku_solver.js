@@ -307,6 +307,12 @@ function findSudokuSolution(
     : null;
 }
 
+function addSolutionCandidates(possible, solution) {
+  for (let i = 0; i < 81; i++) {
+    possible[i] |= 1 << (solution[(i / 9) | 0][i % 9] - 1);
+  }
+}
+
 function analyzeOnlyOneCell(board, witnesses = []) {
   const solution = witnesses[0] || findSudokuSolution(board);
   if (!solution) return { solution: null, target: null };
@@ -316,16 +322,14 @@ function analyzeOnlyOneCell(board, witnesses = []) {
   }
   // A unique grid with one blank is ordinary Sudoku.
   if (blanks.length < 2) return { solution, target: null };
-  const variable = new Set();
+  const possible = new Uint16Array(81);
+  addSolutionCandidates(possible, solution);
   for (const witness of witnesses.slice(1)) {
-    for (const i of blanks) {
-      const r = (i / 9) | 0, c = i % 9;
-      if (witness[r][c] !== solution[r][c]) variable.add(i);
-    }
+    addSolutionCandidates(possible, witness);
   }
   let target = null;
   for (const i of blanks) {
-    if (variable.has(i)) continue;
+    if (CANDIDATE_POPCOUNT[possible[i]] > 1) continue;
     const r = (i / 9) | 0;
     const c = i % 9;
     const alternative = findSudokuSolution(board, {
@@ -339,51 +343,45 @@ function analyzeOnlyOneCell(board, witnesses = []) {
     } else {
       // This pair of complete solutions proves variability for every cell
       // where they differ. Never infer a forced cell from a sample alone.
-      for (const j of blanks) {
-        const jr = (j / 9) | 0;
-        const jc = j % 9;
-        if (alternative[jr][jc] !== solution[jr][jc]) variable.add(j);
-      }
+      addSolutionCandidates(possible, alternative);
     }
   }
-  return { solution, target };
+  return { solution, target, possible };
 }
 
-// Progress must preserve EVERY completion of the original clues. Cache proofs
-// per puzzle, checking only removed candidates whose feasibility is unknown.
-// The brute-force solver can finish these same proofs to display exact pencils.
-// A witness also proves the feasibility of its digits in all other cells.
-function createOnlyOneCellProofs(board, { solution, target }) {
+// Precompute the union of candidates across EVERY completion of the original
+// clues with the proved target placed. Progress checks and brute-force display
+// then read the same exact masks without starting another solution search.
+function createOnlyOneCellProofs(board, { possible: witnessed, target }) {
   const givens = board.map((row) => [...row]);
-  const possible = new Uint16Array(81);
+  const finalBoard = board.map((row) => [...row]);
+  finalBoard[target.r][target.c] = target.num;
+  const possible = new Uint16Array(witnessed);
   const impossible = new Uint16Array(81);
+  const legal = buildGrid(calculateAllPencils(
+    finalBoard.map((row) => row.map((value) => ({ value }))),
+  )).cand;
   for (let i = 0; i < 81; i++) {
-    const r = (i / 9) | 0, c = i % 9;
-    possible[i] = 1 << (solution[r][c] - 1);
-    if (givens[r][c]) continue;
-    for (let digit = 1; digit <= 9; digit++) {
-      if (!isValid(givens, r, c, digit)) impossible[i] |= 1 << (digit - 1);
-    }
-    if (r === target.r && c === target.c) impossible[i] = 511 & ~possible[i];
+    impossible[i] = 511 & ~(legal[i] | possible[i]);
   }
+  let ready = false;
 
   function proveCandidate(i, bit) {
-    if (possible[i] & bit) return true;
-    if (impossible[i] & bit) return false;
-    const probe = givens.map((row) => [...row]);
-    probe[(i / 9) | 0][i % 9] = 32 - Math.clz32(bit);
+    if ((possible[i] | impossible[i]) & bit) return;
+    const probe = finalBoard.map((row) => [...row]);
+    probe[(i / 9) | 0][i % 9] = lowest(bit) + 1;
     const witness = findSudokuSolution(probe);
     if (witness) {
-      for (let j = 0; j < 81; j++) {
-        possible[j] |= 1 << (witness[(j / 9) | 0][j % 9] - 1);
-      }
-      return true;
+      // Each search proves up to 81 candidates, including other cells' work.
+      addSolutionCandidates(possible, witness);
+    } else {
+      impossible[i] |= bit;
     }
-    impossible[i] |= bit;
-    return false;
   }
 
   function isProgressValid(values, pencils = null) {
+    // A cancelled/in-flight preparation must never accept partial proofs.
+    if (!ready) return false;
     // Only the proved target is a justified placement. Even a feasible value
     // elsewhere excludes original solutions, and must not become a new clue.
     for (let r = 0; r < 9; r++) {
@@ -398,22 +396,18 @@ function createOnlyOneCellProofs(board, { solution, target }) {
     }
     if (!pencils) return true;
 
+    const retained = buildGrid(pencils).cand;
     for (let i = 0; i < 81; i++) {
       const r = (i / 9) | 0, c = i % 9;
       if (values[r][c]) continue;
-      let retained = 0;
-      for (const digit of pencils[r][c]) retained |= 1 << (digit - 1);
-      let removed = 511 & ~retained & ~impossible[i];
-      if (removed & possible[i]) return false;
-      for (; removed; removed &= removed - 1) {
-        const bit = removed & -removed;
-        if (proveCandidate(i, bit)) return false;
-      }
+      if (possible[i] & ~retained[i]) return false;
     }
     return true;
   }
 
-  async function getPossiblePencils({ isCancelled = () => false } = {}) {
+  async function precompute({ isCancelled = () => false } = {}) {
+    if (isCancelled()) return false;
+    if (ready) return true;
     let lastYield = performance.now();
     for (let i = 0; i < 81; i++) {
       if (givens[(i / 9) | 0][i % 9]) continue;
@@ -424,24 +418,27 @@ function createOnlyOneCellProofs(board, { solution, target }) {
           await new Promise((resolve) => setTimeout(resolve, 0));
           lastYield = performance.now();
         }
-        if (isCancelled()) return null;
+        if (isCancelled()) return false;
         proveCandidate(i, unknown & -unknown);
       }
     }
-    if (isCancelled()) return null;
-    // Fresh sets keep solver snapshots and the proof cache independent.
-    return givens.map((row, r) => row.map((value, c) => {
-      const pencils = new Set();
-      if (!value) {
-        for (let digit = 1; digit <= 9; digit++) {
-          if (possible[r * 9 + c] & (1 << (digit - 1))) pencils.add(digit);
-        }
-      }
-      return pencils;
-    }));
+    if (isCancelled()) return false;
+    ready = true;
+    return true;
   }
 
-  return { isProgressValid, getPossiblePencils };
+  function getFinalState() {
+    if (!ready) throw new Error("Only one cell candidates are not precomputed");
+    // Fresh boards/sets keep solver snapshots independent of the proof cache.
+    return {
+      board: finalBoard.map((row) => [...row]),
+      pencils: finalBoard.map((row, r) => row.map((value, c) => new Set(
+        value ? [] : bits9(possible[r * 9 + c]).map((bit) => bit + 1),
+      ))),
+    };
+  }
+
+  return { precompute, isPrecomputed: () => ready, isProgressValid, getFinalState };
 }
 
 /**
