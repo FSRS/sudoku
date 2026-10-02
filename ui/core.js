@@ -5,6 +5,7 @@ const {
   decompressPuzzleString,
   encodeBoardState: encodeSharedBoardState,
   formatPuzzleStringForInput,
+  isFilePuzzleMode,
   parsePuzzleInput,
   puzzleStringToGrid,
   readJsonArray,
@@ -338,8 +339,8 @@ function renderPuzzleLevelLabel() {
 
   if (kind === "daily") {
     puzzleLevelEl.textContent = `Lv. ${level}${star} (${difficultyWords[level]})`;
-  } else if (kind === "unlimited") {
-    puzzleLevelEl.textContent = t("ui_unlimited_level_option", level, star);
+  } else if (isFilePuzzleMode(kind)) {
+    puzzleLevelEl.textContent = t(`ui_${kind}_level_option`, level, star);
   } else if (kind === "bruteforce") {
     puzzleLevelEl.textContent = t("ui_custom_lv_12", star);
   } else {
@@ -2653,18 +2654,18 @@ function setupEventListeners() {
     openPreferencesModal();
   });
 
-  // [REQ 4] Allow re-selecting the same level in Unlimited Mode
+  // Allow re-selecting the same level in file-based puzzle modes.
   // If the user clicks the menu, we temporarily clear the selection (visually)
   // so that clicking the SAME number triggers a 'change' event.
   levelSelect.addEventListener("mousedown", () => {
-    if (dateSelect.value === "unlimited") {
+    if (isFilePuzzleMode(dateSelect.value)) {
       levelSelect.dataset.lastVal = levelSelect.value;
       levelSelect.value = "";
     }
   });
   // If user clicks away without selecting, restore the old value
   levelSelect.addEventListener("blur", () => {
-    if (dateSelect.value === "unlimited" && levelSelect.value === "") {
+    if (isFilePuzzleMode(dateSelect.value) && levelSelect.value === "") {
       levelSelect.value = levelSelect.dataset.lastVal;
     }
   });
@@ -4178,10 +4179,12 @@ async function populateSelectors() {
   customOption.textContent = t("ui_date_input_placeholder");
   dateSelect.appendChild(customOption);
 
-  const unlimitedOption = document.createElement("option");
-  unlimitedOption.value = "unlimited";
-  unlimitedOption.textContent = t("ui_unlimited_option");
-  dateSelect.appendChild(unlimitedOption);
+  for (const mode of ["unlimited", "joc"]) {
+    const option = document.createElement("option");
+    option.value = mode;
+    option.textContent = t(`ui_${mode}_option`);
+    dateSelect.appendChild(option);
+  }
 
   const dateBlankOption = document.createElement("option");
   dateBlankOption.value = "";
@@ -4190,14 +4193,6 @@ async function populateSelectors() {
   dateSelect.appendChild(dateBlankOption);
 }
 
-/**
- * Decompresses a puzzle string by converting letters a-z back into dots.
- * a = 1 dot, b = 2 dots, ... z = 26 dots.
- */
-/**
- * Lays an 81-character puzzle string out for the textarea: groups of three,
- * nine per line, a blank line between bands.
- */
 async function loadSavedDailyPuzzle(date, level) {
   const allSaves = readAllSaves();
   if (!allSaves) return false;
@@ -4236,13 +4231,14 @@ async function findAndLoadSelectedPuzzle() {
     levelSelect.value = "0";
   }
 
-  // 1. Handle t("ui_unlimited_option") Mode
-  if (dateSelect.value === "unlimited") {
-    let level = parseInt(levelSelect.value, 10);
+  // File modes share selection and resume behavior, with separate saves.
+  if (isFilePuzzleMode(dateSelect.value)) {
+    const mode = dateSelect.value;
+    const level = parseInt(levelSelect.value, 10);
 
     // CHECK FOR SAVED GAME
     const savedGame = (readAllSaves() || []).find(
-      (s) => isSaveRecord(s) && s.date === "unlimited" && s.level === level,
+      (s) => isSaveRecord(s) && s.date === mode && s.level === level,
     );
 
     if (savedGame) {
@@ -4254,27 +4250,33 @@ async function findAndLoadSelectedPuzzle() {
         candidateModal.classList.add("hidden");
       }
 
-      const resumeSavedUnlimited = async () => {
+      const resumeSavedFilePuzzle = async () => {
         if (requestId !== puzzleSelectionRequestId) return;
         puzzleStringInput.value = savedGame.puzzle;
         const loaded = await loadPuzzle(savedGame.puzzle, {
-          date: "unlimited",
+          date: mode,
           level: level,
           score: 0,
           puzzle: savedGame.puzzle,
         });
         if (!loaded) return;
         if (typeof puzzleLevelEl !== "undefined" && puzzleLevelEl) {
-          setPuzzleLevelLabel({ kind: "unlimited", level });
+          setPuzzleLevelLabel({ kind: mode, level });
         }
       };
 
       // Show Resume Modal
       const modal = document.getElementById("resume-modal");
+      const resumeDesc = document.getElementById("resume-desc");
       const levelText = document.getElementById("resume-level-text");
       const resumeSuffix = document.getElementById("resume-desc-suffix");
       const resumeBtn = document.getElementById("resume-btn");
       const newGameBtn = document.getElementById("new-game-btn");
+
+      if (resumeDesc) {
+        resumeDesc.dataset.i18n = `modal_resume_desc_${mode}`;
+        resumeDesc.textContent = t(resumeDesc.dataset.i18n);
+      }
 
       if (levelText) {
         levelText.textContent = t("ui_difficulty_level_value", level);
@@ -4292,7 +4294,7 @@ async function findAndLoadSelectedPuzzle() {
         modal.classList.add("flex");
       } else {
         // Fallback: If no modal, just load the saved game automatically.
-        resumeSavedUnlimited();
+        await resumeSavedFilePuzzle();
         return;
       }
 
@@ -4302,19 +4304,20 @@ async function findAndLoadSelectedPuzzle() {
           e.stopPropagation(); // STOP PROPAGATION
           modal.classList.add("hidden");
           modal.classList.remove("flex");
-          resumeSavedUnlimited();
+          resumeSavedFilePuzzle();
         };
       }
 
       if (newGameBtn) {
         newGameBtn.onclick = (e) => {
           e.stopPropagation(); // STOP PROPAGATION
+          if (requestId !== puzzleSelectionRequestId) return;
           modal.classList.add("hidden");
           modal.classList.remove("flex");
           // Remove the old save since user chose New Game
-          removeCurrentPuzzleSave({ date: "unlimited", level });
+          removeCurrentPuzzleSave({ date: mode, level });
           puzzleLoadRequestId++;
-          fetchUnlimitedPuzzle(level, ++puzzleSelectionRequestId);
+          fetchFilePuzzle(mode, level, ++puzzleSelectionRequestId);
         };
       }
 
@@ -4322,7 +4325,7 @@ async function findAndLoadSelectedPuzzle() {
     }
 
     // No save found, fetch new immediately
-    fetchUnlimitedPuzzle(level, requestId);
+    await fetchFilePuzzle(mode, level, requestId);
     return;
   }
 
@@ -4400,12 +4403,15 @@ async function findAndLoadSelectedPuzzle() {
 }
 
 /*
- * Each unlimited level has its own cyclic traversal of the corresponding
+ * Each level in each file mode has its own cyclic traversal of the corresponding
  * puzzle file.  A step that is coprime to the number of puzzles visits every
  * line exactly once before repeating, instead of sampling with replacement.
  */
-const UNLIMITED_SEQUENCE_STORAGE_KEY = "sudokuUnlimitedSequences";
-let unlimitedPuzzleLoadQueue = Promise.resolve();
+const FILE_SEQUENCE_STORAGE_KEYS = {
+  unlimited: "sudokuUnlimitedSequences",
+  joc: "sudokuJocSequences",
+};
+let filePuzzleLoadQueue = Promise.resolve();
 
 function greatestCommonDivisor(a, b) {
   while (b !== 0) {
@@ -4433,31 +4439,31 @@ function randomIntegerBelow(limit) {
   return Math.floor(Math.random() * limit);
 }
 
-function getUnlimitedSequenceStates() {
+function getFileSequenceStates(mode) {
   try {
     const stored = JSON.parse(
-      readStoredText(localStorage, UNLIMITED_SEQUENCE_STORAGE_KEY) || "{}",
+      readStoredText(localStorage, FILE_SEQUENCE_STORAGE_KEYS[mode]) || "{}",
     );
     return stored && typeof stored === "object" && !Array.isArray(stored)
       ? stored
       : {};
   } catch (error) {
-    console.warn("Failed to read unlimited puzzle sequence state:", error);
+    console.warn(`Failed to read ${mode} puzzle sequence state:`, error);
     return {};
   }
 }
 
-function saveUnlimitedSequenceState(level, state) {
-  const states = getUnlimitedSequenceStates();
+function saveFileSequenceState(mode, level, state) {
+  const states = getFileSequenceStates(mode);
   states[String(level)] = state;
   writeStoredText(
     localStorage,
-    UNLIMITED_SEQUENCE_STORAGE_KEY,
+    FILE_SEQUENCE_STORAGE_KEYS[mode],
     JSON.stringify(states),
   );
 }
 
-async function fingerprintUnlimitedPuzzleFile(text) {
+async function fingerprintPuzzleFile(text) {
   if (globalThis.crypto?.subtle && typeof TextEncoder !== "undefined") {
     const bytes = new TextEncoder().encode(text);
     const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
@@ -4475,9 +4481,9 @@ async function fingerprintUnlimitedPuzzleFile(text) {
   return `fnv1a-${text.length}-${(hash >>> 0).toString(16)}`;
 }
 
-function createUnlimitedSequenceState(fingerprint, puzzleCount) {
+function createFileSequenceState(fingerprint, puzzleCount) {
   if (puzzleCount < 2) {
-    throw new Error("Unlimited puzzle file needs at least two puzzles.");
+    throw new Error("Puzzle file needs at least two puzzles.");
   }
 
   let step;
@@ -4495,8 +4501,8 @@ function createUnlimitedSequenceState(fingerprint, puzzleCount) {
   };
 }
 
-function selectUnlimitedPuzzleIndex(level, fingerprint, puzzleCount) {
-  const previous = getUnlimitedSequenceStates()[String(level)];
+function selectFilePuzzleIndex(mode, level, fingerprint, puzzleCount) {
+  const previous = getFileSequenceStates(mode)[String(level)];
   const canContinue =
     previous &&
     previous.fingerprint === fingerprint &&
@@ -4510,7 +4516,7 @@ function selectUnlimitedPuzzleIndex(level, fingerprint, puzzleCount) {
     previous.q < puzzleCount;
 
   if (!canContinue) {
-    return createUnlimitedSequenceState(fingerprint, puzzleCount);
+    return createFileSequenceState(fingerprint, puzzleCount);
   }
 
   return {
@@ -4519,24 +4525,23 @@ function selectUnlimitedPuzzleIndex(level, fingerprint, puzzleCount) {
   };
 }
 
-/* Fetches a new unlimited puzzle; saved games are handled before this runs. */
-function fetchUnlimitedPuzzle(level, requestId = puzzleSelectionRequestId) {
+/* Fetches a new file puzzle; saved games are handled before this runs. */
+function fetchFilePuzzle(mode, level, requestId = puzzleSelectionRequestId) {
   // Serializing selection prevents rapid repeated calls from reading the same
   // saved q before either call has written its successor.
-  unlimitedPuzzleLoadQueue = unlimitedPuzzleLoadQueue.then(() =>
-    fetchAndLoadUnlimitedPuzzle(level, requestId),
+  filePuzzleLoadQueue = filePuzzleLoadQueue.then(() =>
+    fetchAndLoadFilePuzzle(mode, level, requestId),
   );
-  return unlimitedPuzzleLoadQueue;
+  return filePuzzleLoadQueue;
 }
 
-async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
+async function fetchAndLoadFilePuzzle(mode, level, requestId) {
   if (requestId !== puzzleSelectionRequestId) return;
   const fileIndex = String(level).padStart(2, "0");
 
-  // Update the URL here
-  const filename = `https://json.sudoku.darksabun.club/unlimited/Lv${fileIndex}.txt`;
+  const filename = `https://json.sudoku.darksabun.club/${mode}/Lv${fileIndex}.txt`;
 
-  showMessage(t("ui_fetching_unlimited_puzzle_status", level), "blue");
+  showMessage(t(`ui_fetching_${mode}_puzzle_status`, level), "blue");
 
   try {
     const response = await fetch(filename);
@@ -4552,9 +4557,10 @@ async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
 
     if (lines.length === 0) throw new Error("Puzzle file is empty or invalid.");
 
-    const fingerprint = await fingerprintUnlimitedPuzzleFile(text);
+    const fingerprint = await fingerprintPuzzleFile(text);
     if (requestId !== puzzleSelectionRequestId) return;
-    const sequenceState = selectUnlimitedPuzzleIndex(
+    const sequenceState = selectFilePuzzleIndex(
+      mode,
       level,
       fingerprint,
       lines.length,
@@ -4562,31 +4568,30 @@ async function fetchAndLoadUnlimitedPuzzle(level, requestId) {
     const rawString = lines[sequenceState.q];
     const puzzleStr = decompressPuzzleString(rawString);
 
-    if (puzzleStr.length !== 81)
+    if (puzzleStr.length !== 81 || !/^[0-9.]+$/.test(puzzleStr))
       throw new Error(t("ui_puzzle_integrity_error"));
-
-    // Persist only after the selected line has passed validation. The stored q
-    // is the puzzle just loaded; the following call advances by p modulo N.
-    saveUnlimitedSequenceState(level, sequenceState);
 
     puzzleStringInput.value = puzzleStr;
 
-    const unlimitedData = {
-      date: "unlimited",
+    const puzzleData = {
+      date: mode,
       level: level,
       score: 0,
       puzzle: puzzleStr,
     };
 
-    const loaded = await loadPuzzle(puzzleStr, unlimitedData);
+    const loaded = await loadPuzzle(puzzleStr, puzzleData);
     if (!loaded) return;
 
-    setPuzzleLevelLabel({ kind: "unlimited", level });
-    showMessage(t("ui_unlimited_puzzle_loaded"), "green");
+    // Advance only after a successful load, including the one-cell proof.
+    // The following selection advances this q by p modulo the file length.
+    saveFileSequenceState(mode, level, sequenceState);
+    setPuzzleLevelLabel({ kind: mode, level });
+    showMessage(t(`ui_${mode}_puzzle_loaded`), "green");
   } catch (err) {
     if (requestId !== puzzleSelectionRequestId) return;
     console.error(err);
-    showMessage(t("ui_unlimited_puzzle_load_error"), "red");
+    showMessage(t(`ui_${mode}_puzzle_load_error`), "red");
     initBoardState();
     renderBoard();
   }
@@ -4877,8 +4882,8 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   });
   activeTooltipElement = null;
 
-  const isUnlimited = puzzleData && puzzleData.date === "unlimited";
-  isCustomPuzzle = puzzleData === null || isUnlimited;
+  const isFilePuzzle = puzzleData && isFilePuzzleMode(puzzleData.date);
+  isCustomPuzzle = puzzleData === null || isFilePuzzle;
 
   isCustomDifficultyEvaluated = false;
   customScoreEvaluated = -1;
@@ -4992,6 +4997,11 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   let wasSaveLoaded = false;
 
   const validity = getPuzzleValidation(initialPuzzleString);
+  if (puzzleData?.date === "joc" && (!validity.isValid || !validity.target)) {
+    showMessage(t("ui_puzzle_integrity_error"), "red");
+    addSudokuCoachLink(null);
+    return false;
+  }
   onlyOneCellTarget = validity.target || null;
   solutionBoard = validity.solution || null;
   renderPuzzleModeMessage();
@@ -5027,7 +5037,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   );
   // --- APPLY SAVED PROGRESS ---
   if (puzzleData) {
-    // For Unlimited, puzzleData is constructed manually
+    // File modes construct puzzleData from the selected line or saved game.
     savedTime = applySavedProgress(puzzleData);
     if (savedTime > 0) {
       wasSaveLoaded = true;
@@ -5058,9 +5068,10 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     // The JSON score is intentionally ignored.
     currentPuzzleScore = 0;
 
-    if (!isUnlimited) {
-      setPuzzleLevelLabel({ kind: "daily", level: puzzleData.level });
-    }
+    setPuzzleLevelLabel({
+      kind: isFilePuzzle ? puzzleData.date : "daily",
+      level: puzzleData.level,
+    });
 
     const customPrefsStar = hasCustomPreferences() ? "*" : "";
     puzzleScoreEl.textContent =
@@ -5081,11 +5092,9 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   renderLines();
   savePuzzleTimer();
 
-  currentPuzzleKey = isCustomPuzzle
-    ? isUnlimited
-      ? `unlimited-${puzzleData.level}`
-      : null
-    : `${puzzleData.date}-${puzzleData.level}`;
+  currentPuzzleKey = puzzleData
+    ? `${puzzleData.date}-${puzzleData.level}`
+    : null;
 
   loadPuzzleTimer(savedTime);
 
@@ -5105,7 +5114,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   addSudokuCoachLink(initialPuzzleString);
 
   if (isCustomPuzzle) {
-    if (!isUnlimited && !wasSaveLoaded)
+    if (!isFilePuzzle && !wasSaveLoaded)
       showMessage(t("ui_custom_puzzle_loaded"), "green");
   } else if (!wasSaveLoaded && puzzleData) {
     showMessage(
@@ -5118,7 +5127,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     );
   }
 
-  if (puzzleData && !isUnlimited) {
+  if (puzzleData && !isFilePuzzle) {
     setTimeout(() => {
       const tip = getLevelTips()[puzzleData.level];
       if (tip) showMessage(tip, "gray");
@@ -5222,7 +5231,7 @@ const isColorStack = (value) =>
  */
 function isSaveRecord(record) {
   if (!isPlainObject(record)) return false;
-  const hasDate = record.date === "unlimited" || Number.isInteger(record.date);
+  const hasDate = isFilePuzzleMode(record.date) || Number.isInteger(record.date);
   return (
     hasDate &&
     Number.isInteger(record.level) &&
@@ -5524,7 +5533,7 @@ function removeCurrentPuzzleSave(identity = activePuzzleIdentity) {
   const selectedDate = identity.date;
   const selectedLevel = identity.level;
   if (
-    (selectedDate !== "unlimited" && !Number.isInteger(selectedDate)) ||
+    (!isFilePuzzleMode(selectedDate) && !Number.isInteger(selectedDate)) ||
     !Number.isInteger(selectedLevel)
   ) {
     return;
@@ -7936,7 +7945,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     // The normal solving loop is skipped for <= 3 empty cells,
     // so capture the browser score here.
     if (!isCustomDifficultyEvaluated) {
-      if (isCustomPuzzle && dateSelect.value !== "unlimited") {
+      if (isCustomPuzzle && !isFilePuzzleMode(dateSelect.value)) {
         setPuzzleLevelLabel({ kind: "custom", level: 0 });
       }
 
@@ -8170,7 +8179,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
       if (!isCustomDifficultyEvaluated) {
         // Only user-entered custom puzzles should have their level label replaced.
         // Daily puzzles keep the level supplied by the daily JSON metadata.
-        if (isCustomPuzzle && dateSelect.value !== "unlimited") {
+        if (isCustomPuzzle && !isFilePuzzleMode(dateSelect.value)) {
           setPuzzleLevelLabel({ kind: "custom", level: maxDifficulty });
         }
 
@@ -8229,7 +8238,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
 
     if (!isCustomDifficultyEvaluated) {
       // Do not overwrite the JSON level label for daily puzzles.
-      if (isCustomPuzzle && dateSelect.value !== "unlimited") {
+      if (isCustomPuzzle && !isFilePuzzleMode(dateSelect.value)) {
         setPuzzleLevelLabel({ kind: "bruteforce", level: 12 });
       }
 

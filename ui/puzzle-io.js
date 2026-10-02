@@ -30,9 +30,25 @@
 
   function decompressPuzzleString(value) {
     if (!value) return "";
-    return value.replace(/[a-z]/g, (char) =>
-      ".".repeat(char.charCodeAt(0) - 96),
-    );
+    let valid = true;
+    // File data uses bijective base 26: a=1, z=26, aa=27, ab=28, ba=53.
+    // Shared board-state links have a separate codec below.
+    const result = value.replace(/[a-z]+/g, (run) => {
+      let count = 0;
+      for (const char of run) {
+        count = count * 26 + char.charCodeAt(0) - 96;
+        if (count > 81) {
+          valid = false;
+          return "";
+        }
+      }
+      return ".".repeat(count);
+    });
+    return valid ? result : "";
+  }
+
+  function isFilePuzzleMode(mode) {
+    return mode === "unlimited" || mode === "joc";
   }
 
   function createPuzzleIdentity(puzzleData, puzzleString) {
@@ -43,7 +59,7 @@
     const puzzle = decompressPuzzleString(puzzleString)
       .replace(/0/g, ".")
       .replace(/\s/g, "");
-    const hasValidDate = date === "unlimited" || Number.isInteger(date);
+    const hasValidDate = isFilePuzzleMode(date) || Number.isInteger(date);
 
     if (
       !hasValidDate ||
@@ -340,6 +356,7 @@
     decompressPuzzleString,
     encodeBoardState,
     formatPuzzleStringForInput,
+    isFilePuzzleMode,
     parseLibraryPuzzleString,
     parsePuzzleInput,
     puzzleStringToGrid,
