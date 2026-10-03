@@ -655,17 +655,6 @@ html.dark .offline-cache-dot {
   transform: translateY(-1px);
 }
 
-/* -- Number Pad -- */
-#number-pad button {
-  background-color: transparent;
-  border-color: var(--nc-border-color);
-  color: var(--nc-tx-1);
-}
-
-#number-pad button:hover {
-  background-color: var(--nc-border-color);
-}
-
 /* --- Component: Modals --- */
 #candidate-modal,
 #date-modal {
@@ -1024,6 +1013,7 @@ html.dark {
   #format-confirm-modal > div,
   #share-modal > div,
   #reset-confirm-modal > div,
+  #image-import-discard > div,
   #preferences-modal > div,
   #install-help-modal > div,
   #autopencil-confirm-modal > div {
@@ -1157,14 +1147,6 @@ html.dark {
   }
   #solver-link-container a:hover {
     background-color: #7c2d12;
-  }
-  #number-pad button[data-number] {
-    background-color: #374151;
-    border-color: #4b5563;
-    color: #d1d5db;
-  }
-  #number-pad button[data-number]:hover {
-    background-color: #4b5563;
   }
   #clear-btn {
     background-color: #7f1d1d !important;

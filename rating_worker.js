@@ -1,12 +1,12 @@
 /* skfr + SEROB C++ host integration, modified in 2026 by ClubDS. LGPL-2.1-only. */
-importScripts("rating.js?v=one-cell-se-1", "rating_runtime.js?v=one-cell-se-1");
+importScripts("rating.js", "rating_runtime.js");
 
 let enginePromise;
 
 function loadEngine() {
   if (!enginePromise) {
     enginePromise = createRating({
-      locateFile: (file) => new URL(`${file}?v=one-cell-se-1`, self.location.href).href,
+      locateFile: (file) => new URL(file, self.location.href).href,
     }).catch((error) => {
       enginePromise = null;
       throw error;

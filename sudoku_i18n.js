@@ -55,6 +55,57 @@ const TRANSLATIONS = {
     tooltip_load: "Load a custom 81-character puzzle string.",
     tooltip_copy: "Copy puzzle data to clipboard.",
 
+    // === Image import ===
+    btn_image_import: "Image",
+    tooltip_image_import:
+      "Create a puzzle from a Sudoku board image on the clipboard. You can also paste it into the page.",
+    aria_image_import: "Create puzzle from clipboard image",
+    ui_image_import_reading: "Reading the image…",
+    ui_image_import_no_image: "There is no image on the clipboard.",
+    ui_image_import_unsupported:
+      "This browser can't read the clipboard from a button. Press {0}+V instead.",
+    ui_image_import_permission:
+      "Clipboard access was denied. Press {0}+V instead.",
+    ui_image_import_decode_error: "Couldn't open the image.",
+    ui_image_import_canvas_blocked:
+      "The browser blocked reading the image. Check its privacy settings.",
+    ui_image_import_board_not_found:
+      "Couldn't find a Sudoku board in the image.",
+    ui_image_import_board_too_small:
+      "The board is too small. Enlarge it and capture again.",
+    ui_image_import_engine_error:
+      "Couldn't load the image recognizer. Check your connection and try again.",
+    ui_image_import_busy: "Still reading the previous image.",
+    ui_image_import_timeout:
+      "The image recognizer stopped responding. Try again.",
+    image_import_title: "Import from image",
+    image_import_help:
+      "Select a cell and press 1–9 to fix it. Pressing the same number again clears it. Z switches number/pencil.",
+    image_import_counts: "Givens {0} · Placed {1} · Candidate cells {2}",
+    image_import_duplicate:
+      "Repeated in a row, column or box: {0}. Fix the red cells.",
+    image_import_uncertain: "Uncertain cells, marked with a question mark: {0}",
+    image_import_cell_status: "r{0}c{1} · {2}",
+    image_import_role_given: "Given",
+    image_import_role_user: "Placed",
+    image_import_empty: "Empty",
+    image_import_candidates: "Candidates {0}",
+    image_import_uncertain_mark: "Uncertain",
+    image_import_role_toggle: "Given ↔ placed",
+    image_import_role_flip_all: "Swap all roles",
+    image_import_multiple_boards:
+      "Several boards found; the largest one was read.",
+    image_import_reset: "Undo all changes",
+    image_import_view_toggle: "Show result only",
+    image_import_discard_confirm: "Discard your corrections?",
+    image_import_discard_desc: "The dialog closes without loading the board.",
+    image_import_discard: "Discard and close",
+    image_import_keep_editing: "Keep editing",
+    image_import_wrong_candidates: "Some candidates are wrong",
+    image_import_wrong_candidates_desc:
+      "Cells whose candidates miss the solution digit ({0}): {1}",
+    image_import_refill_load: "Refill candidates and load",
+
     // === Date modal ===
     modal_date_title: "Enter a Date (2026-03-01 - )",
     btn_cancel: "Cancel",
@@ -192,7 +243,8 @@ const TRANSLATIONS = {
     puzzle_unique_solution: "Puzzle has a unique solution.",
     puzzle_only_one_cell:
       "Just one cell: exactly one non-clue cell can be determined.",
-    ui_only_one_cell_lamp: "Difficulty until the only determined cell is solved",
+    ui_only_one_cell_lamp:
+      "Difficulty until the only determined cell is solved",
     pref_skfr_one_cell_fallback: "skfr (SE for Just one cell)",
     ui_only_one_cell_solved: "The only determined cell is solved!{0}",
     ui_only_one_cell_fallback:
@@ -471,7 +523,7 @@ const TRANSLATIONS = {
     ui_puzzle_fully_solved: "Puzzle Fully Solved!",
     ui_solver_fallback_solution:
       "Sorry! Built-in techniques failed to solve this. Showing Solution.",
-    ui_brute_force_name: "Brute Force :(",
+    ui_brute_force_name: "Brute Force",
     ui_solver_restart_warning:
       "Incorrect progress has been made.<br><span class='font-bold text-red-500'>The solver will start from the beginning.</span>",
     ui_solver_start_state_prompt:
@@ -629,8 +681,8 @@ const TRANSLATIONS = {
     ui_AUET: "Avoidable UET",
     ui_UR_type_7: "Unique Rectangle T7",
     teks_eliminate_cands: "Eliminate Candidates",
-    teks_eliminate_cands_location: "at r{0}c{1}",
-    teks_concrete_number_r_c: "Concrete number ({0})r{1}c{2}",
+    teks_eliminate_cands_location: "at {0}",
+    teks_concrete_numbers: "Concrete number {0}",
     teks_FH_row: "Row {0}",
     teks_FH_col: "Col {0}",
     teks_FH_box: "Box {0}",
@@ -1000,6 +1052,56 @@ const TRANSLATIONS = {
     placeholder_puzzle: "81자, ASCII 그리드, \nYZF Library 문자열 입력...",
     tooltip_load: "사용자 지정 81자 퍼즐 문자열을 불러옵니다.",
     tooltip_copy: "현재 퍼즐을 클립보드로 복사합니다.",
+
+    // === Image import ===
+    btn_image_import: "이미지",
+    tooltip_image_import:
+      "클립보드의 스도쿠 보드 이미지로 퍼즐을 만듭니다. 페이지에 바로 붙여 넣어도 됩니다.",
+    aria_image_import: "클립보드 이미지로 퍼즐 만들기",
+    ui_image_import_reading: "이미지를 읽는 중…",
+    ui_image_import_no_image: "클립보드에 이미지가 없습니다.",
+    ui_image_import_unsupported:
+      "이 브라우저에서는 버튼으로 클립보드를 읽을 수 없습니다. {0}+V로 붙여 넣어 주세요.",
+    ui_image_import_permission:
+      "클립보드를 읽을 권한이 없습니다. {0}+V로 붙여 넣어 주세요.",
+    ui_image_import_decode_error: "이미지를 열 수 없습니다.",
+    ui_image_import_canvas_blocked:
+      "브라우저가 이미지 읽기를 막았습니다. 개인정보 보호 설정을 확인해 주세요.",
+    ui_image_import_board_not_found:
+      "이미지에서 스도쿠 보드를 찾지 못했습니다.",
+    ui_image_import_board_too_small:
+      "보드가 너무 작습니다. 보드를 더 크게 띄우고 다시 캡처해 주세요.",
+    ui_image_import_engine_error:
+      "이미지 인식기를 불러오지 못했습니다. 연결을 확인하고 다시 시도해 주세요.",
+    ui_image_import_busy: "앞의 이미지를 아직 읽고 있습니다.",
+    ui_image_import_timeout:
+      "이미지 인식기가 응답하지 않습니다. 다시 시도해 주세요.",
+    image_import_title: "이미지에서 불러오기",
+    image_import_help:
+      "칸을 누르고 1–9로 고치세요. 같은 숫자를 다시 누르면 지워집니다. Z는 숫자·연필 전환입니다.",
+    image_import_counts: "주어진 수 {0}개 · 입력한 수 {1}개 · 후보 칸 {2}개",
+    image_import_duplicate:
+      "{0}이(가) 같은 행·열·박스에 겹칩니다. 빨간 칸을 고쳐 주세요.",
+    image_import_uncertain: "확신이 낮은 칸 {0}개에 물음표를 달았습니다.",
+    image_import_cell_status: "r{0}c{1} · {2}",
+    image_import_role_given: "주어진 수",
+    image_import_role_user: "입력한 수",
+    image_import_empty: "빈 칸",
+    image_import_candidates: "후보 {0}",
+    image_import_uncertain_mark: "확신 낮음",
+    image_import_role_toggle: "주어진 수 ↔ 입력한 수",
+    image_import_role_flip_all: "역할 일괄 뒤집기",
+    image_import_multiple_boards:
+      "화면에 판이 여러 개라 가장 큰 판을 읽었습니다.",
+    image_import_reset: "인식 결과로 되돌리기",
+    image_import_view_toggle: "인식 결과만 보기",
+    image_import_discard_confirm: "고친 내용을 버리고 닫을까요?",
+    image_import_discard_desc: "판을 불러오지 않고 창을 닫습니다.",
+    image_import_discard: "버리고 닫기",
+    image_import_keep_editing: "계속 고치기",
+    image_import_wrong_candidates: "틀린 후보가 있습니다",
+    image_import_wrong_candidates_desc: "후보에 정답 숫자가 없는 칸 {0}개: {1}",
+    image_import_refill_load: "후보수 새로 채워 불러오기",
 
     // === Date modal ===
     modal_date_title: "날짜 입력 (2026-03-01 - )",
@@ -1423,7 +1525,7 @@ const TRANSLATIONS = {
     ui_puzzle_fully_solved: "퍼즐 완벽히 해결됨!",
     ui_solver_fallback_solution:
       "내장된 기술로는 이 퍼즐을 풀지 못했습니다. 무작위 대입을 이용한 해답을 표시합니다.",
-    ui_brute_force_name: "무작위 대입 :(",
+    ui_brute_force_name: "무작위 대입",
     ui_solver_restart_warning:
       "잘못된 진행이 있습니다.<br><span class='font-bold text-red-500'>솔버를 처음부터 시작합니다.</span>",
     ui_solver_start_state_prompt:
@@ -1580,8 +1682,8 @@ const TRANSLATIONS = {
     ui_AUET: "회피 가능한 외부 수호자 논법",
     ui_UR_type_7: "유일한 직사각형 T7",
     teks_eliminate_cands: "후보수 제거",
-    teks_eliminate_cands_location: "r{0}c{1}에서",
-    teks_concrete_number_r_c: "확정된 숫자 ({0}) r{1}c{2}에 의해",
+    teks_eliminate_cands_location: "{0}에서",
+    teks_concrete_numbers: "확정된 숫자 {0}에 의해",
     teks_FH_row: "{0}번 행",
     teks_FH_col: "{0}번 열",
     teks_FH_box: "{0}번 상자",

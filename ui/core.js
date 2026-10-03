@@ -1103,6 +1103,9 @@ function createGrid() {
   gridContainer.appendChild(svg);
 }
 
+const NUMBER_PAD_BUTTON_LOOK =
+  "border rounded-md shadow-sm border-[var(--nc-border-color)] bg-transparent text-[var(--nc-tx-1)] hover:bg-[var(--nc-border-color)] dark:border-[#4b5563] dark:bg-[#374151] dark:text-[#d1d5db] dark:hover:bg-[#4b5563]";
+
 function updateControls() {
   numberPad.innerHTML = "";
 
@@ -1147,7 +1150,7 @@ function updateControls() {
         labelColor = isDarkMode ? "#1f2937" : "#e5e7eb";
 
       btn.className =
-        "color-btn p-2 text-lg font-bold border rounded-md shadow-sm h-12";
+        "color-btn p-2 text-lg font-bold border rounded-md shadow-sm h-12 border-[var(--nc-border-color)] dark:border-[#4b5563]";
       btn.style.color = labelColor;
 
       if (selectedColor === activePalette[colorIndex])
@@ -1167,8 +1170,7 @@ function updateControls() {
       const btn = document.createElement("button");
       btn.textContent = i;
       btn.dataset.number = i;
-      btn.className =
-        "p-2 text-lg font-bold border rounded-md shadow-sm hover:bg-gray-100 h-12";
+      btn.className = `p-2 text-lg font-bold h-12 ${NUMBER_PAD_BUTTON_LOOK}`;
       numberPad.appendChild(btn);
     });
   }
@@ -3597,7 +3599,7 @@ function handleKeyDown(e) {
     colorButton.click();
     return;
   }
-  if (key_lower === "v") {
+  if (key_lower === "v" && !isCtrlOrCmd) {
     vagueHintBtn.click();
     return;
   }
@@ -8933,6 +8935,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Boot the Blossom workers now so their startup overlaps the analysis
   // that runs before the first Blossom call.
   warmBlossomWorkers();
+  globalThis.SudokuImageImport?.init();
 
   // --- TABS ---
   document.querySelectorAll("[data-pref-tab]").forEach((tab) => {

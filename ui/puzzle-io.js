@@ -138,9 +138,11 @@
       const row = Math.floor(index / 9);
       const col = index % 9;
       for (let num = 1; num <= 9; num++) {
-        if (universe && !universe[index].has(num)) continue;
-        if (isValidCandidate(placedGrid, row, col, num))
-          pencils[index].add(num);
+        // An explicit grid loads as entered; clashing marks are left to the Eliminate Candidates hint.
+        const allowed = universe
+          ? universe[index].has(num)
+          : isValidCandidate(placedGrid, row, col, num);
+        if (allowed) pencils[index].add(num);
       }
     }
 

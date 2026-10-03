@@ -4,50 +4,53 @@ Object.assign(techniques, {
     techniques._resetAICCache();
 
     const removals = [];
-    let newr = 0;
-    let newc = 0;
-    let newd = 0;
-    let newpr = 0;
-    let newpc = 0;
+    const sources = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         // Find all concrete numbers (given or filled)
         if (board[r][c] > 0) {
           const num = board[r][c];
+          let isSource = false;
           // Look at all peers
           for (let pr = 0; pr < 9; pr++) {
             for (let pc = 0; pc < 9; pc++) {
               if (techniques._sees([r, c], [pr, pc])) {
                 // If the peer has this number as a candidate, mark it for removal
                 if (pencils[pr][pc].has(num)) {
-                  newpr = pr;
-                  newpc = pc;
-                  newr = r;
-                  newc = c;
-                  newd = num;
+                  isSource = true;
                   removals.push({ r: pr, c: pc, num });
                 }
               }
             }
           }
+          if (isSource) sources.push({ r, c, num });
         }
       }
     }
     if (removals.length > 0) {
       // De-duplicate removals (a cell can be a peer in multiple ways)
       const uniqueRemovals = _getUniqueRemovals(removals);
+      const byDigit = new Map();
+      for (const { r, c, num } of sources) {
+        if (!byDigit.has(num)) byDigit.set(num, []);
+        byDigit.get(num).push([r, c]);
+      }
+      const concrete = [...byDigit]
+        .sort((a, b) => a[0] - b[0])
+        .map(([num, cells]) => `(${num})${techniques._formatCellsRC(cells)}`)
+        .join(", ");
       const res = {
         change: true,
         type: "remove",
         cells: uniqueRemovals,
         hint: {
           name: t("teks_eliminate_cands"),
-          mainInfo: t("teks_eliminate_cands_location", newpr + 1, newpc + 1),
-          detail: t("teks_concrete_number_r_c", newd, newr, newc),
+          mainInfo: t("teks_eliminate_cands_location", techniques._formatCellsRC(uniqueRemovals)),
+          detail: t("teks_concrete_numbers", concrete),
         },
         visualPlan: {
           highlight: { digit: null, state: 0 },
-          cellColors: [{ r: newr, c: newc, color: 7 }],
+          cellColors: sources.map(({ r, c }) => ({ r, c, color: 7 })),
           candidateMarks: uniqueRemovals.map(({ r, c, num }) => ({
             r,
             c,
