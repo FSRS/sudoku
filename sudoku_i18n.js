@@ -191,7 +191,7 @@ const TRANSLATIONS = {
     error_multiple_solutions: "Error: This puzzle has {0} solutions.",
     puzzle_unique_solution: "Puzzle has a unique solution.",
     puzzle_only_one_cell:
-      "Just one cell Sudoku: exactly one non-clue cell can be determined.",
+      "Just one cell: exactly one non-clue cell can be determined.",
     ui_only_one_cell_lamp: "Difficulty until the only determined cell is solved",
     pref_skfr_one_cell_fallback: "skfr (SE for Just one cell)",
     ui_only_one_cell_solved: "The only determined cell is solved!{0}",
