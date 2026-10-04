@@ -5,7 +5,8 @@
   const Int32Array = root.Int32Array, Uint8Array = root.Uint8Array, Map = root.Map, Object = root.Object;
   const Int8Array = root.Int8Array, Int16Array = root.Int16Array, DataView = root.DataView, WeakMap = root.WeakMap;
 
-  const VERSION = "0.8.1";
+  const VERSION = "0.9.0";
+  let noShade = false, shaded = false, roleGroups = 0;
 
   const DEFAULTS = {
     maxSide: 1600,
@@ -119,6 +120,71 @@
     confidenceB: 2,
     lowConfidence: 0.9,
     fewClues: 17,
+    tiltMin: 0.4,
+    tiltReach: 0.25,
+    tiltQuantile: 0.6,
+    derotateMin: 0.3,
+    angleRange: 20,
+    angleSide: 800,
+    angleEdge: 0.01,
+    angleCoarse: 8000,
+    quadSide: 640,
+    trackStrips: 8,
+    trackQuantile: 0.6,
+    trackPeak: 0.3,
+    trackResid: 0.15,
+    trackMin: 16,
+    trackPolish: 0.04,
+    quadTries: 3,
+    quadMin: 0.9,
+    quadFlat: 0.1,
+    rectMargin: 0.5,
+    preSide: 800,
+    rectMax: 3200,
+    expectIou: 0.75,
+    tiltKeepIou: 0.8,
+    axisKeepIou: 0.95,
+    shadeSameIou: 0.9,
+    tiltBigger: 1.2,
+    bigArea: 4,
+    ksMin: 0.025,
+    roleWash: 200,
+    shadeReach: 2,
+    shadeMin: 12,
+    shadeIter: 4,
+    shadeNoise: 0.02,
+    shadeRange: 0.2,
+    shadeFit: 8,
+    shadeWide: 0.45,
+    shadeWideFit: 4,
+    shadeSigma: 2,
+    shadeLambda: 200,
+    flatIter: 6,
+    flatNoise: 0.02,
+    flatNoiseLin: 0.01,
+    flatSub: 3,
+    flatInset: 0.12,
+    flatHalf: 1.5,
+    flatEps: 0.02,
+    flatFloor: 0.002,
+    flatRange: 0.1,
+    flatSnr: 22,
+    flatPre: 0.08,
+    flatRangeHigh: 0.2,
+    flatSnrHigh: 30,
+    flatDegMin: 2,
+    flatDegMax: 6,
+    flatCvGain: 0.98,
+    flatMinGain: 0.12,
+    flatScreen: 0.05,
+    flatScreenCap: 9,
+    flatScreenIter: 2,
+    quadShiftRounds: 1,
+    quadShiftFrom: 0.15,
+    flatTries: 2,
+    flatRetryRange: 0.2,
+    flatRetrySnr: 40,
+    flatKeystone: 0.02,
   };
   let P = DEFAULTS;
 
@@ -995,7 +1061,10 @@
     const work = { g, gw, gh, pe, dark: true, R: Math.max(2, Math.round(0.25 * pe)) };
     prepare(work);
     const d = {}, best = checkBoard(work, d);
-    if (!best) { why.r = d.reason; why.d = d; return null; }
+    if (!best) {
+      if (d.xs) { d.ix = d.xs.map((u) => cx0 + (u + 0.5) * cw / gw); d.iy = d.ys.map((u) => cy0 + (u + 0.5) * ch / gh); }
+      why.r = d.reason; why.d = d; return null;
+    }
     why.d = best.diag;
     const X = best.X, Y = best.Y, sxk = cw / gw, syk = ch / gh;
     const xs = X.pos.map((u) => cx0 + (u + 0.5) * sxk), ys = Y.pos.map((u) => cy0 + (u + 0.5) * syk);
@@ -1143,7 +1212,7 @@
       if (b && !found.some((f) => iou(f, b) >= P.mergeIou)) found.push(b);
     }
     if (debug) debug.verified = found;
-    const res = pick(found, img);
+    const res = pick(found, img, debug);
     if (debug) res.debug = debug;
     return res;
   }
@@ -1166,7 +1235,7 @@
     return ch.map(median);
   }
 
-  function measure(img, b) {
+  function measure(img, b, debug) {
     const W = img.width, H = img.height;
     const px = (b.xs[8] - b.xs[1]) / 7, py = (b.ys[8] - b.ys[1]) / 7;
     const cx0 = Math.max(0, Math.floor(b.xs[1] - 2 * px)), cx1 = Math.min(W, Math.ceil(b.xs[8] + 2 * px));
@@ -1186,6 +1255,7 @@
     const X = axisLines(pr.x, fx, true), Y = axisLines(pr.y, fy, true);
     chooseOuter(X, Y);
     for (const [A, pf] of [[X, pr.x], [Y, pr.y]]) for (const side of [0, 1]) if (!outerSpacingOk(A, side)) refitOuter(A, side, pf);
+    if (debug) { const t = tiltOf(work, X, Y); debug.tilt = t ? t.tilt : null; debug.ks = t ? t.ks : null; }
     const xs = X.pos.map((u) => cx0 + (u + 0.5) * sxk), ys = Y.pos.map((u) => cy0 + (u + 0.5) * syk);
     const bx0 = cx0 + (X.lo + 0.5) * sxk, bx1 = cx0 + (X.hi + 0.5) * sxk, by0 = cy0 + (Y.lo + 0.5) * syk, by1 = cy0 + (Y.hi + 0.5) * syk;
     return Object.assign({}, b, { x: bx0, y: by0, width: bx1 - bx0, height: by1 - by0, xs, ys });
@@ -1197,11 +1267,14 @@
     return Object.assign({}, b, { x: x0, y: y0, width: x1 - x0, height: y1 - y0, xs: b.xs.map(cx), ys: b.ys.map(cy) });
   }
 
-  function pick(boards, img) {
+  function pick(boards, img, debug) {
     if (!boards.length) return { ok: false, reason: "no-board" };
     boards.sort((a, b) => b.width * b.height - a.width * a.height);
-    const m = measure(img, boards[0]);
-    if (Math.round(Math.min(m.width, m.height)) < P.minBoard) return { ok: false, reason: "board-too-small" };
+    const m = measure(img, boards[0], debug);
+    if (Math.round(Math.min(m.width, m.height)) < P.minBoard) {
+      if (debug) debug.small = m;
+      return { ok: false, reason: "board-too-small" };
+    }
     const best = clampToImage(m, img.width, img.height);
     const area = best.width * best.height, warnings = [];
     if (boards.slice(1).some((f) => inside(f, best) <= P.multipleOverlap && Math.abs(f.width * f.height - area) <= P.multipleArea * area)) {
@@ -1604,6 +1677,7 @@
   }
 
   const rgbDist = (a, b) => Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2);
+  const vecDist = (a, b) => { let s = 0; for (let k = 0; k < a.length; k++) s += (a[k] - b[k]) ** 2; return Math.sqrt(s); };
   const luma = (c) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
 
   function cellColour(img, rect) {
@@ -1625,9 +1699,9 @@
     return out;
   }
 
-  function colourClusters(cols) {
+  function colourClusters(cols, dist = rgbDist) {
     const n = cols.length, D = [], size = [], alive = [], lab = [];
-    for (let i = 0; i < n; i++) { D.push(Float64Array.from(cols, (c) => rgbDist(cols[i], c))); size.push(1); alive.push(true); lab.push(i); }
+    for (let i = 0; i < n; i++) { D.push(Float64Array.from(cols, (c) => dist(cols[i], c))); size.push(1); alive.push(true); lab.push(i); }
     for (;;) {
       let bi = -1, bj = -1, bd = Infinity;
       for (let i = 0; i < n; i++) if (alive[i]) for (let j = i + 1; j < n; j++) if (alive[j] && D[i][j] < bd) { bd = D[i][j]; bi = i; bj = j; }
@@ -1659,8 +1733,10 @@
     const steps = fs.map((f, j) => rgbDist(f.rgb, bgs[j])).sort((a, b) => a - b);
     const s = steps[Math.floor(0.9 * (steps.length - 1))];
     const dark = fs.filter((f, j) => luma(f.rgb) < luma(bgs[j])).length * 2 >= fs.length;
-    const dimmed = dark ? luma(base) < P.roleDimLight : s < P.roleDimDark;
-    return dimmed && s > 0 && s < P.roleDimStep ? P.roleDimStep / s : 1;
+    const lit = luma(base) < P.roleDimLight, wash = dark && !lit && !noShade && s < P.roleWash;
+    const gain = (dark ? lit || wash : s < P.roleDimDark) && s > 0 && s < P.roleDimStep ? P.roleDimStep / s : 1;
+    if (wash && gain !== 1) shaded = true;
+    return gain;
   }
 
   function dimInks(fs, bgs, base, gain) {
@@ -1673,14 +1749,69 @@
     });
   }
 
+  // Only a smooth field that fits well may switch the clustering: on unshaded boards the plain colour clusters must stay as they are.
+  function shadeField(fs, cells, all) {
+    const bgAt = (i) => {
+      const r = Math.floor(i / 9), q = i % 9, ch = [[], [], []];
+      for (const o of all) {
+        const r2 = Math.floor(o.cell / 9), q2 = o.cell % 9;
+        if (Math.abs(r2 - r) <= P.shadeReach && Math.abs(q2 - q) <= P.shadeReach) for (let k = 0; k < 3; k++) ch[k].push(o.bg[k]);
+      }
+      return ch.map(medianOf);
+    };
+    const c = fs.map((f, j) => { const b = bgAt(cells[j]); return f.rgb.map((v, k) => v - b[k]); });
+    const mag = c.map((v) => Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]));
+    const dir = c.map((v, j) => (mag[j] > 1 ? v.map((x) => (P.roleDimStep * x) / mag[j]) : [0, 0, 0]));
+    const lab = colourClusters(dir), size = new Map();
+    lab.forEach((g, j) => { if (mag[j] > 1) size.set(g, (size.get(g) || 0) + 1); });
+    const gs = [...size.keys()].filter((g) => size.get(g) >= P.roleOutlier), G = gs.length, pts = [];
+    lab.forEach((g, j) => { if (mag[j] > 1 && gs.includes(g)) pts.push([((cells[j] % 9) - 4) / 4, (Math.floor(cells[j] / 9) - 4) / 4, Math.log(mag[j]), gs.indexOf(g)]); });
+    if (pts.length < P.shadeMin) return null;
+    const m = G + 5, fv = (x, y, g) => { const f = new Array(m).fill(0); f[g] = 1; f[G] = x; f[G + 1] = y; f[G + 2] = x * x; f[G + 3] = x * y; f[G + 4] = y * y; return f; };
+    let w = pts.map(() => 1), co = null;
+    const field = (x, y) => co[G] * x + co[G + 1] * y + co[G + 2] * x * x + co[G + 3] * x * y + co[G + 4] * y * y;
+    for (let it = 0; it < P.shadeIter; it++) {
+      const N = [];
+      for (let a = 0; a < m; a++) N.push(new Array(m + 1).fill(0));
+      pts.forEach(([x, y, z, g], k) => { const f = fv(x, y, g); for (let a = 0; a < m; a++) { for (let b = 0; b < m; b++) N[a][b] += w[k] * f[a] * f[b]; N[a][m] += w[k] * f[a] * z; } });
+      for (let a = 0; a < m; a++) N[a][a] += 1e-6;
+      co = solveN(N, m);
+      const res = pts.map(([x, y, z, g]) => z - co[g] - field(x, y)), s = Math.max(P.shadeNoise, 1.4826 * medianOf(res.map(Math.abs)));
+      w = res.map((r) => { const t = r / (4.685 * s); return Math.abs(t) < 1 ? (1 - t * t) ** 2 : 0; });
+    }
+    const inl = pts.filter((p, k) => w[k] > 0).map(([x, y, z, g]) => [x, y, z - co[g]]);
+    if (inl.length < P.shadeMin) return null;
+    let lo = Infinity, hi = -Infinity, ss = 0;
+    for (const [x, y, z] of inl) { const v = field(x, y); lo = Math.min(lo, v); hi = Math.max(hi, v); ss += (z - v) ** 2; }
+    const range = hi - lo, rms = Math.sqrt(ss / inl.length);
+    if (!(range >= P.shadeRange && range >= P.shadeFit * rms) && !(range >= P.shadeWide && range >= P.shadeWideFit * rms)) return null;
+    // Every grouped digit, not only the quadratic's inliers: a bright spot is not quadratic, and its centre carries the field.
+    const all2 = pts.map(([x, y, v, g]) => [x, y, v - co[g]]), s2 = 2 * (P.shadeSigma / 4) ** 2, z = cells.map((i) => {
+      const x0 = ((i % 9) - 4) / 4, y0 = (Math.floor(i / 9) - 4) / 4, N = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+      for (const [x, y, v] of all2) {
+        const q = Math.exp(-((x - x0) ** 2 + (y - y0) ** 2) / s2), f = [1, x - x0, y - y0];
+        for (let a = 0; a < 3; a++) { for (let b = 0; b < 3; b++) N[a][b] += q * f[a] * f[b]; N[a][3] += q * f[a] * v; }
+      }
+      for (let a = 0; a < 3; a++) N[a][a] += 1e-3;
+      return solveN(N, 3)[0];
+    });
+    const top = Math.max(...z), scale = z.map((v) => Math.exp(v - top));
+    return { feats: dir.map((d, j) => [d[0], d[1], d[2], P.shadeLambda * Math.log(Math.max(1, mag[j]) / scale[j])]), scale };
+  }
+
   function assignRoles(feats, digits, other) {
     const roles = feats.map(() => "given"), at = [], fs = [];
     feats.forEach((f, k) => { if (f) { at.push(k); fs.push(f); } });
     const res = { roles, cue: null, by: null, groups: fs.length ? 1 : 0, width: 1 };
     if (fs.length < 2) return res;
     const bgs = at.map((k) => digits[k].bg), all = digits.concat(other).map((d) => d.bg);
-    const base = [0, 1, 2].map((c) => medianOf(all.map((b) => b[c]))), gain = dimGain(fs, bgs, base);
-    const n = fs.length, lab = joinDiluted(colourClusters(dimInks(fs, bgs, base, gain)), fs, digits, at, gain);
+    const base = [0, 1, 2].map((c) => medianOf(all.map((b) => b[c]))), sh = noShade ? null : shadeField(fs, at.map((k) => digits[k].cell), digits.concat(other));
+    const gain0 = dimGain(fs, bgs, base), plain = joinDiluted(colourClusters(dimInks(fs, bgs, base, gain0)), fs, digits, at, gain0);
+    const split = sh ? joinDiluted(colourClusters(sh.feats, vecDist), fs, digits, at, 1) : null;
+    // Shading splits one ink into several clusters; a shading partition with more groups than the plain one is a false detection.
+    const use = split && Math.max(...split) <= Math.max(...plain);
+    if (use) shaded = true;
+    const n = fs.length, lab = use ? split : plain;
     const groups = Math.max(...lab) + 1, members = Array.from({ length: groups }, () => []);
     lab.forEach((g, j) => members[g].push(j));
     res.groups = groups;
@@ -1695,7 +1826,7 @@
           chroma: medianOf(m.map((j) => stepChroma(fs[j].rgb, digits[at[j]].bg))),
           colour: medianOf(m.map((j) => Math.max(...fs[j].rgb) - Math.min(...fs[j].rgb))),
           width: medianOf(m.map((j) => fs[j].width)),
-          contrast: m.reduce((s, j) => s + fs[j].contrast, 0) / m.length,
+          contrast: m.reduce((s, j) => s + fs[j].contrast / (use ? sh.scale[j] : 1), 0) / m.length,
         }];
       }));
       const largest = big.reduce((b, g) => (members[g].length > members[b].length ? g : b), big[0]);
@@ -1927,6 +2058,7 @@
     const colours = cells.map((cell, i) => cellColour(img, cellRect(board, i))), other = [];
     cells.forEach((cell, i) => { if (!cell.digit) other.push({ cell: i, bg: colours[i] }); });
     const roles = assignRoles(feats, digitAt.map((i) => ({ cell: i, digit: cells[i].digit, bg: colours[i] })), other);
+    roleGroups = roles.groups;
     digitAt.forEach((i, k) => { cells[i].role = roles.roles[k]; });
     const out = { cells, warnings: cellWarnings(cells, emptyCands) };
     if (detail) out.roles = { cue: roles.cue, by: roles.by, groups: roles.groups, width: roles.width };
@@ -1978,21 +2110,766 @@
     return { size: n, rgba };
   }
 
-  function recognize(img, model) {
-    const file = model === undefined ? root.SudokuOcrModel : model;
-    if (!fittingModel(file)) return { ok: false, reason: "model-mismatch" };
-    if (!rgbaImage(img)) return { ok: false, reason: "no-board" };
-    const loc = locate(img);
-    if (!loc.ok) return { ok: false, reason: loc.reason === "board-too-small" ? "board-too-small" : "no-board" };
-    const read = readCells(img, loc.board, file);
-    if (!read) return { ok: false, reason: "no-board" };
-    return {
+  const ID3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  const UNIT = [[0, 0], [9, 0], [9, 9], [0, 9]];
+  const TILT_WHY = new Set(["spacing", "outer-spacing", "prominence", "edges", "nofit", "finer-grid", "finer-step"]);
+  const areaOf = (b) => b.width * b.height;
+
+  function mulH(A, B) {
+    const C = new Array(9).fill(0);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) C[i * 3 + j] += A[i * 3 + k] * B[k * 3 + j];
+    return C;
+  }
+
+  function applyH(H, x, y) {
+    const w = H[6] * x + H[7] * y + H[8];
+    return [(H[0] * x + H[1] * y + H[2]) / w, (H[3] * x + H[4] * y + H[5]) / w];
+  }
+
+  function invH(m) {
+    const [a, b, c, d, e, f, g, h, i] = m, A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C;
+    return [A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), C, -(a * h - b * g), a * e - b * d].map((v) => v / det);
+  }
+
+  function solveN(M, n) {
+    for (let i = 0; i < n; i++) {
+      let p = i;
+      for (let r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[p][i])) p = r;
+      const t = M[i]; M[i] = M[p]; M[p] = t;
+      for (let r = 0; r < n; r++) if (r !== i) { const f = M[r][i] / M[i][i]; for (let k = i; k <= n; k++) M[r][k] -= f * M[i][k]; }
+    }
+    return M.map((r, i) => r[n] / r[i]);
+  }
+
+  function fitH(src, dst) {
+    const norm = (pts) => {
+      const n = pts.length, mx = pts.reduce((s, p) => s + p[0], 0) / n, my = pts.reduce((s, p) => s + p[1], 0) / n;
+      const md = pts.reduce((s, p) => s + Math.hypot(p[0] - mx, p[1] - my), 0) / n || 1, s = Math.SQRT2 / md;
+      return [s, 0, -s * mx, 0, s, -s * my, 0, 0, 1];
+    };
+    const Ts = norm(src), Td = norm(dst), N = [];
+    for (let i = 0; i < 8; i++) N.push(new Array(9).fill(0));
+    for (let k = 0; k < src.length; k++) {
+      const [x, y] = applyH(Ts, src[k][0], src[k][1]), [u, v] = applyH(Td, dst[k][0], dst[k][1]);
+      for (const [row, rhs] of [[[x, y, 1, 0, 0, 0, -u * x, -u * y], u], [[0, 0, 0, x, y, 1, -v * x, -v * y], v]]) {
+        for (let i = 0; i < 8; i++) { for (let j = 0; j < 8; j++) N[i][j] += row[i] * row[j]; N[i][8] += row[i] * rhs; }
+      }
+    }
+    return mulH(invH(Td), mulH(solveN(N, 8).concat([1]), Ts));
+  }
+
+  function lineAngle(img) {
+    const W = img.width, H = img.height, s = Math.min(1, P.angleSide / Math.max(W, H));
+    const w = Math.max(3, Math.round(W * s)), h = Math.max(3, Math.round(H * s));
+    const g = resampleLuma(img, 0, 0, W, H, w, h), cap = (w - 2) * (h - 2);
+    const px = new Float32Array(cap), py = new Float32Array(cap), gxs = new Float32Array(cap), gys = new Float32Array(cap), ms = new Float32Array(cap);
+    let n = 0;
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const p = y * w + x;
+      const gx = (g[p - w + 1] + 2 * g[p + 1] + g[p + w + 1]) - (g[p - w - 1] + 2 * g[p - 1] + g[p + w - 1]);
+      const gy = (g[p + w - 1] + 2 * g[p + w] + g[p + w + 1]) - (g[p - w - 1] + 2 * g[p - w] + g[p - w + 1]);
+      const m2 = gx * gx + gy * gy;
+      if (m2 < P.angleEdge) continue;
+      px[n] = x; py[n] = y; gxs[n] = gx; gys[n] = gy; ms[n] = Math.sqrt(m2); n++;
+    }
+    if (!n) return 0;
+    const D = Math.ceil(Math.hypot(w, h)) + 2, bx = new Float64Array(2 * D + 1), by = new Float64Array(2 * D + 1);
+    const sharp = (deg, step) => {
+      const t = deg * Math.PI / 180, c = Math.cos(t), sn = Math.sin(t);
+      bx.fill(0); by.fill(0);
+      for (let i = 0; i < n; i += step) {
+        const u = gxs[i] * c + gys[i] * sn, v = gys[i] * c - gxs[i] * sn;
+        if (Math.abs(u) > Math.abs(v)) bx[Math.round(px[i] * c + py[i] * sn) + D] += ms[i];
+        else by[Math.round(py[i] * c - px[i] * sn) + D] += ms[i];
+      }
+      let e = 0;
+      for (let i = 0; i < bx.length; i++) e += bx[i] * bx[i] + by[i] * by[i];
+      return e;
+    };
+    const coarse = Math.max(1, Math.floor(n / P.angleCoarse));
+    let best = 0, be = -1;
+    for (let a = -P.angleRange; a <= P.angleRange; a += 1) { const e = sharp(a, coarse); if (e > be) { be = e; best = a; } }
+    be = -1;
+    for (const [span, step] of [[1, 0.1], [0.1, 0.01]]) {
+      const c0 = best;
+      for (let k = -Math.round(span / step); k <= Math.round(span / step); k++) { const a = c0 + k * step, e = sharp(a, 1); if (e > be) { be = e; best = a; } }
+    }
+    return Math.round(best * 100) / 100;
+  }
+
+  function rotationMap(W, H, deg) {
+    const t = Math.abs(deg) * Math.PI / 180, w = Math.ceil(W * Math.cos(t) + H * Math.sin(t)), h = Math.ceil(W * Math.sin(t) + H * Math.cos(t));
+    const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+    return { map: mulH([1, 0, W / 2, 0, 1, H / 2, 0, 0, 1], mulH([c, -s, 0, s, c, 0, 0, 0, 1], [1, 0, -w / 2, 0, 1, -h / 2, 0, 0, 1])), w, h };
+  }
+
+  function flatRgb(img) {
+    const W = img.width, H = img.height, d = img.data, n = W * H;
+    let opaque = true;
+    for (let i = 3; i < 4 * n; i += 4) if (d[i] !== 255) { opaque = false; break; }
+    if (opaque) return d;
+    const out = new root.Uint8ClampedArray(4 * n);
+    for (let i = 0; i < 4 * n; i += 4) {
+      const a = d[i + 3] / 255;
+      out[i] = 255 - (255 - d[i]) * a; out[i + 1] = 255 - (255 - d[i + 1]) * a; out[i + 2] = 255 - (255 - d[i + 2]) * a; out[i + 3] = 255;
+    }
+    return out;
+  }
+
+  function borderFill(W, H, d) {
+    const ch = [[], [], []], step = Math.max(1, Math.floor((W + H) / 2000));
+    const push = (x, y) => { const p = (y * W + x) * 4; for (let k = 0; k < 3; k++) ch[k].push(d[p + k]); };
+    for (let x = 0; x < W; x += step) { push(x, 0); push(x, H - 1); }
+    for (let y = 0; y < H; y += step) { push(0, y); push(W - 1, y); }
+    return ch.map((a) => { a.sort((u, v) => u - v); return a[a.length >> 1]; });
+  }
+
+  function warpRgba(img, map, w, h, kernel) {
+    const W = img.width, H = img.height, d = flatRgb(img), fill = borderFill(W, H, d), out = new root.Uint8ClampedArray(w * h * 4);
+    const cubic = kernel !== "bilinear", wx = new Float64Array(4), wy = new Float64Array(4);
+    const cub = (t) => { t = Math.abs(t); return t < 1 ? (1.5 * t - 2.5) * t * t + 1 : t < 2 ? ((-0.5 * t + 2.5) * t - 4) * t + 2 : 0; };
+    for (let y = 0; y < h; y++) {
+      const Y = y + 0.5;
+      for (let x = 0, o = y * w * 4; x < w; x++, o += 4) {
+        const X = x + 0.5, q = map[6] * X + map[7] * Y + map[8];
+        const sx = (map[0] * X + map[1] * Y + map[2]) / q - 0.5, sy = (map[3] * X + map[4] * Y + map[5]) / q - 0.5;
+        out[o + 3] = 255;
+        if (!(sx >= -0.5 && sy >= -0.5 && sx <= W - 0.5 && sy <= H - 0.5)) { out[o] = fill[0]; out[o + 1] = fill[1]; out[o + 2] = fill[2]; continue; }
+        const ix = Math.floor(sx), iy = Math.floor(sy), fx = sx - ix, fy = sy - iy;
+        if (cubic) {
+          wx[0] = cub(1 + fx); wx[1] = cub(fx); wx[2] = cub(1 - fx); wx[3] = cub(2 - fx);
+          wy[0] = cub(1 + fy); wy[1] = cub(fy); wy[2] = cub(1 - fy); wy[3] = cub(2 - fy);
+          let r = 0, gg = 0, b = 0;
+          for (let j = 0; j < 4; j++) {
+            const yy = iy - 1 + j, row = (yy < 0 ? 0 : yy >= H ? H - 1 : yy) * W;
+            let rr = 0, rg = 0, rb = 0;
+            for (let i = 0; i < 4; i++) {
+              const xx = ix - 1 + i, p = (row + (xx < 0 ? 0 : xx >= W ? W - 1 : xx)) * 4, t = wx[i];
+              rr += t * d[p]; rg += t * d[p + 1]; rb += t * d[p + 2];
+            }
+            r += wy[j] * rr; gg += wy[j] * rg; b += wy[j] * rb;
+          }
+          out[o] = r; out[o + 1] = gg; out[o + 2] = b;
+        } else {
+          const x0 = ix < 0 ? 0 : ix, y0 = iy < 0 ? 0 : iy, x1 = ix + 1 >= W ? W - 1 : ix + 1, y1 = iy + 1 >= H ? H - 1 : iy + 1;
+          const p00 = (y0 * W + x0) * 4, p10 = (y0 * W + x1) * 4, p01 = (y1 * W + x0) * 4, p11 = (y1 * W + x1) * 4;
+          for (let k = 0; k < 3; k++) {
+            const a = d[p00 + k] + (d[p10 + k] - d[p00 + k]) * fx, b = d[p01 + k] + (d[p11 + k] - d[p01 + k]) * fx;
+            out[o + k] = a + (b - a) * fy;
+          }
+        }
+      }
+    }
+    return { width: w, height: h, data: out };
+  }
+
+  // prepare's ridge maps without the 8-bit rounding: the quad fit samples them between pixels.
+  function ridgesF(g, gw, gh, R) {
+    const rv = new Float32Array(gw * gh), rh = new Float32Array(gw * gh), d1 = Math.max(1, Math.round(R / 2)), d2 = R;
+    const two = (v, a, b) => {
+      if (a !== a) return b !== b ? 0 : b - v;
+      if (b !== b) return a - v;
+      const ra = a - v, rb = b - v;
+      return ra > 0 && rb > 0 ? Math.min(ra, rb) : ra < 0 && rb < 0 ? Math.max(ra, rb) : 0;
+    };
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+      const p = y * gw + x, v = g[p];
+      const a1 = two(v, x >= d1 ? g[p - d1] : NaN, x + d1 < gw ? g[p + d1] : NaN), a2 = two(v, x >= d2 ? g[p - d2] : NaN, x + d2 < gw ? g[p + d2] : NaN);
+      const b1 = two(v, y >= d1 ? g[p - d1 * gw] : NaN, y + d1 < gh ? g[p + d1 * gw] : NaN), b2 = two(v, y >= d2 ? g[p - d2 * gw] : NaN, y + d2 < gh ? g[p + d2 * gw] : NaN);
+      rv[p] = Math.max(Math.abs(a1), Math.abs(a2)); rh[p] = Math.max(Math.abs(b1), Math.abs(b2));
+    }
+    return { rv, rh };
+  }
+
+  function dilateF(a, w, h, r) {
+    const t = new Float32Array(a.length), o = new Float32Array(a.length);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let m = 0; for (let i = Math.max(0, x - r); i <= Math.min(w - 1, x + r); i++) m = Math.max(m, a[y * w + i]); t[y * w + x] = m; }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let m = 0; for (let j = Math.max(0, y - r); j <= Math.min(h - 1, y + r); j++) m = Math.max(m, t[j * w + x]); o[y * w + x] = m; }
+    return o;
+  }
+
+  // Median per line, not the mean: with the mean a grid shifted half a cell onto the digit columns can score higher.
+  function latticeEnergy(H, RV, RH, gw, gh) {
+    const smp = (A, x, y) => {
+      if (!(x >= 0 && y >= 0 && x <= gw - 1 && y <= gh - 1)) return 0;
+      const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, x1 = Math.min(gw - 1, ix + 1), y1 = Math.min(gh - 1, iy + 1);
+      const a = A[iy * gw + ix] + (A[iy * gw + x1] - A[iy * gw + ix]) * fx, b = A[y1 * gw + ix] + (A[y1 * gw + x1] - A[y1 * gw + ix]) * fx;
+      return a + (b - a) * fy;
+    };
+    let e = 0;
+    const av = new Float64Array(40), ah = new Float64Array(40);
+    for (let j = -1; j <= 10; j++) {
+      const w = j === 0 || j === 9 ? 0.5 : j === -1 || j === 10 ? -0.5 : 1;
+      for (let k = 0; k < 40; k++) {
+        const t = 0.2 + (8.6 * (k + 0.5)) / 40, pv = applyH(H, j, t), ph = applyH(H, t, j);
+        av[k] = smp(RV, pv[0], pv[1]); ah[k] = smp(RH, ph[0], ph[1]);
+      }
+      av.sort(); ah.sort();
+      e += w * (av[20] + ah[20]);
+    }
+    return e;
+  }
+
+  function trackLines(r8, gw, gh, Q0, pe) {
+    let H = fitH(UNIT, Q0);
+    const S = P.trackStrips;
+    for (const win of [0.4, 0.3, 0.2]) {
+      const fams = [];
+      for (const vertical of [true, false]) {
+        const pts = Array.from({ length: 10 }, () => []);
+        for (let s = 0; s < S; s++) {
+          const v0 = 0.25 + 8.5 * s / S, v1 = v0 + 8.5 / S, vc = (v0 + v1) / 2;
+          const a = vertical ? applyH(H, 4.5, v0)[1] : applyH(H, v0, 4.5)[0], b = vertical ? applyH(H, 4.5, v1)[1] : applyH(H, v1, 4.5)[0];
+          const lo = Math.max(0, Math.round(Math.min(a, b))), hi = Math.min(vertical ? gh : gw, Math.round(Math.max(a, b)));
+          if (hi - lo < 3) continue;
+          const L = quantileProfile(vertical ? r8.v : r8.h, gw, gh, vertical, lo, hi, P.trackQuantile);
+          const found = [];
+          for (let j = 1; j <= 8; j++) {
+            const p = vertical ? applyH(H, j, vc) : applyH(H, vc, j), at = vertical ? p[0] : p[1];
+            const sn = snapLine(L, at, win * pe);
+            if (sn.peak > 0) found.push({ j, pos: sn.pos, peak: sn.peak, along: vertical ? p[1] : p[0] });
+          }
+          if (!found.length) continue;
+          const pk = median(found.map((f) => f.peak));
+          for (const f of found) if (f.peak >= Math.max(P.minContrast, P.trackPeak * pk)) pts[f.j].push(f);
+        }
+        const lines = [];
+        for (let j = 0; j < 10; j++) {
+          let q = pts[j];
+          if (q.length < 3) { lines.push(null); continue; }
+          let fit = null;
+          for (let it = 0; it < 2; it++) {
+            const m = q.length, ma = q.reduce((t, f) => t + f.along, 0) / m, mp = q.reduce((t, f) => t + f.pos, 0) / m;
+            let sxx = 0, sxy = 0;
+            for (const f of q) { sxx += (f.along - ma) ** 2; sxy += (f.along - ma) * (f.pos - mp); }
+            const beta = sxx ? sxy / sxx : 0;
+            fit = { alpha: mp - beta * ma, beta };
+            const keep = q.filter((f) => Math.abs(f.pos - (fit.alpha + fit.beta * f.along)) <= P.trackResid * pe);
+            if (keep.length === q.length || keep.length < 3) break;
+            q = keep;
+          }
+          lines.push(fit);
+        }
+        fams.push(lines);
+      }
+      const [V, Hl] = fams, src = [], dst = [];
+      for (let i = 1; i <= 8; i++) for (let j = 1; j <= 8; j++) {
+        const v = V[j], h = Hl[i];
+        if (!v || !h) continue;
+        const x = (v.alpha + v.beta * h.alpha) / (1 - v.beta * h.beta);
+        src.push([j, i]); dst.push([x, h.alpha + h.beta * x]);
+      }
+      if (src.length < P.trackMin) return null;
+      H = fitH(src, dst);
+    }
+    return UNIT.map((u) => applyH(H, u[0], u[1]));
+  }
+
+  function refineQuad(Q, maps, gw, gh, p, from) {
+    Q = Q.map((q) => q.slice());
+    let used = null, e = -Infinity;
+    for (const [st, dil] of [[0.3, 1], [0.15, 1], [0.08, 1], [0.04, 0], [0.02, 0], [0.01, 0]].filter((s) => !from || s[0] <= from)) {
+      const M = maps[dil];
+      if (used !== dil) { e = latticeEnergy(fitH(UNIT, Q), M.rv, M.rh, gw, gh); used = dil; }
+      let moved = true, guard = 0;
+      while (moved && guard++ < 30) {
+        moved = false;
+        for (let c = 0; c < 4; c++) for (let ax = 0; ax < 2; ax++) for (const sg of [1, -1]) {
+          Q[c][ax] += sg * st * p;
+          const e2 = latticeEnergy(fitH(UNIT, Q), M.rv, M.rh, gw, gh);
+          if (e2 > e + 1e-9) { e = e2; moved = true; } else Q[c][ax] -= sg * st * p;
+        }
+      }
+    }
+    return { Q, e };
+  }
+
+  function fitQuad(img, rect, lat) {
+    const side = Math.max(rect.width, rect.height), half = side * 0.65;
+    const mx = rect.x + rect.width / 2, my = rect.y + rect.height / 2;
+    const cx0 = Math.max(0, Math.floor(mx - half)), cy0 = Math.max(0, Math.floor(my - half));
+    const cx1 = Math.min(img.width, Math.ceil(mx + half)), cy1 = Math.min(img.height, Math.ceil(my + half));
+    const k = Math.min(1, P.quadSide / Math.max(cx1 - cx0, cy1 - cy0)), gw = Math.round((cx1 - cx0) * k), gh = Math.round((cy1 - cy0) * k);
+    if (gw < 60 || gh < 60) return null;
+    const sxk = (cx1 - cx0) / gw, syk = (cy1 - cy0) / gh;
+    const pe = Math.min(rect.width / sxk, rect.height / syk) / 9;
+    const base = ridgesF(resampleLuma(img, cx0, cy0, cx1, cy1, gw, gh), gw, gh, Math.max(2, Math.round(0.25 * pe)));
+    const maps = [base, { rv: dilateF(base.rv, gw, gh, 2), rh: dilateF(base.rh, gw, gh, 2) }];
+    const to8 = (a) => { const o = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) o[i] = a[i] >= 1 ? 255 : Math.round(a[i] * 255); return o; };
+    const r8 = { v: to8(base.rv), h: to8(base.rh) };
+    const rx0 = (rect.x - cx0) / sxk, ry0 = (rect.y - cy0) / syk, rx1 = rx0 + rect.width / sxk, ry1 = ry0 + rect.height / syk;
+    const starts = [[[rx0, ry0], [rx1, ry0], [rx1, ry1], [rx0, ry1]]];
+    if (lat) {
+      const lx0 = (lat.ix[0] - cx0) / sxk - 0.5, lx1 = (lat.ix[9] - cx0) / sxk - 0.5, ly0 = (lat.iy[0] - cy0) / syk - 0.5, ly1 = (lat.iy[9] - cy0) / syk - 0.5;
+      if (lx1 - lx0 > 20 && ly1 - ly0 > 20) starts.push([[lx0, ly0], [lx1, ly0], [lx1, ly1], [lx0, ly1]]);
+    }
+    const tries = starts.map((Q) => ({ Q, from: 0 }));
+    for (const Q of starts) {
+      const T = trackLines(r8, gw, gh, Q, pe);
+      if (T) tries.push({ Q: T, from: P.trackPolish });
+    }
+    let best = null;
+    for (const t of tries) {
+      const r = refineQuad(t.Q, maps, gw, gh, pe, t.from);
+      if (!best || r.e > best.e) best = r;
+    }
+    // A start can sit whole cells off (a lattice read on a keystoned board); the energy still prefers the true phase.
+    for (let round = 0; round < P.quadShiftRounds; round++) {
+      const H0 = fitH(UNIT, best.Q);
+      let next = null;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const r = refineQuad(UNIT.map((u) => applyH(H0, u[0] + dx, u[1] + dy)), maps, gw, gh, pe, P.quadShiftFrom);
+        if (r.e > (next ? next.e : best.e) + 1e-9) next = r;
+      }
+      if (!next) break;
+      best = next;
+    }
+    return best.Q.map((q) => [cx0 + (q[0] + 0.5) * sxk, cy0 + (q[1] + 0.5) * syk]);
+  }
+
+  function tiltOf(work, X, Y) {
+    const gw = work.gw, gh = work.gh, q = P.tiltQuantile;
+    const one = (A, B, vertical) => {
+      const p = A.f.p, r = Math.max(2, Math.round(P.tiltReach * p)), rid = vertical ? work.rv : work.rh, n = vertical ? gw : gh, m = vertical ? gh : gw;
+      const lo1 = Math.round(B.pos[1]), hi1 = Math.round(B.pos[3]), lo2 = Math.round(B.pos[6]), hi2 = Math.round(B.pos[8]);
+      if (lo1 < 0 || hi2 >= m || hi1 - lo1 < 3 || hi2 - lo2 < 3) return null;
+      const dist = (lo2 + hi2 - lo1 - hi1) / 2, hist = new Int32Array(256), out = [];
+      const at = (c, lo, hi) => {
+        const i0 = Math.max(0, Math.round(c) - r), i1 = Math.min(n - 1, Math.round(c) + r);
+        if (i1 - i0 < 2) return null;
+        const L = new Float32Array(i1 - i0 + 1), kq = Math.floor((hi - lo + 1) * q);
+        for (let i = i0; i <= i1; i++) {
+          hist.fill(0);
+          for (let j = lo; j <= hi; j++) hist[vertical ? rid[j * gw + i] : rid[i * gw + j]]++;
+          let cnt = 0, bin = 0;
+          for (; bin < 255; bin++) { cnt += hist[bin]; if (cnt > kq) break; }
+          L[i - i0] = bin / 255;
+        }
+        return { L, i0 };
+      };
+      // The whole local profile is matched, not a peak, so double-edged lines (tile gaps) move as one pattern.
+      const shiftOf = (u, v) => {
+        if (!u || !v || u.i0 !== v.i0 || u.L.length !== v.L.length) return null;
+        const len = u.L.length, lim = Math.max(1, Math.floor(r / 2)), sc = [];
+        let peak = 0;
+        for (let i = 0; i < len; i++) peak = Math.max(peak, u.L[i], v.L[i]);
+        if (peak < P.minContrast) return null;
+        let best = -1, bs = -Infinity;
+        for (let d = -lim; d <= lim; d++) {
+          let t = 0;
+          for (let i = Math.max(0, -d); i < Math.min(len, len - d); i++) t += u.L[i] * v.L[i + d];
+          sc.push(t);
+          if (t > bs) { bs = t; best = d; }
+        }
+        const j = best + lim, y0 = sc[j - 1], y1 = sc[j], y2 = sc[j + 1];
+        return y0 !== undefined && y2 !== undefined && y0 - 2 * y1 + y2 < 0 ? best + 0.5 * (y0 - y2) / (y0 - 2 * y1 + y2) : best;
+      };
+      for (let k = 1; k <= 8; k++) {
+        const d = shiftOf(at(A.pos[k], lo1, hi1), at(A.pos[k], lo2, hi2));
+        if (d != null) out.push([k, Math.atan(d / dist)]);
+      }
+      if (out.length < 4) return null;
+      const pairs = [];
+      for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) pairs.push((out[j][1] - out[i][1]) / (out[j][0] - out[i][0]));
+      return { med: median(out.map((o) => o[1])), ks: 9 * median(pairs) };
+    };
+    const v = one(X, Y, true), h = one(Y, X, false);
+    if (v == null || h == null) return null;
+    return { tilt: Math.round((h.med - v.med) / 2 * 18000 / Math.PI) / 100, ks: Math.round(1e4 * (Math.abs(v.ks) > Math.abs(h.ks) ? v.ks : h.ks)) / 1e4 };
+  }
+
+  function polyTerms(deg, u, v) {
+    const f = new Float64Array(((deg + 1) * (deg + 2)) / 2 - 1);
+    let k = 0;
+    for (let d = 1; d <= deg; d++) for (let i = 0; i <= d; i++) f[k++] = u ** (d - i) * v ** i;
+    return f;
+  }
+
+  function weightedMedian(v, w) {
+    const ix = [];
+    let tot = 0;
+    for (let i = 0; i < v.length; i++) if (w[i] > 0) { ix.push(i); tot += w[i]; }
+    ix.sort((a, b) => v[a] - v[b]);
+    let acc = 0;
+    for (const i of ix) { acc += w[i]; if (acc >= tot / 2) return v[i]; }
+    return NaN;
+  }
+
+  // z = offset[group] + F(u, v): F comes from the variation inside each group only, so a coloured cell or a heavier line is never read as shading.
+  function groupFit(pts, deg, noise, iters = P.flatIter) {
+    const n = pts.length, F = pts.map((p) => polyTerms(deg, p[0], p[1])), m = F.length ? F[0].length : 0;
+    let G = 0;
+    for (const p of pts) G = Math.max(G, p[3] + 1);
+    let w = Float64Array.from(pts, (p) => p[4]), co = new Float64Array(m), s = 0;
+    const off = new Float64Array(G).fill(NaN), at = (k) => { let t = 0; for (let j = 0; j < m; j++) t += F[k][j] * co[j]; return t; };
+    for (let it = 0; it < iters; it++) {
+      const sw = new Float64Array(G), sz = new Float64Array(G), sf = new Float64Array(G * m);
+      for (let k = 0; k < n; k++) { const g = pts[k][3]; sw[g] += w[k]; sz[g] += w[k] * pts[k][2]; for (let j = 0; j < m; j++) sf[g * m + j] += w[k] * F[k][j]; }
+      const N = [];
+      for (let a = 0; a < m; a++) N.push(new Float64Array(m + 1));
+      const ft = new Float64Array(m);
+      for (let k = 0; k < n; k++) {
+        const g = pts[k][3];
+        if (!w[k] || !(sw[g] > 0)) continue;
+        const zt = pts[k][2] - sz[g] / sw[g];
+        for (let j = 0; j < m; j++) ft[j] = F[k][j] - sf[g * m + j] / sw[g];
+        for (let a = 0; a < m; a++) { const wa = w[k] * ft[a]; for (let b = a; b < m; b++) N[a][b] += wa * ft[b]; N[a][m] += wa * zt; }
+      }
+      for (let a = 0; a < m; a++) { for (let b = 0; b < a; b++) N[a][b] = N[b][a]; N[a][a] += 1e-6; }
+      co = solveN(N, m);
+      const rv = [], rw = [], byG = [];
+      for (let g = 0; g < G; g++) byG.push([[], []]);
+      for (let k = 0; k < n; k++) if (pts[k][4] > 0) { byG[pts[k][3]][0].push(pts[k][2] - at(k)); byG[pts[k][3]][1].push(Math.max(1e-3, w[k])); }
+      for (let g = 0; g < G; g++) off[g] = byG[g][0].length ? weightedMedian(byG[g][0], byG[g][1]) : NaN;
+      for (let k = 0; k < n; k++) if (pts[k][4] > 0 && off[pts[k][3]] === off[pts[k][3]]) { rv.push(Math.abs(pts[k][2] - off[pts[k][3]] - at(k))); rw.push(pts[k][4]); }
+      s = 1.4826 * weightedMedian(rv, rw);
+      const c = 4.685 * Math.max(noise, s);
+      w = Float64Array.from(pts, (p, k) => {
+        if (!(p[4] > 0) || off[p[3]] !== off[p[3]]) return 0;
+        const t = (p[2] - off[p[3]] - at(k)) / c;
+        return Math.abs(t) < 1 ? p[4] * (1 - t * t) ** 2 : 0;
+      });
+    }
+    return { f: (u, v) => { const q = polyTerms(deg, u, v); let t = 0; for (let j = 0; j < m; j++) t += q[j] * co[j]; return t; }, off, s, deg };
+  }
+
+  // The degree is picked by two-fold cross-validation over alternate samples of each group: contamination a high degree chases does not carry over.
+  function cvGroupFit(pts, noise) {
+    let best = null;
+    for (let deg = P.flatDegMin; deg <= P.flatDegMax; deg++) {
+      let err = 0;
+      for (let fold = 0; fold < 2; fold++) {
+        const seen = new Map(), tr = [], te = [];
+        for (const p of pts) { const k = seen.get(p[3]) || 0; seen.set(p[3], k + 1); (k % 2 === fold ? tr : te).push(p); }
+        const f = groupFit(tr, deg, noise), r = [], w = [];
+        for (const p of te) if (p[4] > 0 && f.off[p[3]] === f.off[p[3]]) { r.push(Math.abs(p[2] - f.off[p[3]] - f.f(p[0], p[1]))); w.push(p[4]); }
+        err += weightedMedian(r, w);
+      }
+      if (!best || err < best.err * P.flatCvGain) best = { deg, err };
+    }
+    return groupFit(pts, best.deg, noise);
+  }
+
+  function shadeSamples(img, b, n, cap, thick, halves) {
+    const W = img.width, H = img.height, d = img.data, xs = b.xs, ys = b.ys;
+    const cx = (xs[0] + xs[9]) / 2, cy = (ys[0] + ys[9]) / 2, hx = (xs[9] - xs[0]) / 2, hy = (ys[9] - ys[0]) / 2;
+    if (!(hx > 0 && hy > 0)) return null;
+    const lum = (x, y) => { const p = (y * W + x) * 4, a = d[p + 3] / 255; return 1 - (1 - (0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]) / 255) * a; };
+    const uv = (x, y) => [(x - cx) / hx, (y - cy) / hy], ins = P.flatInset, bs = [], ls = [];
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+      const x0 = xs[c], x1 = xs[c + 1], y0 = ys[r], y1 = ys[r + 1], ix = (x1 - x0) * ins, iy = (y1 - y0) * ins;
+      for (let a = 0; a < n; a++) for (let q = 0; q < n; q++) {
+        const u0 = x0 + ix + ((x1 - x0 - 2 * ix) * a) / n, u1 = x0 + ix + ((x1 - x0 - 2 * ix) * (a + 1)) / n;
+        const v0 = y0 + iy + ((y1 - y0 - 2 * iy) * q) / n, v1 = y0 + iy + ((y1 - y0 - 2 * iy) * (q + 1)) / n;
+        const i0 = Math.max(0, Math.ceil(u0)), i1 = Math.min(W, Math.floor(u1)), j0 = Math.max(0, Math.ceil(v0)), j1 = Math.min(H, Math.floor(v1));
+        if (i1 <= i0 || j1 <= j0) continue;
+        const step = Math.max(1, Math.floor(Math.sqrt(((i1 - i0) * (j1 - j0)) / cap))), v = [];
+        for (let y = j0; y < j1; y += step) for (let x = i0; x < i1; x += step) v.push(lum(x, y));
+        const p = uv((u0 + u1) / 2, (v0 + v1) / 2);
+        bs.push([p[0], p[1], medianOf(v), r * 9 + c]);
+      }
+    }
+    let li = 0;
+    for (let k = 0; k <= 9; k += thick ? 3 : 1) for (const vert of [true, false]) {
+      const L = vert ? ys : xs, pos = (vert ? xs[k] : ys[k]) - 0.5;
+      for (let r = 0; r < 9; r++) {
+        const lo = L[r] + 0.2 * (L[r + 1] - L[r]), hi = L[r + 1] - 0.2 * (L[r + 1] - L[r]);
+        for (let h = 0; h < halves; h++) {
+          const a = lo + ((hi - lo) * h) / halves, e = lo + ((hi - lo) * (h + 1)) / halves, mn = [], mx = [];
+          const tstep = Math.max(1, Math.floor((e - a) / cap));
+          for (let t = Math.max(0, Math.round(a)), t1 = Math.min(vert ? H - 1 : W - 1, Math.round(e)); t <= t1; t += tstep) {
+            let m0 = Infinity, m1 = -Infinity;
+            for (let o = Math.floor(pos - P.flatHalf); o <= Math.ceil(pos + P.flatHalf); o++) {
+              const x = vert ? o : t, y = vert ? t : o;
+              if (x < 0 || y < 0 || x >= W || y >= H) continue;
+              const l = lum(x, y);
+              if (l < m0) m0 = l; if (l > m1) m1 = l;
+            }
+            if (m0 <= m1) { mn.push(m0); mx.push(m1); }
+          }
+          if (!mn.length) continue;
+          const p = vert ? uv(pos + 0.5, (a + e) / 2) : uv((a + e) / 2, pos + 0.5);
+          ls.push([p[0], p[1], medianOf(mn), medianOf(mx), 81 + li]);
+        }
+      }
+      li++;
+    }
+    if (bs.length < 0.8 * 81 * n * n || ls.length < 0.8 * (thick ? 8 : 20) * 9 * halves) return null;
+    const mb = medianOf(bs.map((s) => s[2])), darkLines = mb - medianOf(ls.map((s) => s[2])) >= medianOf(ls.map((s) => s[3])) - mb;
+    const lines = ls.map((s) => [s[0], s[1], darkLines ? s[2] : s[3], s[4]]), eps = P.flatEps;
+    const ptsOf = (light) => bs.concat(lines).map(([u, v, val, g]) => {
+      const x = light ? 1 - val : val;
+      return [u, v, Math.log(Math.max(eps, x)), g, Math.min(1, Math.max(0, (x - eps) / (4 * eps)))];
+    });
+    const centres = [];
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) centres.push(uv((xs[c] + xs[c + 1]) / 2, (ys[r] + ys[r + 1]) / 2));
+    const span = (f) => { let lo = Infinity, hi = -Infinity; for (const [u, v] of centres) { const t = f(u, v); if (t < lo) lo = t; if (t > hi) hi = t; } return { lo, hi, range: hi - lo }; };
+    return { bs, lines, darkLines, ptsOf, span, uv };
+  }
+
+  // Dark shade I = m(x)R is fitted as log I, a light wash I = 1 - (1 - t(x))(1 - R) as log(1 - I): one shared field plus per-group offsets.
+  // strict: a lattice locate rejected, not a found board; only a strong, clean field counts there.
+  function shadeModel(img, b, strict, darkOnly) {
+    // A cheap look first; it only ever skips, the full measure below decides.
+    const Q = shadeSamples(img, b, 2, P.flatScreenCap, true, 1);
+    if (!Q) return null;
+    const q = (light) => Q.span(groupFit(Q.ptsOf(light), 2, P.flatNoise, P.flatScreenIter).f).range;
+    if (Math.max(q(false), q(true)) < P.flatScreen) return null;
+    const S = shadeSamples(img, b, P.flatSub, 64, false, 2);
+    if (!S) return null;
+    const { bs, lines, darkLines, ptsOf, span, uv } = S;
+    const dk = ptsOf(false), lt = ptsOf(true), fd = groupFit(dk, 2, P.flatNoise), fl = groupFit(lt, 2, P.flatNoise);
+    const snr = (f) => span(f.f).range / Math.max(P.flatFloor, f.s);
+    let light;
+    if (darkLines) {
+      // On a light board the brighter structure changes most under a dark shade and the darker one under a light wash.
+      const lin = (pts) => span(groupFit(pts.map((p) => [p[0], p[1], p[2], p[3], 1]), 2, P.flatNoiseLin).f).range;
+      light = lin(lines) > lin(bs);
+    } else light = snr(fl) > snr(fd);
+    // A keystone warp, or a box that misses slanted lines, blurs the lines unevenly and passes for a light wash; cell backgrounds keep the dark model honest.
+    if (light && darkOnly) return null;
+    const f2 = light ? fl : fd, r2 = span(f2.f).range;
+    let fire = strict ? r2 >= P.flatRetryRange && snr(f2) >= P.flatRetrySnr : r2 >= P.flatRange && snr(f2) >= P.flatSnr, fit = null;
+    if (fire || r2 >= P.flatPre) {
+      fit = cvGroupFit(light ? lt : dk, P.flatNoise);
+      const sp = span(fit.f);
+      fire = fire || (!strict && sp.range >= P.flatRangeHigh && sp.range / Math.max(P.flatFloor, fit.s) >= P.flatSnrHigh);
+      fit.top = sp.hi;
+    }
+    return fire ? { f: fit.f, top: fit.top, light, uv } : null;
+  }
+
+  function shadeFix(img, b, strict, darkOnly) {
+    const s = noShade ? null : shadeModel(img, b, strict, darkOnly);
+    if (!s) return null;
+    shaded = true;
+    const W = img.width, H = img.height, d = img.data, out = new root.Uint8ClampedArray(d), g = 8;
+    const p = Math.max((b.xs[9] - b.xs[0]) / 9, (b.ys[9] - b.ys[0]) / 9);
+    const x0 = Math.max(0, Math.floor(b.xs[0] - p)), x1 = Math.min(W, Math.ceil(b.xs[9] + p)), y0 = Math.max(0, Math.floor(b.ys[0] - p)), y1 = Math.min(H, Math.ceil(b.ys[9] + p));
+    const gw = Math.ceil((x1 - x0) / g) + 2, gh = Math.ceil((y1 - y0) / g) + 2, GS = new Float64Array(gw * gh);
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) { const [u, v] = s.uv(x0 + i * g, y0 + j * g); GS[j * gw + i] = Math.max(P.flatMinGain, Math.exp(s.f(u, v) - s.top)); }
+    for (let y = y0; y < y1; y++) {
+      const fy = (y + 0.5 - y0) / g, j = Math.min(gh - 2, Math.floor(fy)), ty = fy - j;
+      for (let x = x0; x < x1; x++) {
+        const fx = (x + 0.5 - x0) / g, i = Math.min(gw - 2, Math.floor(fx)), tx = fx - i, q = (y * W + x) * 4, k = j * gw + i;
+        const sc = (GS[k] * (1 - tx) + GS[k + 1] * tx) * (1 - ty) + (GS[k + gw] * (1 - tx) + GS[k + gw + 1] * tx) * ty, al = d[q + 3] / 255;
+        for (let c = 0; c < 3; c++) { const v = 255 - (255 - d[q + c]) * al; out[q + c] = s.light ? 255 - (255 - v) / sc : v / sc; }
+        out[q + 3] = 255;
+      }
+    }
+    return { width: W, height: H, data: out };
+  }
+
+  // Only lattices that passed the line-prominence checks: shading cuts a board's line extents, other grids fail earlier.
+  const SHADE_WHY = new Set(["edges", "finer-grid", "finer-step", "ink"]);
+
+  function misfit(loc) {
+    const d = loc.debug || {};
+    return (d.ks != null && Math.abs(d.ks) >= P.ksMin) || (d.tilt != null && Math.abs(d.tilt) >= P.tiltMin);
+  }
+
+  function shadedLattices(img, loc) {
+    const out = [];
+    for (const c of loc.debug.cands) {
+      const d = c.diag;
+      if (!d || !d.ix || !SHADE_WHY.has(d.reason) || !lineList(d.ix, img.width) || !lineList(d.iy, img.height)) continue;
+      const w = d.ix[9] - d.ix[0], h = d.iy[9] - d.iy[0];
+      if (Math.min(w, h) < P.minBoard) continue;
+      if (out.some((o) => Math.abs(o.xs[0] - d.ix[0]) < 0.05 * w && Math.abs(o.ys[0] - d.iy[0]) < 0.05 * h && Math.abs(o.xs[9] - d.ix[9]) < 0.05 * w)) continue;
+      out.push({ xs: d.ix, ys: d.iy, area: w * h });
+    }
+    return out.sort((a, b) => b.area - a.area).slice(0, P.flatTries);
+  }
+
+  function locateAt(img, rect) {
+    const b = confirm(img, verify(img, rect, {}));
+    return pick(b ? [b] : [], img, null);
+  }
+
+  const groupsOf = new WeakMap();
+
+  function boardResult(img, loc, model, darkOnly) {
+    const read = readCells(shadeFix(img, loc.board, false, darkOnly) || img, loc.board, model);
+    if (!read) return null;
+    const res = {
       ok: true,
       cells: read.cells.map((c) => ({ digit: c.digit, role: c.role, candidates: c.candidates, confidence: c.confidence })),
       board: loc.board,
       preview: previewOf(img, loc.board),
       warnings: read.warnings.concat(loc.warnings || []),
     };
+    groupsOf.set(res, roleGroups);
+    return res;
+  }
+
+  function tiltRead(img, map, w, h, expect, model, ksGate, darkOnly) {
+    let R = warpRgba(img, map, w, h), l = expect ? locateAt(R, expect) : locate(R, { debug: true });
+    if (!l.ok && !expect && l.reason !== "board-too-small") {
+      for (const b of shadedLattices(R, l)) {
+        const F = shadeFix(R, b, true, true), l2 = F && locate(F, { debug: true });
+        if (l2 && l2.ok) { R = F; l = l2; break; }
+      }
+    }
+    const fail = { ok: false, image: R, loc: l };
+    if (!l.ok || (expect && iou(l.board, expect) < P.expectIou)) return fail;
+    if (ksGate && l.debug.ks != null && Math.abs(l.debug.ks) >= P.ksMin) return { ok: false, image: R, loc: l, keystone: true };
+    const res = boardResult(R, l, model, darkOnly || misfit(l));
+    if (!res) return fail;
+    const b = l.board, quad = [[b.x, b.y], [b.x + b.width, b.y], [b.x + b.width, b.y + b.height], [b.x, b.y + b.height]].map((p) => applyH(map, p[0], p[1]));
+    const cx = (v) => Math.min(img.width, Math.max(0, v)), cy = (v) => Math.min(img.height, Math.max(0, v));
+    const x0 = cx(Math.min(...quad.map((p) => p[0]))), x1 = cx(Math.max(...quad.map((p) => p[0])));
+    const y0 = cy(Math.min(...quad.map((p) => p[1]))), y1 = cy(Math.max(...quad.map((p) => p[1])));
+    // xs/ys place the warped board's lines on the bounding box to match the preview; they are not where the lines lie in img.
+    const xs = b.xs.map((v) => x0 + (v - b.x) * (x1 - x0) / b.width), ys = b.ys.map((v) => y0 + (v - b.y) * (y1 - y0) / b.height);
+    res.board = { x: x0, y: y0, width: x1 - x0, height: y1 - y0, xs, ys, quad };
+    return { ok: true, image: R, loc: l, result: res };
+  }
+
+  function quadRead(img, base, R1, list, model) {
+    for (const { rect, lat } of list.slice(0, P.quadTries)) {
+      const fq = fitQuad(base, rect, lat);
+      if (!fq) continue;
+      const quad = fq.map((p) => applyH(R1, p[0], p[1]));
+      const len = (a, b) => Math.hypot(quad[a][0] - quad[b][0], quad[a][1] - quad[b][1]);
+      const sides = [len(0, 1), len(1, 2), len(2, 3), len(3, 0)];
+      if (Math.min(...sides) < P.minBoard) continue;
+      const B = Math.round(Math.max(...sides));
+      if (R1 === ID3) {
+        const dev = Math.max(Math.abs(quad[0][0] - quad[3][0]), Math.abs(quad[1][0] - quad[2][0]), Math.abs(quad[0][1] - quad[1][1]), Math.abs(quad[2][1] - quad[3][1])) / 2;
+        // An upright quad is read in place: warping it only resamples, and that has cost a board its roles.
+        if (dev < P.quadFlat * B / 9) {
+          const xs = quad.map((p) => p[0]), ys = quad.map((p) => p[1]), x0 = Math.min(...xs), y0 = Math.min(...ys);
+          const rect = { x: x0, y: y0, width: Math.max(...xs) - x0, height: Math.max(...ys) - y0 }, l = locateAt(img, rect);
+          const res = l.ok && iou(l.board, rect) >= P.expectIou ? boardResult(img, l, model) : null;
+          if (res) return res;
+          continue;
+        }
+      }
+      const m = Math.round(P.rectMargin * B), S = B + 2 * m;
+      const k = S > P.rectMax ? P.rectMax / S : 1, Bk = B * k, mk = m * k, Sk = Math.round(S * k);
+      const map = fitH([[mk, mk], [mk + Bk, mk], [mk + Bk, mk + Bk], [mk, mk + Bk]], quad);
+      if (Sk > P.preSide) {
+        // A low-resolution verify first, so a non-board never pays for the full-resolution warp.
+        const kp = P.preSide / Sk, Sp = Math.round(Sk * kp);
+        const R0 = warpRgba(img, mulH(map, [1 / kp, 0, 0, 0, 1 / kp, 0, 0, 0, 1]), Sp, Sp, "bilinear");
+        const ex = { x: mk * kp, y: mk * kp, width: Bk * kp, height: Bk * kp }, v = confirm(R0, verify(R0, ex, {}));
+        if (!v || iou(v, ex) < P.expectIou) continue;
+      }
+      const ks = Math.max(Math.abs(sides[0] - sides[2]) / Math.max(sides[0], sides[2]), Math.abs(sides[1] - sides[3]) / Math.max(sides[1], sides[3]));
+      const r = tiltRead(img, map, Sk, Sk, { x: mk, y: mk, width: Bk, height: Bk }, model, false, ks >= P.flatKeystone);
+      if (r.ok) return r.result;
+    }
+    return null;
+  }
+
+  // A small upright grid (a thumbnail) can pass while the tilted main board beside it fails.
+  function biggerCands(l) {
+    const b = l.board, A = areaOf(b), out = [];
+    for (const c of l.debug.cands) {
+      const r = c.rect;
+      if (!TILT_WHY.has(c.why) || Math.min(r.width, r.height) < P.minBoard || areaOf(r) < P.bigArea * A) continue;
+      if (inside(b, r) >= 0.5 || inside(r, b) >= 0.5) continue;
+      if (out.some((q) => iou(q.rect, r) >= 0.9)) continue;
+      out.push({ rect: r, lat: c.diag && c.diag.ix ? c.diag : null });
+    }
+    return out.sort((p, q) => areaOf(q.rect) - areaOf(p.rect));
+  }
+
+  const seedOf = (b) => ({ rect: { x: b.x, y: b.y, width: b.width, height: b.height }, lat: { ix: b.xs, iy: b.ys } });
+
+  function tiltPath(img, loc, theta, model) {
+    let base = img, R1 = ID3, cands = loc.debug.cands;
+    const seeds = [];
+    if (Math.abs(theta) >= P.derotateMin) {
+      const rm = rotationMap(img.width, img.height, theta);
+      const r = tiltRead(img, rm.map, rm.w, rm.h, null, model, true);
+      if (r.ok) {
+        const big = biggerCands(r.loc);
+        if (big.length) {
+          const q = quadRead(img, r.image, rm.map, big, model);
+          if (q && areaOf(q.board) >= P.bigArea * areaOf(r.result.board)) return q;
+        }
+        return r.result;
+      }
+      base = r.image; R1 = rm.map; cands = r.loc.debug ? r.loc.debug.cands : [];
+      if (r.keystone) seeds.push(seedOf(r.loc.board));
+    }
+    if (loc.ok) return seeds.length ? quadRead(img, base, R1, seeds, model) : null;
+    const least = loc.reason === "board-too-small" ? P.minBoard : P.quadMin * P.minBoard, small = loc.debug.small, rects = [];
+    for (const c of cands) {
+      if (!TILT_WHY.has(c.why)) continue;
+      const r = c.rect, side = Math.min(r.width, r.height);
+      if (side < least) continue;
+      if (small && !seeds.length && R1 === ID3 && (inside(small, r) >= 0.9 || inside(r, small) >= 0.9)) continue;
+      if (rects.some((q) => Math.abs(q.rect.x - r.x) < 0.05 * side && Math.abs(q.rect.y - r.y) < 0.05 * side && Math.abs(q.rect.width - r.width) < 0.05 * side)) continue;
+      rects.push({ rect: r, lat: c.diag && c.diag.ix ? c.diag : null });
+    }
+    rects.sort((a, b) => areaOf(b.rect) - areaOf(a.rect));
+    return quadRead(img, base, R1, seeds.concat(rects), model);
+  }
+
+  function recognize(img, model) {
+    const file = model === undefined ? root.SudokuOcrModel : model;
+    if (!fittingModel(file)) return { ok: false, reason: "model-mismatch" };
+    if (!rgbaImage(img)) return { ok: false, reason: "no-board" };
+    shaded = false;
+    const r = recognizeIn(img, file, false);
+    if (!shaded || !r.ok) return r;
+    noShade = true;
+    let p;
+    try { p = recognizeIn(img, file, false); } finally { noShade = false; }
+    return shadeWins(p, r) ? r : p;
+  }
+
+  // Shading may only settle roles: a shaded read that moves the board, a digit or a candidate was misled by the correction.
+  function shadeWins(p, r) {
+    if (!r.ok) return false;
+    if (!p.ok) return true;
+    if (iou(p.board, r.board) < P.shadeSameIou) return false;
+    for (let i = 0; i < 81; i++) if (p.cells[i].digit !== r.cells[i].digit || p.cells[i].candidates !== r.cells[i].candidates) return false;
+    // Shading splits one ink into several colour groups; a correction that merges none is no evidence for its roles.
+    return groupsOf.get(r) < groupsOf.get(p);
+  }
+
+  function recognizeIn(img, file, fixed, found) {
+    const loc = found || locate(img, { debug: true });
+    if (loc.ok && !fixed) {
+      const F = shadeFix(img, loc.board, false, misfit(loc)), l2 = F && locate(F, { debug: true });
+      const r = l2 && l2.ok && iou(l2.board, loc.board) >= P.shadeSameIou ? recognizeIn(F, file, true, l2) : null;
+      if (r && r.ok) return r;
+    }
+    if (loc.ok) {
+      const tilt = loc.debug.tilt;
+      if (tilt != null && Math.abs(tilt) >= P.tiltMin) {
+        const theta = lineAngle(img);
+        if (Math.abs(theta) >= P.derotateMin) {
+          const r = tiltPath(img, loc, theta, file);
+          const o = r && iou(r.board, loc.board);
+          if (r && o < P.axisKeepIou && (o >= P.tiltKeepIou || areaOf(r.board) >= P.tiltBigger * areaOf(loc.board))) return r;
+        }
+      }
+      const ks = loc.debug.ks;
+      if (ks != null && Math.abs(ks) >= P.ksMin) {
+        const q = quadRead(img, img, ID3, [seedOf(loc.board)], file);
+        // An axis board that already covers the keystoned one reads as well; the warp only resamples.
+        if (q && iou(q.board, loc.board) >= P.tiltKeepIou && iou(q.board, loc.board) < P.axisKeepIou) return q;
+      }
+      const big = biggerCands(loc);
+      if (big.length) {
+        const q = quadRead(img, img, ID3, big, file);
+        if (q && areaOf(q.board) >= P.bigArea * areaOf(loc.board)) return q;
+      }
+      return boardResult(img, loc, file, misfit(loc)) || { ok: false, reason: "no-board" };
+    }
+    const fail = { ok: false, reason: loc.reason === "board-too-small" ? "board-too-small" : "no-board" };
+    if (Math.min(img.width, img.height) < P.minBoard) return fail;
+    const t = tiltPath(img, loc, lineAngle(img), file);
+    if (t || fixed || loc.reason === "board-too-small") return t || fail;
+    for (const b of shadedLattices(img, loc)) {
+      const F = shadeFix(img, b, true, true), r = F && recognizeIn(F, file, true);
+      if (r && r.ok) return r;
+    }
+    return fail;
   }
 
   root.SudokuOcr = Object.freeze({

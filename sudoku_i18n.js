@@ -70,7 +70,7 @@ const TRANSLATIONS = {
     ui_image_import_canvas_blocked:
       "The browser blocked reading the image. Check its privacy settings.",
     ui_image_import_board_not_found:
-      "Couldn't find a Sudoku board in the image. Only screenshots of a Sudoku app or web page can be read: check that it isn't a photo, tilted, or shaded.",
+      "Couldn't find a Sudoku board in the image. Only screenshots can be read, so check that it isn't a camera photo or a heavily tilted image.",
     ui_image_import_board_too_small:
       "The board is too small. Enlarge it and capture again.",
     ui_image_import_engine_error:
@@ -1068,7 +1068,7 @@ const TRANSLATIONS = {
     ui_image_import_canvas_blocked:
       "브라우저가 이미지 읽기를 막았습니다. 개인정보 보호 설정을 확인해 주세요.",
     ui_image_import_board_not_found:
-      "이미지에서 스도쿠 보드를 찾지 못했습니다. 스도쿠 앱·웹 화면을 캡처한 이미지만 읽을 수 있으니, 사진이거나 기울어졌거나 그림자·음영이 진 이미지가 아닌지 확인해 주세요.",
+      "이미지에서 스도쿠 보드를 찾지 못했습니다. 화면 캡처만 읽을 수 있으니, 카메라로 찍은 사진이나 많이 기울어진 이미지가 아닌지 확인해 주세요.",
     ui_image_import_board_too_small:
       "보드가 너무 작습니다. 보드를 더 크게 띄우고 다시 캡처해 주세요.",
     ui_image_import_engine_error:
