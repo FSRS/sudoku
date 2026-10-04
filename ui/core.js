@@ -7883,6 +7883,20 @@ function getBoardStateHash(board, pencils) {
 
 async function evaluateBoardDifficulty(opts = {}) {
   try {
+    // OCR/library imports can already contain placements and eliminations.
+    // Establish the initial score from the clues before evaluating that progress.
+    if (
+      !isCustomDifficultyEvaluated &&
+      boardState.some((row) =>
+        row.some(
+          (cell) => (!cell.isGiven && cell.value !== 0) || cell.pencils.size > 0,
+        ),
+      )
+    ) {
+      const evaluationId = currentEvaluationId;
+      await runBoardDifficultyEvaluation({ ...opts, fromInitial: true });
+      if (evaluationId !== currentEvaluationId) return;
+    }
     return await runBoardDifficultyEvaluation(opts);
   } finally {
     techniques._releaseAICCache();
@@ -7908,7 +7922,12 @@ function getEvaluationPencils(board) {
 }
 
 async function runBoardDifficultyEvaluation(opts = {}) {
-  const { waitForFrame = true, force = false, showProgress = false } = opts;
+  const {
+    waitForFrame = true,
+    force = false,
+    showProgress = false,
+    fromInitial = false,
+  } = opts;
   if (isSolverMode && !force) return;
 
   const techniqueOrder = getActiveTechniques();
@@ -7949,7 +7968,11 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     });
     if (myEvaluationId !== currentEvaluationId) return;
   }
-  const currentBoardForEval = cloneBoardState(boardState);
+  const currentBoardForEval = fromInitial
+    ? puzzleStringToGrid(initialPuzzleString).map((row) =>
+        row.map((value) => ({ value, pencils: new Set() })),
+      )
+    : cloneBoardState(boardState);
   const emptyCount = currentBoardForEval
     .flat()
     .filter((cell) => cell.value === 0).length;
@@ -7993,6 +8016,8 @@ async function runBoardDifficultyEvaluation(opts = {}) {
   if (!onlyOneCellTarget && emptyCount <= 3) {
     updateLamp("white", { level: 0 });
     vagueHintMessage = t("ui_FH");
+    currentHintData = null;
+    solverSteps = [];
 
     lastValidScore = 4 * emptyCount;
 
