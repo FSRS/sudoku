@@ -787,7 +787,6 @@ const TLG = (() => {
     updateSolverToggleButton();
     if (!active) return;
 
-    /* @edition-slot editor-020 */
     if (!touchOnly()) menuMode = false;
     for (const r of ROLES) setPressed(`tlg-role-${r}`, role === r);
     $("tlg-menu-toggle").classList.toggle("hidden", !touchOnly());
