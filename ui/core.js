@@ -620,6 +620,18 @@ function updateSolverToggleButton() {
       "w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 transition-colors";
     btn.dataset.tooltip = t("ui_enter_solver_tooltip");
   }
+
+  const tlgBtn = document.getElementById("tlg-toggle-btn");
+  if (tlgBtn) {
+    const tlgOn = TLG.isActive();
+    const tlgKey = tlgOn ? "tlg_exit_btn" : "tlg_enter_btn";
+    tlgBtn.textContent = t(isMobile ? `${tlgKey}_mobile` : tlgKey);
+    tlgBtn.dataset.tooltip = t(
+      isSolverMode ? "tlg_solver_toggle_tooltip" : "tlg_mode_tooltip",
+    );
+    tlgBtn.disabled = isViewAllTechniquesMode;
+    tlgBtn.setAttribute("aria-pressed", tlgOn ? "true" : "false");
+  }
 }
 
 function initTheme() {
@@ -1029,8 +1041,28 @@ function addSudokuCoachLink(puzzleString) {
     }
   });
 
-  container.appendChild(btn);
+  const tlgBtn = document.createElement("button");
+  tlgBtn.id = "tlg-toggle-btn";
+  tlgBtn.className =
+    "tlg-toggle w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition-colors";
+  tlgBtn.addEventListener("click", () => {
+    hideTooltip(tlgBtn);
+    if (activeTooltipElement === tlgBtn) activeTooltipElement = null;
+    toggleTlgMode();
+  });
+
+  const row = document.createElement("div");
+  row.className = "flex gap-2";
+  for (const el of [btn, tlgBtn]) {
+    const half = document.createElement("div");
+    half.className = "flex flex-1 min-w-0";
+    half.appendChild(el);
+    row.appendChild(half);
+  }
+  container.appendChild(row);
   attachTooltipEvents(btn);
+  attachTooltipEvents(tlgBtn);
+  updateSolverToggleButton();
 }
 
 function createEmptyBoardState() {
@@ -1181,6 +1213,19 @@ function invalidateCandidateGeometry() {
   renderedLineSignatures = [];
 }
 
+// TLG gives each of the nine slots its own x and y track (the 3x3 turned by
+// about 18 degrees) so parallel bars of different digits do not stack.
+const TLG_CANDIDATE_SCALE = 0.85;
+function candidateSlotPoint(slot, skewed) {
+  const row = Math.floor(slot / 3);
+  const col = slot % 3;
+  if (!skewed) return { x: (col + 0.5) / 3, y: (row + 0.5) / 3 };
+  return {
+    x: 0.16 + 0.085 * (col * 3 + row),
+    y: 0.16 + 0.085 * (row * 3 + 2 - col),
+  };
+}
+
 function getCandidateCenter(r, c, n) {
   const cacheKey = `${candidatePopupFormat}:${r}:${c}:${n}`;
   const cachedCenter = candidateCenterCache.get(cacheKey);
@@ -1233,16 +1278,13 @@ function getCandidateCenter(r, c, n) {
   const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
   const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
 
-  const idx = currentOrder.indexOf(n);
-  const subRow = Math.floor(idx / 3);
-  const subCol = idx % 3;
-
+  const slot = candidateSlotPoint(
+    currentOrder.indexOf(n),
+    gridContainer.classList.contains("tlg-active"),
+  );
   const cellWidth = 100 / 9;
-  const subCellWidth = cellWidth / 3;
-  const centerOffset = subCellWidth / 2;
-
-  const x = c * cellWidth + subCol * subCellWidth + centerOffset;
-  const y = r * cellWidth + subRow * subCellWidth + centerOffset;
+  const x = (c + slot.x) * cellWidth;
+  const y = (r + slot.y) * cellWidth;
 
   const center = { x, y };
   candidateCenterCache.set(cacheKey, center);
@@ -2298,6 +2340,10 @@ function setupEventListeners() {
 
   // --- 3. LEFT CLICK / TAP ---
   gridContainer.addEventListener("click", (e) => {
+    if (TLG.isActive()) {
+      TLG.handleGridEvent(e);
+      return;
+    }
     if (isSolverMode) return;
 
     const mark = e.target.closest(".pencil-mark");
@@ -2397,6 +2443,10 @@ function setupEventListeners() {
   // --- 4. RIGHT CLICK / LONG PRESS ---
   gridContainer.addEventListener("contextmenu", (e) => {
     e.preventDefault();
+    if (TLG.isActive()) {
+      TLG.handleGridEvent(e);
+      return;
+    }
     if (isSolverMode || !isExperimentalMode) return;
 
     const cell = e.target.closest(".sudoku-cell");
@@ -2476,6 +2526,7 @@ function setupEventListeners() {
   modeSelector.addEventListener("contextmenu", (e) =>
     handleModeChange(e, true),
   );
+  TLG.bindPanel();
   numberPad.addEventListener("click", handleNumberPadClick);
   loadBtn.addEventListener("click", () => {
     puzzleSelectionRequestId++;
@@ -2653,6 +2704,7 @@ function setupEventListeners() {
       resizeLineRenderFrameId = requestAnimationFrame(() => {
         resizeLineRenderFrameId = null;
         renderLines();
+        TLG.renderLayer();
       });
     }
   });
@@ -3295,6 +3347,11 @@ function handleKeyDown(e) {
     return;
   }
 
+  if (!isAnyModalOpen && TLG.handleKey(e)) {
+    e.preventDefault();
+    return;
+  }
+
   // --- NEW: PREFERENCES SHORTCUT ---
   if (isCtrlOrCmd && key === ",") {
     e.preventDefault();
@@ -3329,6 +3386,11 @@ function handleKeyDown(e) {
       }
     }
 
+    if (key_lower === "d" && !isCtrlOrCmd) {
+      e.preventDefault();
+      toggleTlgMode();
+      return;
+    }
     if (
       (key_lower === "s" || key_lower === "q" || key === "Escape") &&
       !isCtrlOrCmd
@@ -3599,6 +3661,10 @@ function handleKeyDown(e) {
     colorButton.click();
     return;
   }
+  if (key_lower === "d" && !isCtrlOrCmd) {
+    toggleTlgMode();
+    return;
+  }
   if (key_lower === "v" && !isCtrlOrCmd) {
     vagueHintBtn.click();
     return;
@@ -3732,6 +3798,34 @@ function toggleHighlightForCell(cellState) {
       highlightState = 0;
     }
   }
+}
+
+function setTlgMode(on) {
+  if (on === (currentMode === "tlg")) return;
+  if (on) {
+    if (currentMode === "draw") {
+      drawingState = null;
+      updatePreview();
+    }
+    currentMode = "tlg";
+    selectedColor = null;
+    TLG.enter();
+  } else {
+    currentMode = "concrete";
+    TLG.exit();
+  }
+  updateButtonLabels();
+  updateControls();
+  renderBoard();
+}
+
+function toggleTlgMode() {
+  if (!document.getElementById("tlg-toggle-btn")) return;
+  if (isSolverMode) {
+    if (!isViewAllTechniquesMode) TLG.toggleSolver();
+    return;
+  }
+  setTlgMode(currentMode !== "tlg");
 }
 
 /* REPLACE handleModeChange function */
@@ -3913,6 +4007,8 @@ function handleModeChange(e, reverse = false) {
               : "ui_dash_line_style",
           ),
         );
+  } else if (currentMode === "tlg") {
+    tip = t(isMobile ? "tlg_mode_tip_mobile" : "tlg_mode_tip");
   }
   showMessage(tip, "gray");
 
@@ -4928,6 +5024,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   drawnLines = [];
   drawingState = null;
   renderLines();
+  TLG.onPuzzleLoaded();
 
   if (libraryState) {
     initialPuzzleString = libraryState.givens;
@@ -5112,6 +5209,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   renderBoard();
   renderLines();
   activatePuzzleTimer(puzzleData, savedTime);
+  TLG.onBoardChanged();
 
   // Evaluate AGAIN to update the Lamp color based on current (potentially resumed) progress
   isLoadingSavedGame = false;
@@ -5203,6 +5301,7 @@ function clearUserBoard() {
   drawnLines = [];
   drawingState = null;
   renderLines();
+  TLG.reset();
   saveState();
   onBoardUpdated(true);
   evaluateBoardDifficulty();
@@ -5758,6 +5857,7 @@ function enterSolverModeUI() {
     userHighlightedDigitSnapshot = highlightedDigit;
   }
 
+  setTlgMode(false);
   isSolverMode = true;
   updateSolverToggleButton();
   renderPuzzleLevelLabel();
@@ -5773,6 +5873,7 @@ function enterSolverModeUI() {
   document.getElementById("number-pad").classList.remove("grid");
 
   puzzleStringInput.classList.add("solver-active-textarea");
+  TLG.onEnterSolver();
 
   setupTimelineDragging();
   buildSolverTimeline();
@@ -5933,6 +6034,7 @@ function exitSolverMode() {
 
   showMessage(t("ui_solver_exited_status"), "gray");
 
+  TLG.onExitSolver();
   onBoardUpdated();
 
   // Resume the timer if a puzzle is actively loaded
@@ -6734,12 +6836,13 @@ function renderSolverStep(index) {
 
     const actionStr = formatResultAction(step.result);
     msg = `${h.name}: ${h.detail || ""} => ${actionStr}`;
-    techniques._applyResultVisuals(step.result);
+    if (!TLG.isActive()) techniques._applyResultVisuals(step.result);
   }
 
   showMessage(msg, msgColor);
   renderBoard();
   renderLines();
+  TLG.onSolverStepRendered();
 }
 
 function buildSolverSummary() {
@@ -7488,7 +7591,11 @@ function saveState() {
   const nextSnapshot = historyCurrentSnapshot || createHistorySnapshot();
 
   if (historyCurrentSnapshot) {
-    applyHistoryEntryToState(nextSnapshot, { boardChanges, linePatch }, "redo");
+    applyHistoryEntryToState(
+      nextSnapshot,
+      { boardChanges, linePatch },
+      "redo",
+    );
   }
 
   const entry = {
@@ -7516,6 +7623,7 @@ function onBoardUpdated(skipEvaluation = false) {
 
   renderBoard();
   renderLines();
+  TLG.onBoardChanged();
 
   const isBoardValid = validateBoard();
 
@@ -9373,18 +9481,14 @@ function copyGridAsImage() {
   // Helper for candidate coordinates
   const format =
     typeof candidatePopupFormat !== "undefined" ? candidatePopupFormat : "A";
+  const skewed = typeof TLG !== "undefined" && TLG.isActive();
   const getCandCoords = (r, c, n) => {
     const order =
       format === "A"
         ? [1, 2, 3, 4, 5, 6, 7, 8, 9]
         : [7, 8, 9, 4, 5, 6, 1, 2, 3];
-    const idx = order.indexOf(n);
-    const subR = Math.floor(idx / 3);
-    const subC = idx % 3;
-    return {
-      x: c * cellSize + subC * (cellSize / 3) + cellSize / 6,
-      y: r * cellSize + subR * (cellSize / 3) + cellSize / 6,
-    };
+    const slot = candidateSlotPoint(order.indexOf(n), skewed);
+    return { x: (c + slot.x) * cellSize, y: (r + slot.y) * cellSize };
   };
 
   ctx.textAlign = "center";
@@ -9476,6 +9580,10 @@ function copyGridAsImage() {
 
   // Reset opacity back to 100% for text rendering
   ctx.globalAlpha = 1.0;
+  const tlgModel =
+    typeof TLG !== "undefined" && TLG.isActive() ? TLG.buildModel() : null;
+  const tlgCoord = (m) => getCandCoords(m.r, m.c, m.n);
+  if (tlgModel) TLGRenderer.renderCanvasSets(ctx, tlgModel, tlgCoord, size / 100);
   // 5. Draw Numbers and Candidates
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -9492,7 +9600,7 @@ function copyGridAsImage() {
         );
       } else if (cell.pencils.size > 0) {
         // Pencil Marks (Support Array gradients)
-        ctx.font = "700 24px sans-serif";
+        ctx.font = `700 ${skewed ? Math.round(24 * TLG_CANDIDATE_SCALE) : 24}px sans-serif`;
         for (let n of cell.pencils) {
           const coords = getCandCoords(r, c, n);
           let candColor = cell.pencilColors.has(n)
@@ -9549,6 +9657,8 @@ function copyGridAsImage() {
       }
     }
   }
+
+  if (tlgModel) TLGRenderer.renderCanvasBadges(ctx, tlgModel, tlgCoord, size / 100);
 
   // 6. Output to Clipboard
   try {

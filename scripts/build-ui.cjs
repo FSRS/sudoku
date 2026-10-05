@@ -5,7 +5,14 @@ const root = path.resolve(__dirname, "..");
 const sourceDir = path.join(root, "ui");
 const outputPath = path.join(root, "sudoku_ui.js");
 
-const sources = ["technique-catalog.js", "puzzle-io.js", "image-import.js", "core.js"];
+const sources = [
+  "technique-catalog.js",
+  "puzzle-io.js",
+  "image-import.js",
+  "tlg-renderer.js",
+  "tlg.js",
+  "core.js",
+];
 
 const banner = [
   "// GENERATED FILE. DO NOT EDIT DIRECTLY.",

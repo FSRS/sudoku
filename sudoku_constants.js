@@ -2,6 +2,7 @@
 // Set this to 'true' to see detailed solver logs in the console.
 // Set this to 'false' for release to hide them.
 let IS_DEBUG_MODE = false;
+/* @edition-slot constants-001 */
 // --- END: ADDED DEBUG FLAG ---
 
 const difficultyWords = [

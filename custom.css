@@ -786,6 +786,341 @@ html.dark .offline-cache-dot {
   container-type: inline-size;
 }
 
+/* --- TLG (manual Truth/Link editor) --- */
+:root {
+  --tlg-row: #7c3aed;
+  --tlg-col: #059669;
+  --tlg-box: #b45309;
+  --tlg-cell: #0284c7;
+  --tlg-sat: #111827;
+  --tlg-kill: #f97316;
+  --tlg-cannibal: #dc2626;
+  --tlg-live: #16a34a;
+  /* @edition-slot style-001 */
+  --tlg-pending: var(--nc-accent-color);
+  --tlg-panel-bg: #ffffff;
+  --tlg-panel-border: #d1d5db;
+}
+
+html.dark {
+  --tlg-row: #c4b5fd;
+  --tlg-col: #6ee7b7;
+  --tlg-box: #fcd34d;
+  --tlg-cell: #7dd3fc;
+  --tlg-sat: #f9fafb;
+  --tlg-kill: #fb923c;
+  --tlg-cannibal: #f87171;
+  --tlg-live: #4ade80;
+  /* @edition-slot style-002 */
+  --tlg-panel-bg: #1f2937;
+  --tlg-panel-border: #4b5563;
+}
+
+/* While TLG is active the user's lines and candidate markers would read as
+   logic objects, so they are hidden rather than removed. */
+.tlg-active #static-lines-group,
+.tlg-active #preview-lines-group,
+.tlg-active .pencil-mark.cand-circle::before,
+.tlg-active .pencil-mark.cand-slash::after {
+  display: none;
+}
+
+/* The highlight box follows the skewed TLG slot instead of the 3x3 grid. */
+.tlg-active .pencil-grid.cand-highlighted::before {
+  display: none;
+}
+.tlg-active .pencil-grid.cand-highlighted .pencil-mark.cand-hl {
+  border-radius: 3px;
+  background: var(--cand-hl-fill) !important;
+}
+
+#tlg-layer .tlg-set {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#tlg-layer .tlg-row {
+  stroke: var(--tlg-row);
+  fill: var(--tlg-row);
+}
+#tlg-layer .tlg-col {
+  stroke: var(--tlg-col);
+  fill: var(--tlg-col);
+}
+#tlg-layer .tlg-box {
+  stroke: var(--tlg-box);
+  fill: var(--tlg-box);
+}
+#tlg-layer .tlg-cell {
+  stroke: var(--tlg-cell);
+  fill: var(--tlg-cell);
+}
+#tlg-layer path.tlg-truth {
+  fill: none;
+  stroke-opacity: 0.6;
+}
+#tlg-layer rect.tlg-truth {
+  stroke: none;
+  fill-opacity: 0.35;
+}
+#tlg-layer path.tlg-link {
+  fill: none;
+  stroke-opacity: 0.95;
+}
+#tlg-layer rect.tlg-link {
+  fill: none;
+  stroke-width: 0.45;
+}
+#tlg-layer .tlg-saturated {
+  stroke: var(--tlg-sat);
+}
+#tlg-layer .tlg-select-outline {
+  fill: none;
+  stroke: var(--tlg-pending);
+  stroke-width: 1.5;
+  stroke-opacity: 0.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* @edition-slot style-003 */
+#tlg-layer .tlg-badge {
+  fill: none;
+  stroke-width: 0.35;
+  stroke-linecap: round;
+}
+#tlg-layer .tlg-kill-x {
+  stroke-width: 0.45;
+}
+#tlg-layer .tlg-kill-external {
+  stroke: var(--tlg-kill);
+}
+#tlg-layer .tlg-kill-cannibal {
+  stroke: var(--tlg-cannibal);
+}
+#tlg-layer circle.tlg-live {
+  stroke: var(--tlg-live);
+  stroke-width: 0.45;
+  fill: var(--tlg-live);
+  fill-opacity: 0.2;
+}
+#tlg-layer .tlg-pending {
+  fill: none;
+  stroke: var(--tlg-pending);
+  stroke-width: 0.35;
+  stroke-dasharray: 0.8 0.5;
+}
+
+.tlg-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border: 1px solid var(--tlg-panel-border);
+  border-radius: 0.375rem;
+  background: var(--tlg-panel-bg);
+  color: var(--nc-tx-1);
+  font-size: 0.8rem;
+}
+.tlg-panel.hidden {
+  display: none;
+}
+.tlg-row,
+.tlg-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.tlg-section {
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--tlg-panel-border);
+}
+.tlg-btn,
+.tlg-select {
+  min-height: 2rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--tlg-panel-border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.tlg-btn:hover:not(:disabled) {
+  background: var(--nc-border-color);
+}
+.tlg-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.tlg-btn[aria-pressed="true"],
+.tlg-toggle[aria-pressed="true"] {
+  background: var(--nc-accent-color) !important;
+  border-color: var(--nc-accent-color);
+  color: var(--nc-text-light) !important;
+}
+.tlg-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* @edition-slot style-004 */
+.tlg-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+/* @edition-slot style-005 */
+.tlg-section.hidden,
+.tlg-btn.hidden {
+  display: none;
+}
+.tlg-primary:not(:disabled) {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+.tlg-danger:not(:disabled) {
+  color: #b91c1c;
+}
+/* @edition-slot style-006 */
+.tlg-heading {
+  font-weight: 700;
+}
+.tlg-summary {
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.tlg-status {
+  min-height: 1.2em;
+}
+.tlg-status-error {
+  color: #dc2626;
+  font-weight: 600;
+}
+/* @edition-slot style-007 */
+.tlg-results {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+.tlg-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+.tlg-results .tlg-list {
+  max-height: 5.5rem;
+  overflow-y: auto;
+}
+.tlg-empty {
+  opacity: 0.6;
+  font-family: inherit;
+}
+.tlg-list .tlg-kill-external {
+  color: var(--tlg-kill);
+}
+.tlg-list .tlg-kill-cannibal {
+  color: var(--tlg-cannibal);
+}
+.tlg-list .tlg-live {
+  color: var(--tlg-live);
+}
+/* @edition-slot style-008 */
+.tlg-set-summary {
+  font-family: var(--font-mono);
+}
+.tlg-set-list {
+  width: 100%;
+  max-height: 7rem;
+  overflow-y: auto;
+}
+.tlg-set-item {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--tlg-panel-border);
+  border-radius: 0.375rem;
+  border-left-width: 4px;
+}
+.tlg-set-item.tlg-row {
+  border-left-color: var(--tlg-row);
+}
+.tlg-set-item.tlg-col {
+  border-left-color: var(--tlg-col);
+}
+.tlg-set-item.tlg-box {
+  border-left-color: var(--tlg-box);
+}
+.tlg-set-item.tlg-cell {
+  border-left-color: var(--tlg-cell);
+}
+.tlg-set-item.tlg-selected {
+  outline: 2px solid var(--tlg-pending);
+}
+.tlg-set-label,
+.tlg-set-delete {
+  min-height: 1.8rem;
+  padding: 0.1rem 0.4rem;
+  background: transparent;
+  color: inherit;
+}
+.tlg-set-delete {
+  font-weight: 700;
+}
+.tlg-set-delete:hover {
+  color: #dc2626;
+}
+
+.tlg-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.5rem;
+  border: 1px solid var(--tlg-panel-border);
+  border-radius: 0.375rem;
+  background: var(--tlg-panel-bg);
+  color: var(--nc-tx-1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  font-size: 0.85rem;
+}
+.tlg-menu-title {
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.tlg-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.tlg-menu-row > span {
+  min-width: 3rem;
+  font-weight: 600;
+}
+.tlg-menu-btn {
+  min-height: 2.2rem;
+  min-width: 2.6rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--tlg-panel-border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+}
+.tlg-menu-btn[aria-pressed="true"] {
+  background: var(--nc-accent-color);
+  border-color: var(--nc-accent-color);
+  color: var(--nc-text-light);
+}
+.tlg-menu-close {
+  align-self: flex-end;
+}
+
 .solver-active-textarea {
   height: 56px !important;
   min-height: 48px !important;
