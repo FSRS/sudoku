@@ -2112,8 +2112,8 @@ const TRANSLATIONS = {
     /* @edition-slot strings-005 */
     tlg_sets_title: "집합",
     tlg_sets_empty: "집합 없음",
-    tlg_rank0_link: "Rank-0 링크",
-    tlg_black_rank0: "Rank-0 링크를 검은색으로 표시",
+    tlg_rank0_link: "Rank-0 Link",
+    tlg_black_rank0: "Rank-0 Link를 검은색으로 표시",
     tlg_satisfied: "충족됨",
     tlg_members_none: "후보 없음",
     tlg_pick_second: "두 번째 후보를 선택하세요 [{0}].",
