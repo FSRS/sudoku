@@ -439,6 +439,9 @@
   .h-4 {
     height: calc(var(--spacing) * 4);
   }
+  .h-4\.5 {
+    height: calc(var(--spacing) * 4.5);
+  }
   .h-5 {
     height: calc(var(--spacing) * 5);
   }
@@ -477,6 +480,12 @@
   }
   .w-4 {
     width: calc(var(--spacing) * 4);
+  }
+  .w-4\.5 {
+    width: calc(var(--spacing) * 4.5);
+  }
+  .w-5 {
+    width: calc(var(--spacing) * 5);
   }
   .w-8 {
     width: calc(var(--spacing) * 8);
@@ -812,11 +821,14 @@
     font-size: var(--text-xs);
     line-height: var(--tw-leading, var(--text-xs--line-height));
   }
+  .text-\[0\.6875rem\] {
+    font-size: 0.6875rem;
+  }
+  .text-\[0\.8125rem\] {
+    font-size: 0.8125rem;
+  }
   .text-\[11px\] {
     font-size: 11px;
-  }
-  .text-\[13px\] {
-    font-size: 13px;
   }
   .leading-none {
     --tw-leading: 1;
@@ -1128,8 +1140,8 @@
     .min-\[880px\]\:flex-\[0\.5\] {
       flex: 0.5;
     }
-    .min-\[880px\]\:flex-\[0_1_576px\] {
-      flex: 0 1 576px;
+    .min-\[880px\]\:flex-\[0_1_36rem\] {
+      flex: 0 1 36rem;
     }
     .min-\[880px\]\:flex-\[1_1_16rem\] {
       flex: 1 1 16rem;
@@ -1142,6 +1154,9 @@
     }
     .min-\[880px\]\:py-0 {
       padding-block: 0px;
+    }
+    .min-\[880px\]\:text-\[length\:max\(1rem\,min\(100vw\/66\,\(100vh-32px\)\/56\)\)\] {
+      font-size: max(1rem, min(100vw / 66, (100vh - 32px) / 56));
     }
     .min-\[880px\]\:\[word-spacing\:100vw\] {
       word-spacing: 100vw;

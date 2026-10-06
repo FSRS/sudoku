@@ -3,6 +3,7 @@ const TLGRenderer = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const BAR_WIDTH = 0.7;
   const RING_INNER = 0.3;
+  const BOX_RING_INNER = 0.2;
   const CELL_PAD = 1.5;
   // Half-extent of the elimination X: the same 88% of the (scaled) TLG
   // candidate box as the board's own X marker.
@@ -162,7 +163,7 @@ const TLGRenderer = (() => {
           d,
           stroke: "black",
           fill: "none",
-          "stroke-width": RING_INNER,
+          "stroke-width": set.kind === "box" ? BOX_RING_INNER : RING_INNER,
           "stroke-linecap": "round",
           "stroke-linejoin": "round",
         },
@@ -217,6 +218,7 @@ const TLGRenderer = (() => {
     row: "#7c3aed",
     col: "#059669",
     box: "#b45309",
+    boxLink: "#92400e",
     cell: "#0284c7",
     sat: "#111827",
     kill: "#f97316",
@@ -275,7 +277,11 @@ const TLGRenderer = (() => {
     for (const set of sets) {
       const points = set.members.map((m) => ({ ...coord(m), r: m.r, c: m.c }));
       if (points.length === 0) continue;
-      const color = set.saturated ? EXPORT_COLORS.sat : EXPORT_COLORS[set.kind];
+      const color = set.saturated
+        ? EXPORT_COLORS.sat
+        : set.kind === "box" && set.role === "link"
+          ? EXPORT_COLORS.boxLink
+          : EXPORT_COLORS[set.kind];
       if (set.kind === "cell") {
         const xs = points.map((p) => p.x);
         const ys = points.map((p) => p.y);
@@ -289,11 +295,11 @@ const TLGRenderer = (() => {
           1.2 * unit,
         );
         if (set.role === "truth") {
-          ctx.globalAlpha = 0.35;
+          ctx.globalAlpha = 0.2;
           ctx.fillStyle = color;
           ctx.fill();
         } else {
-          ctx.globalAlpha = 1;
+          ctx.globalAlpha = 0.55;
           ctx.lineWidth = 0.45 * unit;
           ctx.strokeStyle = color;
           ctx.stroke();
@@ -304,7 +310,7 @@ const TLGRenderer = (() => {
         canvasPath(ctx, points, set.kind);
         ctx.lineWidth = BAR_WIDTH * unit;
         ctx.strokeStyle = color;
-        ctx.globalAlpha = 0.6;
+        ctx.globalAlpha = set.kind === "box" ? 0.45 : 0.35;
         ctx.stroke();
         continue;
       }
@@ -321,9 +327,9 @@ const TLGRenderer = (() => {
       sctx.strokeStyle = color;
       sctx.stroke();
       sctx.globalCompositeOperation = "destination-out";
-      sctx.lineWidth = RING_INNER * unit;
+      sctx.lineWidth = (set.kind === "box" ? BOX_RING_INNER : RING_INNER) * unit;
       sctx.stroke();
-      ctx.globalAlpha = 0.95;
+      ctx.globalAlpha = set.kind === "box" ? 0.7 : 0.55;
       ctx.drawImage(scratch, 0, 0);
     }
     ctx.restore();

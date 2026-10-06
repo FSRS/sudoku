@@ -71,7 +71,7 @@
   const VISUALLY_HIDDEN =
     "position:absolute;width:1px;height:1px;padding:0;margin:-1px;" +
     "overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0";
-  const MIN_PUZZLE_BOX_WIDTH = 120;
+  const MIN_PUZZLE_BOX_REM = 7.5;
   const FAILURE_MESSAGES = {
     "no-board": "ui_image_import_board_not_found",
     "board-too-small": "ui_image_import_board_too_small",
@@ -397,6 +397,7 @@
       viewBox: "0 0 24 24",
       width: "18",
       height: "18",
+      class: "w-4.5 h-4.5",
       fill: "none",
       stroke: "currentColor",
       "stroke-width": "2",
@@ -463,7 +464,8 @@
       setCompact(false);
       const box = document.getElementById("puzzle-string");
       const width = box ? box.getBoundingClientRect().width : 0;
-      if (width > 0 && width < MIN_PUZZLE_BOX_WIDTH) setCompact(true);
+      const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      if (width > 0 && width < MIN_PUZZLE_BOX_REM * rootPx) setCompact(true);
     };
     let queued = false;
     const refit = () => {
@@ -572,7 +574,7 @@
     canvas.width = 0;
     canvas.height = 0;
     canvas.style.cssText =
-      "display:block;width:100%;max-width:min(576px, calc(100vh - 7rem));" +
+      "display:block;width:100%;max-width:min(36rem, calc(100vh - 7rem));" +
       "margin:0 auto;aspect-ratio:1 / 1;cursor:pointer;touch-action:manipulation;" +
       "border-radius:4px";
     canvas.addEventListener("click", onCanvasClick);
@@ -595,7 +597,7 @@
     const mode = element("button", padLook(TOOL_SIZE), "btn_number");
     mode.type = "button";
     mode.style.gridColumn = "1 / -1";
-    mode.style.minHeight = "44px";
+    mode.style.minHeight = "2.75rem";
     mode.addEventListener("click", toggleInputMode);
     pad.append(...digitKeys, mode);
 
@@ -604,7 +606,7 @@
       const button = element("button", padLook(TOOL_SIZE), i18nKey);
       button.type = "button";
       button.style.flex = "1 1 auto";
-      button.style.minHeight = "44px";
+      button.style.minHeight = "2.75rem";
       button.addEventListener("click", onClick);
       tools.append(button);
       return button;
@@ -627,16 +629,16 @@
     actions.style.cssText = "position:sticky;bottom:0;padding:0.5rem 0 0.25rem";
     const cancel = element("button", BUTTON_SECONDARY, "btn_cancel");
     cancel.type = "button";
-    cancel.style.minHeight = "44px";
+    cancel.style.minHeight = "2.75rem";
     cancel.addEventListener("click", requestCancel);
     const load = element("button", BUTTON_PRIMARY, "btn_load");
     load.type = "button";
     load.id = "image-import-load-btn";
-    load.style.minHeight = "44px";
+    load.style.minHeight = "2.75rem";
     load.addEventListener("click", () => confirmDialog());
     actions.append(cancel, load);
 
-    const picture = element("div", "min-[880px]:flex-[0_1_576px] min-[880px]:min-w-80");
+    const picture = element("div", "min-[880px]:flex-[0_1_36rem] min-[880px]:min-w-80");
     picture.append(canvas);
     const controls = element("div", "min-[880px]:flex-[1_1_16rem] min-[880px]:min-w-60");
     controls.append(cellStatus, pad, tools, status, actions);
@@ -678,7 +680,7 @@
     );
     discard.type = "button";
     discard.id = "image-import-discard-btn";
-    discard.style.minHeight = "44px";
+    discard.style.minHeight = "2.75rem";
     discard.addEventListener("click", () => {
       const kind = dialog?.prompt?.kind;
       if (kind === "discard") closeDialog();
@@ -694,7 +696,7 @@
     );
     keep.type = "button";
     keep.id = "image-import-keep-btn";
-    keep.style.minHeight = "44px";
+    keep.style.minHeight = "2.75rem";
     keep.addEventListener("click", hidePrompt);
     discardChoices.append(discard, keep);
     discardCard.append(discardTitle, discardDesc, discardChoices);

@@ -2641,7 +2641,7 @@ function setupEventListeners() {
     }
 
     this.style.height = "auto";
-    this.style.height = this.scrollHeight + "px";
+    this.style.height = pxToRootRem(this.scrollHeight);
   });
 
   solveBtn.addEventListener("click", solve);
@@ -4969,7 +4969,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
 
   // Force textbox height recalculation to trigger the new vertical scrollbar
   puzzleStringInput.style.height = "auto";
-  puzzleStringInput.style.height = puzzleStringInput.scrollHeight + "px";
+  puzzleStringInput.style.height = pxToRootRem(puzzleStringInput.scrollHeight);
 
   if (autoPencilTipTimer) clearTimeout(autoPencilTipTimer);
   if (copyTipTimer) clearTimeout(copyTipTimer);
@@ -5832,6 +5832,11 @@ function validateBoard() {
   return allValid;
 }
 
+// Stored in rem so the height follows the root font size when the window is resized.
+function pxToRootRem(px) {
+  return `${px / parseFloat(getComputedStyle(document.documentElement).fontSize)}rem`;
+}
+
 function enterSolverModeUI() {
   if (solverSteps.length === 0) {
     showMessage(t("ui_eval_failed_or_busy_error"), "orange");
@@ -6018,7 +6023,7 @@ function exitSolverMode() {
   puzzleStringInput.classList.remove("solver-active-textarea");
   requestAnimationFrame(() => {
     puzzleStringInput.style.height = "auto";
-    puzzleStringInput.style.height = puzzleStringInput.scrollHeight + "px";
+    puzzleStringInput.style.height = pxToRootRem(puzzleStringInput.scrollHeight);
   });
 
   updateSolverToggleButton();
@@ -6304,8 +6309,8 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
       "hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
     parentRow.style.display = "flex";
     parentRow.style.flexDirection = "column";
-    parentRow.style.gap = "2px";
-    parentRow.style.padding = "6px";
+    parentRow.style.gap = "0.125rem";
+    parentRow.style.padding = "0.375rem";
     parentRow.style.borderBottom = isDark
       ? "1px solid #374151"
       : "1px solid #e5e7eb";
@@ -6322,11 +6327,11 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
     const techNameEl = document.createElement("div");
     techNameEl.style.color = getThemeColor(group.tech.level);
     techNameEl.style.fontWeight = "bold";
-    techNameEl.style.fontSize = "12px";
+    techNameEl.style.fontSize = "0.75rem";
     techNameEl.textContent = group.displayName;
 
     const actionEl = document.createElement("div");
-    actionEl.style.fontSize = "11px";
+    actionEl.style.fontSize = "0.6875rem";
     actionEl.style.opacity = "0.9";
     actionEl.textContent = group.actionStr;
 
@@ -6335,7 +6340,7 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
 
     // Accordion Toggle Icon
     const toggleIcon = document.createElement("div");
-    toggleIcon.style.fontSize = "10px";
+    toggleIcon.style.fontSize = "0.625rem";
     toggleIcon.style.opacity = "0.6";
     toggleIcon.textContent = `▼ (${group.items.length})`;
 
@@ -6347,18 +6352,18 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
     const subListContainer = document.createElement("div");
     subListContainer.style.display = "none"; // Collapsed by default
     subListContainer.style.flexDirection = "column";
-    subListContainer.style.gap = "4px";
-    subListContainer.style.marginTop = "4px";
-    subListContainer.style.paddingLeft = "8px";
+    subListContainer.style.gap = "0.25rem";
+    subListContainer.style.marginTop = "0.25rem";
+    subListContainer.style.paddingLeft = "0.5rem";
     subListContainer.style.borderLeft = `2px solid ${getThemeColor(group.tech.level)}`;
 
     group.items.forEach((subItem, index) => {
       const childRow = document.createElement("div");
       childRow.className =
         "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors";
-      childRow.style.fontSize = "10px";
+      childRow.style.fontSize = "0.625rem";
       childRow.style.opacity = "0.85";
-      childRow.style.padding = "4px";
+      childRow.style.padding = "0.25rem";
       childRow.style.borderRadius = "3px";
       childRow.style.cursor = "pointer";
 
@@ -6419,8 +6424,8 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
       const showMoreBtn = document.createElement("div");
       showMoreBtn.className =
         "hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-blue-600 dark:text-blue-400 font-semibold text-center";
-      showMoreBtn.style.fontSize = "10px";
-      showMoreBtn.style.padding = "4px";
+      showMoreBtn.style.fontSize = "0.625rem";
+      showMoreBtn.style.padding = "0.25rem";
       showMoreBtn.style.borderRadius = "3px";
       showMoreBtn.style.cursor = "pointer";
       showMoreBtn.textContent = t(
@@ -6946,7 +6951,7 @@ function buildSolverSummary() {
     });
 
     row.style.color = color;
-    row.style.fontSize = "11px";
+    row.style.fontSize = "0.6875rem";
     row.style.letterSpacing = "0.025em";
     row.style.whiteSpace = "pre";
 
@@ -7010,7 +7015,7 @@ function buildSolverSummary() {
     });
 
     row.style.color = "#ef4444"; // Dangerous red color
-    row.style.fontSize = "11px";
+    row.style.fontSize = "0.6875rem";
     row.style.letterSpacing = "0.025em";
     row.style.whiteSpace = "pre";
 
@@ -8919,15 +8924,15 @@ function openPreferencesModal() {
           ${isMandatory ? "disabled" : ""}
         >
         <div class="flex flex-row justify-between w-full min-w-0 items-center gap-1">
-          <span class="text-[13px] font-medium truncate ${isMandatory ? "opacity-50" : ""}" title="${tech.name}">
+          <span class="text-[0.8125rem] font-medium truncate ${isMandatory ? "opacity-50" : ""}" title="${tech.name}">
             ${tech.name}
           </span>
           <div class="flex items-center gap-1 shrink-0 pointer-events-auto">
-            <span class="tech-level-text text-[11px] text-gray-500 font-normal whitespace-nowrap">
+            <span class="tech-level-text text-[0.6875rem] text-gray-500 font-normal whitespace-nowrap">
               (Lv.${tech.origLevel})
             </span>
             <input type="text" inputmode="numeric" maxlength="4"
-              class="tech-score-input text-[11px] text-right rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-1 py-0 leading-tight pointer-events-auto"
+              class="tech-score-input text-[0.6875rem] text-right rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-1 py-0 leading-tight pointer-events-auto"
               style="width: 3rem;"
               data-default-score="${tech.origScore}"
               value="${tech.currentScore}"

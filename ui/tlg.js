@@ -23,6 +23,8 @@ const TLG = (() => {
     '<option value="cell" data-i18n="tlg_kind_cell">Cell</option>',
     "</select>",
     '<button type="button" id="tlg-menu-toggle" class="tlg-btn hidden" aria-pressed="false" data-i18n="tlg_menu_toggle">Set menu</button>',
+    '<button type="button" id="tlg-undo" class="tlg-btn" data-i18n="btn_undo">Undo</button>',
+    '<button type="button" id="tlg-redo" class="tlg-btn" data-i18n="btn_redo">Redo</button>',
     '<button type="button" id="tlg-cancel" class="tlg-btn" data-i18n="tlg_cancel">Cancel</button>',
     '<button type="button" id="tlg-reevaluate" class="tlg-btn" data-i18n="tlg_reevaluate">Re-evaluate</button>',
     '<button type="button" id="tlg-remove-unused" class="tlg-btn" data-i18n="tlg_remove_unused">Remove unused links</button>',
@@ -684,21 +686,36 @@ const TLG = (() => {
 
   // --- Rendering ----------------------------------------------------------
 
+  // linkInfo follows the order the links were sent in (drawnSets).
+  function saturatedLinks(r) {
+    const saturated = new Set();
+    if (!r) return saturated;
+    const links = drawnSets("link");
+    r.linkInfo.forEach((info, i) => {
+      if (info.saturated && links[i]) saturated.add(links[i].id);
+    });
+    return saturated;
+  }
+
   function buildModel() {
     const r = usableResult();
-    const links = state.sets.filter((s) => s.role === "link");
-    const saturated = new Set();
-    if (r) {
-      r.linkInfo.forEach((info, i) => {
-        if (info.saturated && links[i]) saturated.add(links[i].id);
-      });
+    const saturated = saturatedLinks(r);
+    // A link is drawn only through its Truth candidates and eliminations.
+    const shown = new Set();
+    /* @edition-slot editor-030 */
+    for (const s of state.sets) {
+      if (s.role === "truth") for (const m of membersOf(s)) shown.add(candKey(m));
     }
+    if (r) for (const k of r.kills) shown.add(k.cand);
     return {
       sets: state.sets.map((set) => ({
         id: set.id,
         role: set.role,
         kind: set.kind,
-        members: membersOf(set),
+        members:
+          set.role === "link"
+            ? membersOf(set).filter((m) => shown.has(candKey(m)))
+            : membersOf(set),
         saturated: saturated.has(set.id),
         selected: set.id === selectedSetId,
       })),
@@ -793,6 +810,8 @@ const TLG = (() => {
     setPressed("tlg-menu-toggle", menuMode);
     $("tlg-kind").value = kind;
     $("tlg-cancel").disabled = !pending;
+    $("tlg-undo").disabled = edits.undo.length === 0;
+    $("tlg-redo").disabled = edits.redo.length === 0;
 
     const truths = state.sets.filter((s) => s.role === "truth");
     const links = state.sets.filter((s) => s.role === "link");
@@ -851,12 +870,7 @@ const TLG = (() => {
 
     /* @edition-slot editor-023 */
 
-    const saturated = new Set();
-    if (r) {
-      r.linkInfo.forEach((info, i) => {
-        if (info.saturated && links[i]) saturated.add(links[i].id);
-      });
-    }
+    const saturated = saturatedLinks(r);
     fillList(
       "tlg-set-list",
       state.sets.map((set) => {
@@ -984,6 +998,8 @@ const TLG = (() => {
       resetInputState();
       renderAll();
     });
+    $("tlg-undo").addEventListener("click", () => stepEdits(true));
+    $("tlg-redo").addEventListener("click", () => stepEdits(false));
     $("tlg-cancel").addEventListener("click", () => {
       resetInputState();
       renderAll();

@@ -98,7 +98,7 @@ button:disabled:hover {
   border-radius: 2px;
 
   /* smooth slide animation */
-  max-width: 100px;
+  max-width: 6.25rem;
   overflow: hidden;
 
   transition:
@@ -121,7 +121,7 @@ button:disabled:hover {
 #year-sticker::before {
   content: "";
   position: absolute;
-  top: -8px;
+  top: -0.5rem;
   left: 62%;
   transform: translateX(-50%) rotate(-5deg);
   width: 1rem;
@@ -548,7 +548,7 @@ html.dark .offline-cache-dot {
 }
 
 .cand-circle::before {
-  border: 2.5px solid var(--cand-circle-color, #ef4444);
+  border: 0.15625rem solid var(--cand-circle-color, #ef4444);
   border-radius: 50%;
 }
 
@@ -556,17 +556,17 @@ html.dark .offline-cache-dot {
   background-image:
     linear-gradient(
       to bottom right,
-      transparent calc(50% - 0.9px),
-      var(--cand-slash-color, #ef4444) calc(50% - 1.2px),
-      var(--cand-slash-color, #ef4444) calc(50% + 1.2px),
-      transparent calc(50% + 0.9px)
+      transparent calc(50% - 0.05625rem),
+      var(--cand-slash-color, #ef4444) calc(50% - 0.075rem),
+      var(--cand-slash-color, #ef4444) calc(50% + 0.075rem),
+      transparent calc(50% + 0.05625rem)
     ),
     linear-gradient(
       to bottom left,
-      transparent calc(50% - 0.9px),
-      var(--cand-slash-color, #ef4444) calc(50% - 1.2px),
-      var(--cand-slash-color, #ef4444) calc(50% + 1.2px),
-      transparent calc(50% + 0.9px)
+      transparent calc(50% - 0.05625rem),
+      var(--cand-slash-color, #ef4444) calc(50% - 0.075rem),
+      var(--cand-slash-color, #ef4444) calc(50% + 0.075rem),
+      transparent calc(50% + 0.05625rem)
     );
 }
 
@@ -772,12 +772,12 @@ html.dark .offline-cache-dot {
 
 /* Line Styles */
 .draw-line.solid {
-  stroke-width: 8px; /* Thick */
+  stroke-width: 0.5rem; /* Thick */
 }
 
 .draw-line.dash {
-  stroke-width: 4px; /* Thin */
-  stroke-dasharray: 6, 6;
+  stroke-width: 0.25rem; /* Thin */
+  stroke-dasharray: 0.375rem 0.375rem;
 }
 
 /* Ensure the grid container is relative so absolute SVG works */
@@ -791,6 +791,7 @@ html.dark .offline-cache-dot {
   --tlg-row: #7c3aed;
   --tlg-col: #059669;
   --tlg-box: #b45309;
+  --tlg-box-link: #92400e;
   --tlg-cell: #0284c7;
   --tlg-sat: #111827;
   --tlg-kill: #f97316;
@@ -806,6 +807,7 @@ html.dark {
   --tlg-row: #c4b5fd;
   --tlg-col: #6ee7b7;
   --tlg-box: #fcd34d;
+  --tlg-box-link: #fbbf24;
   --tlg-cell: #7dd3fc;
   --tlg-sat: #f9fafb;
   --tlg-kill: #fb923c;
@@ -866,6 +868,16 @@ html.dark {
 #tlg-layer path.tlg-link {
   fill: none;
   stroke-opacity: 0.95;
+}
+/* Amber reads lighter than the other set colors at the same opacity. */
+#tlg-layer path.tlg-box.tlg-truth {
+  stroke-opacity: 0.75;
+}
+#tlg-layer path.tlg-box.tlg-link {
+  stroke-opacity: 1;
+}
+#tlg-layer path.tlg-box.tlg-link:not(.tlg-saturated) {
+  stroke: var(--tlg-box-link);
 }
 #tlg-layer rect.tlg-link {
   fill: none;
@@ -1045,7 +1057,7 @@ html.dark {
   align-items: center;
   border: 1px solid var(--tlg-panel-border);
   border-radius: 0.375rem;
-  border-left-width: 4px;
+  border-left-width: 0.25rem;
 }
 .tlg-set-item.tlg-row {
   border-left-color: var(--tlg-row);
@@ -1122,9 +1134,9 @@ html.dark {
 }
 
 .solver-active-textarea {
-  height: 56px !important;
-  min-height: 48px !important;
-  max-height: 56px !important;
+  height: 3.5rem !important;
+  min-height: 3rem !important;
+  max-height: 3.5rem !important;
   overflow-y: hidden !important;
   white-space: nowrap !important;
 }
@@ -1643,8 +1655,8 @@ html.dark {
   }
 
   #puzzle-string {
-    min-height: 48px !important;
-    max-height: clamp(48px, 70vw - 560px, 216px) !important;
+    min-height: 3rem !important;
+    max-height: clamp(3rem, 70vw - 35rem, 13.5rem) !important;
     overflow-y: auto !important; /* Enable vertical scroll if max is reached */
 
     white-space: pre !important;
