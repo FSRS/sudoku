@@ -1048,7 +1048,8 @@ const TRANSLATIONS = {
     /* @edition-slot strings-002 */
     tlg_sets_title: "Sets",
     tlg_sets_empty: "No sets yet",
-    tlg_rank0_link: "Rank 0 link",
+    tlg_rank0_link: "Rank-0 link",
+    tlg_black_rank0: "Show Rank-0 Links as Black",
     tlg_satisfied: "satisfied",
     tlg_members_none: "no candidates",
     tlg_pick_second: "Pick the second candidate [{0}].",
@@ -2111,7 +2112,8 @@ const TRANSLATIONS = {
     /* @edition-slot strings-005 */
     tlg_sets_title: "집합",
     tlg_sets_empty: "집합 없음",
-    tlg_rank0_link: "Rank 0 링크",
+    tlg_rank0_link: "Rank-0 링크",
+    tlg_black_rank0: "Rank-0 링크를 검은색으로 표시",
     tlg_satisfied: "충족됨",
     tlg_members_none: "후보 없음",
     tlg_pick_second: "두 번째 후보를 선택하세요 [{0}].",

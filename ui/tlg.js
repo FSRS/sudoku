@@ -1,6 +1,7 @@
 // --- TLG: manual Truth/Link logic editor (state, editing, worker, panel) ---
 const TLG = (() => {
   const DEBOUNCE_MS = 150;
+  const BLACK_RANK0_KEY = "sudokuTlgBlackRank0";
   const ROLES = ["truth", "link"];
   const KIND_LETTER = { row: "r", col: "c", box: "b" };
   /* @edition-slot editor-001 */
@@ -42,6 +43,9 @@ const TLG = (() => {
     '<button type="button" id="tlg-apply" class="tlg-btn tlg-primary" data-i18n="tlg_apply">Apply result</button>',
     /* @edition-slot editor-004 */
     '<div class="tlg-section">',
+    '<label class="tlg-check"><input type="checkbox" id="tlg-black-rank0" /><span data-i18n="tlg_black_rank0">Black Rank 0 Links</span></label>',
+    "</div>",
+    '<div class="tlg-section">',
     '<span class="tlg-heading" data-i18n="tlg_sets_title">Sets</span>',
     '<span id="tlg-set-summary" class="tlg-set-summary"></span>',
     '<ul id="tlg-set-list" class="tlg-list tlg-set-list"></ul>',
@@ -65,6 +69,8 @@ const TLG = (() => {
   let menuMode = false;
   let pending = null;
   let selectedSetId = null;
+  // The reference's LogicView > Black Rank 0 Links: a stored display option, off by default.
+  let blackRank0 = false;
   let lastMenuOpenAt = 0;
   let lastMenuCand = null;
 
@@ -716,7 +722,7 @@ const TLG = (() => {
           set.role === "link"
             ? membersOf(set).filter((m) => shown.has(candKey(m)))
             : membersOf(set),
-        saturated: saturated.has(set.id),
+        saturated: blackRank0 && saturated.has(set.id),
         selected: set.id === selectedSetId,
       })),
       /* @edition-slot editor-017 */
@@ -812,6 +818,7 @@ const TLG = (() => {
     $("tlg-cancel").disabled = !pending;
     $("tlg-undo").disabled = edits.undo.length === 0;
     $("tlg-redo").disabled = edits.redo.length === 0;
+    $("tlg-black-rank0").checked = blackRank0;
 
     const truths = state.sets.filter((s) => s.role === "truth");
     const links = state.sets.filter((s) => s.role === "link");
@@ -981,6 +988,7 @@ const TLG = (() => {
     ensureSkewStyle();
     const panel = $("tlg-panel");
     if (!panel) return;
+    blackRank0 = readStoredBoolean(localStorage, BLACK_RANK0_KEY, false);
     for (const r of ROLES) {
       $(`tlg-role-${r}`).addEventListener("click", () => {
         role = r;
@@ -1011,6 +1019,13 @@ const TLG = (() => {
     });
     $("tlg-remove-unused").addEventListener("click", removeUnusedLinks);
     /* @edition-slot editor-025 */
+    $("tlg-black-rank0").addEventListener("change", (e) => {
+      blackRank0 = e.target.checked;
+      if (!writeStoredText(localStorage, BLACK_RANK0_KEY, JSON.stringify(blackRank0))) {
+        notifyStorageWriteFailed();
+      }
+      renderAll();
+    });
     $("tlg-clear-all").addEventListener("click", () => {
       const fresh = emptyState();
       /* @edition-slot editor-026 */
