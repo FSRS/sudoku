@@ -122,8 +122,7 @@ let drawSubMode = "solid"; // "solid" or "dash"
 let drawnLines = []; // Array of { r1, c1, n1, r2, c2, n2, color, style }
 let drawingState = null; // { start: {r, c, n}, currentPos: {x, y} }
 let previewAnimationFrameId = null;
-let resizeLineRenderFrameId = null;
-const candidateCenterCache = new Map();
+let boardGeometry = null;
 let renderedLineSignatures = [];
 let lineColorPalette = []; // Specific palette for lines
 let markColorPalette = []; // Specific palette for candidate circle/slash markers
@@ -1208,8 +1207,8 @@ function updateControls() {
   }
 }
 
+// Cell boxes ignore skew and A/B order; only the grid's ResizeObserver resets boardGeometry.
 function invalidateCandidateGeometry() {
-  candidateCenterCache.clear();
   renderedLineSignatures = [];
 }
 
@@ -1226,54 +1225,32 @@ function candidateSlotPoint(slot, skewed) {
   };
 }
 
+// offset*/client* ignore transforms (TLG skew, solve animation); getBoundingClientRect does not.
+function getBoardGeometry() {
+  if (boardGeometry) return boardGeometry;
+  const width = gridContainer.clientWidth;
+  const height = gridContainer.clientHeight;
+  if (!width || !height) return null;
+  const span = (start, size, total) => [
+    (start / total) * 100,
+    (size / total) * 100,
+  ];
+  const rows = gridContainer.querySelectorAll(".grid-row");
+  boardGeometry = {
+    cols: Array.from(rows[0].children, (cell) =>
+      span(cell.offsetLeft + cell.clientLeft, cell.clientWidth, width),
+    ),
+    rows: Array.from(rows, (row) => {
+      const cell = row.firstElementChild;
+      return span(cell.offsetTop + cell.clientTop, cell.clientHeight, height);
+    }),
+  };
+  return boardGeometry;
+}
+
 function getCandidateCenter(r, c, n) {
-  const cacheKey = `${candidatePopupFormat}:${r}:${c}:${n}`;
-  const cachedCenter = candidateCenterCache.get(cacheKey);
-  if (cachedCenter) return cachedCenter;
-
-  // Try DOM-based positioning first for perfect visual alignment
-  const cell = gridContainer.querySelector(
-    `.sudoku-cell[data-row="${r}"][data-col="${c}"]`,
-  );
-  if (cell) {
-    const pencilGrid = cell.querySelector(".pencil-grid");
-    if (pencilGrid) {
-      const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-      const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
-      const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
-      const index = currentOrder.indexOf(n);
-
-      const marks = pencilGrid.querySelectorAll(".pencil-mark");
-      const mark = marks[index];
-
-      if (mark) {
-        const markRect = mark.getBoundingClientRect();
-        const gridRect = gridContainer.getBoundingClientRect();
-
-        // Account for the grid's border (clientLeft is the border width)
-        const borderLeft = gridContainer.clientLeft || 0;
-        const borderTop = gridContainer.clientTop || 0;
-        const innerWidth = gridContainer.clientWidth;
-        const innerHeight = gridContainer.clientHeight;
-
-        // Calculate center relative to the inner content box (where SVG lives)
-        const markCenterX =
-          markRect.left + markRect.width / 2 - gridRect.left - borderLeft;
-        const markCenterY =
-          markRect.top + markRect.height / 2 - gridRect.top - borderTop;
-
-        const x = (markCenterX / innerWidth) * 100;
-        const y = (markCenterY / innerHeight) * 100;
-
-        const center = { x, y };
-        candidateCenterCache.set(cacheKey, center);
-        return center;
-      }
-    }
-  }
-
-  // FALLBACK: Pure Math (Original Logic) if DOM elements are missing
-  // This handles edge cases or initial loads before render
+  const geometry = getBoardGeometry();
+  if (!geometry) return null;
   const orderA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   const orderB = [7, 8, 9, 4, 5, 6, 1, 2, 3];
   const currentOrder = candidatePopupFormat === "A" ? orderA : orderB;
@@ -1282,13 +1259,9 @@ function getCandidateCenter(r, c, n) {
     currentOrder.indexOf(n),
     gridContainer.classList.contains("tlg-active"),
   );
-  const cellWidth = 100 / 9;
-  const x = (c + slot.x) * cellWidth;
-  const y = (r + slot.y) * cellWidth;
-
-  const center = { x, y };
-  candidateCenterCache.set(cacheKey, center);
-  return center;
+  const [left, width] = geometry.cols[c];
+  const [top, height] = geometry.rows[r];
+  return { x: left + slot.x * width, y: top + slot.y * height };
 }
 
 /** Re-marks the number pad's color buttons to match selectedColor. */
@@ -1792,15 +1765,8 @@ function renderLines() {
   const svg = document.getElementById("drawing-layer");
   if (!svg) return;
   const { staticGroup } = ensureDrawingGroups(svg);
+  if (!getBoardGeometry()) return;
   const nextSignatures = drawnLines.map(getLineSignature);
-
-  // Resolve changed endpoints before mutating the SVG so layout reads and
-  // DOM writes are not interleaved.
-  drawnLines.forEach((line, index) => {
-    if (nextSignatures[index] === renderedLineSignatures[index]) return;
-    getCandidateCenter(line.r1, line.c1, line.n1);
-    getCandidateCenter(line.r2, line.c2, line.n2);
-  });
 
   drawnLines.forEach((line, index) => {
     if (
@@ -1837,6 +1803,7 @@ function updatePreview() {
 
   const start = drawingState.start;
   const startPos = getCandidateCenter(start.r, start.c, start.n);
+  if (!startPos) return;
 
   // --- UPDATED: Use the style & color saved in drawingState so the preview honors right-clicks ---
   const activeStyle = drawingState.style || drawSubMode;
@@ -2699,15 +2666,13 @@ function setupEventListeners() {
   window.addEventListener("resize", () => {
     updateButtonLabels();
     updateControls(); // Re-render numpad in case the window crosses the 880px boundary
-    invalidateCandidateGeometry();
-    if (resizeLineRenderFrameId === null) {
-      resizeLineRenderFrameId = requestAnimationFrame(() => {
-        resizeLineRenderFrameId = null;
-        renderLines();
-        TLG.renderLayer();
-      });
-    }
   });
+  new ResizeObserver(() => {
+    boardGeometry = null;
+    invalidateCandidateGeometry();
+    renderLines();
+    TLG.renderLayer();
+  }).observe(gridContainer);
   // --- Preference Modal Binding ---
   prefBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -3103,6 +3068,7 @@ function setupEventListeners() {
       const borderTop = gridContainer.clientTop || 0;
       const innerWidth = gridContainer.clientWidth;
       const innerHeight = gridContainer.clientHeight;
+      if (!innerWidth || !innerHeight) return;
       const relativeX = e.clientX - gridRect.left - borderLeft;
       const relativeY = e.clientY - gridRect.top - borderTop;
       const xPct = (relativeX / innerWidth) * 100;

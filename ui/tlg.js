@@ -763,7 +763,7 @@ const TLG = (() => {
   function renderLayer() {
     const active = isActive();
     setSkewed(active);
-    if (!active) {
+    if (!active || !getBoardGeometry()) {
       TLGRenderer.clear();
       return;
     }
