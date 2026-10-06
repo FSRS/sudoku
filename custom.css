@@ -995,7 +995,11 @@ html.dark {
 .tlg-danger:not(:disabled) {
   color: #b91c1c;
 }
-/* @edition-slot style-006 */
+.tlg-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
 .tlg-heading {
   font-weight: 700;
 }
