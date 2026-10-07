@@ -150,15 +150,6 @@ function getDifficultyEngine() {
   return difficultyEngines.has(saved) ? saved : "skfr";
 }
 
-function getPuzzleDifficultyEngine(puzzle) {
-  const preferred = getDifficultyEngine();
-  // Keep the global preference; use SE only for this unsupported puzzle type.
-  return preferred === "skfr" &&
-    getPuzzleValidation(puzzle).mode === "only-one-cell"
-    ? "se"
-    : preferred;
-}
-
 function formatDifficultyRating(engine, rating10) {
   return ` (${difficultyEngineLabels[engine]} ${(rating10 / 10).toFixed(1)})`;
 }
@@ -228,7 +219,7 @@ function getDifficultyRatingText(puzzle, onReady) {
   if (!isRatablePuzzle(puzzle)) return "";
   if (!window.Rating?.rate) return "";
 
-  const engine = getPuzzleDifficultyEngine(puzzle);
+  const engine = getDifficultyEngine();
   const key = `${engine}:${puzzle}`;
   const cached = difficultyRatingCache.get(key);
   if (cached?.status === "resolved") return cached.text;
@@ -271,7 +262,7 @@ function getDifficultyRatingText(puzzle, onReady) {
 }
 
 function getDifficultyRatingDetail(puzzle) {
-  const engine = getPuzzleDifficultyEngine(puzzle);
+  const engine = getDifficultyEngine();
   const cached = difficultyRatingCache.get(`${engine}:${puzzle}`);
   if (cached?.status !== "resolved") return "";
   const rating = cached.rating || {};
@@ -394,9 +385,6 @@ function ensureDifficultyEnginePreference() {
     }
   }
   select.value = getDifficultyEngine();
-  select.querySelector('option[value="skfr"]').textContent = onlyOneCellTarget
-    ? t("pref_skfr_one_cell_fallback")
-    : "skfr";
 }
 
 function waitForBrowserPaint() {

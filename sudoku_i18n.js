@@ -245,7 +245,6 @@ const TRANSLATIONS = {
       "Just one cell: exactly one non-clue cell can be determined.",
     ui_only_one_cell_lamp:
       "Difficulty until the only determined cell is solved",
-    pref_skfr_one_cell_fallback: "skfr (SE for Just one cell)",
     ui_only_one_cell_solved: "The only determined cell is solved!{0}",
     ui_only_one_cell_fallback:
       "The logical solver could not finish. Exhaustive search confirms this cell.",
@@ -1302,7 +1301,6 @@ const TRANSLATIONS = {
     puzzle_only_one_cell:
       "한 칸 스도쿠: 단서가 아닌 칸 중 오직 한 칸만 확정할 수 있습니다.",
     ui_only_one_cell_lamp: "유일하게 확정 가능한 한 칸을 풀 때까지의 난이도",
-    pref_skfr_one_cell_fallback: "skfr (한 칸 스도쿠는 SE)",
     ui_only_one_cell_solved: "유일하게 확정 가능한 한 칸을 풀었습니다!{0}",
     ui_only_one_cell_fallback:
       "논리 풀이를 완료하지 못했습니다. 완전 탐색으로 이 한 칸을 확정했습니다.",
