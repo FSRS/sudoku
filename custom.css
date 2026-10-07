@@ -901,7 +901,9 @@ html.dark {
   stroke-linecap: round;
 }
 #tlg-layer .tlg-kill-x {
-  stroke-width: 0.45;
+  stroke-width: 0.13125rem;
+  stroke-linecap: butt;
+  vector-effect: non-scaling-stroke;
 }
 #tlg-layer .tlg-kill-external {
   stroke: var(--tlg-kill);

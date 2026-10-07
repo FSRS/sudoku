@@ -5,9 +5,9 @@ const TLGRenderer = (() => {
   const RING_INNER = 0.3;
   const BOX_RING_INNER = 0.2;
   const CELL_PAD = 1.5;
-  // Half-extent of the elimination X: the same 88% of the (scaled) TLG
-  // candidate box as the board's own X marker.
-  const X_ARM = 1.4;
+  const X_ARM = 0.44 / 3;
+  const EXPORT_X_ARM = (100 / 27) * 0.42 * 0.72;
+  const EXPORT_X_WIDTH = 2.5;
 
   function el(tag, attrs, parent) {
     const node = document.createElementNS(NS, tag);
@@ -176,13 +176,15 @@ const TLGRenderer = (() => {
 
   /* @edition-slot renderer-001 */
   function drawBadges(layer, model) {
+    const { cols } = getBoardGeometry();
     for (const k of model.kills) {
       const { x, y } = center(k);
+      const arm = X_ARM * cols[k.c][1];
       const cls = k.kind === "cannibal" ? "tlg-kill-cannibal" : "tlg-kill-external";
       el(
         "path",
         {
-          d: `M ${x - X_ARM} ${y - X_ARM} L ${x + X_ARM} ${y + X_ARM} M ${x - X_ARM} ${y + X_ARM} L ${x + X_ARM} ${y - X_ARM}`,
+          d: `M ${x - arm} ${y - arm} L ${x + arm} ${y + arm} M ${x - arm} ${y + arm} L ${x + arm} ${y - arm}`,
           class: `tlg-badge tlg-kill-x ${cls}`,
         },
         layer,
@@ -342,8 +344,8 @@ const TLGRenderer = (() => {
     for (const k of model.kills) {
       const { x, y } = coord(k);
       ctx.strokeStyle = k.kind === "cannibal" ? EXPORT_COLORS.cannibal : EXPORT_COLORS.kill;
-      ctx.lineWidth = 0.45 * unit;
-      const arm = X_ARM * unit;
+      ctx.lineWidth = EXPORT_X_WIDTH;
+      const arm = EXPORT_X_ARM * unit;
       ctx.beginPath();
       ctx.moveTo(x - arm, y - arm);
       ctx.lineTo(x + arm, y + arm);
