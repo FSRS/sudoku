@@ -884,16 +884,20 @@ function updateButtonLabels() {
   const isMobile = window.innerWidth <= 550;
   const useShortTitle = window.innerWidth < 880;
   const titleText = document.getElementById("sudoku-title-text");
-  const experimentalModeLabel = document
-    .getElementById("experimental-mode-toggle")
-    ?.closest("label");
-
-  if (experimentalModeLabel) {
-    experimentalModeLabel.dataset.tooltip = t(
-      isMobile
-        ? "pref_experimental_mode_tooltip_mobile"
-        : "pref_experimental_mode_tooltip_desktop",
-    );
+  for (const [toggleId, mobileKey, desktopKey] of [
+    [
+      "experimental-mode-toggle",
+      "pref_experimental_mode_tooltip_mobile",
+      "pref_experimental_mode_tooltip_desktop",
+    ],
+    [
+      "lab-drawing-toggle",
+      "pref_lab_drawing_tooltip_mobile",
+      "pref_lab_drawing_tooltip_desktop",
+    ],
+  ]) {
+    const label = document.getElementById(toggleId)?.closest("label");
+    if (label) label.dataset.tooltip = t(isMobile ? mobileKey : desktopKey);
   }
 
   if (titleText) {
@@ -2186,6 +2190,7 @@ function setupEventListeners() {
   loadDisplayModePreference();
   loadHighlightModePreference();
   loadExperimentalModePreference();
+  loadLabDrawingModePreference();
   loadSolverLogicPreferences();
 
   window.addEventListener("pagehide", flushScheduledPuzzleProgress);
@@ -2315,16 +2320,10 @@ function setupEventListeners() {
       const i = parseInt(mark.dataset.num);
       const isCurrentlyMobile = window.innerWidth <= 550;
       const canInteractDirectly =
-        (!isCurrentlyMobile &&
-          (isExperimentalMode ||
-            currentMode === "draw" ||
-            currentMode === "color")) ||
-        (isCurrentlyMobile &&
-          (isExperimentalMode ||
-            currentMode === "draw" ||
-            (currentMode === "color" &&
-              isExperimentalMode &&
-              isMarkSubMode(coloringSubMode))));
+        currentMode === "draw" ||
+        (currentMode === "color"
+          ? !isCurrentlyMobile || isLabDrawingMode
+          : isExperimentalMode);
 
       if (!canInteractDirectly) {
         handleCellClick({ target: cell }); // Fallback to cell click
@@ -2402,7 +2401,7 @@ function setupEventListeners() {
       TLG.handleGridEvent(e);
       return;
     }
-    if (isSolverMode || !isExperimentalMode) return;
+    if (isSolverMode || !(isExperimentalMode || isLabDrawingMode)) return;
 
     const cell = e.target.closest(".sudoku-cell");
     if (!cell) return;
@@ -2436,23 +2435,31 @@ function setupEventListeners() {
       e.stopPropagation();
       const i = parseInt(mark.dataset.num);
 
-      if (currentMode === "concrete") {
+      if (currentMode === "concrete" && isExperimentalMode) {
         if (cellState.pencils.has(i)) {
           if (!timerInterval) startTimer(currentElapsedTime);
           cellState.pencils.delete(i);
           saveState();
           onBoardUpdated();
         }
-      } else if (currentMode === "draw") {
+      } else if (isLabDrawingMode && currentMode === "draw") {
         const dashColor = lastUsedColors.draw.dash || lineColorPalette[0];
         handleDrawClick(row, col, i, "dash", dashColor);
-      } else if (currentMode === "color" && coloringSubMode === "cell") {
+      } else if (
+        isLabDrawingMode &&
+        currentMode === "color" &&
+        coloringSubMode === "cell"
+      ) {
         cell.classList.add("suppress-hover");
         const altColor = getAltColor();
         cellState.cellColor = toggleColor(cellState.cellColor, altColor);
         saveState();
         renderBoard();
-      } else if (currentMode === "color" && coloringSubMode === "candidate") {
+      } else if (
+        isLabDrawingMode &&
+        currentMode === "color" &&
+        coloringSubMode === "candidate"
+      ) {
         mark.classList.add("suppress-hover");
         const altColor = getAltColor();
         const currentColor = cellState.pencilColors.get(i);
@@ -2467,7 +2474,11 @@ function setupEventListeners() {
     }
     // Sub-case B: Right-clicked the Cell body
     else {
-      if (currentMode === "color" && coloringSubMode === "cell") {
+      if (
+        isLabDrawingMode &&
+        currentMode === "color" &&
+        coloringSubMode === "cell"
+      ) {
         cell.classList.add("suppress-hover");
         const altColor = getAltColor();
         cellState.cellColor = toggleColor(cellState.cellColor, altColor);
@@ -3279,6 +3290,7 @@ function handleKeyDown(e) {
     installHelpMod && !installHelpMod.classList.contains("hidden");
   const isAutoPencilOpen =
     autoPencilMod && !autoPencilMod.classList.contains("hidden");
+  const isBatchRatingOpen = window.BatchRating?.isOpen() === true;
 
   // One predicate for every modal, so the key paths below cannot disagree
   // about whether a modal is open.
@@ -3292,7 +3304,8 @@ function handleKeyDown(e) {
     isResetOpen ||
     isPrefOpen ||
     isInstallHelpOpen ||
-    isAutoPencilOpen;
+    isAutoPencilOpen ||
+    isBatchRatingOpen;
 
   if (
     document.activeElement.tagName === "INPUT" ||
@@ -3307,7 +3320,7 @@ function handleKeyDown(e) {
   }
 
   // --- NEW: PREFERENCES SHORTCUT ---
-  if (isCtrlOrCmd && key === ",") {
+  if (isCtrlOrCmd && key === "," && !isBatchRatingOpen) {
     e.preventDefault();
     openPreferencesModal();
     return;
@@ -3409,6 +3422,7 @@ function handleKeyDown(e) {
     // Actions on second press
     removeStored(localStorage, "sudokuSaves");
     removeStored(localStorage, "sudokuExperimentalMode");
+    removeStored(localStorage, "sudokuLabDrawingMode");
     clearUserBoard(); // Clears the current board state
     showMessage("All saved data cleared and board has been reset.", "green");
     isClearStoragePending = false; // Reset flag after completion
@@ -3431,9 +3445,11 @@ function handleKeyDown(e) {
         message += t("ui_switched_to_cell_color_mode_action");
       }
       // Force-disable experimental mode if active
-      if (isExperimentalMode) {
+      if (isExperimentalMode || isLabDrawingMode) {
         isExperimentalMode = false;
+        isLabDrawingMode = false;
         saveExperimentalModePreference();
+        saveLabDrawingModePreference();
         message += t("ui_expt_mode_disabled_action");
       }
       showMessage(message, "gray");
@@ -3484,6 +3500,7 @@ function handleKeyDown(e) {
         document.getElementById("install-help-close-btn").click();
       if (isAutoPencilOpen)
         document.getElementById("autopencil-cancel-btn").click();
+      if (isBatchRatingOpen) window.BatchRating.close();
       return;
     }
 
@@ -3718,9 +3735,9 @@ function handleCellClick(e) {
         coloringSubMode === "candidate" ||
         isMarkSubMode(coloringSubMode)
       ) {
-        // On mobile with Experimental Mode off, candidate annotation uses a
+        // On mobile with drawing controls off, candidate annotation uses a
         // popup so circle/cross matches the existing candidate-color flow.
-        if (isMobile && !isExperimentalMode) {
+        if (isMobile && !isLabDrawingMode) {
           showCandidatePopup(selectedCell.row, selectedCell.col);
         }
       }
@@ -3969,7 +3986,7 @@ function handleModeChange(e, reverse = false) {
   // Clear any existing experimental tip timer so they don't overlap if the user clicks fast
   if (window.exptTipTimer) clearTimeout(window.exptTipTimer);
 
-  if (isExperimentalMode) {
+  if (isExperimentalMode || isLabDrawingMode) {
     window.exptTipTimer = setTimeout(() => {
       let exptTip = "";
       const actionTxt = isMobile
@@ -3977,13 +3994,20 @@ function handleModeChange(e, reverse = false) {
         : t("ui_right_click_action");
 
       if (currentMode === "concrete") {
-        exptTip = t("ui_expt_erase_cand_tip", actionTxt);
-      } else if (currentMode === "draw" && drawSubMode === "solid") {
-        exptTip = t("ui_expt_draw_dash_tip", actionTxt);
-      } else if (currentMode === "color" && coloringSubMode === "cell") {
-        exptTip = t("ui_expt_apply_cell_color_tip", actionTxt);
-      } else if (currentMode === "color" && coloringSubMode === "candidate") {
-        exptTip = t("ui_expt_apply_cand_color_tip", actionTxt);
+        if (isExperimentalMode) {
+          exptTip = t("ui_expt_erase_cand_tip", actionTxt);
+        }
+      } else if (isLabDrawingMode) {
+        if (currentMode === "draw" && drawSubMode === "solid") {
+          exptTip = t("ui_expt_draw_dash_tip", actionTxt);
+        } else if (currentMode === "color" && coloringSubMode === "cell") {
+          exptTip = t("ui_expt_apply_cell_color_tip", actionTxt);
+        } else if (
+          currentMode === "color" &&
+          coloringSubMode === "candidate"
+        ) {
+          exptTip = t("ui_expt_apply_cand_color_tip", actionTxt);
+        }
       }
 
       if (exptTip) {
@@ -4165,6 +4189,11 @@ function handleNumberPadClick(e) {
         } else {
           cellState.pencils.add(num);
         }
+        changeMade = true;
+      } else if (currentMode === "pencil" && cellState.value === num) {
+        cellState.value = 0;
+        cellState.pencils.clear();
+        cellState.pencils.add(num);
         changeMade = true;
       }
     }
@@ -7868,6 +7897,26 @@ function loadExperimentalModePreference() {
   );
 }
 
+function saveLabDrawingModePreference() {
+  if (
+    !writeStoredText(
+      localStorage,
+      "sudokuLabDrawingMode",
+      JSON.stringify(isLabDrawingMode),
+    )
+  ) {
+    notifyStorageWriteFailed();
+  }
+}
+
+function loadLabDrawingModePreference() {
+  isLabDrawingMode = readStoredBoolean(
+    localStorage,
+    "sudokuLabDrawingMode",
+    isExperimentalMode,
+  );
+}
+
 function readTechniquePreferences() {
   return readJsonArray(localStorage, "sudokuTechniquePrefs");
 }
@@ -8700,6 +8749,8 @@ function setPreferencesTab(name) {
       .getElementById(tab.getAttribute("aria-controls"))
       ?.classList.toggle("hidden", !isSelected);
   });
+  const resetButton = document.getElementById("pref-default-btn");
+  if (resetButton) resetButton.disabled = name === "lab";
   const scrollContainer = document.getElementById(
     "preferences-scroll-container",
   );
@@ -8720,6 +8771,8 @@ function openPreferencesModal() {
   document.getElementById("experimental-mode-toggle").checked =
     isExperimentalMode;
   // These rows may be missing from an older page; skip them then.
+  const labDrawingToggle = document.getElementById("lab-drawing-toggle");
+  if (labDrawingToggle) labDrawingToggle.checked = isLabDrawingMode;
   const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
   if (ahsHlsToggle) {
     ahsHlsToggle.checked = useAhsHls;
@@ -9103,6 +9156,11 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("experimental-mode-toggle").checked &&
         !arePencilsHidden;
       saveExperimentalModePreference();
+      const labDrawingToggle = document.getElementById("lab-drawing-toggle");
+      isLabDrawingMode = labDrawingToggle
+        ? labDrawingToggle.checked && !arePencilsHidden
+        : isExperimentalMode;
+      saveLabDrawingModePreference();
       const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
       if (ahsHlsToggle) useAhsHls = ahsHlsToggle.checked;
       const dof2FishToggle = document.getElementById("dof2-fish-toggle");
@@ -9143,38 +9201,68 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("preferences-modal").classList.remove("flex");
   });
 
+  document
+    .getElementById("batch-rating-open-btn")
+    ?.addEventListener("click", () => {
+      document.getElementById("preferences-modal").classList.add("hidden");
+      document.getElementById("preferences-modal").classList.remove("flex");
+      window.BatchRating?.open();
+    });
+
   // --- DEFAULT BUTTON ---
   // --- DEFAULT BUTTON ---
   document
     .getElementById("pref-default-btn")
     .addEventListener("click", async () => {
-      // 1. Wipe the local cache
-      removeStored(localStorage, "sudokuTechniquePrefs");
-      removeStored(localStorage, difficultyEngineStorageKey);
+      const activeTab = document.querySelector(
+        '[data-pref-tab][aria-selected="true"]',
+      );
+      const activePanel =
+        activeTab &&
+        document.getElementById(activeTab.getAttribute("aria-controls"));
+      const resetsGroup = (controlId) =>
+        !activePanel ||
+        activePanel.contains(document.getElementById(controlId));
+      const resetsTechniques = resetsGroup("technique-list-container");
 
-      // 3. Reset the candidate display layout to its default.
-      candidatePopupFormat = "A";
-      writeStoredText(
-        localStorage,
-        "sudokuDisplayFormat",
-        candidatePopupFormat,
-      ) || notifyStorageWriteFailed();
-      highlightMode = "cell";
-      writeStoredText(localStorage, "sudokuHighlightMode", highlightMode) ||
-        notifyStorageWriteFailed();
-      isExperimentalMode = false;
-      saveExperimentalModePreference();
-      useAhsHls = false;
-      useDof2Fish = false;
-      saveSolverLogicPreferences();
+      if (resetsGroup("display-mode-select")) {
+        removeStored(localStorage, difficultyEngineStorageKey);
+        candidatePopupFormat = "A";
+        writeStoredText(
+          localStorage,
+          "sudokuDisplayFormat",
+          candidatePopupFormat,
+        ) || notifyStorageWriteFailed();
+        highlightMode = "cell";
+        writeStoredText(localStorage, "sudokuHighlightMode", highlightMode) ||
+          notifyStorageWriteFailed();
+      }
+      if (resetsGroup("experimental-mode-toggle")) {
+        isExperimentalMode = false;
+        isLabDrawingMode = false;
+        saveExperimentalModePreference();
+        saveLabDrawingModePreference();
+      }
+      if (resetsTechniques) {
+        removeStored(localStorage, "sudokuTechniquePrefs");
+        useAhsHls = false;
+        useDof2Fish = false;
+        saveSolverLogicPreferences();
+      }
 
       updateControls();
       renderPuzzleLevelLabel();
       renderBoard();
+      invalidateCandidateGeometry();
+      renderLines();
 
-      // 4. Close the modal
       document.getElementById("preferences-modal").classList.add("hidden");
       document.getElementById("preferences-modal").classList.remove("flex");
+
+      if (!resetsTechniques) {
+        showMessage(t("ui_defaults_restored_status"), "green");
+        return;
+      }
 
       // 5. Safely exit solver mode and wipe cache
       if (typeof isSolverMode !== "undefined" && isSolverMode) exitSolverMode();

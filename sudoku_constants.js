@@ -176,6 +176,7 @@ let lampEvaluationTimeout = null;
 let copyTipTimer = null;
 let currentLampColor = "gray";
 let isExperimentalMode = false;
+let isLabDrawingMode = false;
 
 function isMarkSubMode(subMode) {
   return subMode === "circle" || subMode === "slash";

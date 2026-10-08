@@ -8,6 +8,7 @@ const outputPath = path.join(root, "sudoku_ui.js");
 const sources = [
   "technique-catalog.js",
   "puzzle-io.js",
+  "batch-rating.js",
   "image-import.js",
   "tlg-renderer.js",
   "tlg.js",

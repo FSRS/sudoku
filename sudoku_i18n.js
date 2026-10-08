@@ -183,6 +183,7 @@ const TRANSLATIONS = {
     modal_pref_title: "Preferences",
     pref_tab_general: "General",
     pref_tab_techniques: "Techniques",
+    pref_tab_lab: "Lab",
     pref_theme: "Toggle Theme",
     pref_difficulty_engine: "Difficulty rating",
     pref_display_mode: "Display Mode",
@@ -191,11 +192,36 @@ const TRANSLATIONS = {
     pref_highlight_mode: "Highlight",
     pref_highlight_mode_cell: "Whole Cell",
     pref_highlight_mode_candidate: "Candidate Only",
-    pref_experimental_mode: "Experimental Mode",
+    pref_experimental_mode: "Direct Candidate Input",
     pref_experimental_mode_tooltip_desktop:
-      "Direct candidates: left/right-click to set/erase in Number mode.",
+      "Number mode: click a candidate to set it, right-click to erase it.",
     pref_experimental_mode_tooltip_mobile:
-      "Direct candidates: left/right-click to set/erase in Number mode; color candidates directly.",
+      "Number mode: tap a candidate to set it, long-press to erase it.",
+    pref_lab_drawing: "Quick Draw & Color",
+    pref_lab_drawing_tooltip_desktop:
+      "Draw mode: right-click a candidate to draw a dashed line. Color mode: right-click to apply the previous color.",
+    pref_lab_drawing_tooltip_mobile:
+      "Draw mode: long-press a candidate to draw a dashed line. Color mode: long-press to apply the previous color, and tap candidates to color them without the popup.",
+    batch_open: "Batch Rating",
+    batch_title: "Batch Rating",
+    batch_help:
+      "One puzzle per line: 81 characters with . or 0 for blanks, or a line from a puzzle file. Rated with skfr.",
+    batch_placeholder: "Paste puzzles here, one per line",
+    batch_file: "Open File",
+    batch_start: "Start",
+    batch_stop: "Stop",
+    batch_download_txt: "Download TXT",
+    batch_download_csv: "Download CSV",
+    batch_progress: "{0} / {1} done",
+    batch_summary:
+      "Standard {0} · Just one cell {1} · Invalid {2} · Failed {3}",
+    batch_stopped: "Stopped. Unfinished lines are left out.",
+    batch_empty: "No puzzles to rate.",
+    batch_unavailable: "The rating engine is not available.",
+    batch_file_error: "Could not read the file.",
+    batch_note_unreadable: "Not a puzzle",
+    batch_note_failed: "Rating failed ({0})",
+    batch_note_no_rating: "The engine returned no rating",
     ui_rating_pending: "rating...",
     ui_rating_stalled: "no response",
     pref_uniqueness: "Enable Uniqueness Techniques",
@@ -319,7 +345,7 @@ const TRANSLATIONS = {
     ui_enable_expt_mode_tooltip:
       "Enable Experimental Mode: Click candidates directly.",
     ui_msg_experimental_mode_tip:
-      "Tip: Experimental Mode lets you use candidates directly. Enable it in Preferences (⚙).",
+      "Tip: Turn on Direct Candidate Input and Quick Draw & Color in Preferences (⚙).",
     ui_vague_hint_tooltip_mobile:
       "View increasingly concrete hints for the next step.",
     ui_vague_hint_tooltip:
@@ -409,7 +435,7 @@ const TRANSLATIONS = {
     ui_library_board_copy_error: "Failed to copy to clipboard.",
     ui_switched_to_number_mode_action: " Switched to Number mode.",
     ui_switched_to_cell_color_mode_action: " Switched to Cell coloring mode.",
-    ui_expt_mode_disabled_action: " Experimental mode disabled.",
+    ui_expt_mode_disabled_action: " Lab features disabled.",
     ui_pencil_marks_visible_action: "Pencil marks are now visible.",
     ui_hidden_marks_expt_disabled_tip:
       "Experimental mode is disabled while marks are hidden. (Press Alt+A to make visible)",
@@ -438,12 +464,12 @@ const TRANSLATIONS = {
     ui_long_press_action: "Long press",
     ui_right_click_action: "Right-click",
     ui_expt_erase_cand_tip:
-      "Expt feature: {0} a candidate to erase it directly.",
-    ui_expt_draw_dash_tip: "Expt feature: {0} a candidate to draw a dash line.",
+      "Lab feature: {0} a candidate to erase it directly.",
+    ui_expt_draw_dash_tip: "Lab feature: {0} a candidate to draw a dash line.",
     ui_expt_apply_cell_color_tip:
-      "Expt feature: {0} a candidate to apply the previously selected cell color.",
+      "Lab feature: {0} a candidate to apply the previously selected cell color.",
     ui_expt_apply_cand_color_tip:
-      "Expt feature: {0} a candidate to apply the previously selected color.",
+      "Lab feature: {0} a candidate to apply the previously selected color.",
     ui_date_input_placeholder: "Enter a date",
     ui_unlimited_option: "Unlimited",
     ui_joc_option: "Just one cell",
@@ -1238,6 +1264,7 @@ const TRANSLATIONS = {
     modal_pref_title: "환경설정",
     pref_tab_general: "일반",
     pref_tab_techniques: "기법",
+    pref_tab_lab: "실험실",
     pref_theme: "테마 변경",
     pref_difficulty_engine: "난이도 측정 시스템",
     pref_display_mode: "표시 모드",
@@ -1246,10 +1273,35 @@ const TRANSLATIONS = {
     pref_highlight_mode: "강조 표시",
     pref_highlight_mode_cell: "칸 전체",
     pref_highlight_mode_candidate: "후보수만",
-    pref_experimental_mode: "실험실 모드",
-    pref_experimental_mode_tooltip_desktop: "좌/우클릭으로 후보수 설정/지우기",
+    pref_experimental_mode: "후보수 바로 입력",
+    pref_experimental_mode_tooltip_desktop:
+      "숫자 모드: 후보수를 클릭하면 값으로 넣고, 우클릭하면 지웁니다.",
     pref_experimental_mode_tooltip_mobile:
-      "좌/우클릭으로 후보수 설정/지우기, 후보수 직접 색칠.",
+      "숫자 모드: 후보수를 터치하면 값으로 넣고, 길게 누르면 지웁니다.",
+    pref_lab_drawing: "빠른 그리기·색칠",
+    pref_lab_drawing_tooltip_desktop:
+      "그리기 모드: 후보수를 우클릭하면 점선을 그립니다. 색상 모드: 우클릭하면 이전 색을 칠합니다.",
+    pref_lab_drawing_tooltip_mobile:
+      "그리기 모드: 후보수를 길게 누르면 점선을 그립니다. 색상 모드: 길게 누르면 이전 색을 칠하고, 후보수를 터치하면 팝업 없이 바로 칠합니다.",
+    batch_open: "일괄 난이도 측정",
+    batch_title: "일괄 난이도 측정",
+    batch_help:
+      "한 줄에 퍼즐 하나씩 넣으세요. 빈칸을 . 또는 0으로 쓴 81자나 퍼즐 파일의 한 줄을 읽습니다. 난이도는 skfr로 측정합니다.",
+    batch_placeholder: "퍼즐을 한 줄에 하나씩 붙여 넣으세요",
+    batch_file: "파일 열기",
+    batch_start: "시작",
+    batch_stop: "중지",
+    batch_download_txt: "TXT로 저장",
+    batch_download_csv: "CSV로 저장",
+    batch_progress: "{0} / {1} 완료",
+    batch_summary: "일반 {0} · 한 칸 스도쿠 {1} · 무효 {2} · 실패 {3}",
+    batch_stopped: "중지했습니다. 측정을 마치지 못한 줄은 결과에서 빠집니다.",
+    batch_empty: "측정할 퍼즐이 없습니다.",
+    batch_unavailable: "난이도 측정 엔진을 사용할 수 없습니다.",
+    batch_file_error: "파일을 읽지 못했습니다.",
+    batch_note_unreadable: "퍼즐로 읽을 수 없음",
+    batch_note_failed: "측정 실패 ({0})",
+    batch_note_no_rating: "엔진이 결과를 내지 않음",
     ui_rating_pending: "측정 중...",
     ui_rating_stalled: "응답 없음",
     pref_uniqueness: "유일성 논법 활성화",
@@ -1375,7 +1427,7 @@ const TRANSLATIONS = {
     ui_enable_expt_mode_tooltip:
       "실험실 모드 활성화: 후보수를 직접 클릭하세요.",
     ui_msg_experimental_mode_tip:
-      "팁: 실험실 모드에서는 후보수를 직접 조작할 수 있습니다. 환경설정(⚙)에서 켜세요.",
+      "팁: 환경설정(⚙)에서 후보수 바로 입력과 빠른 그리기·색칠을 켤 수 있습니다.",
     ui_vague_hint_tooltip_mobile:
       "다음 단계를 위한 점점 자세해지는 힌트를 확인합니다.",
     ui_vague_hint_tooltip:
@@ -1465,7 +1517,7 @@ const TRANSLATIONS = {
     ui_library_board_copy_error: "클립보드 복사에 실패했습니다.",
     ui_switched_to_number_mode_action: " 숫자 모드로 전환되었습니다.",
     ui_switched_to_cell_color_mode_action: " 칸 칠하기 모드로 전환되었습니다.",
-    ui_expt_mode_disabled_action: " 실험실 모드가 비활성화되었습니다.",
+    ui_expt_mode_disabled_action: " 실험실 기능이 꺼졌습니다.",
     ui_pencil_marks_visible_action: "이제 연필 표시가 보입니다.",
     ui_hidden_marks_expt_disabled_tip:
       "표시가 숨겨져 있는 동안에는 실험실 모드가 비활성화됩니다. (보이게 하려면 Alt+A를 누르세요)",
