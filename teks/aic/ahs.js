@@ -1527,6 +1527,22 @@
         }
       }
     };
+    // A false end makes the far end's partner false, so the leftover of that
+    // gate's AHS lies in the partner and every other AHS cell holds an AHS
+    // digit. A leftover-cell partner shown as its own candidates adds nothing.
+    const chainEndSideOf = (item, mate) => {
+      const ahs = gateAhs(item, mate);
+      if (!ahs || (!mate.isHls && mate.node.isNeg)) return item.side;
+      const used = cellBitsOf(mate.cells);
+      const nand = emptyNand();
+      orInto(nand, item.side.nand);
+      for (let i = 0; i < ahs.cellIds.length; i++) {
+        const id = ahs.cellIds[i];
+        if (used[CELL_PART[id]] & CELL_BIT[id]) continue;
+        orInto(nand, ahs.cellNodes[i].NandBitset);
+      }
+      return { nand, nandDigits: nandDigitsOf(nand) };
+    };
     const removalsForItems = (items, isRing) => {
       const out = [];
       if (isRing) {
@@ -1540,7 +1556,12 @@
         }
         ringExtraRemovals(items, out);
       } else {
-        intersectionRemovals(items[0].side, items[items.length - 1].side, out);
+        const a = items[0];
+        const b = items[items.length - 1];
+        const extA = chainEndSideOf(a, items[1]);
+        const extB = chainEndSideOf(b, items[items.length - 2]);
+        intersectionRemovals(a.side, extB, out);
+        if (extA !== a.side) intersectionRemovals(extA, b.side, out);
       }
       return canonicalRemovalPack(out);
     };
@@ -2230,7 +2251,17 @@
           if (!inst) continue;
           if (stringifiedFoundRemovals.has(inst.key)) continue;
           stringifiedFoundRemovals.add(inst.key);
-          stringifiedFoundRemovals.add(probeKey);
+          // The sides shown may prove less than the union did; later pairs
+          // on this probe are skipped only once a hint holds all of it.
+          if (
+            probe.every((el) =>
+              inst.removals.some(
+                (x) => x.r === el.r && x.c === el.c && x.num === el.num,
+              ),
+            )
+          ) {
+            stringifiedFoundRemovals.add(probeKey);
+          }
           const res = buildResult(
             inst.removals,
             techniqueName,
