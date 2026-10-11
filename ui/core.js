@@ -4943,12 +4943,31 @@ function autoPencil(skipConfirm = false) {
   }, 2000);
 }
 
+function hasIncorrectProgress() {
+  if (currentLampColor === "black") return true;
+  if (onlyOneCellTarget) {
+    return !getPuzzleValidation(initialPuzzleString).isProgressValid(
+      boardState.map((row) => row.map((cell) => cell.value)),
+      boardState.map((row) => row.map((cell) => cell.pencils)),
+    );
+  }
+  if (!solutionBoard) return false;
+  return boardState.some((row, r) =>
+    row.some((cell, c) =>
+      cell.value !== 0
+        ? cell.value !== solutionBoard[r][c]
+        : cell.pencils.size > 0 && !cell.pencils.has(solutionBoard[r][c]),
+    ),
+  );
+}
+
 function applyAutoSingles() {
   if (
     !isAutoSingleMode ||
     !hasUsedAutoPencil ||
     isSolverMode ||
-    TLG.isActive()
+    TLG.isActive() ||
+    hasIncorrectProgress()
   )
     return false;
   const board = boardState.map((row) => row.map((cell) => cell.value));
