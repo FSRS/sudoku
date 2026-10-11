@@ -204,7 +204,7 @@ const TRANSLATIONS = {
       "Draw mode: long-press a candidate to draw a dashed line. Color mode: long-press to apply the previous color, and tap candidates to color them without the popup.",
     pref_auto_single: "Auto Single",
     pref_auto_single_tooltip:
-      "Once Auto-Pencil has been used, applies the Lv.0 techniques (candidate elimination and singles) after every change until none remain.",
+      "Once Auto-Pencil has been used, applies the Lv.0 techniques after every change until none remain.",
     batch_open: "Batch Rating",
     batch_title: "Batch Rating",
     batch_help:
@@ -1288,7 +1288,7 @@ const TRANSLATIONS = {
       "그리기 모드: 후보수를 길게 누르면 점선을 그립니다. 색상 모드: 길게 누르면 이전 색을 칠하고, 후보수를 터치하면 팝업 없이 바로 칠합니다.",
     pref_auto_single: "싱글 자동 적용",
     pref_auto_single_tooltip:
-      "후보수 채우기를 쓴 뒤부터, 보드가 바뀔 때마다 Lv.0 기법(후보수 제거·가득찬 집·드러난 하나·숨은 하나)을 더 이상 없을 때까지 적용합니다.",
+      "후보수 채우기를 쓴 뒤부터, 보드가 바뀔 때마다 Lv.0 기법을 더 이상 없을 때까지 적용합니다.",
     batch_open: "일괄 난이도 측정",
     batch_title: "일괄 난이도 측정",
     batch_help:
