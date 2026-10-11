@@ -177,6 +177,7 @@ let copyTipTimer = null;
 let currentLampColor = "gray";
 let isExperimentalMode = false;
 let isLabDrawingMode = false;
+let isAutoSingleMode = false;
 
 function isMarkSubMode(subMode) {
   return subMode === "circle" || subMode === "slash";

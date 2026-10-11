@@ -2191,6 +2191,7 @@ function setupEventListeners() {
   loadHighlightModePreference();
   loadExperimentalModePreference();
   loadLabDrawingModePreference();
+  loadAutoSingleModePreference();
   loadSolverLogicPreferences();
 
   window.addEventListener("pagehide", flushScheduledPuzzleProgress);
@@ -2363,8 +2364,10 @@ function setupEventListeners() {
         if (cellState.pencils.has(i)) {
           if (!timerInterval) startTimer(currentElapsedTime);
           cellState.pencils.delete(i);
+          applyAutoSingles();
           saveState();
           onBoardUpdated();
+          checkCompletion();
         }
       } else if (isExperimentalMode && currentMode === "concrete") {
         if (cellState.isGiven) return;
@@ -2372,6 +2375,7 @@ function setupEventListeners() {
         cellState.value = i;
         cellState.pencils.clear();
         autoEliminatePencils(row, col, i);
+        applyAutoSingles();
         saveState();
         onBoardUpdated();
         checkCompletion();
@@ -2439,8 +2443,10 @@ function setupEventListeners() {
         if (cellState.pencils.has(i)) {
           if (!timerInterval) startTimer(currentElapsedTime);
           cellState.pencils.delete(i);
+          applyAutoSingles();
           saveState();
           onBoardUpdated();
+          checkCompletion();
         }
       } else if (isLabDrawingMode && currentMode === "draw") {
         const dashColor = lastUsedColors.draw.dash || lineColorPalette[0];
@@ -3423,6 +3429,7 @@ function handleKeyDown(e) {
     removeStored(localStorage, "sudokuSaves");
     removeStored(localStorage, "sudokuExperimentalMode");
     removeStored(localStorage, "sudokuLabDrawingMode");
+    removeStored(localStorage, "sudokuAutoSingle");
     clearUserBoard(); // Clears the current board state
     showMessage("All saved data cleared and board has been reset.", "green");
     isClearStoragePending = false; // Reset flag after completion
@@ -3613,6 +3620,7 @@ function handleKeyDown(e) {
       ) {
         cellState.value = 0;
         cellState.pencils.clear();
+        applyAutoSingles();
         saveState();
         onBoardUpdated();
       }
@@ -4199,6 +4207,7 @@ function handleNumberPadClick(e) {
     }
     if (changeMade) {
       if (!timerInterval) startTimer(currentElapsedTime);
+      applyAutoSingles();
       saveState();
       onBoardUpdated();
       checkCompletion();
@@ -4907,15 +4916,21 @@ function autoPencil(skipConfirm = false) {
       }
     }
   }
+  hasUsedAutoPencil = true;
+  const cascaded = applyAutoSingles();
   saveState();
-  if (shouldSkipEval) {
+  if (shouldSkipEval && !cascaded) {
     renderBoard();
   } else {
     onBoardUpdated();
   }
+  if (cascaded && isBoardIdenticalToSolution()) {
+    isAutoPencilPending = false;
+    checkCompletion();
+    return;
+  }
 
   showMessage(t("ui_auto_pencil_complete"), "green");
-  hasUsedAutoPencil = true;
   isAutoPencilPending = false;
 
   const isMobile = window.innerWidth <= 550;
@@ -4926,6 +4941,40 @@ function autoPencil(skipConfirm = false) {
   setTimeout(() => {
     showMessage(tip, "gray");
   }, 2000);
+}
+
+function applyAutoSingles() {
+  if (
+    !isAutoSingleMode ||
+    !hasUsedAutoPencil ||
+    isSolverMode ||
+    TLG.isActive()
+  )
+    return false;
+  const board = boardState.map((row) => row.map((cell) => cell.value));
+  const pencils = boardState.map((row) => row.map((cell) => cell.pencils));
+  const singles = getActiveTechniques().filter(
+    (tech) => tech.level === 0 && typeof tech.func === "function",
+  );
+  let changed = false;
+  for (let progress = true; progress; ) {
+    progress = false;
+    for (const tech of singles) {
+      const result = tech.func(board, pencils);
+      if (!result.change) continue;
+      if (result.type === "place") {
+        board[result.r][result.c] = result.num;
+        boardState[result.r][result.c].value = result.num;
+        pencils[result.r][result.c].clear();
+        autoEliminatePencils(result.r, result.c, result.num);
+      } else if (result.type === "remove") {
+        result.cells.forEach(({ r, c, num }) => pencils[r][c].delete(num));
+      }
+      changed = progress = true;
+      break;
+    }
+  }
+  return changed;
 }
 
 async function loadPuzzle(puzzleString, puzzleData = null) {
@@ -7917,6 +7966,26 @@ function loadLabDrawingModePreference() {
   );
 }
 
+function saveAutoSingleModePreference() {
+  if (
+    !writeStoredText(
+      localStorage,
+      "sudokuAutoSingle",
+      JSON.stringify(isAutoSingleMode),
+    )
+  ) {
+    notifyStorageWriteFailed();
+  }
+}
+
+function loadAutoSingleModePreference() {
+  isAutoSingleMode = readStoredBoolean(
+    localStorage,
+    "sudokuAutoSingle",
+    isAutoSingleMode,
+  );
+}
+
 function readTechniquePreferences() {
   return readJsonArray(localStorage, "sudokuTechniquePrefs");
 }
@@ -8773,6 +8842,8 @@ function openPreferencesModal() {
   // These rows may be missing from an older page; skip them then.
   const labDrawingToggle = document.getElementById("lab-drawing-toggle");
   if (labDrawingToggle) labDrawingToggle.checked = isLabDrawingMode;
+  const autoSingleToggle = document.getElementById("auto-single-toggle");
+  if (autoSingleToggle) autoSingleToggle.checked = isAutoSingleMode;
   const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
   if (ahsHlsToggle) {
     ahsHlsToggle.checked = useAhsHls;
@@ -9161,6 +9232,16 @@ document.addEventListener("DOMContentLoaded", () => {
         ? labDrawingToggle.checked && !arePencilsHidden
         : isExperimentalMode;
       saveLabDrawingModePreference();
+      const autoSingleToggle = document.getElementById("auto-single-toggle");
+      if (autoSingleToggle) {
+        const wasAutoSingleMode = isAutoSingleMode;
+        isAutoSingleMode = autoSingleToggle.checked;
+        saveAutoSingleModePreference();
+        if (!wasAutoSingleMode && applyAutoSingles()) {
+          saveState();
+          checkCompletion();
+        }
+      }
       const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
       if (ahsHlsToggle) useAhsHls = ahsHlsToggle.checked;
       const dof2FishToggle = document.getElementById("dof2-fish-toggle");
@@ -9242,6 +9323,10 @@ document.addEventListener("DOMContentLoaded", () => {
         isLabDrawingMode = false;
         saveExperimentalModePreference();
         saveLabDrawingModePreference();
+      }
+      if (resetsGroup("auto-single-toggle")) {
+        isAutoSingleMode = false;
+        saveAutoSingleModePreference();
       }
       if (resetsTechniques) {
         removeStored(localStorage, "sudokuTechniquePrefs");
@@ -9543,7 +9628,10 @@ function copyGridAsImage() {
 
   // 4. Draw Lines First (Behind Candidates)
 
-  drawnLines.forEach((line) => {
+  const tlgModel =
+    typeof TLG !== "undefined" && TLG.isActive() ? TLG.buildModel() : null;
+  const shownLines = tlgModel ? [] : drawnLines;
+  shownLines.forEach((line) => {
     // --- ADDED: Set transparency dynamically based on line style ---
     ctx.globalAlpha = line.style === "dash" ? 0.5 : 0.6;
 
@@ -9627,10 +9715,9 @@ function copyGridAsImage() {
 
   // Reset opacity back to 100% for text rendering
   ctx.globalAlpha = 1.0;
-  const tlgModel =
-    typeof TLG !== "undefined" && TLG.isActive() ? TLG.buildModel() : null;
   const tlgCoord = (m) => getCandCoords(m.r, m.c, m.n);
   if (tlgModel) TLGRenderer.renderCanvasSets(ctx, tlgModel, tlgCoord, size / 100);
+  /* @edition-slot image-001 */
   // 5. Draw Numbers and Candidates
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -9653,6 +9740,7 @@ function copyGridAsImage() {
           let candColor = cell.pencilColors.has(n)
             ? cell.pencilColors.get(n)
             : "#6b7280";
+          /* @edition-slot image-002 */
 
           if (Array.isArray(candColor)) {
             const textWidth = ctx.measureText(n).width;
@@ -9678,7 +9766,7 @@ function copyGridAsImage() {
 
           const circleColor = cell.candCircles.get(n);
           const slashColor = cell.candSlashes.get(n);
-          if (circleColor || slashColor) {
+          if (!tlgModel && (circleColor || slashColor)) {
             const markR = (cellSize / 3) * 0.42;
             ctx.lineWidth = 2.5;
             ctx.setLineDash([]);

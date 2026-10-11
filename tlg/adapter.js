@@ -59,6 +59,7 @@ function setup(input) {
   }
   /* @edition-slot adapter-004 */
   g.g_dispmode = 0;
+  /* @edition-slot adapter-011 */
   g.have_solution = opt.uniqueSolution === false ? 2 : 1;
   TLE.clear_prob_and_sets();
   TLE.p_set_prob();

@@ -49,6 +49,7 @@ const TLGRenderer = (() => {
   function clear() {
     const inner = document.getElementById("tlg-layer");
     if (inner) inner.innerHTML = "";
+    /* @edition-slot renderer-007 */
   }
 
   function center(cand) {
@@ -205,6 +206,7 @@ const TLGRenderer = (() => {
     if (!layer) return;
     layer.innerHTML = "";
     const defs = el("defs", {}, layer);
+    /* @edition-slot renderer-005 */
     const order = { cell: 0, box: 1, row: 2, col: 2 };
     const sets = [...model.sets].sort(
       (a, b) =>
@@ -276,6 +278,7 @@ const TLGRenderer = (() => {
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    /* @edition-slot renderer-006 */
     for (const set of sets) {
       const points = set.members.map((m) => ({ ...coord(m), r: m.r, c: m.c }));
       if (points.length === 0) continue;

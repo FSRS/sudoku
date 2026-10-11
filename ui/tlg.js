@@ -703,6 +703,7 @@ const TLG = (() => {
     return saturated;
   }
 
+  /* @edition-slot editor-031 */
   function buildModel() {
     const r = usableResult();
     const saturated = saturatedLinks(r);
@@ -819,6 +820,7 @@ const TLG = (() => {
     $("tlg-undo").disabled = edits.undo.length === 0;
     $("tlg-redo").disabled = edits.redo.length === 0;
     $("tlg-black-rank0").checked = blackRank0;
+    /* @edition-slot editor-032 */
 
     const truths = state.sets.filter((s) => s.role === "truth");
     const links = state.sets.filter((s) => s.role === "link");
@@ -884,6 +886,7 @@ const TLG = (() => {
         const li = document.createElement("li");
         li.className = `tlg-set-item tlg-${set.kind} tlg-${set.role}`;
         if (set.id === selectedSetId) li.classList.add("tlg-selected");
+        /* @edition-slot editor-033 */
         const label = document.createElement("button");
         label.type = "button";
         label.className = "tlg-set-label";
@@ -989,6 +992,7 @@ const TLG = (() => {
     const panel = $("tlg-panel");
     if (!panel) return;
     blackRank0 = readStoredBoolean(localStorage, BLACK_RANK0_KEY, false);
+    /* @edition-slot editor-034 */
     for (const r of ROLES) {
       $(`tlg-role-${r}`).addEventListener("click", () => {
         role = r;
