@@ -205,6 +205,9 @@ const TRANSLATIONS = {
     pref_auto_single: "Auto Single",
     pref_auto_single_tooltip:
       "Once Auto-Pencil has been used, applies the Lv.0 techniques after every change until none remain.",
+    pref_discord_grid: "Initial Grid in Discord Copy",
+    pref_discord_grid_tooltip:
+      "When you copy your result in Discord format, appends the initial grid drawn with emoji.",
     batch_open: "Batch Rating",
     batch_title: "Batch Rating",
     batch_help:
@@ -1289,6 +1292,9 @@ const TRANSLATIONS = {
     pref_auto_single: "싱글 자동 적용",
     pref_auto_single_tooltip:
       "후보수 채우기를 쓴 뒤부터, 보드가 바뀔 때마다 Lv.0 기법을 더 이상 없을 때까지 적용합니다.",
+    pref_discord_grid: "디스코드 복사에 초기 퍼즐 포함",
+    pref_discord_grid_tooltip:
+      "퍼즐을 완료한 뒤 디스코드 포맷으로 복사할 때 초기 퍼즐을 이모지로 덧붙입니다.",
     batch_open: "일괄 난이도 측정",
     batch_title: "일괄 난이도 측정",
     batch_help:

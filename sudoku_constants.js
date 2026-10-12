@@ -178,6 +178,7 @@ let currentLampColor = "gray";
 let isExperimentalMode = false;
 let isLabDrawingMode = false;
 let isAutoSingleMode = false;
+let includeDiscordGrid = false;
 
 function isMarkSubMode(subMode) {
   return subMode === "circle" || subMode === "slash";

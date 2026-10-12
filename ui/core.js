@@ -2192,6 +2192,7 @@ function setupEventListeners() {
   loadExperimentalModePreference();
   loadLabDrawingModePreference();
   loadAutoSingleModePreference();
+  loadDiscordGridPreference();
   loadSolverLogicPreferences();
 
   window.addEventListener("pagehide", flushScheduledPuzzleProgress);
@@ -3430,6 +3431,7 @@ function handleKeyDown(e) {
     removeStored(localStorage, "sudokuExperimentalMode");
     removeStored(localStorage, "sudokuLabDrawingMode");
     removeStored(localStorage, "sudokuAutoSingle");
+    removeStored(localStorage, "sudokuDiscordGrid");
     clearUserBoard(); // Clears the current board state
     showMessage("All saved data cleared and board has been reset.", "green");
     isClearStoragePending = false; // Reset flag after completion
@@ -7337,13 +7339,15 @@ function generateCompletionText(format = "discord") {
     const itemRank = colorHierarchy[item.color];
     if (itemRank < startingRank && lampTimestamps[item.color]) {
       let timeStr = formatTime(lampTimestamps[item.color]);
-      if (isDiscord) timeStr = timeStr.replace(/:/g, "\\:");
+      if (isDiscord && timeStr.split(":").length > 2)
+        timeStr = timeStr.replace(/:/g, "\\:");
       timeDetails += `\n${item.emoji} ${timeStr}`;
     }
   }
 
   let finalTimeStr = puzzleTimerEl.textContent;
-  if (isDiscord) finalTimeStr = finalTimeStr.replace(/:/g, "\\:");
+  if (isDiscord && finalTimeStr.split(":").length > 2)
+    finalTimeStr = finalTimeStr.replace(/:/g, "\\:");
 
   const checkEmoji = isDiscord ? ":ballot_box_with_check:" : "☑️";
   timeDetails += `\n${checkEmoji} ${finalTimeStr}`;
@@ -7355,6 +7359,7 @@ function generateCompletionText(format = "discord") {
     header += `\nhttps://fsrs.darksabun.club/sudoku.html`;
     return header.trim();
   }
+  if (!includeDiscordGrid) return header.trim();
 
   const digitMap = {
     1: ":one:",
@@ -8002,6 +8007,26 @@ function loadAutoSingleModePreference() {
     localStorage,
     "sudokuAutoSingle",
     isAutoSingleMode,
+  );
+}
+
+function saveDiscordGridPreference() {
+  if (
+    !writeStoredText(
+      localStorage,
+      "sudokuDiscordGrid",
+      JSON.stringify(includeDiscordGrid),
+    )
+  ) {
+    notifyStorageWriteFailed();
+  }
+}
+
+function loadDiscordGridPreference() {
+  includeDiscordGrid = readStoredBoolean(
+    localStorage,
+    "sudokuDiscordGrid",
+    includeDiscordGrid,
   );
 }
 
@@ -8863,6 +8888,8 @@ function openPreferencesModal() {
   if (labDrawingToggle) labDrawingToggle.checked = isLabDrawingMode;
   const autoSingleToggle = document.getElementById("auto-single-toggle");
   if (autoSingleToggle) autoSingleToggle.checked = isAutoSingleMode;
+  const discordGridToggle = document.getElementById("discord-grid-toggle");
+  if (discordGridToggle) discordGridToggle.checked = includeDiscordGrid;
   const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
   if (ahsHlsToggle) {
     ahsHlsToggle.checked = useAhsHls;
@@ -9261,6 +9288,11 @@ document.addEventListener("DOMContentLoaded", () => {
           checkCompletion();
         }
       }
+      const discordGridToggle = document.getElementById("discord-grid-toggle");
+      if (discordGridToggle) {
+        includeDiscordGrid = discordGridToggle.checked;
+        saveDiscordGridPreference();
+      }
       const ahsHlsToggle = document.getElementById("ahs-hls-toggle");
       if (ahsHlsToggle) useAhsHls = ahsHlsToggle.checked;
       const dof2FishToggle = document.getElementById("dof2-fish-toggle");
@@ -9346,6 +9378,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (resetsGroup("auto-single-toggle")) {
         isAutoSingleMode = false;
         saveAutoSingleModePreference();
+      }
+      if (resetsGroup("discord-grid-toggle")) {
+        includeDiscordGrid = false;
+        saveDiscordGridPreference();
       }
       if (resetsTechniques) {
         removeStored(localStorage, "sudokuTechniquePrefs");
