@@ -578,7 +578,6 @@ Object.assign(techniques, {
     signature: null,
     AllNodes: [],
     NodeCache: new Map(),
-    BasicNodeByCandidate: null,
     BivalueOrMap: new Map(),
     BilocationOrMap: new Map(),
     GroupedOrMap: new Map(),
@@ -588,10 +587,9 @@ Object.assign(techniques, {
     GroupedLinkRegistry: new Map(),
     AlsLinkRegistry: new Map(),
     FishLinkRegistry: new Map(),
-    DeathBlossomOrMap: null,
-    NandSubsetMemo: null,
     BlossomSearchCache: null,
     AlmostAicGraph: null,
+    DeathBlossomGraph: null,
   },
 
   _getTemplating: (board, pencils, num) => {
@@ -744,7 +742,6 @@ Object.assign(techniques, {
 
       AllNodes: [],
       NodeCache: new Map(),
-      BasicNodeByCandidate: null,
       BivalueOrMap: new Map(),
       BilocationOrMap: new Map(),
       GroupedOrMap: new Map(),
@@ -754,10 +751,9 @@ Object.assign(techniques, {
       GroupedLinkRegistry: new Map(),
       AlsLinkRegistry: new Map(),
       FishLinkRegistry: new Map(),
-      DeathBlossomOrMap: null,
-      NandSubsetMemo: null,
       BlossomSearchCache: null,
       AlmostAicGraph: null,
+      DeathBlossomGraph: null,
     };
   },
 

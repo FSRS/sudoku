@@ -82,7 +82,10 @@ Object.assign(techniques, {
         });
       const groupedPairs = links
         .filter(({ kind }) => kind === "grouped")
-        .map(({ endpoints }) => endpoints.map(formatCellIds).join(","));
+        .map(
+          ({ digit, endpoints }) =>
+            `(${digit})${endpoints.map(formatCellIds).join(",")}`,
+        );
       return [
         bivalueCells.length
           ? t("teks_UR_type_7_bivalue_cells", bivalueCells.join(","))

@@ -53,6 +53,7 @@ Object.assign(techniques, {
             : t("teks_b", unit - 17);
 
       for (let unit = 0; unit < 27; unit++) {
+        const houseName = unitLabel(unit);
         const eligibleCells = [];
         for (let id = 0; id < 81; id++) {
           const part = Math.floor(id / 27);
@@ -85,45 +86,25 @@ Object.assign(techniques, {
           for (let digit = 1; digit <= 9; digit++) {
             if (mask & (1 << digit)) digits.push(digit);
           }
+          const aals = { unit, cells: [...cells], houseName, cellsByDigit };
           for (let first = 0; first < digits.length - 2; first++) {
             for (let second = first + 1; second < digits.length - 1; second++) {
               for (let third = second + 1; third < digits.length; third++) {
-                const startDigits = [
-                  digits[first],
-                  digits[second],
-                  digits[third],
-                ];
                 const size =
-                  cellsByDigit[startDigits[0]].length +
-                  cellsByDigit[startDigits[1]].length +
-                  cellsByDigit[startDigits[2]].length;
+                  cellsByDigit[digits[first]].length +
+                  cellsByDigit[digits[second]].length +
+                  cellsByDigit[digits[third]].length;
                 if (size < 3 || size > maxAalsCandidates) continue;
 
                 // Thousands of AALS stems exist per position and the callers
                 // stop at the first hit, so the stem object is built only when
                 // the iteration reaches it.
-                const stemCells = [...cells];
                 stems.push({
                   size,
-                  materialize: () => {
-                    const startCandidates = startDigits.flatMap((digit) =>
-                      cellsByDigit[digit].map((id) => ({ id, digit })),
-                    );
-                    return {
-                      size,
-                      kind: "aals",
-                      unit,
-                      cells: stemCells,
-                      houseName: unitLabel(unit),
-                      startDigits,
-                      startCandidates,
-                      startCandidateKeys: new Set(
-                        startCandidates.map(
-                          ({ id, digit }) => `${id}:${digit}`,
-                        ),
-                      ),
-                    };
-                  },
+                  aals,
+                  first: digits[first],
+                  second: digits[second],
+                  third: digits[third],
                 });
               }
             }
@@ -167,7 +148,17 @@ Object.assign(techniques, {
     stems.sort((left, right) => left.size - right.size);
     if (kind !== "aals") return stems;
     return (function* () {
-      for (const stem of stems) yield stem.materialize();
+      for (const { size, aals, first, second, third } of stems) {
+        yield {
+          size,
+          kind: "aals",
+          unit: aals.unit,
+          cells: aals.cells,
+          houseName: aals.houseName,
+          startDigits: [first, second, third],
+          cellsByDigit: aals.cellsByDigit,
+        };
+      }
     })();
   },
 });

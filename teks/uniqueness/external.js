@@ -57,8 +57,6 @@ Object.assign(techniques, {
       `${type === "row" ? "r" : type === "col" ? "c" : "b"}${index + 1}`;
 
     const makeVisualPlan = (body, d1, d2, guardians, removals, extra = {}) => {
-      // Rectangle body (+ Type 3 subset) comes from the shared deadly-pattern
-      // builder; only the external guardians, AHS and wings are UET-specific.
       const plan = techniques._buildDeadlyPatternBaseVisualPlan(
         extra.subsetCells ? 3 : 2,
         body,
@@ -70,6 +68,11 @@ Object.assign(techniques, {
         },
         pencils,
         removals,
+      );
+      const bodyKeys = new Set(body.map(([r, c]) => cellKey(r, c)));
+      plan.candidateColors = plan.candidateColors.filter(
+        ({ r, c, num }) =>
+          num === d1 || num === d2 || !bodyKeys.has(cellKey(r, c)),
       );
       const paint = (
         cells,
