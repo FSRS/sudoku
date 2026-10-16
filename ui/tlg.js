@@ -646,6 +646,7 @@ const TLG = (() => {
     }
     if (!timerInterval) startTimer(currentElapsedTime);
     showMessage(t("tlg_applied", r.kills.length, r.lives.length), "green");
+    applyAutoSingles();
     saveState();
     onBoardUpdated();
     checkCompletion();

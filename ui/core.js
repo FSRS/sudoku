@@ -4968,7 +4968,6 @@ function applyAutoSingles() {
     !isAutoSingleMode ||
     !hasUsedAutoPencil ||
     isSolverMode ||
-    TLG.isActive() ||
     hasIncorrectProgress()
   )
     return false;
