@@ -34,6 +34,7 @@ Object.assign(techniques, {
             size: cells.length,
             digit,
             cells,
+            unit,
             houseName:
               unit < 9
                 ? t("teks_r", unit + 1)

@@ -791,13 +791,15 @@ Object.assign(techniques, {
             return `(${leftDigits}=${rightDigits})${getLoc([stem.cellId])}`;
           }
 
+          const inBox = stem.unit >= 18;
           if (isRegion) {
             return `(${stem.digit})${getLoc(
               left.flatMap((node) => node.cells),
-            )}=${getLoc(right.flatMap((node) => node.cells))}`;
+              inBox,
+            )}=${getLoc(right.flatMap((node) => node.cells), inBox)}`;
           }
 
-          const alsLoc = getLoc(stem.cells, stem.unit >= 18);
+          const alsLoc = getLoc(stem.cells, inBox);
           if (stemDigitsUnique) {
             const leftDigits = left
               .map((node) => node.digits[0])
@@ -812,7 +814,7 @@ Object.assign(techniques, {
 
           const describe = (list) =>
             list
-              .map((node) => `${node.digits[0]}${getLoc(node.cells)}`)
+              .map((node) => `${node.digits[0]}${getLoc(node.cells, inBox)}`)
               .join(",");
           return `(${describe(left)}=${describe(right)})${alsLoc}`;
         };

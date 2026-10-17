@@ -783,7 +783,11 @@ Object.assign(techniques, {
         return buildBlossomEureka(path, gate, rootDigit);
       }
       const otherCells = peers.flatMap((node) => node.cells);
-      const gate = `(${rootDigit})${getLoc(otherCells)}=${getLoc(root.cells)}`;
+      const inBox = burr.unit >= 18;
+      const gate = `(${rootDigit})${getLoc(otherCells, inBox)}=${getLoc(
+        root.cells,
+        inBox,
+      )}`;
       return buildBlossomEureka(path, gate, rootDigit);
     };
 
@@ -806,9 +810,11 @@ Object.assign(techniques, {
       }
 
       const digit = mainRoots[0].digits[0];
-      return `(${digit})${getLoc(mainRoots.flatMap((node) => node.cells))}=${getLoc(
-        branchRoots.flatMap((node) => node.cells),
-      )}`;
+      const inBox = burr.unit >= 18;
+      return `(${digit})${getLoc(
+        mainRoots.flatMap((node) => node.cells),
+        inBox,
+      )}=${getLoc(branchRoots.flatMap((node) => node.cells), inBox)}`;
     };
 
     const getUsedAlses = (paths) => {
@@ -1094,7 +1100,7 @@ Object.assign(techniques, {
           burr.kind === "cell"
             ? `(${burr.digits.join("")})${getLoc(burr.cells)}`
             : burr.kind === "region"
-              ? `(${burr.digits[0]})${getLoc(burr.cells)}`
+              ? `(${burr.digits[0]})${getLoc(burr.cells, burr.unit >= 18)}`
               : `AALS(${burr.allDigits.join("")})${getLoc(
                   burr.cells,
                   burr.unit >= 18,
