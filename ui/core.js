@@ -4968,6 +4968,7 @@ function applyAutoSingles() {
     !isAutoSingleMode ||
     !hasUsedAutoPencil ||
     isSolverMode ||
+    TLG.isActive() ||
     hasIncorrectProgress()
   )
     return false;
@@ -9771,7 +9772,11 @@ function copyGridAsImage() {
   ctx.globalAlpha = 1.0;
   const tlgCoord = (m) => getCandCoords(m.r, m.c, m.n);
   if (tlgModel) TLGRenderer.renderCanvasSets(ctx, tlgModel, tlgCoord, size / 100);
-  /* @edition-slot image-001 */
+  const tlgCandColors = new Map();
+  for (const m of (tlgModel && tlgModel.alsCands) || []) {
+    const colors = m.exportColors;
+    tlgCandColors.set(m.r * 81 + m.c * 9 + m.n, colors.length === 1 ? colors[0] : colors);
+  }
   // 5. Draw Numbers and Candidates
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -9794,7 +9799,9 @@ function copyGridAsImage() {
           let candColor = cell.pencilColors.has(n)
             ? cell.pencilColors.get(n)
             : "#6b7280";
-          /* @edition-slot image-002 */
+          if (tlgCandColors.has(r * 81 + c * 9 + n)) {
+            candColor = tlgCandColors.get(r * 81 + c * 9 + n);
+          }
 
           if (Array.isArray(candColor)) {
             const textWidth = ctx.measureText(n).width;
