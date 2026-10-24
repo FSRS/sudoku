@@ -797,6 +797,9 @@ html.dark .offline-cache-dot {
   --tlg-kill: #f97316;
   --tlg-cannibal: #dc2626;
   --tlg-live: #16a34a;
+  --tlg-aur: #db2777;
+  --tlg-vset: #0d9488;
+  --tlg-perm: #2563eb;
   /* @edition-slot style-001 */
   --tlg-pending: var(--nc-accent-color);
   --tlg-panel-bg: #ffffff;
@@ -813,6 +816,9 @@ html.dark {
   --tlg-kill: #fb923c;
   --tlg-cannibal: #f87171;
   --tlg-live: #4ade80;
+  --tlg-aur: #f472b6;
+  --tlg-vset: #5eead4;
+  --tlg-perm: #93c5fd;
   /* @edition-slot style-002 */
   --tlg-panel-bg: #1f2937;
   --tlg-panel-border: #4b5563;
@@ -893,6 +899,15 @@ html.dark {
   stroke-opacity: 0.45;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+#tlg-layer .tlg-mark {
+  stroke: none;
+}
+#tlg-layer .tlg-aur-mark {
+  fill: var(--tlg-aur);
+}
+#tlg-layer .tlg-vset-mark {
+  fill: var(--tlg-vset);
 }
 /* @edition-slot style-003 */
 #tlg-layer .tlg-badge {
@@ -977,14 +992,30 @@ html.dark {
   opacity: 0.45;
   cursor: not-allowed;
 }
-/* @edition-slot style-004 */
+#tlg-layer .tlg-perm {
+  fill: var(--tlg-perm);
+  fill-opacity: 0.3;
+  stroke: var(--tlg-perm);
+  stroke-width: 0.35;
+}
 .tlg-summary-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
 }
-/* @edition-slot style-005 */
+.tlg-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.tlg-step {
+  min-height: 1.5rem;
+  padding: 0 0.4rem;
+}
+.tlg-stepper.hidden {
+  display: none;
+}
 .tlg-section.hidden,
 .tlg-btn.hidden {
   display: none;
@@ -1017,6 +1048,9 @@ html.dark {
   font-weight: 600;
 }
 /* @edition-slot style-007 */
+.tlg-reason {
+  color: #d97706;
+}
 .tlg-results {
   display: grid;
   grid-template-columns: 1fr 1fr;

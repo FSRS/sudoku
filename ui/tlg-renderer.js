@@ -49,7 +49,7 @@ const TLGRenderer = (() => {
   function clear() {
     const inner = document.getElementById("tlg-layer");
     if (inner) inner.innerHTML = "";
-    /* @edition-slot renderer-007 */
+    styleAlsCands([]);
   }
 
   function center(cand) {
@@ -175,7 +175,90 @@ const TLGRenderer = (() => {
     el("path", attrs, layer);
   }
 
-  /* @edition-slot renderer-001 */
+  function drawAls(layer, model) {
+    const size = 100 / 9;
+    for (const m of model.alsCells || []) {
+      const width = size / m.colors.length;
+      m.colors.forEach((color, i) => {
+        el(
+          "rect",
+          {
+            x: m.c * size + i * width,
+            y: m.r * size,
+            width,
+            height: size,
+            fill: color,
+            "fill-opacity": 0.5,
+            class: "tlg-als",
+          },
+          layer,
+        );
+      });
+    }
+  }
+
+  // AHS digits take the hint's candidate colour through a stylesheet, so the
+  // board's own candidate colours stay untouched and return when it is removed.
+  function styleAlsCands(cands) {
+    let style = document.getElementById("tlg-als-style");
+    if (!cands.length) {
+      if (style) style.remove();
+      return;
+    }
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "tlg-als-style";
+      document.head.appendChild(style);
+    }
+    style.textContent = cands
+      .map((m) => {
+        const mark = `.tlg-active .sudoku-cell[data-row="${m.r}"][data-col="${m.c}"] .pencil-mark[data-num="${m.n}"]`;
+        if (m.colors.length === 1) {
+          return `${mark} { color: ${m.colors[0]} !important; -webkit-text-fill-color: ${m.colors[0]} !important; }`;
+        }
+        const gradient = getGradientBackground(m.colors, "to bottom");
+        return `${mark} { background: ${gradient} !important; -webkit-background-clip: text !important; background-clip: text !important; -webkit-text-fill-color: transparent !important; color: transparent !important; }`;
+      })
+      .join("\n");
+  }
+
+  function drawMarks(layer, model) {
+    for (const m of model.aurMarks) {
+      const { x, y } = center(m);
+      const cx = x + 1.3;
+      const cy = y - 1.3;
+      el(
+        "path",
+        {
+          d: `M ${cx} ${cy - 0.7} L ${cx + 0.7} ${cy} L ${cx} ${cy + 0.7} L ${cx - 0.7} ${cy} Z`,
+          class: "tlg-mark tlg-aur-mark",
+        },
+        layer,
+      );
+    }
+    for (const m of model.vset) {
+      const { x, y } = center(m);
+      el(
+        "rect",
+        {
+          x: x + 0.8,
+          y: y + 0.8,
+          width: 1,
+          height: 1,
+          class: "tlg-mark tlg-vset-mark",
+        },
+        layer,
+      );
+    }
+    /* @edition-slot renderer-008 */
+  }
+
+  function drawPerm(layer, model) {
+    for (const p of model.perm || []) {
+      const { x, y } = center(p);
+      el("circle", { cx: x, cy: y, r: 1.7, class: "tlg-mark tlg-perm" }, layer);
+    }
+  }
   function drawBadges(layer, model) {
     const { cols } = getBoardGeometry();
     for (const k of model.kills) {
@@ -206,14 +289,16 @@ const TLGRenderer = (() => {
     if (!layer) return;
     layer.innerHTML = "";
     const defs = el("defs", {}, layer);
-    /* @edition-slot renderer-005 */
+    drawAls(layer, model);
+    styleAlsCands(model.alsCands || []);
     const order = { cell: 0, box: 1, row: 2, col: 2 };
     const sets = [...model.sets].sort(
       (a, b) =>
         (a.role === "link") - (b.role === "link") || order[a.kind] - order[b.kind],
     );
     for (const set of sets) drawSet(layer, defs, set);
-    /* @edition-slot renderer-002 */
+    drawMarks(layer, model);
+    drawPerm(layer, model);
     drawBadges(layer, model);
   }
 
@@ -228,6 +313,8 @@ const TLGRenderer = (() => {
     kill: "#f97316",
     cannibal: "#dc2626",
     live: "#16a34a",
+    aur: "#db2777",
+    vset: "#0d9488",
     /* @edition-slot renderer-003 */
   };
 
@@ -278,7 +365,15 @@ const TLGRenderer = (() => {
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    /* @edition-slot renderer-006 */
+    const cell = (unit * 100) / 9;
+    ctx.globalAlpha = 0.4;
+    for (const m of model.alsCells || []) {
+      const width = cell / m.exportColors.length;
+      m.exportColors.forEach((color, i) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(m.c * cell + i * width, m.r * cell, width, cell);
+      });
+    }
     for (const set of sets) {
       const points = set.members.map((m) => ({ ...coord(m), r: m.r, c: m.c }));
       if (points.length === 0) continue;
@@ -343,6 +438,25 @@ const TLGRenderer = (() => {
   function renderCanvasBadges(ctx, model, coord, unit) {
     ctx.save();
     ctx.lineCap = "round";
+    for (const m of model.aurMarks) {
+      const { x, y } = coord(m);
+      const cx = x + 1.3 * unit;
+      const cy = y - 1.3 * unit;
+      const s = 0.7 * unit;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s);
+      ctx.lineTo(cx + s, cy);
+      ctx.lineTo(cx, cy + s);
+      ctx.lineTo(cx - s, cy);
+      ctx.closePath();
+      ctx.fillStyle = EXPORT_COLORS.aur;
+      ctx.fill();
+    }
+    for (const m of model.vset) {
+      const { x, y } = coord(m);
+      ctx.fillStyle = EXPORT_COLORS.vset;
+      ctx.fillRect(x + 0.8 * unit, y + 0.8 * unit, unit, unit);
+    }
     /* @edition-slot renderer-004 */
     for (const k of model.kills) {
       const { x, y } = coord(k);

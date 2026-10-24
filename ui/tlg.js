@@ -2,8 +2,10 @@
 const TLG = (() => {
   const DEBOUNCE_MS = 150;
   const BLACK_RANK0_KEY = "sudokuTlgBlackRank0";
-  const ROLES = ["truth", "link"];
+  const ROLES = ["truth", "link", "aur", "vset"];
   const KIND_LETTER = { row: "r", col: "c", box: "b" };
+  const PERM_LIMIT = 1000;
+  const HIGHLIGHT_ALS_KEY = "sudokuTlgHighlightAls";
   /* @edition-slot editor-001 */
   // Touch-only devices have no right-click, so they get the set-menu toggle.
   const touchOnly = () =>
@@ -13,6 +15,8 @@ const TLG = (() => {
     '<div class="tlg-row">',
     '<button type="button" id="tlg-role-truth" class="tlg-btn tlg-role" aria-pressed="true" data-i18n="tlg_role_truth">Truth</button>',
     '<button type="button" id="tlg-role-link" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_link">Link</button>',
+    '<button type="button" id="tlg-role-aur" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_aur">AUR</button>',
+    '<button type="button" id="tlg-role-vset" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_vset">Virtual Set</button>',
     /* @edition-slot editor-002 */
     "</div>",
     '<div class="tlg-row">',
@@ -33,7 +37,11 @@ const TLG = (() => {
     "</div>",
     '<div class="tlg-summary-row">',
     '<span id="tlg-summary" class="tlg-summary"></span>',
-    /* @edition-slot editor-003 */
+    '<span id="tlg-perm-stepper" class="tlg-stepper hidden">',
+    '<button type="button" id="tlg-perm-prev" class="tlg-btn tlg-step" aria-label="previous permutation">\u25c0</button>',
+    '<span id="tlg-perm-label" class="tlg-summary"></span>',
+    '<button type="button" id="tlg-perm-next" class="tlg-btn tlg-step" aria-label="next permutation">\u25b6</button>',
+    "</span>",
     "</div>",
     '<div id="tlg-status" class="tlg-status"></div>',
     '<div class="tlg-results">',
@@ -41,7 +49,26 @@ const TLG = (() => {
     '<div><div class="tlg-heading" data-i18n="tlg_lives_title">Placements</div><ul id="tlg-lives" class="tlg-list"></ul></div>',
     "</div>",
     '<button type="button" id="tlg-apply" class="tlg-btn tlg-primary" data-i18n="tlg_apply">Apply result</button>',
+    '<div class="tlg-section hidden" id="tlg-aur-section">',
+    '<span class="tlg-heading" data-i18n="tlg_aur_title">AUR</span>',
+    '<span id="tlg-aur-info"></span>',
+    '<label class="tlg-check"><input type="checkbox" id="tlg-aur-apply" /><span data-i18n="tlg_aur_apply">Apply AURs</span></label>',
+    '<button type="button" id="tlg-aur-clear" class="tlg-btn" data-i18n="tlg_aur_clear">Clear corners</button>',
+    '<span id="tlg-aur-reason" class="tlg-reason"></span>',
+    "</div>",
+    '<div class="tlg-section hidden" id="tlg-vset-section">',
+    '<span class="tlg-heading" data-i18n="tlg_vset_title">Virtual Set</span>',
+    '<span id="tlg-vset-info"></span>',
+    '<label class="tlg-check"><input type="checkbox" id="tlg-vset-apply" /><span data-i18n="tlg_vset_apply">Apply to logic</span></label>',
+    '<label class="tlg-check"><span data-i18n="tlg_vset_count_label">No. of Truths</span>',
+    '<select id="tlg-vset-count" class="tlg-select"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>',
+    "</label>",
+    '<button type="button" id="tlg-vset-clear" class="tlg-btn" data-i18n="tlg_vset_clear">Clear set</button>',
+    "</div>",
     /* @edition-slot editor-004 */
+    '<div class="tlg-section">',
+    '<label class="tlg-check"><input type="checkbox" id="tlg-als-highlight" /><span data-i18n="tlg_als_highlight">Highlight ALS and AHS</span></label>',
+    "</div>",
     '<div class="tlg-section">',
     '<label class="tlg-check"><input type="checkbox" id="tlg-black-rank0" /><span data-i18n="tlg_black_rank0">Black Rank 0 Links</span></label>',
     "</div>",
@@ -53,11 +80,17 @@ const TLG = (() => {
   ].join("");
 
   function emptyState() {
-    return {
+    const st = {
       sets: [],
       nextId: 1,
-      /* @edition-slot editor-005 */
+      aurMarks: [],
+      vset: [],
+      vapply: false,
+      vcount: 1,
+      options: { applyAur: false },
     };
+    /* @edition-slot editor-005 */
+    return st;
   }
 
   let state = emptyState();
@@ -82,7 +115,8 @@ const TLG = (() => {
   let result = null;
   let status = "idle";
   let errorText = "";
-  /* @edition-slot editor-006 */
+  let permIndex = -1;
+  let highlightAls = false;
   let removeRequestId = 0;
   let removeSnapshot = "";
 
@@ -96,7 +130,10 @@ const TLG = (() => {
   const boxOf = (r, c) => Math.floor(r / 3) * 3 + Math.floor(c / 3);
   const rc = (cand) => `r${cand.r + 1}c${cand.c + 1}`;
   const sameCand = (a, b) => a.r === b.r && a.c === b.c && a.n === b.n;
-  /* @edition-slot editor-007 */
+  const candExists = (cand) => {
+    const cell = boardState[cand.r][cand.c];
+    return cell.value === 0 && cell.pencils.has(cand.n);
+  };
 
   function isActive() {
     return isSolverMode ? solverOn : currentMode === "tlg";
@@ -222,7 +259,7 @@ const TLG = (() => {
   // links that touch no truth candidate go.
   function cleanSets() {
     const truthCands = new Set();
-    /* @edition-slot editor-008 */
+    for (const key of state.vset) truthCands.add(key);
     for (const s of state.sets) {
       if (s.role === "truth") for (const m of membersOf(s)) truthCands.add(candKey(m));
     }
@@ -279,8 +316,24 @@ const TLG = (() => {
 
   // --- Candidate input ----------------------------------------------------
 
-  /* @edition-slot editor-009 */
+  function toggleIn(list, cand) {
+    const key = candKey(cand);
+    const index = list.indexOf(key);
+    if (index >= 0) list.splice(index, 1);
+    else list.push(key);
+  }
+
   function handleCandidate(cand) {
+    if (role === "aur") {
+      toggleIn(state.aurMarks, cand);
+      commit();
+      return;
+    }
+    if (role === "vset") {
+      toggleIn(state.vset, cand);
+      commit();
+      return;
+    }
     /* @edition-slot editor-010 */
     if (!pending) {
       pending = cand;
@@ -453,7 +506,7 @@ const TLG = (() => {
   // --- Evaluation (worker) ------------------------------------------------
 
   function hasLogic() {
-    /* @edition-slot editor-011 */
+    if (state.vapply && state.vset.length > 0) return true;
     return state.sets.length > 0;
   }
 
@@ -529,7 +582,7 @@ const TLG = (() => {
 
   function invalidate() {
     pendingRequestId = 0;
-    /* @edition-slot editor-012 */
+    permIndex = -1;
     result = null;
     status = hasLogic() ? "pending" : "idle";
   }
@@ -604,12 +657,18 @@ const TLG = (() => {
       candidates,
       truths: drawnSets("truth").map(setDescriptor),
       links: drawnSets("link").map(setDescriptor),
+      aurMarks: [...state.aurMarks],
+      vset: [...state.vset],
+      vapply: state.vapply,
+      vcount: state.vcount,
       /* @edition-slot editor-013 */
       options: {
+        applyAur: state.options.applyAur && unique,
+        highlightAls,
         /* @edition-slot editor-014 */
         uniqueSolution: unique,
       },
-      /* @edition-slot editor-015 */
+      wantPerms: PERM_LIMIT,
     };
   }
 
@@ -704,13 +763,57 @@ const TLG = (() => {
     return saturated;
   }
 
-  /* @edition-slot editor-031 */
+  // The reference's LogicView > Highlight ALS and AHS: the classifier numbers
+  // the ALS/AHS of its best ALS cover from 1. The colours follow the solver
+  // hints: one palette slot per ALS/AHS in that order, an ALS fills its cells,
+  // an AHS colours its digits, and overlaps are striped.
+  const ALS_COLOR_CODES = [6, 7, 2, 3, 4, 1, 8];
+  const alsSlot = (index) => ALS_COLOR_CODES[(index - 1) % ALS_COLOR_CODES.length];
+  function alsOfSet(r, set) {
+    const index = r && r.als ? r.als.sets[setOrder(set)] : 0;
+    return index ? cellColorPalette[alsSlot(index)] : null;
+  }
+  function setFromNumber(s) {
+    if (s >= SET_BASE.cell && s < SET_BASE.box) {
+      return { kind: "cell", cell: s - SET_BASE.cell };
+    }
+    const kind = s < SET_BASE.col ? "row" : s < SET_BASE.cell ? "col" : "box";
+    const offset = s - SET_BASE[kind];
+    return { kind, index: Math.floor(offset / 9), digit: (offset % 9) + 1 };
+  }
+  function alsVisuals(r) {
+    const cells = new Map();
+    const cands = new Map();
+    const add = (map, key, item, color, exportColor) => {
+      const entry = map.get(key) || { ...item, colors: [], exportColors: [] };
+      entry.colors.push(color);
+      entry.exportColors.push(exportColor);
+      map.set(key, entry);
+    };
+    const colored = r && r.als
+      ? r.als.sets.map((index, s) => [index, s]).filter(([index]) => index > 0)
+      : [];
+    colored.sort((a, b) => a[0] - b[0]);
+    for (const [index, s] of colored) {
+      const slot = alsSlot(index);
+      const set = setFromNumber(s);
+      if (set.kind === "cell") {
+        const cell = { r: Math.floor(set.cell / 9), c: set.cell % 9 };
+        add(cells, set.cell, cell, cellColorPalette[slot], colorPalette300[slot]);
+        continue;
+      }
+      for (const m of membersOf(set)) {
+        add(cands, candKey(m), m, candidateColorPalette[slot], colorPalette600[slot]);
+      }
+    }
+    return { alsCells: [...cells.values()], alsCands: [...cands.values()] };
+  }
   function buildModel() {
     const r = usableResult();
     const saturated = saturatedLinks(r);
     // A link is drawn only through its Truth candidates and eliminations.
     const shown = new Set();
-    /* @edition-slot editor-030 */
+    for (const key of state.vset) shown.add(key);
     for (const s of state.sets) {
       if (s.role === "truth") for (const m of membersOf(s)) shown.add(candKey(m));
     }
@@ -727,10 +830,16 @@ const TLG = (() => {
         saturated: blackRank0 && saturated.has(set.id),
         selected: set.id === selectedSetId,
       })),
+      aurMarks: state.aurMarks.map(candOf).filter(candExists),
+      vset: state.vset.map(candOf).filter(candExists),
+      ...alsVisuals(r),
       /* @edition-slot editor-017 */
       kills: r ? r.kills.map((k) => ({ ...candOf(k.cand), kind: k.kind })) : [],
       lives: r ? r.lives.map(candOf) : [],
-      /* @edition-slot editor-018 */
+      perm:
+        r && r.perms && r.perms[permIndex]
+          ? r.perms[permIndex].map(candOf)
+          : [],
       pending,
     };
   }
@@ -821,7 +930,7 @@ const TLG = (() => {
     $("tlg-undo").disabled = edits.undo.length === 0;
     $("tlg-redo").disabled = edits.redo.length === 0;
     $("tlg-black-rank0").checked = blackRank0;
-    /* @edition-slot editor-032 */
+    $("tlg-als-highlight").checked = highlightAls;
 
     const truths = state.sets.filter((s) => s.role === "truth");
     const links = state.sets.filter((s) => s.role === "link");
@@ -829,6 +938,15 @@ const TLG = (() => {
     const parts = [t("tlg_counts", truths.length, links.length)];
     if (r) parts.push(t("tlg_rank", r.rankText));
     /* @edition-slot editor-021 */
+    const showPerms = !!r;
+    if (showPerms) parts[1] += " ·";
+    $("tlg-perm-stepper").classList.toggle("hidden", !showPerms);
+    if (showPerms) {
+      const loaded = r.perms ? r.perms.length : 0;
+      $("tlg-perm-label").textContent = `p${permIndex >= 0 ? permIndex + 1 : "-"}/${r.nperm}`;
+      $("tlg-perm-prev").disabled = loaded === 0;
+      $("tlg-perm-next").disabled = loaded === 0;
+    }
     $("tlg-summary").textContent = parts.join(" · ");
     $("tlg-remove-unused").disabled = !r || links.length === 0 || removeRequestId !== 0;
 
@@ -878,6 +996,37 @@ const TLG = (() => {
     $("tlg-apply").disabled = !canApply();
     $("tlg-reevaluate").disabled = !hasLogic();
 
+    $("tlg-aur-section").classList.toggle(
+      "hidden",
+      !(role === "aur" || state.aurMarks.length > 0 || state.options.applyAur),
+    );
+    $("tlg-vset-section").classList.toggle(
+      "hidden",
+      !(role === "vset" || state.vset.length > 0 || state.vapply),
+    );
+
+    const unique = uniqueSolution();
+    const aurApply = $("tlg-aur-apply");
+    aurApply.checked = state.options.applyAur;
+    aurApply.disabled = !unique;
+    $("tlg-aur-info").textContent = t(
+      "tlg_aur_count",
+      r ? r.aur.count : 0,
+      state.aurMarks.length,
+    );
+    $("tlg-aur-reason").textContent = unique ? "" : t("tlg_aur_unavailable");
+    $("tlg-aur-clear").disabled = state.aurMarks.length === 0;
+
+    $("tlg-vset-apply").checked = state.vapply;
+    $("tlg-vset-count").value = String(state.vcount);
+    $("tlg-vset-count").disabled = !state.vapply;
+    let vsetInfo = t("tlg_vset_members", state.vset.length);
+    if (r && r.virtual.applied) {
+      vsetInfo += ` · ${t("tlg_vset_measured", r.virtual.visnp, r.virtual.visnn)}`;
+    }
+    $("tlg-vset-info").textContent = vsetInfo;
+    $("tlg-vset-clear").disabled = state.vset.length === 0;
+
     /* @edition-slot editor-023 */
 
     const saturated = saturatedLinks(r);
@@ -887,7 +1036,8 @@ const TLG = (() => {
         const li = document.createElement("li");
         li.className = `tlg-set-item tlg-${set.kind} tlg-${set.role}`;
         if (set.id === selectedSetId) li.classList.add("tlg-selected");
-        /* @edition-slot editor-033 */
+        const als = alsOfSet(r, set);
+        if (als) li.style.backgroundColor = als;
         const label = document.createElement("button");
         label.type = "button";
         label.className = "tlg-set-label";
@@ -918,6 +1068,8 @@ const TLG = (() => {
       ? `T: ${formatSetGroup(truths) || "-"} / L: ${formatSetGroup(links) || "-"}`
       : "";
     $("tlg-clear-all").disabled =
+      state.aurMarks.length === 0 &&
+      state.vset.length === 0 &&
       /* @edition-slot editor-024 */
       state.sets.length === 0;
   }
@@ -993,7 +1145,7 @@ const TLG = (() => {
     const panel = $("tlg-panel");
     if (!panel) return;
     blackRank0 = readStoredBoolean(localStorage, BLACK_RANK0_KEY, false);
-    /* @edition-slot editor-034 */
+    highlightAls = readStoredBoolean(localStorage, HIGHLIGHT_ALS_KEY, false);
     for (const r of ROLES) {
       $(`tlg-role-${r}`).addEventListener("click", () => {
         role = r;
@@ -1023,7 +1175,44 @@ const TLG = (() => {
       scheduleEvaluate();
     });
     $("tlg-remove-unused").addEventListener("click", removeUnusedLinks);
+    // The stepper cycles -, p1 .. pM, -; "-" shows no permutation.
+    const stepPerm = (delta) => {
+      const r = usableResult();
+      const loaded = r && r.perms ? r.perms.length : 0;
+      if (loaded === 0) return;
+      permIndex = ((permIndex + 1 + delta + loaded + 1) % (loaded + 1)) - 1;
+      renderAll();
+    };
+    $("tlg-perm-prev").addEventListener("click", () => stepPerm(-1));
+    $("tlg-perm-next").addEventListener("click", () => stepPerm(1));
+    $("tlg-aur-apply").addEventListener("change", (e) => {
+      state.options.applyAur = e.target.checked;
+      commit();
+    });
+    $("tlg-aur-clear").addEventListener("click", () => {
+      state.aurMarks = [];
+      commit();
+    });
+    $("tlg-vset-apply").addEventListener("change", (e) => {
+      state.vapply = e.target.checked;
+      commit();
+    });
+    $("tlg-vset-count").addEventListener("change", (e) => {
+      state.vcount = Math.min(4, Math.max(1, parseInt(e.target.value) || 1));
+      commit();
+    });
+    $("tlg-vset-clear").addEventListener("click", () => {
+      state.vset = [];
+      commit();
+    });
     /* @edition-slot editor-025 */
+    $("tlg-als-highlight").addEventListener("change", (e) => {
+      highlightAls = e.target.checked;
+      if (!writeStoredText(localStorage, HIGHLIGHT_ALS_KEY, JSON.stringify(highlightAls))) {
+        notifyStorageWriteFailed();
+      }
+      scheduleEvaluate();
+    });
     $("tlg-black-rank0").addEventListener("change", (e) => {
       blackRank0 = e.target.checked;
       if (!writeStoredText(localStorage, BLACK_RANK0_KEY, JSON.stringify(blackRank0))) {
@@ -1033,7 +1222,7 @@ const TLG = (() => {
     });
     $("tlg-clear-all").addEventListener("click", () => {
       const fresh = emptyState();
-      /* @edition-slot editor-026 */
+      fresh.options = state.options;
       Object.assign(state, fresh);
       selectedSetId = null;
       resetInputState();
@@ -1141,6 +1330,10 @@ const TLG = (() => {
 
   function serialize(st) {
     if (
+      st.aurMarks.length === 0 &&
+      st.vset.length === 0 &&
+      !st.vapply &&
+      !st.options.applyAur &&
       /* @edition-slot editor-027 */
       st.sets.length === 0
     ) {
@@ -1150,6 +1343,11 @@ const TLG = (() => {
       sets: st.sets.map((s) =>
         s.kind === "cell" ? [s.role, "cell", s.cell] : [s.role, s.kind, s.index, s.digit],
       ),
+      aur: [...st.aurMarks],
+      vset: [...st.vset],
+      vapply: st.vapply,
+      vcount: st.vcount,
+      applyAur: st.options.applyAur,
       /* @edition-slot editor-028 */
     };
   }
@@ -1180,9 +1378,20 @@ const TLG = (() => {
         });
       }
     }
+    for (const [field, target] of [["aur", "aurMarks"], ["vset", "vset"]]) {
+      if (saved[field] === undefined) continue;
+      if (!Array.isArray(saved[field]) || !saved[field].every((v) => isIndex(v, 729))) {
+        return null;
+      }
+      st[target] = [...saved[field]];
+    }
+    st.vapply = saved.vapply === true;
+    st.vcount = isIndex(saved.vcount - 1, 4) ? saved.vcount : 1;
+    st.options.applyAur = saved.applyAur === true;
     /* @edition-slot editor-029 */
-    // Only sets are supported here: reject any other field rather than drop it.
-    return Object.keys(saved).every((key) => key === "sets") ? st : null;
+    // Only these fields are supported here: reject any other rather than drop it.
+    const known = ["sets", "aur", "vset", "vapply", "vcount", "applyAur"];
+    return Object.keys(saved).every((key) => known.includes(key)) ? st : null;
   }
 
 

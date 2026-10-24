@@ -1,8 +1,15 @@
-importScripts("tlg/exact.js", "tlg/dlx.js", "tlg/pb.js", "tlg/state.js");
+importScripts("tlg/tle-base.js");
+importScripts("tlg/tle-cover.js");
+importScripts("tlg/tle-board.js");
+importScripts("tlg/tle-marks.js");
+importScripts("tlg/tle-eval.js");
+importScripts("tlg/tle-rank.js");
+importScripts("tlg/tle-stats.js");
+importScripts("tlg/tle-shape.js");
+importScripts("tlg/tle-onedigit.js");
+importScripts("tlg/tle-rank1.js");
+importScripts("tlg/tle-api.js");
 /* @edition-slot worker-001 */
-importScripts("tlg/rank.js", "tlg/gate.js");
-/* @edition-slot worker-002 */
-importScripts("tlg/adapter.js");
 
 self.TLE.log = function () {};
 
