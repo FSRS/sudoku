@@ -6,7 +6,6 @@ const TLG = (() => {
   const KIND_LETTER = { row: "r", col: "c", box: "b" };
   const PERM_LIMIT = 1000;
   const HIGHLIGHT_ALS_KEY = "sudokuTlgHighlightAls";
-  /* @edition-slot editor-001 */
   // Touch-only devices have no right-click, so they get the set-menu toggle.
   const touchOnly = () =>
     window.matchMedia("(hover: none) and (pointer: coarse)").matches;
@@ -17,7 +16,6 @@ const TLG = (() => {
     '<button type="button" id="tlg-role-link" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_link">Link</button>',
     '<button type="button" id="tlg-role-aur" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_aur">AUR</button>',
     '<button type="button" id="tlg-role-vset" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_vset">Virtual Set</button>',
-    /* @edition-slot editor-002 */
     "</div>",
     '<div class="tlg-row">',
     '<select id="tlg-kind" class="tlg-select">',
@@ -138,7 +136,6 @@ const TLG = (() => {
   function isActive() {
     return isSolverMode ? solverOn : currentMode === "tlg";
   }
-
 
   function uniqueSolution() {
     return (
@@ -334,7 +331,6 @@ const TLG = (() => {
       commit();
       return;
     }
-    /* @edition-slot editor-010 */
     if (!pending) {
       pending = cand;
       showMessage(t("tlg_pick_second", `(${cand.n})${rc(cand)}`), "gray");
@@ -661,7 +657,6 @@ const TLG = (() => {
       vset: [...state.vset],
       vapply: state.vapply,
       vcount: state.vcount,
-      /* @edition-slot editor-013 */
       options: {
         applyAur: state.options.applyAur && unique,
         highlightAls,
@@ -683,7 +678,6 @@ const TLG = (() => {
     return (
       !!r &&
       !isSolverMode &&
-      /* @edition-slot editor-016 */
       (r.kills.length > 0 || r.lives.length > 0)
     );
   }
@@ -832,7 +826,6 @@ const TLG = (() => {
       aurMarks: state.aurMarks.map(candOf).filter(candExists),
       vset: state.vset.map(candOf).filter(candExists),
       ...alsVisuals(r),
-      /* @edition-slot editor-017 */
       kills: r ? r.kills.map((k) => ({ ...candOf(k.cand), kind: k.kind })) : [],
       lives: r ? r.lives.map(candOf) : [],
       perm:
@@ -961,7 +954,6 @@ const TLG = (() => {
       statusClass = "tlg-status-error";
     } else if (result.kills.length === 0 && result.lives.length === 0) {
       statusText = t("tlg_status_none");
-      /* @edition-slot editor-022 */
     } else if (isSolverMode) {
       statusText = t("tlg_apply_blocked_solver");
     }
@@ -1069,7 +1061,6 @@ const TLG = (() => {
     $("tlg-clear-all").disabled =
       state.aurMarks.length === 0 &&
       state.vset.length === 0 &&
-      /* @edition-slot editor-024 */
       state.sets.length === 0;
   }
 
@@ -1392,7 +1383,6 @@ const TLG = (() => {
     const known = ["sets", "aur", "vset", "vapply", "vcount", "applyAur"];
     return Object.keys(saved).every((key) => known.includes(key)) ? st : null;
   }
-
 
   return {
     isActive,

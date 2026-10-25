@@ -232,7 +232,6 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     /* @edition-slot api-018 */
     res.aur = { count: st.aurList.length, applied: st.applyAur, cause: st.aurCause, failed: st.aurFailed };
     res.virtual = { nvset: st.nv, applied: st.vapply && st.vN > 0, n: st.vN, isvir: st.isvir, visnp: st.visnp, visnn: st.visnn };
-    /* @edition-slot api-020 */
     res.als = { cells: Array.from(st.alsCells), sets: Array.from(st.alsSets) };
     if (st.wantPerms !== undefined) {
       var list = st.nsol > 0 ? solsAsLists(st, -1) : [];

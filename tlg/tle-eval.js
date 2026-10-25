@@ -62,14 +62,12 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     var setList = st.setList;
     var setMask = st.setMask;
     var linkState = st.linkState;
-    var kz = st.kz;
     var tc = st.TC;
     var lc = st.LC;
     var i, j, k, w, s, c;
     var excluding = nT > 7 && nT - nL > 5;
     var mult = st.extraMult;
     if (st.aurList.length > 0 && st.applyAur) excluding = false;
-    /* @edition-slot eval-002 */
     var lu = null;
     var shared = null;
     if (excluding) {
@@ -125,7 +123,6 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       lastItem[s] = itemId;
       for (k = off; k < off + len; k++) {
         c = setList[k];
-        /* @edition-slot eval-004 */
         var o = optOf[c];
         if (o === 0) {
           o = optCand.length;
@@ -155,7 +152,6 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       var endL = offL + setLen[s];
       for (k = offL; k < endL; k++) {
         c = setList[k];
-        /* @edition-slot eval-006 */
         var oL = optOf[c];
         if (oL === 0) {
           if ((tc[c >> 5] & (1 << (c & 31))) === 0) continue;
@@ -205,32 +201,28 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     var optLocal = new Int32Array(optCand.length);
     for (k = 0; k < optCand.length; k++) optLocal[k] = optCand[k] >= 0 ? tcLocal[optCand[k]] : -1;
 
-    var forcedFail = false;
-    /* @edition-slot eval-008 */
     var filt = TLE.permFilter(st);
 
     var overflow = false;
-    if (!forcedFail) {
-      var count = 0;
-      cover.run(function (sel, depth) {
-        var base = count * W;
-        var buf = st.sols;
-        if (buf.length < base + W) buf = ensureSols(st, base + W);
-        for (var q = 0; q < W; q++) buf[base + q] = 0;
-        for (var t = 0; t < depth; t++) {
-          var li = optLocal[sel[t]];
-          if (li >= 0) buf[base + (li >> 5)] |= 1 << (li & 31);
-        }
-        if (filt !== null && !filt(st, buf, base)) return false;
-        count++;
-        if (count > SOL_LIMIT) {
-          overflow = true;
-          return true;
-        }
-        return false;
-      });
-      st.nsol = count;
-    }
+    var count = 0;
+    cover.run(function (sel, depth) {
+      var base = count * W;
+      var buf = st.sols;
+      if (buf.length < base + W) buf = ensureSols(st, base + W);
+      for (var q = 0; q < W; q++) buf[base + q] = 0;
+      for (var t = 0; t < depth; t++) {
+        var li = optLocal[sel[t]];
+        if (li >= 0) buf[base + (li >> 5)] |= 1 << (li & 31);
+      }
+      if (filt !== null && !filt(st, buf, base)) return false;
+      count++;
+      if (count > SOL_LIMIT) {
+        overflow = true;
+        return true;
+      }
+      return false;
+    });
+    st.nsol = count;
 
     if (overflow) {
       st.nsol = 0;
@@ -239,11 +231,6 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       return;
     }
     st.ncand = tcList.length;
-    if (forcedFail) {
-      st.flags |= 0x200000;
-      st.rc = ABORT;
-      return;
-    }
     if (st.nsol === 0) {
       st.flags |= 0x80000000;
       TLE.putTag(st, 0);

@@ -15,10 +15,8 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     this.keys = null;
     this.keySet = null;
     this.closed = false;
-    this.running = false;
     this.inNext = false;
     this.built = false;
-    this.forced = [];
     this.limit = 0;
     this.cb = null;
     this.sel = null;
@@ -87,7 +85,6 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     var need = new Int32Array(nI);
     var left = new Int32Array(nO);
     var iAct = new Uint8Array(nI);
-    var oAct = new Uint8Array(nO);
     var avail = new Int32Array(nI);
     var iOff = new Int32Array(nI + 1);
     var oOff = new Int32Array(nO + 1);
@@ -101,10 +98,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       need[i] = this.itemNeeds[i];
       iAct[i] = 1;
     }
-    for (i = 0; i < nO; i++) {
-      left[i] = this.optLefts[i];
-      oAct[i] = 1;
-    }
+    for (i = 0; i < nO; i++) left[i] = this.optLefts[i];
     for (e = 0; e < nE; e++) {
       entItem[e] = this.declItem[e];
       entOpt[e] = this.declOpt[e];
@@ -131,7 +125,6 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     this.need = need;
     this.left = left;
     this.iAct = iAct;
-    this.oAct = oAct;
     this.avail = avail;
     this.iOff = iOff;
     this.oOff = oOff;
@@ -149,7 +142,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     for (i = 0; i < nO; i++) if (left[i] > 0) sumLeft += left[i];
     this.trail = new Int32Array(nE + 2 * nI + 2 * nO + sumNeed + sumLeft + 16);
     this.tlen = 0;
-    this.sel = new Int32Array(nO + this.forced.length + nE + 2);
+    this.sel = new Int32Array(nO + nE + 2);
     this.built = true;
   };
 
@@ -177,8 +170,6 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       } else if (t === 1) {
         this.iAct[x] = 1;
         this.nActive++;
-      } else if (t === 2) {
-        this.oAct[x] = 1;
       } else if (t === 3) {
         this.need[x]++;
       } else {
@@ -187,7 +178,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     }
   };
 
-  P.apply = function (B, O, track) {
+  P.apply = function (B, O) {
     var present = this.present;
     var avail = this.avail;
     var entItem = this.entItem;
@@ -197,7 +188,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     var oOff = this.oOff;
     var iEnt = this.iEnt;
     var oEnt = this.oEnt;
-    var base = track ? avail[B] + 1 : 0;
+    var base = avail[B] + 1;
     var rec = -1;
     var dead = false;
     this.left[O]--;
@@ -237,14 +228,10 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
             rec = Y;
           }
         }
-        this.oAct[C] = 0;
-        this.push((C << 3) | 2);
       }
       removeO = true;
     }
     if (removeO) {
-      this.oAct[O] = 0;
-      this.push((O << 3) | 2);
       for (q = o0; q < o1; q++) {
         var dd = oEnt[q];
         if (present[dd] === 0) continue;
@@ -257,20 +244,6 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     this.dead = dead;
   };
 
-  P.force = function (o) {
-    if (this.running) return 0x10;
-    if (o < 0 || o > this.mO) return 2;
-    var oi = this.optIdx[o];
-    if (oi < 0) return 2;
-    if (!this.built) this.build();
-    if (this.oAct[oi] === 0) return 0x16;
-    if (this.oOff[oi + 1] === this.oOff[oi]) return 0x16;
-    this.forced.push(o);
-    this.apply(-1, oi, false);
-    this.closed = true;
-    return 0;
-  };
-
   P.visit = function (depth, rec, last) {
     if (this.limit !== 0 && depth > this.limit) return false;
     if (this.nActive === 0) return this.cb(this.sel, depth) === true;
@@ -279,7 +252,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     var present = this.present;
     var I = -1;
     var start = 0;
-    if (depth > this.nf && last >= 0 && need[this.entItem[last]] !== 0) {
+    if (depth > 0 && last >= 0 && need[this.entItem[last]] !== 0) {
       I = this.entItem[last];
       start = this.posInItem[last];
     } else if (rec >= 0 && need[rec] !== 0) {
@@ -305,7 +278,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       var O = this.entOpt[e];
       sel[depth] = optIds[O];
       var mark = this.tlen;
-      this.apply(I, O, true);
+      this.apply(I, O);
       if (!this.dead) {
         if (this.visit(depth + 1, this.rec, e)) {
           this.undoTo(mark);
@@ -321,17 +294,12 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     if (this.inNext) return false;
     if (!this.built) this.build();
     this.closed = true;
-    this.running = true;
     this.inNext = true;
-    var nf = this.forced.length;
-    this.nf = nf;
-    for (var i = 0; i < nf; i++) this.sel[i] = this.forced[i];
     this.cb = cb;
-    var stopped = this.visit(nf, -1, -1);
+    var stopped = this.visit(0, -1, -1);
     this.cb = null;
     this.inNext = false;
-    this.running = false;
-    if (nf === 0) this.closed = false;
+    this.closed = false;
     return stopped;
   };
 

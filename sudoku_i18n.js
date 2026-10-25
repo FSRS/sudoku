@@ -1046,8 +1046,7 @@ const TRANSLATIONS = {
     tlg_role_truth: "Truth",
     tlg_role_link: "Link",
     tlg_role_aur: "AUR Corner",
-    tlg_role_vset: "V.Set",
-    /* @edition-slot strings-001 */
+    tlg_role_vset: "Virtual Set",
     tlg_kind_auto: "Auto",
     tlg_kind_row: "Row",
     tlg_kind_col: "Column",
@@ -2157,7 +2156,6 @@ const TRANSLATIONS = {
     tlg_role_link: "Link",
     tlg_role_aur: "AUR 모서리",
     tlg_role_vset: "가상 집합",
-    /* @edition-slot strings-004 */
     tlg_kind_auto: "자동",
     tlg_kind_row: "행",
     tlg_kind_col: "열",

@@ -800,7 +800,6 @@ html.dark .offline-cache-dot {
   --tlg-aur: #db2777;
   --tlg-vset: #0d9488;
   --tlg-perm: #2563eb;
-  /* @edition-slot style-001 */
   --tlg-pending: var(--nc-accent-color);
   --tlg-panel-bg: #ffffff;
   --tlg-panel-border: #d1d5db;
@@ -819,7 +818,6 @@ html.dark {
   --tlg-aur: #f472b6;
   --tlg-vset: #5eead4;
   --tlg-perm: #93c5fd;
-  /* @edition-slot style-002 */
   --tlg-panel-bg: #1f2937;
   --tlg-panel-border: #4b5563;
 }
@@ -909,7 +907,6 @@ html.dark {
 #tlg-layer .tlg-vset-mark {
   fill: var(--tlg-vset);
 }
-/* @edition-slot style-003 */
 #tlg-layer .tlg-badge {
   fill: none;
   stroke-width: 0.35;
@@ -1047,7 +1044,6 @@ html.dark {
   color: #dc2626;
   font-weight: 600;
 }
-/* @edition-slot style-007 */
 .tlg-reason {
   color: #d97706;
 }
@@ -1083,7 +1079,6 @@ html.dark {
 .tlg-list .tlg-live {
   color: var(--tlg-live);
 }
-/* @edition-slot style-008 */
 .tlg-set-summary {
   font-family: var(--font-mono);
 }

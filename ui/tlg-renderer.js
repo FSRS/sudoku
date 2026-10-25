@@ -250,7 +250,6 @@ const TLGRenderer = (() => {
         layer,
       );
     }
-    /* @edition-slot renderer-008 */
   }
 
   function drawPerm(layer, model) {
@@ -315,7 +314,6 @@ const TLGRenderer = (() => {
     live: "#16a34a",
     aur: "#db2777",
     vset: "#0d9488",
-    /* @edition-slot renderer-003 */
   };
 
   function canvasPath(ctx, points, kind) {
@@ -457,7 +455,6 @@ const TLGRenderer = (() => {
       ctx.fillStyle = EXPORT_COLORS.vset;
       ctx.fillRect(x + 0.8 * unit, y + 0.8 * unit, unit, unit);
     }
-    /* @edition-slot renderer-004 */
     for (const k of model.kills) {
       const { x, y } = coord(k);
       ctx.strokeStyle = k.kind === "cannibal" ? EXPORT_COLORS.cannibal : EXPORT_COLORS.kill;
