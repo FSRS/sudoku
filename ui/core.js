@@ -5170,6 +5170,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }
   onlyOneCellTarget = validity.target || null;
   solutionBoard = validity.solution || null;
+  techniques._solution = validity.solution ? validity.solution.flat() : null;
   renderPuzzleModeMessage();
 
   if (onlyOneCellTarget) {
@@ -8189,6 +8190,7 @@ async function runBoardDifficultyEvaluation(opts = {}) {
     return;
   }
   const validity = getPuzzleValidation(initialPuzzleString);
+  techniques._solution = validity.solution ? validity.solution.flat() : null;
   // An edit can schedule an evaluation while puzzle loading is still yielding.
   // Wait for complete masks before comparing progress or displaying a result.
   if (onlyOneCellTarget && !validity.isPrecomputed()) {
