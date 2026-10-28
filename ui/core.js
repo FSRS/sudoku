@@ -150,10 +150,6 @@ function getDifficultyEngine() {
   return difficultyEngines.has(saved) ? saved : "skfr";
 }
 
-function formatDifficultyRating(engine, rating10) {
-  return ` (${difficultyEngineLabels[engine]} ${(rating10 / 10).toFixed(1)})`;
-}
-
 /**
  * Renders what a technique result does, for the hint / solver / VAT messages.
  */
@@ -214,32 +210,34 @@ function renderPuzzleModeMessage() {
   banner.textContent = onlyOneCellTarget ? t("puzzle_only_one_cell") : "";
 }
 
-function getDifficultyRatingText(puzzle, onReady) {
+// The rating as the label spells it: a number, the pending or stalled word, or
+// "" when there is nothing to show. Without canRequest an unrated puzzle only
+// reports pending, so the caller decides when the engine is asked. The input
+// is a puzzle, or a solver position: its values, ":" and candidate masks.
+function getDifficultyRatingWord(input, onReady, canRequest = true) {
+  const puzzle = input.slice(0, 81);
   // Puzzles this project does not support never reach an engine.
   if (!isRatablePuzzle(puzzle)) return "";
   if (!window.Rating?.rate) return "";
 
   const engine = getDifficultyEngine();
-  const key = `${engine}:${puzzle}`;
+  const key = `${engine}:${input}`;
   const cached = difficultyRatingCache.get(key);
   if (cached?.status === "resolved") return cached.text;
   // Localized on read so a later language switch still relabels it.
-  if (cached?.status === "stalled") {
-    return ` (${difficultyEngineLabels[engine]} ${t("ui_rating_stalled")})`;
-  }
+  if (cached?.status === "stalled") return t("ui_rating_stalled");
   if (cached?.status === "rejected") return "";
   // Rating runs async, so show the engine as pending until onReady re-renders.
-  const pendingText = ` (${difficultyEngineLabels[engine]} ${t("ui_rating_pending")})`;
-  if (!cached) {
+  if (!cached && canRequest) {
     difficultyRatingCache.set(key, { status: "pending" });
     const mode = engine === "old-se" ? "se121" : engine;
     const onlyOneCell = getPuzzleValidation(puzzle).mode === "only-one-cell";
-    window.Rating.rate(puzzle, mode, { onlyOneCell }).then(
+    window.Rating.rate(input, mode, { onlyOneCell }).then(
       (rating) => {
         // EP measures the work through the target placement in this variant.
         const rating10 = onlyOneCell ? rating?.ep : rating?.er;
         const text = Number.isFinite(rating10)
-          ? formatDifficultyRating(engine, rating10)
+          ? (rating10 / 10).toFixed(1)
           : "";
         difficultyRatingCache.set(key, { status: "resolved", text, rating });
         onReady();
@@ -258,7 +256,70 @@ function getDifficultyRatingText(puzzle, onReady) {
       },
     );
   }
-  return pendingText;
+  return t("ui_rating_pending");
+}
+
+function getDifficultyRatingText(puzzle, onReady, afterWord = "") {
+  const word = getDifficultyRatingWord(puzzle, onReady);
+  if (!word) return "";
+  const label = difficultyEngineLabels[getDifficultyEngine()];
+  return ` (${label} ${word}${afterWord && ` → ${afterWord}`})`;
+}
+
+const solverStepRatingPending = new Set();
+
+// The rating of the position the current solver step leaves behind: its
+// values and, so that eliminations count too, the candidates still standing.
+function getSolverStepRatingWord() {
+  const step = solverSteps[currentSolverStep];
+  if (step?.type !== "step") return "";
+  const board = step.board.map((row) => [...row]);
+  const pencils = step.pencils.map((row) => row.map((cell) => new Set(cell)));
+  const { type, r, c, num, cells } = step.result;
+  if (type === "place") {
+    board[r][c] = num;
+    pencils[r][c].clear();
+    const boxR = r - (r % 3),
+      boxC = c - (c % 3);
+    for (let i = 0; i < 9; i++) {
+      pencils[r][i].delete(num);
+      pencils[i][c].delete(num);
+      pencils[boxR + Math.floor(i / 3)][boxC + (i % 3)].delete(num);
+    }
+  } else if (type === "remove") {
+    for (const cell of cells) pencils[cell.r][cell.c].delete(cell.num);
+  }
+  if (isPuzzleGoalReached(board)) return "0.0";
+  const values = board.flat().map((value) => value || ".").join("");
+  if (!isRatablePuzzle(values)) return "";
+  // An empty cell without notes is unknown rather than out of candidates.
+  const masks = board
+    .flat()
+    .map((value, i) => {
+      const notes = pencils[Math.floor(i / 9)][i % 9];
+      let mask = value || notes.size ? 0 : 0x3fe;
+      if (!value) for (const d of notes) mask |= 1 << d;
+      return mask.toString(16).padStart(3, "0");
+    })
+    .join("");
+  const state = `${values}:${masks}`;
+  const engine = getDifficultyEngine();
+  const initial = difficultyRatingCache.get(`${engine}:${initialPuzzleString}`);
+  if (initial?.status !== "resolved") return "";
+  // A step costs the engine as much as the whole puzzle and the worker takes
+  // requests in turn, so one step is out at a time and none before the puzzle.
+  const canRequest =
+    !difficultyRatingCache.has(`${engine}:${state}`) &&
+    !solverStepRatingPending.has(engine);
+  if (canRequest) solverStepRatingPending.add(engine);
+  return getDifficultyRatingWord(
+    state,
+    () => {
+      solverStepRatingPending.delete(engine);
+      renderPuzzleLevelLabel();
+    },
+    canRequest,
+  );
 }
 
 function getDifficultyRatingDetail(puzzle) {
@@ -318,6 +379,7 @@ function renderPuzzleLevelLabel() {
     const rating = getDifficultyRatingText(
       initialPuzzleString,
       renderPuzzleLevelLabel,
+      getSolverStepRatingWord(),
     );
     if (rating) {
       puzzleLevelEl.textContent = `Lv. ${level}${star}`;
@@ -6901,6 +6963,7 @@ function renderSolverStep(index) {
   showMessage(msg, msgColor);
   renderBoard();
   renderLines();
+  renderPuzzleLevelLabel();
   TLG.onSolverStepRendered();
 }
 

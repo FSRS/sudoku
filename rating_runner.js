@@ -76,10 +76,16 @@
     }
 
     rate(puzzle, mode = "se", options = {}) {
-      // Pasted puzzles spell blanks either way, so both reach every engine.
-      if (typeof puzzle !== "string" || !/^[.0-9]{81}$/.test(puzzle)) {
+      // Pasted puzzles spell blanks either way, so both reach every engine. A
+      // position adds ":" and three hex digits of candidates per cell.
+      if (
+        typeof puzzle !== "string" ||
+        !/^[.0-9]{81}(:[0-9a-fA-F]{243})?$/.test(puzzle)
+      ) {
         return Promise.reject(
-          new TypeError("puzzle must contain 81 characters from ., 0 and 1-9"),
+          new TypeError(
+            "puzzle must contain 81 characters from ., 0 and 1-9, optionally followed by : and 243 hex digits",
+          ),
         );
       }
       let modeValue;
