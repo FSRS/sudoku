@@ -259,23 +259,76 @@ function getDifficultyRatingWord(input, onReady, canRequest = true) {
   return t("ui_rating_pending");
 }
 
-function getDifficultyRatingText(puzzle, onReady, afterWord = "") {
+function getDifficultyRatingText(puzzle, onReady) {
   const word = getDifficultyRatingWord(puzzle, onReady);
   if (!word) return "";
-  const label = difficultyEngineLabels[getDifficultyEngine()];
-  return ` (${label} ${word}${afterWord && ` → ${afterWord}`})`;
+  return ` (${difficultyEngineLabels[getDifficultyEngine()]} ${word})`;
 }
 
 const solverStepRatingPending = new Set();
 
-// The rating of the position the current solver step leaves behind: its
-// values and, so that eliminations count too, the candidates still standing.
-function getSolverStepRatingWord() {
+// The engine input for a solver position: the candidates the values allow,
+// less those the notes rule out. While none is ruled out it is the values
+// alone, so the start shares the puzzle's rating.
+function getPositionRatingInput(board, pencils) {
+  const values = board.flat().map((value) => value || ".").join("");
+  let narrowed = false;
+  const masks = board
+    .flat()
+    .map((value, i) => {
+      const r = Math.floor(i / 9),
+        c = i % 9;
+      const notes = pencils[r][c];
+      let mask = 0;
+      for (let d = 1; d <= 9 && !value; d++) {
+        if (!isValid(board, r, c, d)) continue;
+        // An empty cell without notes is unknown rather than out of candidates.
+        if (notes.size && !notes.has(d)) narrowed = true;
+        else mask |= 1 << d;
+      }
+      return mask.toString(16).padStart(3, "0");
+    })
+    .join("");
+  return narrowed ? `${values}:${masks}` : values;
+}
+
+// One position is out with an engine at a time. Its worker answers in turn
+// and cannot drop a rating once started, so only the step on show is asked.
+function getPositionRating(board, pencils) {
+  if (isPuzzleGoalReached(board)) return { word: "0.0", detail: "" };
+  const input = getPositionRatingInput(board, pencils);
+  const engine = getDifficultyEngine();
+  const key = `${engine}:${input}`;
+  const canRequest =
+    !difficultyRatingCache.has(key) && !solverStepRatingPending.has(engine);
+  const word = getDifficultyRatingWord(
+    input,
+    () => {
+      solverStepRatingPending.delete(engine);
+      renderPuzzleLevelLabel();
+    },
+    canRequest,
+  );
+  if (canRequest && difficultyRatingCache.has(key)) {
+    solverStepRatingPending.add(engine);
+  }
+  return { word, detail: getDifficultyRatingDetail(input) };
+}
+
+// The ratings before and after the technique on show, which in Find All is
+// the hint picked there. None until the puzzle's own rating is in.
+function getSolverStepRating() {
   const step = solverSteps[currentSolverStep];
-  if (step?.type !== "step") return "";
+  if (step?.type !== "step") return null;
+  const engine = getDifficultyEngine();
+  const initial = difficultyRatingCache.get(`${engine}:${initialPuzzleString}`);
+  if (initial?.status !== "resolved") return null;
+  const before = getPositionRating(step.board, step.pencils);
+  if (!before.word) return null;
   const board = step.board.map((row) => [...row]);
   const pencils = step.pencils.map((row) => row.map((cell) => new Set(cell)));
-  const { type, r, c, num, cells } = step.result;
+  const { type, r, c, num, cells } =
+    (isViewAllTechniquesMode && vatSelectedHint) || step.result;
   if (type === "place") {
     board[r][c] = num;
     pencils[r][c].clear();
@@ -289,37 +342,15 @@ function getSolverStepRatingWord() {
   } else if (type === "remove") {
     for (const cell of cells) pencils[cell.r][cell.c].delete(cell.num);
   }
-  if (isPuzzleGoalReached(board)) return "0.0";
-  const values = board.flat().map((value) => value || ".").join("");
-  if (!isRatablePuzzle(values)) return "";
-  // An empty cell without notes is unknown rather than out of candidates.
-  const masks = board
-    .flat()
-    .map((value, i) => {
-      const notes = pencils[Math.floor(i / 9)][i % 9];
-      let mask = value || notes.size ? 0 : 0x3fe;
-      if (!value) for (const d of notes) mask |= 1 << d;
-      return mask.toString(16).padStart(3, "0");
-    })
-    .join("");
-  const state = `${values}:${masks}`;
-  const engine = getDifficultyEngine();
-  const initial = difficultyRatingCache.get(`${engine}:${initialPuzzleString}`);
-  if (initial?.status !== "resolved") return "";
-  // A step costs the engine as much as the whole puzzle and the worker takes
-  // requests in turn, so one step is out at a time and none before the puzzle.
-  const canRequest =
-    !difficultyRatingCache.has(`${engine}:${state}`) &&
-    !solverStepRatingPending.has(engine);
-  if (canRequest) solverStepRatingPending.add(engine);
-  return getDifficultyRatingWord(
-    state,
-    () => {
-      solverStepRatingPending.delete(engine);
-      renderPuzzleLevelLabel();
-    },
-    canRequest,
-  );
+  const after = getPositionRating(board, pencils);
+  const label = difficultyEngineLabels[engine];
+  return {
+    text: ` (${label} ${before.word}${after.word && ` → ${after.word}`})`,
+    detail:
+      before.detail && after.detail
+        ? `${before.detail} → ${after.detail}`
+        : before.detail,
+  };
 }
 
 function getDifficultyRatingDetail(puzzle) {
@@ -335,7 +366,8 @@ function getDifficultyRatingDetail(puzzle) {
     .filter(
       ([name, value]) =>
         Number.isFinite(value) &&
-        (name !== "ER" || getPuzzleValidation(puzzle).mode !== "only-one-cell"),
+        (name !== "ER" ||
+          getPuzzleValidation(puzzle.slice(0, 81)).mode !== "only-one-cell"),
     )
     .map(([name, value]) => `${name}=${(value / 10).toFixed(1)}`)
     .join(" ");
@@ -376,17 +408,18 @@ function renderPuzzleLevelLabel() {
   const star = hasCustomPreferences() ? "*" : "";
 
   if (isSolverMode && initialPuzzleString) {
-    const rating = getDifficultyRatingText(
-      initialPuzzleString,
-      renderPuzzleLevelLabel,
-      getSolverStepRatingWord(),
-    );
+    const stepRating = getSolverStepRating();
+    const rating =
+      stepRating?.text ||
+      getDifficultyRatingText(initialPuzzleString, renderPuzzleLevelLabel);
     if (rating) {
       puzzleLevelEl.textContent = `Lv. ${level}${star}`;
       puzzleLevelEl.appendChild(
         createRatingLabelElement(
           rating,
-          getDifficultyRatingDetail(initialPuzzleString),
+          stepRating
+            ? stepRating.detail
+            : getDifficultyRatingDetail(initialPuzzleString),
         ),
       );
       return;
@@ -5980,6 +6013,8 @@ function enterSolverModeUI() {
 
   setTlgMode(false);
   isSolverMode = true;
+  // The label below is drawn before renderSolverStep(0) and reads this index.
+  currentSolverStep = 0;
   updateSolverToggleButton();
   renderPuzzleLevelLabel();
 
@@ -6366,6 +6401,7 @@ async function applyVatAndReevaluate() {
 
   // 3. Reset VAT state without re-rendering old state
   exitViewAllTechniquesMode(true);
+  currentSolverStep = 0;
 
   // 4. Re-evaluate
   if (lampEvaluationTimeout) clearTimeout(lampEvaluationTimeout);
@@ -6530,6 +6566,7 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
         );
         renderBoard();
         renderLines();
+        renderPuzzleLevelLabel();
       });
 
       subListContainer.appendChild(childRow);
