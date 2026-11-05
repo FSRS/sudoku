@@ -68,37 +68,47 @@ const TLGRenderer = (() => {
 
   // Box sets: one horizontal run per row of members, joined by a vertical
   // trunk at the column that holds the most members.
-  function boxData(points) {
-    if (points.length <= 1) return lineData(points);
+  function boxSegments(members) {
     const rows = new Map();
     const colCount = new Map();
-    for (const p of points) {
-      if (!rows.has(p.r)) rows.set(p.r, []);
-      rows.get(p.r).push(p);
-      colCount.set(p.x, (colCount.get(p.x) || 0) + 1);
+    for (const m of members) {
+      if (!rows.has(m.r)) rows.set(m.r, []);
+      rows.get(m.r).push(m.c);
+      colCount.set(m.c, (colCount.get(m.c) || 0) + 1);
     }
-    let trunkX = points[0].x;
+    let trunk = members[0].c;
     let best = -1;
-    for (const [x, count] of colCount) {
+    for (const [c, count] of colCount) {
       if (count > best) {
         best = count;
-        trunkX = x;
+        trunk = c;
       }
     }
-    const parts = [];
-    let minY = Infinity;
-    let maxY = -Infinity;
-    for (const run of rows.values()) {
-      const xs = run.map((p) => p.x).concat(trunkX);
-      const y = run[0].y;
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
-      parts.push(
-        `M ${Math.min(...xs)} ${y} L ${Math.max(...xs)} ${y}`,
-      );
+    const segments = [];
+    let minR = Infinity;
+    let maxR = -Infinity;
+    for (const [r, cols] of rows) {
+      const cs = cols.concat(trunk);
+      minR = Math.min(minR, r);
+      maxR = Math.max(maxR, r);
+      segments.push({
+        from: { r, c: Math.min(...cs) },
+        to: { r, c: Math.max(...cs) },
+      });
     }
-    parts.push(`M ${trunkX} ${minY} L ${trunkX} ${maxY}`);
-    return parts.join(" ");
+    segments.push({ from: { r: minR, c: trunk }, to: { r: maxR, c: trunk } });
+    return segments;
+  }
+
+  function boxData(members) {
+    const n = members[0].n;
+    return boxSegments(members)
+      .map(({ from, to }) => {
+        const a = center({ ...from, n });
+        const b = center({ ...to, n });
+        return `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
+      })
+      .join(" ");
   }
 
   function drawSet(layer, defs, set) {
@@ -127,7 +137,10 @@ const TLGRenderer = (() => {
       return;
     }
 
-    const d = set.kind === "box" ? boxData(points) : lineData(points);
+    const d =
+      set.kind === "box" && points.length > 1
+        ? boxData(set.members)
+        : lineData(points);
     if (set.selected) {
       el("path", { d, class: "tlg-select-outline" }, layer);
     }
@@ -314,44 +327,22 @@ const TLGRenderer = (() => {
     live: "#16a34a",
     aur: "#db2777",
     vset: "#0d9488",
+    node: "#6b7280",
   };
 
-  function canvasPath(ctx, points, kind) {
+  function canvasPath(ctx, members, kind, coord) {
     ctx.beginPath();
-    if (kind === "box" && points.length > 1) {
-      const rows = new Map();
-      const colCount = new Map();
-      for (const p of points) {
-        if (!rows.has(p.r)) rows.set(p.r, []);
-        rows.get(p.r).push(p);
-        colCount.set(p.x, (colCount.get(p.x) || 0) + 1);
-      }
-      let trunkX = points[0].x;
-      let best = -1;
-      for (const [x, count] of colCount) {
-        if (count > best) {
-          best = count;
-          trunkX = x;
-        }
-      }
-      let minY = Infinity;
-      let maxY = -Infinity;
-      for (const run of rows.values()) {
-        const xs = run.map((p) => p.x).concat(trunkX);
-        const y = run[0].y;
-        minY = Math.min(minY, y);
-        maxY = Math.max(maxY, y);
-        ctx.moveTo(Math.min(...xs), y);
-        ctx.lineTo(Math.max(...xs), y);
-      }
-      ctx.moveTo(trunkX, minY);
-      ctx.lineTo(trunkX, maxY);
-      return;
+    const n = members[0].n;
+    const segments =
+      kind === "box" && members.length > 1
+        ? boxSegments(members)
+        : [{ from: members[0], to: members[members.length - 1] }];
+    for (const { from, to } of segments) {
+      const a = coord({ n, ...from });
+      const b = coord({ n, ...to });
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
     }
-    const first = points[0];
-    const last = points[points.length - 1];
-    ctx.moveTo(first.x, first.y);
-    ctx.lineTo(last.x, last.y);
   }
 
   function renderCanvasSets(ctx, model, coord, unit) {
@@ -405,7 +396,7 @@ const TLGRenderer = (() => {
         continue;
       }
       if (set.role === "truth") {
-        canvasPath(ctx, points, set.kind);
+        canvasPath(ctx, set.members, set.kind, coord);
         ctx.lineWidth = BAR_WIDTH * unit;
         ctx.strokeStyle = color;
         ctx.globalAlpha = set.kind === "box" ? 0.45 : 0.35;
@@ -420,7 +411,7 @@ const TLGRenderer = (() => {
       const sctx = scratch.getContext("2d");
       sctx.lineCap = "round";
       sctx.lineJoin = "round";
-      canvasPath(sctx, points, set.kind);
+      canvasPath(sctx, set.members, set.kind, coord);
       sctx.lineWidth = BAR_WIDTH * unit;
       sctx.strokeStyle = color;
       sctx.stroke();
@@ -481,5 +472,12 @@ const TLGRenderer = (() => {
     }
     ctx.restore();
   }
-  return { render, clear, renderCanvasSets, renderCanvasBadges };
+  return {
+    render,
+    clear,
+    renderCanvasSets,
+    renderCanvasBadges,
+    EXPORT_COLORS,
+    boxSegments,
+  };
 })();

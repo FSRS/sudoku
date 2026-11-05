@@ -21,8 +21,10 @@ runtime dependency order:
    shows what was read in a correction dialog that loads the corrected board.
 5. `tlg-renderer.js` draws the manual Truth/Link editor's sets, marks and
    result badges into the board's SVG layer.
-6. `tlg.js` owns the Truth/Link editor: its state, candidate input, the
+6. `tlg-3d.js` draws the same editor model as a 3D view on a canvas over the
+   board: scene, parallel projection, drag rotation and the 3D image export.
+7. `tlg.js` owns the Truth/Link editor: its state, candidate input, the
    evaluation worker (built from `tlg/*.js`, not bundled) and the panel.
-7. `core.js` binds those modules to the page and owns UI state.
+8. `core.js` binds those modules to the page and owns UI state.
 
 The HTML and service worker load only the generated `sudoku_ui.js`.

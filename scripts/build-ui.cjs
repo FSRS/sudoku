@@ -11,6 +11,7 @@ const sources = [
   "batch-rating.js",
   "image-import.js",
   "tlg-renderer.js",
+  "tlg-3d.js",
   /* @edition-slot ui-001 */
   "tlg.js",
   "core.js",

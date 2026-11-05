@@ -745,6 +745,7 @@ function initTheme() {
       updateControls();
       renderLines();
       renderBoard();
+      if (TLG.isActive()) TLG.renderLayer();
 
       if (isSolverMode) {
         buildSolverTimeline();
@@ -9679,7 +9680,10 @@ function copyBoardShortcut(asImage) {
 }
 
 function copyGridAsImage() {
-  const size = 900; // High-res 900x900 output
+  copyCanvasToClipboard(renderGridImage(900));
+}
+
+function renderGridImage(size) {
   const cellSize = size / 9;
 
   const canvas = document.createElement("canvas");
@@ -9957,8 +9961,10 @@ function copyGridAsImage() {
   }
 
   if (tlgModel) TLGRenderer.renderCanvasBadges(ctx, tlgModel, tlgCoord, size / 100);
+  return canvas;
+}
 
-  // 6. Output to Clipboard
+function copyCanvasToClipboard(canvas) {
   try {
     canvas.toBlob((blob) => {
       if (!blob) {

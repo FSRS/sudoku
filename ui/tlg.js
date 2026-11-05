@@ -6,42 +6,58 @@ const TLG = (() => {
   const KIND_LETTER = { row: "r", col: "c", box: "b" };
   const PERM_LIMIT = 1000;
   const HIGHLIGHT_ALS_KEY = "sudokuTlgHighlightAls";
+  const VISIBILITY_3D_KEY = "sudokuTlg3dLogicVisibility";
+  const BOARD_BOTTOM_3D_KEY = "sudokuTlg3dBoardBottom";
+  const NODE_LABELS_3D_KEY = "sudokuTlg3dNodeLabels";
+  const MENU_MODE_KEY = "sudokuTlgMenuMode";
   // Touch-only devices have no right-click, so they get the set-menu toggle.
   const touchOnly = () =>
     window.matchMedia("(hover: none) and (pointer: coarse)").matches;
 
   const PANEL_HTML = [
-    '<div class="tlg-row">',
+    '<div id="tlg-grid-2d" class="grid grid-cols-3 gap-1">',
     '<button type="button" id="tlg-role-truth" class="tlg-btn tlg-role" aria-pressed="true" data-i18n="tlg_role_truth">Truth</button>',
     '<button type="button" id="tlg-role-link" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_link">Link</button>',
+    '<select id="tlg-kind" class="tlg-select text-center" style="text-align-last: center">',
+    '<option value="auto" style="text-align: left; text-align-last: left" data-i18n="tlg_kind_auto">Auto</option>',
+    '<option value="row" style="text-align: left; text-align-last: left" data-i18n="tlg_kind_row">Row</option>',
+    '<option value="col" style="text-align: left; text-align-last: left" data-i18n="tlg_kind_col">Column</option>',
+    '<option value="box" style="text-align: left; text-align-last: left" data-i18n="tlg_kind_box">Box</option>',
+    '<option value="cell" style="text-align: left; text-align-last: left" data-i18n="tlg_kind_cell">Cell</option>',
+    "</select>",
     '<button type="button" id="tlg-role-aur" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_aur">AUR</button>',
     '<button type="button" id="tlg-role-vset" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_vset">Virtual Set</button>',
-    "</div>",
-    '<div class="tlg-row">',
-    '<select id="tlg-kind" class="tlg-select">',
-    '<option value="auto" data-i18n="tlg_kind_auto">Auto</option>',
-    '<option value="row" data-i18n="tlg_kind_row">Row</option>',
-    '<option value="col" data-i18n="tlg_kind_col">Column</option>',
-    '<option value="box" data-i18n="tlg_kind_box">Box</option>',
-    '<option value="cell" data-i18n="tlg_kind_cell">Cell</option>',
-    "</select>",
-    '<button type="button" id="tlg-menu-toggle" class="tlg-btn hidden" aria-pressed="false" data-i18n="tlg_menu_toggle">Set menu</button>',
+    '<button type="button" id="tlg-3d-toggle" class="tlg-btn" aria-pressed="false" data-i18n="tlg_3d_toggle">3D</button>',
     '<button type="button" id="tlg-undo" class="tlg-btn" data-i18n="btn_undo">Undo</button>',
     '<button type="button" id="tlg-redo" class="tlg-btn" data-i18n="btn_redo">Redo</button>',
     '<button type="button" id="tlg-cancel" class="tlg-btn" data-i18n="tlg_cancel">Cancel</button>',
     '<button type="button" id="tlg-reevaluate" class="tlg-btn" data-i18n="tlg_reevaluate">Re-evaluate</button>',
-    '<button type="button" id="tlg-remove-unused" class="tlg-btn" data-i18n="tlg_remove_unused">Remove unused links</button>',
+    '<button type="button" id="tlg-remove-unused" class="tlg-btn text-xs" data-i18n="tlg_remove_unused">Remove unused links</button>',
     '<button type="button" id="tlg-clear-all" class="tlg-btn tlg-danger" data-i18n="tlg_clear_all">Clear all</button>',
+    '<button type="button" id="tlg-menu-toggle" class="tlg-btn hidden" style="grid-column: 1 / -1" aria-pressed="false" data-i18n="tlg_menu_toggle">Set menu</button>',
     "</div>",
-    '<div class="tlg-summary-row">',
-    '<span id="tlg-summary" class="tlg-summary"></span>',
-    '<span id="tlg-perm-stepper" class="tlg-stepper hidden">',
+    '<div id="tlg-grid-3d" class="grid grid-cols-3 gap-1 hidden">',
+    '<button type="button" id="tlg-3d-off" class="tlg-btn" data-i18n="tlg_3d_off">Exit 3D</button>',
+    '<button type="button" id="tlg-3d-up" class="tlg-btn" aria-label="tilt up">\u25b2</button>',
+    '<button type="button" id="tlg-3d-copy" class="tlg-btn text-xs" data-i18n="tlg_3d_copy">Copy 3D image</button>',
+    '<button type="button" id="tlg-3d-left" class="tlg-btn" aria-label="rotate left">\u25c0</button>',
+    '<button type="button" id="tlg-3d-reset" class="tlg-btn" data-i18n="tlg_3d_reset">Reset angle</button>',
+    '<button type="button" id="tlg-3d-right" class="tlg-btn" aria-label="rotate right">\u25b6</button>',
+    '<button type="button" id="tlg-3d-undo" class="tlg-btn" data-i18n="btn_undo">Undo</button>',
+    '<button type="button" id="tlg-3d-down" class="tlg-btn" aria-label="tilt down">\u25bc</button>',
+    '<button type="button" id="tlg-3d-redo" class="tlg-btn" data-i18n="btn_redo">Redo</button>',
+    '<label class="tlg-check" style="grid-column: 1 / -1; display: flex"><span data-i18n="tlg_3d_board_transparency">Board transparency</span><input type="range" id="tlg-3d-visibility" min="0" max="100" style="flex: 1 1 auto; min-width: 0; height: 1.5rem" /></label>',
+    '<label class="tlg-check text-xs"><input type="checkbox" id="tlg-3d-board-bottom" /><span data-i18n="tlg_3d_board_bottom">Board at bottom</span></label>',
+    '<label class="tlg-check text-xs"><input type="checkbox" id="tlg-3d-node-labels" /><span data-i18n="tlg_3d_node_labels">Digit labels</span></label>',
+    "</div>",
+    '<div id="tlg-summary" class="tlg-summary border rounded-md px-2 py-1" style="border-color: var(--tlg-panel-border)"></div>',
+    '<div id="tlg-name" class="tlg-summary border rounded-md px-2 py-1 hidden" style="border-color: var(--tlg-panel-border); min-height: calc(1lh + 0.5rem + 2px)"></div>',
+    '<div id="tlg-perm-stepper" class="tlg-stepper hidden">',
     '<button type="button" id="tlg-perm-prev" class="tlg-btn tlg-step" aria-label="previous permutation">\u25c0</button>',
     '<span id="tlg-perm-label" class="tlg-summary"></span>',
     '<button type="button" id="tlg-perm-next" class="tlg-btn tlg-step" aria-label="next permutation">\u25b6</button>',
-    "</span>",
     "</div>",
-    '<div id="tlg-status" class="tlg-status"></div>',
+    '<div id="tlg-status" class="tlg-status" style="min-height: 1lh"></div>',
     '<div class="tlg-results">',
     '<div><div class="tlg-heading" data-i18n="tlg_kills_title">Eliminations</div><ul id="tlg-kills" class="tlg-list"></ul></div>',
     '<div><div class="tlg-heading" data-i18n="tlg_lives_title">Placements</div><ul id="tlg-lives" class="tlg-list"></ul></div>',
@@ -117,6 +133,12 @@ const TLG = (() => {
   let highlightAls = false;
   let removeRequestId = 0;
   let removeSnapshot = "";
+  let view3d = false;
+  let angles = null;
+  let options3d = null;
+  let canvas3d = null;
+  let detach3d = null;
+  let frame3d = null;
 
   const $ = (id) => document.getElementById(id);
   const candKey = (cand) => cand.r * 81 + cand.c * 9 + (cand.n - 1);
@@ -430,6 +452,7 @@ const TLG = (() => {
       highlightState = 1;
     }
     renderBoard();
+    if (view3d) renderLayer();
   }
 
   // --- Candidate menu -----------------------------------------------------
@@ -865,12 +888,131 @@ const TLG = (() => {
 
   function renderLayer() {
     const active = isActive();
+    if (!active && view3d) set3D(false);
     setSkewed(active);
     if (!active || !getBoardGeometry()) {
       TLGRenderer.clear();
       return;
     }
+    if (view3d) {
+      TLGRenderer.clear();
+      render3D();
+      return;
+    }
     TLGRenderer.render(buildModel());
+  }
+
+  function screenColors() {
+    const root = getComputedStyle(document.documentElement);
+    const css = (name) => root.getPropertyValue(`--tlg-${name}`).trim();
+    const grid = getComputedStyle(gridContainer);
+    const cell = gridContainer.querySelector(".sudoku-cell");
+    const dark = document.documentElement.classList.contains("dark");
+    const transparent = (color) =>
+      color === "transparent" || /^rgba\(.*,\s*0\)$/.test(color);
+    return {
+      row: css("row"),
+      col: css("col"),
+      box: css("box"),
+      boxLink: css("box-link"),
+      cell: css("cell"),
+      sat: css("sat"),
+      kill: css("kill"),
+      cannibal: css("cannibal"),
+      live: css("live"),
+      aur: css("aur"),
+      vset: css("vset"),
+      perm: css("perm"),
+      pending: css("pending"),
+      node: dark ? "#9ca3af" : "#6b7280",
+      bg: transparent(grid.backgroundColor)
+        ? getComputedStyle(document.body).backgroundColor
+        : grid.backgroundColor,
+      grid: cell ? getComputedStyle(cell).borderColor : grid.color,
+      text: grid.color,
+      dark,
+    };
+  }
+
+  function render3D() {
+    const model = buildModel();
+    model.highlightedDigit = highlightState === 1 ? highlightedDigit : null;
+    canvas3d.setAttribute("aria-label", t("tlg_3d_canvas_label"));
+    frame3d = {
+      model,
+      boardTexture: options3d.logicVisibility < 100 ? renderGridImage(900) : null,
+      colors: screenColors(),
+    };
+    draw3D();
+  }
+
+  function view3D() {
+    return {
+      ...angles,
+      ...options3d,
+      boardTexture: frame3d.boardTexture,
+      colors: frame3d.colors,
+      dpr: window.devicePixelRatio || 1,
+    };
+  }
+
+  function draw3D() {
+    if (frame3d) TLG3D.render(canvas3d, frame3d.model, view3D());
+  }
+
+  function save3DOption(key, value) {
+    if (!writeStoredText(localStorage, key, JSON.stringify(value))) {
+      notifyStorageWriteFailed();
+    }
+  }
+
+  function set3D(on) {
+    if (on === view3d) return;
+    view3d = on;
+    if (on) resetInputState();
+    if (!canvas3d) {
+      canvas3d = document.createElement("canvas");
+      canvas3d.id = "tlg-3d-canvas";
+      canvas3d.className =
+        "absolute inset-0 w-full h-full z-20 touch-none cursor-grab hidden";
+      canvas3d.setAttribute("role", "img");
+      gridContainer.appendChild(canvas3d);
+    }
+    // Candidate marks set their own visibility; the row opacity keeps them under the canvas.
+    for (const row of gridContainer.querySelectorAll(".grid-row")) {
+      row.style.visibility = on ? "hidden" : "";
+      row.style.opacity = on ? "0" : "";
+    }
+    canvas3d.classList.toggle("hidden", !on);
+    if (detach3d) detach3d();
+    detach3d = null;
+    frame3d = null;
+    if (on) {
+      angles = { ...TLG3D.DEFAULT_ANGLES };
+      detach3d = TLG3D.attach(canvas3d, {
+        get: () => angles,
+        set: (theta, phi) => {
+          angles = { theta, phi };
+          draw3D();
+        },
+      });
+    }
+    const editControls = ROLES.map((r) => `tlg-role-${r}`);
+    for (const id of [...editControls, "tlg-kind", "tlg-menu-toggle"]) {
+      $(id).disabled = on;
+    }
+    $("tlg-cancel").disabled = on || !pending;
+    $("tlg-grid-2d").classList.toggle("hidden", on);
+    $("tlg-grid-3d").classList.toggle("hidden", !on);
+    if ($(on ? "tlg-grid-2d" : "tlg-grid-3d").contains(document.activeElement)) {
+      $(on ? "tlg-3d-off" : "tlg-3d-toggle").focus({ preventScroll: true });
+    }
+    setPressed("tlg-3d-toggle", on);
+    if (on) {
+      if (window.innerWidth < 880) gridContainer.scrollIntoView({ block: "start" });
+      showMessage(t("tlg_3d_hint"), "gray");
+    }
+    renderLayer();
   }
 
   function renderAll() {
@@ -919,33 +1061,38 @@ const TLG = (() => {
     setPressed("tlg-menu-toggle", menuMode);
     $("tlg-kind").value = kind;
     $("tlg-cancel").disabled = !pending;
-    $("tlg-undo").disabled = edits.undo.length === 0;
-    $("tlg-redo").disabled = edits.redo.length === 0;
+    for (const id of ["tlg-undo", "tlg-3d-undo"]) $(id).disabled = edits.undo.length === 0;
+    for (const id of ["tlg-redo", "tlg-3d-redo"]) $(id).disabled = edits.redo.length === 0;
     $("tlg-black-rank0").checked = blackRank0;
     $("tlg-als-highlight").checked = highlightAls;
 
     const truths = state.sets.filter((s) => s.role === "truth");
     const links = state.sets.filter((s) => s.role === "link");
     const r = usableResult();
+    const evaluating = status === "pending";
+    const drawn = hasLogic() || !!r;
+    let nameText = null;
+    /* @edition-slot editor-021 */
     const parts = [t("tlg_counts", truths.length, links.length)];
     if (r) parts.push(t("tlg_rank", r.rankText));
-    /* @edition-slot editor-021 */
-    const showPerms = !!r;
-    if (showPerms) parts[1] += " ·";
-    $("tlg-perm-stepper").classList.toggle("hidden", !showPerms);
-    if (showPerms) {
-      const loaded = r.perms ? r.perms.length : 0;
-      $("tlg-perm-label").textContent = `p${permIndex >= 0 ? permIndex + 1 : "-"}/${r.nperm}`;
-      $("tlg-perm-prev").disabled = loaded === 0;
-      $("tlg-perm-next").disabled = loaded === 0;
-    }
+    else if (evaluating) parts.push(nameText === null ? t("tlg_status_pending") : t("tlg_rank", "?"));
+    const nameBox = $("tlg-name");
+    nameBox.textContent = nameText || "";
+    nameBox.classList.toggle("hidden", nameText === null || !drawn);
+    $("tlg-perm-stepper").classList.toggle("hidden", !drawn);
+    const loaded = r && r.perms ? r.perms.length : 0;
+    $("tlg-perm-label").textContent = r
+      ? `p${permIndex >= 0 ? permIndex + 1 : "-"}/${r.nperm}`
+      : "p -/-";
+    $("tlg-perm-prev").disabled = loaded === 0;
+    $("tlg-perm-next").disabled = loaded === 0;
     $("tlg-summary").textContent = parts.join(" · ");
     $("tlg-remove-unused").disabled = !r || links.length === 0 || removeRequestId !== 0;
 
     let statusText = "";
     let statusClass = "";
     if (status === "idle") statusText = t("tlg_status_idle");
-    else if (status === "pending") statusText = t("tlg_status_pending");
+    else if (status === "pending") statusText = "";
     else if (status === "error") {
       statusText = t("tlg_status_error", errorText);
       statusClass = "tlg-status-error";
@@ -961,29 +1108,35 @@ const TLG = (() => {
     statusEl.textContent = statusText;
     statusEl.className = `tlg-status ${statusClass}`;
 
-    fillList(
-      "tlg-kills",
-      r
-        ? r.kills.map((k) => {
-            const cand = candOf(k.cand);
-            return textItem(
-              `${rc(cand)}<>${cand.n}${k.kind === "cannibal" ? ` (${t("tlg_cannibal")})` : ""}`,
-              k.kind === "cannibal" ? "tlg-kill-cannibal" : "tlg-kill-external",
-            );
-          })
-        : [],
-      "tlg_list_none",
-    );
-    fillList(
-      "tlg-lives",
-      r
-        ? r.lives.map((key) => {
-            const cand = candOf(key);
-            return textItem(`${rc(cand)}=${cand.n}`, "tlg-live");
-          })
-        : [],
-      "tlg_list_none",
-    );
+    for (const id of ["tlg-kills", "tlg-lives"]) {
+      $(id).style.opacity = evaluating ? "0.45" : "";
+      $(id).style.filter = evaluating ? "grayscale(1)" : "";
+    }
+    if (!evaluating) {
+      fillList(
+        "tlg-kills",
+        r
+          ? r.kills.map((k) => {
+              const cand = candOf(k.cand);
+              return textItem(
+                `${rc(cand)}<>${cand.n}${k.kind === "cannibal" ? ` (${t("tlg_cannibal")})` : ""}`,
+                k.kind === "cannibal" ? "tlg-kill-cannibal" : "tlg-kill-external",
+              );
+            })
+          : [],
+        "tlg_list_none",
+      );
+      fillList(
+        "tlg-lives",
+        r
+          ? r.lives.map((key) => {
+              const cand = candOf(key);
+              return textItem(`${rc(cand)}=${cand.n}`, "tlg-live");
+            })
+          : [],
+        "tlg_list_none",
+      );
+    }
     $("tlg-apply").disabled = !canApply();
     $("tlg-reevaluate").disabled = !hasLogic();
 
@@ -1136,6 +1289,15 @@ const TLG = (() => {
     if (!panel) return;
     blackRank0 = readStoredBoolean(localStorage, BLACK_RANK0_KEY, false);
     highlightAls = readStoredBoolean(localStorage, HIGHLIGHT_ALS_KEY, false);
+    menuMode = readStoredBoolean(localStorage, MENU_MODE_KEY, false);
+    const storedVisibility = readStoredText(localStorage, VISIBILITY_3D_KEY);
+    options3d = {
+      logicVisibility: /^(?:\d{1,2}|100)$/.test(storedVisibility)
+        ? Number(storedVisibility)
+        : 100,
+      boardBottom: readStoredBoolean(localStorage, BOARD_BOTTOM_3D_KEY, false),
+      nodeLabels: readStoredBoolean(localStorage, NODE_LABELS_3D_KEY, true),
+    };
     for (const r of ROLES) {
       $(`tlg-role-${r}`).addEventListener("click", () => {
         role = r;
@@ -1150,11 +1312,14 @@ const TLG = (() => {
     });
     $("tlg-menu-toggle").addEventListener("click", () => {
       menuMode = !menuMode;
+      if (!writeStoredText(localStorage, MENU_MODE_KEY, JSON.stringify(menuMode))) {
+        notifyStorageWriteFailed();
+      }
       resetInputState();
       renderAll();
     });
-    $("tlg-undo").addEventListener("click", () => stepEdits(true));
-    $("tlg-redo").addEventListener("click", () => stepEdits(false));
+    for (const id of ["tlg-undo", "tlg-3d-undo"]) $(id).addEventListener("click", () => stepEdits(true));
+    for (const id of ["tlg-redo", "tlg-3d-redo"]) $(id).addEventListener("click", () => stepEdits(false));
     $("tlg-cancel").addEventListener("click", () => {
       resetInputState();
       renderAll();
@@ -1218,6 +1383,45 @@ const TLG = (() => {
       resetInputState();
       commit();
     });
+    $("tlg-3d-toggle").addEventListener("click", () => set3D(!view3d));
+    $("tlg-3d-off").addEventListener("click", () => set3D(false));
+    const rotate = (theta, phi) => {
+      angles = TLG3D.clampAngles(angles.theta + theta, angles.phi + phi);
+      draw3D();
+    };
+    $("tlg-3d-left").addEventListener("click", () => rotate(0, -10));
+    $("tlg-3d-right").addEventListener("click", () => rotate(0, 10));
+    $("tlg-3d-up").addEventListener("click", () => rotate(-10, 0));
+    $("tlg-3d-down").addEventListener("click", () => rotate(10, 0));
+    $("tlg-3d-reset").addEventListener("click", () => {
+      angles = { ...TLG3D.DEFAULT_ANGLES };
+      draw3D();
+    });
+    const visibility = $("tlg-3d-visibility");
+    visibility.value = String(options3d.logicVisibility);
+    visibility.addEventListener("input", () => {
+      options3d.logicVisibility = Number(visibility.value);
+      if (frame3d && !frame3d.boardTexture && options3d.logicVisibility < 100) renderLayer();
+      else draw3D();
+    });
+    visibility.addEventListener("change", () => {
+      save3DOption(VISIBILITY_3D_KEY, options3d.logicVisibility);
+    });
+    for (const [id, key, storageKey] of [
+      ["tlg-3d-board-bottom", "boardBottom", BOARD_BOTTOM_3D_KEY],
+      ["tlg-3d-node-labels", "nodeLabels", NODE_LABELS_3D_KEY],
+    ]) {
+      $(id).checked = options3d[key];
+      $(id).addEventListener("change", (e) => {
+        options3d[key] = e.target.checked;
+        save3DOption(storageKey, options3d[key]);
+        draw3D();
+      });
+    }
+    $("tlg-3d-copy").addEventListener("click", () => {
+      if (!frame3d) return;
+      copyCanvasToClipboard(TLG3D.exportCanvas(frame3d.model, view3D(), 900));
+    });
   }
 
   // --- Mode lifecycle -----------------------------------------------------
@@ -1233,16 +1437,15 @@ const TLG = (() => {
   function enter() {
     showPlayControls(false);
     resetEdits();
-    menuMode = false;
     resetInputState();
     showMessage(t(touchOnly() ? "tlg_mode_tip_mobile" : "tlg_mode_tip"), "gray");
     scheduleEvaluate();
   }
 
   function exit() {
+    set3D(false);
     cancel();
     state = emptyState();
-    menuMode = false;
     selectedSetId = null;
     resetInputState();
     showPlayControls(true);
@@ -1274,6 +1477,7 @@ const TLG = (() => {
       state = emptyState();
       solverStepIndex = currentSolverStep;
       selectedSetId = null;
+      set3D(false);
       resetInputState();
       resetEdits();
     }
@@ -1305,7 +1509,6 @@ const TLG = (() => {
     state = emptyState();
     resetEdits();
     selectedSetId = null;
-    menuMode = false;
     resetInputState();
   }
 
@@ -1386,6 +1589,7 @@ const TLG = (() => {
 
   return {
     isActive,
+    is3D: () => view3d,
     handleGridEvent,
     handleKey,
     bindPanel,
