@@ -58,6 +58,7 @@
     ["ui_WXYZ_Wing", "wxyzWing", null, 6, 200],
     ["ui_SdC", "sueDeCoq", null, 6, 240],
     ["ui_grouped_X_Chain", "groupedXChain", null, 7, 240],
+    ["ui_grouped_BW", "groupedBrokenWing", null, 7, 250],
     ["ui_AIC", "alternatingInferenceChain", null, 7, 280],
     ["ui_Grouped_AIC", "groupedAIC", null, 8, 300],
     ["ui_ALS_XZ", "alsXZ", null, 8, 300],

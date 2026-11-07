@@ -1,197 +1,200 @@
 Object.assign(techniques, {
-  brokenWing: (board, pencils, findAll = false) => {
+  _brokenWingLink: (house, houseIds, left, right, targets) => {
+    const overlap = left.mask & right.mask;
+    if (overlap !== 0n && house < 18) return null;
+    if ((left.mask & ~overlap) === 0n ||
+        (right.mask & ~overlap) === 0n) return null;
+
+    const houseMask = houseIds.reduce((mask, id) => mask | CELL_MASK[id], 0n);
+    const guardMask = (houseMask & ~(left.mask | right.mask)) | overlap;
+    const guardians = houseIds.filter((id) =>
+      (guardMask & CELL_MASK[id]) !== 0n);
+    for (const id of guardians) targets &= PEER_MAP[id];
+    return targets === 0n ? null : { house, guardians, guardMask, targets };
+  },
+
+  _brokenWingSearch: (board, pencils, grouped, findAll) => {
     const results = [];
-    const getCompactLoc = techniques._formatCellsRC;
-    const canExtendOddLoop = (path, id) => {
+    const seenRemovals = new Set();
+    const graphs = [];
+    const maxLength = 11;
+
+    const canExtendClassic = (path, nodes, id) => {
       const row = Math.floor(id / 9);
       const col = id % 9;
       const box = techniques._getBoxIndex(row, col);
       let rowCount = 0;
       let colCount = 0;
       let boxCount = 0;
-
-      for (const pathId of path) {
+      for (const index of path) {
+        const pathId = nodes[index].ids[0];
         const pathRow = Math.floor(pathId / 9);
         const pathCol = pathId % 9;
         if (pathRow === row) rowCount++;
         if (pathCol === col) colCount++;
         if (techniques._getBoxIndex(pathRow, pathCol) === box) boxCount++;
       }
-
       return rowCount < 2 && colCount < 2 && boxCount < 2;
     };
 
-    const maxLen = 11;
-    for (let pathLength = 5; pathLength <= maxLen; pathLength += 2) {
-      for (let num = 1; num <= 9; num++) {
-        const templating = techniques._getTemplating(board, pencils, num);
-        const { cellsWithNum, allNumMask, units } = templating;
+    for (let num = 1; num <= 9; num++) {
+      const { units, cellsWithNum } = techniques._getTemplating(board, pencils, num);
+      if (cellsWithNum.length < 5) continue;
+      const { impossibleMask } = techniques._getTemplatePatterns(board, pencils, num);
+      if (impossibleMask === 0n) continue;
 
-        if (cellsWithNum.length < 5) continue;
-
-        // Templating Step
-        const { impossibleMask } = techniques._getTemplatePatterns(
-          board,
-          pencils,
-          num,
-        );
-        if (impossibleMask === 0n) continue;
-
-        const adj = {};
-        for (let i = 0; i < cellsWithNum.length; i++) {
-          adj[cellsWithNum[i]] = [];
-        }
-
-        // Link Graph
-        for (let i = 0; i < 27; i++) {
-          const present = units[i];
-          if (present.length >= 2) {
-            for (let p1 = 0; p1 < present.length; p1++) {
-              for (let p2 = p1 + 1; p2 < present.length; p2++) {
-                const u = present[p1];
-                const v = present[p2];
-                const guards = present.filter((id) => id !== u && id !== v);
-                adj[u].push({ to: v, guardians: guards });
-                adj[v].push({ to: u, guardians: guards });
-              }
-            }
+      const nodes = [];
+      const seenNodes = new Set();
+      const addNode = (ids) => {
+        const sorted = [...ids].sort((a, b) => a - b);
+        const key = sorted.join(",");
+        if (seenNodes.has(key)) return;
+        seenNodes.add(key);
+        nodes.push({
+          ids: sorted,
+          mask: sorted.reduce((mask, id) => mask | CELL_MASK[id], 0n),
+          grouped: sorted.length > 1,
+        });
+      };
+      for (const id of cellsWithNum) addNode([id]);
+      if (grouped) {
+        for (let box = 0; box < 9; box++) {
+          for (let line = 0; line < 18; line++) {
+            const intersection = units[18 + box].filter((id) =>
+              line < 9 ? Math.floor(id / 9) === line : id % 9 === line - 9);
+            if (intersection.length > 1) addNode(intersection);
           }
         }
+      }
 
-        for (const start of cellsWithNum) {
-          const stack = [
-            {
-              current: start,
-              path: [start],
-              guards: new Set(),
-              targets: allNumMask & impossibleMask,
-            },
-          ];
+      const adjacency = nodes.map(() => []);
+      const seenEdges = new Set();
+      for (let house = 0; house < 27; house++) {
+        const houseIds = units[house];
+        if (houseIds.length < 2) continue;
+        const houseMask = houseIds.reduce((mask, id) => mask | CELL_MASK[id], 0n);
+        const members = nodes.map((node, index) => ({ node, index }))
+          .filter(({ node }) => (node.mask & houseMask) === node.mask);
+        for (let a = 0; a < members.length; a++) {
+          for (let b = a + 1; b < members.length; b++) {
+            const left = members[a];
+            const right = members[b];
+            // A shared box-line candidate is a guardian. Neither effective
+            // loop node contains it when all guardians are false.
+            const edge = techniques._brokenWingLink(
+              house, houseIds, left.node, right.node, impossibleMask);
+            if (!edge) continue;
+            const key = `${left.index}:${right.index}:${edge.guardMask}`;
+            if (grouped && seenEdges.has(key)) continue;
+            seenEdges.add(key);
+            adjacency[left.index].push({ to: right.index, ...edge });
+            adjacency[right.index].push({ to: left.index, ...edge });
+          }
+        }
+      }
 
-          while (stack.length > 0) {
-            const { current, path, guards, targets } = stack.pop();
-            if (path.length > pathLength) continue;
+      const makeResult = (path, links, guardsMask, targets) => {
+        const cells = cellsWithNum.filter((id) =>
+          (targets & CELL_MASK[id]) !== 0n)
+          .map((id) => ({ r: Math.floor(id / 9), c: id % 9, num }));
+        if (cells.length === 0) return null;
+        const key = cells.map(({ r, c }) => `${r},${c}`).join(";") + `:${num}`;
+        if (seenRemovals.has(key)) return null;
+        seenRemovals.add(key);
 
-            for (const edge of adj[current]) {
-              let edgeTargets = targets;
+        const guardIds = cellsWithNum.filter((id) =>
+          (guardsMask & CELL_MASK[id]) !== 0n);
+        const pathIds = path.flatMap((index) => nodes[index].ids);
+        const pathText = path.map((index) =>
+          techniques._formatCellsRC(nodes[index].ids)).join("-") + "-";
+        const result = {
+          change: true,
+          type: "remove",
+          cells,
+          hint: {
+            name: t(grouped ? "teks_grouped_BW" : "teks_BW"),
+            mainInfo: t("teks_BW_digit", num),
+            detail: t("teks_BW_guardians", num, pathText,
+              techniques._formatCellsRC(guardIds)),
+          },
+          visualPlan: {
+            highlight: { digit: num, state: 1 },
+            cellColors: [
+              ...pathIds.map((id) => ({
+                r: Math.floor(id / 9), c: id % 9, color: 6, mode: "add",
+              })),
+              ...guardIds.map((id) => ({
+                r: Math.floor(id / 9), c: id % 9, color: 4, mode: "add",
+              })),
+            ],
+            candidateColors: [
+              ...pathIds.map((id) => ({
+                r: Math.floor(id / 9), c: id % 9, num, color: 4,
+              })),
+              ...guardIds.map((id) => ({
+                r: Math.floor(id / 9), c: id % 9, num, color: 3,
+              })),
+            ],
+            candidateMarks: cells.map(({ r, c }) => ({
+              r, c, num, marker: "slash", color: 0,
+            })),
+          },
+        };
+        if (grouped) {
+          result.groupedBrokenWing = {
+            digit: num,
+            nodes: path.map((index) => nodes[index].ids),
+            links: links.map((edge) => ({
+              house: edge.house,
+              guardians: edge.guardians,
+            })),
+            guardians: guardIds,
+          };
+        }
+        return result;
+      };
 
-              for (const g of edge.guardians) {
-                edgeTargets &= PEER_MAP[g];
-              }
+      graphs.push({ nodes, adjacency, impossibleMask, makeResult });
+    }
 
-              // Pruning Step
-              if (edgeTargets === 0n) continue;
-
-              if (edge.to === start && path.length === pathLength) {
-                const cycleGuards = new Set(guards);
-                edge.guardians.forEach((g) => cycleGuards.add(g));
-
-                if (cycleGuards.size > 0) {
-                  const removals = [];
-                  let tempTargets = edgeTargets;
-                  let i = 0;
-                  while (tempTargets > 0n) {
-                    if ((tempTargets & 1n) !== 0n) {
-                      removals.push({ r: Math.floor(i / 9), c: i % 9, num });
-                    }
-                    tempTargets >>= 1n;
-                    i++;
-                  }
-
-                  if (removals.length > 0) {
-                    const cycleGuardsArr = Array.from(cycleGuards);
-                    const guardCells = Array.from(cycleGuards).map((id) =>
-                      techniques._idToCell(id),
-                    );
-                    const pathStr =
-                      path
-                        .map(
-                          (id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`,
-                        )
-                        .join("-") + "-";
-                    const guardStr = getCompactLoc(cycleGuardsArr);
-
-                    const res = {
-                      change: true,
-                      type: "remove",
-                      cells: removals,
-                      hint: {
-                        name: t("teks_BW"),
-                        mainInfo: t("teks_BW_digit", num),
-                        detail: t("teks_BW_guardians", num, pathStr, guardStr),
-                      },
-                      visualPlan: {
-                        highlight: { digit: num, state: 1 },
-                        cellColors: [
-                          ...path.map((id) => ({
-                            r: Math.floor(id / 9),
-                            c: id % 9,
-                            color: 6,
-                            mode: "add",
-                          })),
-                          ...guardCells.map(([r, c]) => ({
-                            r,
-                            c,
-                            color: 4,
-                            mode: "add",
-                          })),
-                        ],
-                        candidateColors: [
-                          ...path.map((id) => ({
-                            r: Math.floor(id / 9),
-                            c: id % 9,
-                            num,
-                            color: 4,
-                          })),
-                          ...guardCells.map(([r, c]) => ({
-                            r,
-                            c,
-                            num,
-                            color: 3,
-                          })),
-                        ],
-                        candidateMarks: removals.map(({ r, c }) => ({
-                          r,
-                          c,
-                          num,
-                          marker: "slash",
-                          color: 0,
-                        })),
-                      },
-                    };
-
-                    const removalKey = removals
-                      .map((r) => `${r.r},${r.c},${r.num}`)
-                      .sort()
-                      .join(";");
-                    const exists = results.some(
-                      (r) =>
-                        r.cells
-                          .map((x) => `${x.r},${x.c},${x.num}`)
-                          .sort()
-                          .join(";") === removalKey,
-                    );
-                    if (!exists) {
-                      if (!findAll) return res;
-                      results.push(res);
-                    }
-                  }
+    // Search lengths globally so the first explanation has the fewest nodes.
+    for (let pathLength = 5; pathLength <= maxLength; pathLength += 2) {
+      for (const { nodes, adjacency, impossibleMask, makeResult } of graphs) {
+        for (let start = 0; start < nodes.length; start++) {
+          if (adjacency[start].length < 2) continue;
+          const stack = [{ path: [start], targets: impossibleMask,
+            links: [], guardsMask: 0n, hasGroup: nodes[start].grouped }];
+          while (stack.length) {
+            const state = stack.pop();
+            const current = state.path.at(-1);
+            for (const edge of adjacency[current]) {
+              const targets = state.targets & edge.targets;
+              if (targets === 0n) continue;
+              const guardsMask = state.guardsMask | edge.guardMask;
+              if (edge.to === start) {
+                if (state.path.length !== pathLength ||
+                    (grouped && !state.hasGroup) || guardsMask === 0n) continue;
+                const result = makeResult(state.path, [...state.links, edge],
+                  guardsMask, targets);
+                if (result) {
+                  if (!findAll) return result;
+                  results.push(result);
                 }
-              } else if (
-                path.length < pathLength &&
-                !path.includes(edge.to) &&
-                edge.to > start &&
-                canExtendOddLoop(path, edge.to)
-              ) {
-                const newGuards = new Set(guards);
-                edge.guardians.forEach((g) => newGuards.add(g));
-                stack.push({
-                  current: edge.to,
-                  path: [...path, edge.to],
-                  guards: newGuards,
-                  targets: edgeTargets,
-                });
+                continue;
               }
+              if (state.path.length >= pathLength || edge.to <= start ||
+                  state.path.includes(edge.to)) continue;
+              if (grouped) {
+                // Nonadjacent nodes must be disjoint. Adjacent overlap is
+                // allowed only on a box edge and becomes a guardian.
+                const nextMask = nodes[edge.to].mask;
+                if (state.path.slice(0, -1).some((index) =>
+                  (nodes[index].mask & nextMask) !== 0n)) continue;
+              } else if (!canExtendClassic(state.path, nodes,
+                nodes[edge.to].ids[0])) continue;
+              stack.push({ path: [...state.path, edge.to],
+                links: [...state.links, edge], targets, guardsMask,
+                hasGroup: state.hasGroup || nodes[edge.to].grouped });
             }
           }
         }
@@ -199,4 +202,10 @@ Object.assign(techniques, {
     }
     return findAll ? results : { change: false };
   },
+
+  brokenWing: (board, pencils, findAll = false) =>
+    techniques._brokenWingSearch(board, pencils, false, findAll),
+
+  groupedBrokenWing: (board, pencils, findAll = false) =>
+    techniques._brokenWingSearch(board, pencils, true, findAll),
 });
