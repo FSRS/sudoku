@@ -16,6 +16,11 @@ Object.assign(techniques, {
       allowedOrLinkTypes = null,
       maxPathNodes = null,
       orLinkRule = null,
+      useAhs = false,
+      requireAhs = false,
+      searchCycle = null,
+      maxChainNodes = null,
+      ringNamePrefix = null,
     } = config;
     const techniqueName = nameOverride || t("teks_AIC_name");
 
@@ -114,10 +119,30 @@ Object.assign(techniques, {
       aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.FishMap);
     }
 
+    const activeAhsLinkRegistry = cache.AhsLinkRegistry;
+    if (useAhs) {
+      if (cache.AhsMap === null) {
+        cache.AhsMap = techniques.buildAhsOrMap(
+          board,
+          pencils,
+          getNode,
+          activeAhsLinkRegistry,
+        );
+      }
+      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.AhsMap);
+    }
+
     const getAlsForLink = (u, v) =>
       activeAlsLinkRegistry.get(u)?.get(v) || null;
 
+    const getAhsForLink = (u, v) =>
+      useAhs ? activeAhsLinkRegistry.get(u)?.get(v) || null : null;
+
     const getOrLinkType = (u, v) => {
+      if (getAhsForLink(u, v)) {
+        return "ahs";
+      }
+
       // Multi-cell intra-ALS link.
       if (getAlsForLink(u, v)) {
         return "als";
@@ -259,6 +284,20 @@ Object.assign(techniques, {
       }
     }
 
+    if (useAhs) {
+      const oneCellNodesByCell = Array.from({ length: 81 }, () => []);
+      for (const n of interestedNodes) {
+        if (n.cells.length === 1) oneCellNodesByCell[n.cells[0]].push(n);
+      }
+      for (const A of interestedNodes) {
+        if (A.cells.length !== 1) continue;
+        for (const B of oneCellNodesByCell[A.cells[0]]) {
+          if (A.digits.length === 1 && B.digits.length === 1) continue;
+          if (!A.digits.some((d) => B.digits.includes(d))) A.NandNodes.add(B);
+        }
+      }
+    }
+
     let maxCycles = maxCycle;
 
     // cycle 0 => 4 nodes
@@ -325,6 +364,7 @@ Object.assign(techniques, {
           isNextOr: true,
           parent: -1,
           depth: 1,
+          ahs: 0,
         },
       ];
 
@@ -359,7 +399,9 @@ Object.assign(techniques, {
 
       const bestDepth = pathFilter
         ? null
-        : new Map([[startNode.index * 2 + 1, 1]]);
+        : new Map([
+            [requireAhs ? startNode.index * 4 + 2 : startNode.index * 2 + 1, 1],
+          ]);
 
       while (head < states.length) {
         const stateIndex = head++;
@@ -369,7 +411,7 @@ Object.assign(techniques, {
 
         if (node === endNode && depth > 1) {
           // A valid chain ends immediately after an OR link.
-          if (!isNextOr) {
+          if (!isNextOr && (!requireAhs || state.ahs === 1)) {
             const path = reconstructPath(stateIndex);
 
             if (acceptsConfiguredPath(path, kind)) {
@@ -410,10 +452,18 @@ Object.assign(techniques, {
             continue;
           }
 
+          const nextAhs =
+            requireAhs &&
+            (state.ahs === 1 || (isNextOr && getAhsForLink(node, nxt)))
+              ? 1
+              : 0;
+
           // The destination is checked before dominance pruning so a ring can
           // return to its starting node.
           if (bestDepth && nxt !== endNode) {
-            const stateKey = nxt.index * 2 + (nextIsOr ? 1 : 0);
+            const stateKey = requireAhs
+              ? nxt.index * 4 + (nextIsOr ? 2 : 0) + nextAhs
+              : nxt.index * 2 + (nextIsOr ? 1 : 0);
             const previousDepth = bestDepth.get(stateKey);
 
             if (previousDepth !== undefined && previousDepth <= nextDepth) {
@@ -428,11 +478,30 @@ Object.assign(techniques, {
             isNextOr: nextIsOr,
             parent: stateIndex,
             depth: nextDepth,
+            ahs: nextAhs,
           });
         }
       }
 
       return null;
+    };
+
+    // If the end's gate partner is false, the leftover AHS cell is the
+    // partner's, so every other AHS cell holds an AHS digit.
+    const ahsChainEndNand = (end, mate) => {
+      const ahs = getAhsForLink(end, mate);
+      if (!ahs) return null;
+      const nand = end.NandBitset.map((part) => part.slice());
+      ahs.cellIds.forEach((id, i) => {
+        if (id === mate.cells[0]) return;
+        const cellNand = ahs.cellNodes[i].NandBitset;
+        for (let d = 0; d < 9; d++) {
+          nand[d][0] |= cellNand[d][0];
+          nand[d][1] |= cellNand[d][1];
+          nand[d][2] |= cellNand[d][2];
+        }
+      });
+      return nand;
     };
 
     const getLoc = techniques._formatAicLocation;
@@ -447,10 +516,16 @@ Object.assign(techniques, {
         const v = path[(i + 1) % path.length];
 
         let orGateStr = "";
+        const ahs = getAhsForLink(u, v);
         const als = useAls ? activeAlsLinkRegistry.get(u)?.get(v) : null;
         const fish = useFish ? activeFishLinkRegistry.get(u)?.get(v) : null;
 
-        if (als) {
+        if (ahs) {
+          const preferBox = ahs.type === "box";
+          const ahsDigits = techniques._bits.maskToDigits(ahs.digitMask);
+          orGateStr = `(${ahsDigits.join("")})(${getLoc(u.cells, preferBox)}=${getLoc(v.cells, preferBox)})`;
+          lastDigit = null;
+        } else if (als) {
           const alsIds = als.cells.map((c) => c[0] * 9 + c[1]);
           const preferBox =
             als.unitName && als.unitName.includes(t("teks_unit_box"));
@@ -517,9 +592,34 @@ Object.assign(techniques, {
         }
       }
 
+      const usedAhses = [];
+      const ahsGateNodes = new Set();
+      for (let i = 0; i < fullVisualChain.length - 1; i += 2) {
+        const u = fullVisualChain[i];
+        const v = fullVisualChain[i + 1];
+        const ahs = getAhsForLink(u, v);
+        if (!ahs) continue;
+        if (!usedAhses.includes(ahs)) usedAhses.push(ahs);
+        ahsGateNodes.add(u);
+        ahsGateNodes.add(v);
+      }
+
       const candidateColors = [];
+      const colorCodes = [6, 7, 2, 3, 4, 1, 8];
+      usedAhses.forEach((ahs, n) => {
+        const color = colorCodes[n % colorCodes.length];
+        for (const id of ahs.cellIds) {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          for (let num = 1; num <= 9; num++) {
+            if ((ahs.digitMask >> (num - 1)) & 1 && pencils[r][c].has(num)) {
+              candidateColors.push({ r, c, num, color, mode: "add" });
+            }
+          }
+        }
+      });
       path.forEach((node, idx) => {
-        if (fishNodes.has(node)) return;
+        if (fishNodes.has(node) || ahsGateNodes.has(node)) return;
         const color = idx % 2 === 0 ? 5 : 4;
         for (const id of node.cells) {
           const r = Math.floor(id / 9);
@@ -540,7 +640,6 @@ Object.assign(techniques, {
         marker: "slash",
         color: 0,
       }));
-      const colorCodes = [6, 7, 2, 3, 4, 1, 8];
       let colorCount = -1;
 
       if (useAls) {
@@ -597,8 +696,46 @@ Object.assign(techniques, {
           [Math.floor(bestB / 9), bestB % 9],
         ];
       };
+      // Nearest cells first, then the same digit.
+      const pickEnds = (nodeA, nodeB) => {
+        let best = null;
+        for (const a of nodeA.cells) {
+          const ar = Math.floor(a / 9);
+          const ac = a % 9;
+          for (const da of nodeA.digits) {
+            if (!pencils[ar][ac].has(da)) continue;
+            for (const b of nodeB.cells) {
+              const br = Math.floor(b / 9);
+              const bc = b % 9;
+              for (const db of nodeB.digits) {
+                if (!pencils[br][bc].has(db)) continue;
+                const score =
+                  (Math.abs(ar - br) + Math.abs(ac - bc)) * 2 +
+                  (da === db ? 0 : 1);
+                if (!best || score < best.score) {
+                  best = {
+                    score,
+                    r1: ar,
+                    c1: ac,
+                    n1: da,
+                    r2: br,
+                    c2: bc,
+                    n2: db,
+                  };
+                }
+              }
+            }
+          }
+        }
+        return best;
+      };
       const drawGroup = (node, idx) => {
-        if (fishNodes.has(node) || node.cells.length < 2) return;
+        if (
+          fishNodes.has(node) ||
+          ahsGateNodes.has(node) ||
+          node.cells.length < 2
+        )
+          return;
         const color = idx % 2 === 0 ? 5 : 4;
         for (let i = 0; i < node.cells.length - 1; i++) {
           links.push({
@@ -621,8 +758,21 @@ Object.assign(techniques, {
         if (i < path.length) drawGroup(v, (i + 1) % path.length);
 
         const skipLine =
-          useFish && i % 2 === 0 && activeFishLinkRegistry.get(u)?.get(v);
-        if (!skipLine) {
+          (useFish && i % 2 === 0 && activeFishLinkRegistry.get(u)?.get(v)) ||
+          (i % 2 === 0 && getAhsForLink(u, v));
+        if (!skipLine && (u.digits.length > 1 || v.digits.length > 1)) {
+          const ends = pickEnds(u, v);
+          links.push({
+            r1: ends.r1,
+            c1: ends.c1,
+            n1: ends.n1,
+            r2: ends.r2,
+            c2: ends.c2,
+            n2: ends.n2,
+            color: 0,
+            style: i % 2 === 0 ? "solid" : "dash",
+          });
+        } else if (!skipLine) {
           const [cA, cB] = getClosestCells(u, v);
           links.push({
             r1: cA[0],
@@ -713,12 +863,7 @@ Object.assign(techniques, {
         break;
       }
 
-      if (
-        techniqueName === t("teks_ALS_XY_Wing") ||
-        techniqueName === t("teks_ALS_W_Wing")
-      ) {
-        if (cycle !== 1) continue;
-      }
+      if (searchCycle !== null && cycle !== searchCycle) continue;
 
       let maxPathLen = getMaxPathLenForCycle(cycle);
       if (maxPathNodes) maxPathLen = Math.min(maxPathLen, maxPathNodes);
@@ -838,6 +983,27 @@ Object.assign(techniques, {
               }
             }
 
+            if (useAhs && path.length >= 4) {
+              // Exactly one end of an AHS gate is false, so the other AHS
+              // cells hold AHS digits.
+              for (let i = 0; i < path.length; i += 2) {
+                const u = path[i];
+                const v = path[i + 1];
+                const ahs = getAhsForLink(u, v);
+                if (!ahs) continue;
+                for (const id of ahs.cellIds) {
+                  if (u.cells[0] === id || v.cells[0] === id) continue;
+                  const r = Math.floor(id / 9);
+                  const c = id % 9;
+                  for (const num of pencils[r][c]) {
+                    if (((ahs.digitMask >> (num - 1)) & 1) === 0) {
+                      ringRemovals.push({ r, c, num });
+                    }
+                  }
+                }
+              }
+            }
+
             if (ringRemovals.length > 0) {
               const { removals: uniqueRingRemovals, key: removalsKey } =
                 canonicalRemovalPack(ringRemovals);
@@ -857,10 +1023,10 @@ Object.assign(techniques, {
                             chainStr,
                             t("teks_msg_ring_term"),
                           )
-                        : useAlsXZ || techniqueName === t("teks_ALS_W_Wing")
+                        : useAlsXZ
                           ? t("teks_msg_doubly_linked") + techniqueName
-                          : techniqueName === t("teks_ALS_XY_Wing")
-                            ? t("teks_msg_triply_linked") + techniqueName
+                          : ringNamePrefix
+                            ? ringNamePrefix + techniqueName
                             : techniqueName + t("teks_msg_ring_suffix");
 
                 const res = buildResult(
@@ -881,7 +1047,7 @@ Object.assign(techniques, {
       }
       if (results.length > 0 && !findAll) return results[0];
 
-      if (techniqueName === t("teks_ALS_W_Wing")) maxPathLen = 6;
+      if (maxChainNodes) maxPathLen = maxChainNodes;
 
       // Priority 2: DN Loop
       if (!bivalueOnly) {
@@ -1013,8 +1179,34 @@ Object.assign(techniques, {
 
                 stringifiedFoundRemovals.add(removalsKey);
 
+                let chainRemovals = aicRemovals;
+                if (useAhs) {
+                  const extA = ahsChainEndNand(A, path[1]);
+                  const extD = ahsChainEndNand(D, path[path.length - 2]);
+                  if (extA || extD) {
+                    const more = aicRemovals.slice();
+                    if (extD) {
+                      more.push(
+                        ...extractRemovals(
+                          techniques.getBitsetIntersection(A.NandBitset, extD)
+                            .intersection,
+                        ),
+                      );
+                    }
+                    if (extA) {
+                      more.push(
+                        ...extractRemovals(
+                          techniques.getBitsetIntersection(extA, D.NandBitset)
+                            .intersection,
+                        ),
+                      );
+                    }
+                    chainRemovals = canonicalRemovalPack(more).removals;
+                  }
+                }
+
                 const res = buildResult(
-                  aicRemovals,
+                  chainRemovals,
                   techniqueName,
                   path,
                   false,
@@ -1144,7 +1336,9 @@ Object.assign(techniques, {
         useAlsOnly: true,
         endSameDigits: true,
         maxCycle: 2,
+        searchCycle: 1,
         nameOverride: t("teks_ALS_XY_Wing"),
+        ringNamePrefix: t("teks_msg_triply_linked"),
         allowedOrLinkTypes: ["als", "bivalue"],
         // The filter only accepts six-node paths, so never search deeper.
         maxPathNodes: 6,
@@ -1178,7 +1372,10 @@ Object.assign(techniques, {
         useAls: true,
         endSameDigits: true,
         maxCycle: 2,
+        searchCycle: 1,
+        maxChainNodes: 6,
         nameOverride: t("teks_ALS_W_Wing"),
+        ringNamePrefix: t("teks_msg_doubly_linked"),
         allowedOrLinkTypes: ["als", "bivalue", "region"],
         // Same shape as pathFilter below, checked link by link while searching.
         orLinkRule: (orIndex, type) =>

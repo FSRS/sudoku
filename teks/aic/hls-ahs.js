@@ -175,33 +175,9 @@
     return node;
   };
 
-  // --- Position-level graph ---
-  const buildAhsGraph = (board, pencils) => {
-    const cache = techniques._aicCache;
-    if (cache.AhsGraph) return cache.AhsGraph;
-
-    let t0 = now();
-    ensureBasicNodes(board, pencils, cache);
-    const nodeCache = cache.NodeCache;
-    const ownCache = new Map();
-    const ownNodes = [];
-    const getNode = (cells, digits) => {
-      const key = nodeKey(cells, digits);
-      const shared = nodeCache.get(key);
-      if (shared) return shared;
-      let node = ownCache.get(key);
-      if (!node) {
-        node = new AICNode(cells, digits);
-        ownCache.set(key, node);
-        ownNodes.push(node);
-      }
-      return node;
-    };
-    const peekNode = (cells, digits) => {
-      const key = nodeKey(cells, digits);
-      return nodeCache.get(key) || ownCache.get(key) || null;
-    };
-
+  // AHS enumeration: n digits (n >= 2) confined to n + 1 cells of a house,
+  // none of them reducible to a smaller hidden or naked subset.
+  const enumerateAhs = (board, pencils) => {
     const cand = new Int32Array(81);
     const candBits = emptyNand();
     for (let r = 0; r < 9; r++) {
@@ -228,10 +204,7 @@
         }
       }
     }
-    tick("graph.masks", t0);
-    t0 = now();
 
-    // 1. AHS enumeration: n digits (n >= 2) confined to n + 1 cells of a house.
     const ahses = [];
     const union = new Int32Array(512);
     const cellUnion = new Int32Array(512);
@@ -301,6 +274,65 @@
         });
       }
     }
+    return { ahses, cand, candBits };
+  };
+
+  // Every two cell nodes of one AHS form an OR gate: only one AHS cell is
+  // left without an AHS digit.
+  const buildAhsOrMap = (board, pencils, getNode, ahsLinkRegistry) => {
+    const { ahses } = enumerateAhs(board, pencils);
+    const orMap = new Map();
+    const link = (a, b, ahs) => {
+      let set = orMap.get(a);
+      if (!set) orMap.set(a, (set = new Set()));
+      set.add(b);
+      let reg = ahsLinkRegistry.get(a);
+      if (!reg) ahsLinkRegistry.set(a, (reg = new Map()));
+      if (!reg.has(b)) reg.set(b, ahs);
+    };
+    for (const ahs of ahses) {
+      const cellNodes = ahs.cellIds.map((id, i) =>
+        getNode([id], maskDigits(ahs.cellDigitMask[i])),
+      );
+      ahs.cellNodes = cellNodes;
+      for (let i = 0; i < cellNodes.length; i++) {
+        for (let j = i + 1; j < cellNodes.length; j++) {
+          link(cellNodes[i], cellNodes[j], ahs);
+          link(cellNodes[j], cellNodes[i], ahs);
+        }
+      }
+    }
+    return orMap;
+  };
+
+  // --- Position-level graph ---
+  const buildAhsGraph = (board, pencils) => {
+    const cache = techniques._aicCache;
+    if (cache.AhsGraph) return cache.AhsGraph;
+
+    let t0 = now();
+    ensureBasicNodes(board, pencils, cache);
+    const nodeCache = cache.NodeCache;
+    const ownCache = new Map();
+    const ownNodes = [];
+    const getNode = (cells, digits) => {
+      const key = nodeKey(cells, digits);
+      const shared = nodeCache.get(key);
+      if (shared) return shared;
+      let node = ownCache.get(key);
+      if (!node) {
+        node = new AICNode(cells, digits);
+        ownCache.set(key, node);
+        ownNodes.push(node);
+      }
+      return node;
+    };
+    const peekNode = (cells, digits) => {
+      const key = nodeKey(cells, digits);
+      return nodeCache.get(key) || ownCache.get(key) || null;
+    };
+
+    const { ahses, cand, candBits } = enumerateAhs(board, pencils);
     tick("graph.ahsEnum", t0);
     count("graph.ahsCount", ahses.length);
     t0 = now();
@@ -2291,94 +2323,189 @@
   };
 
   Object.assign(techniques, {
+    buildAhsOrMap,
     _buildAhsGraph: buildAhsGraph,
     _findAhsAic: findAhsAic,
 
     ahsXZ: (board, pencils, findAll = false) =>
-      findAhsAic(
-        board,
-        pencils,
-        {
-          kind: "XZ",
-          maxCycle: 1,
-          nameOverride: t("teks_AHS_XZ"),
-          allowedOrLinkTypes: ["ahs"],
-          maxPathNodes: 4,
-          gateRole: () => "ahs",
-          orRole: () => "ahs",
-          ringLengths: [4],
-          pathFilter: (path, { isAhsGate }) =>
-            path.length === 4 && allAhsGates(path, isAhsGate),
-        },
-        findAll,
-      ),
+      techniques._ahsUseHls === true
+        ? findAhsAic(
+            board,
+            pencils,
+            {
+              kind: "XZ",
+              maxCycle: 1,
+              nameOverride: t("teks_AHS_XZ"),
+              allowedOrLinkTypes: ["ahs"],
+              maxPathNodes: 4,
+              gateRole: () => "ahs",
+              orRole: () => "ahs",
+              ringLengths: [4],
+              pathFilter: (path, { isAhsGate }) =>
+                path.length === 4 && allAhsGates(path, isAhsGate),
+            },
+            findAll,
+          )
+        : techniques._findAic(
+            board,
+            pencils,
+            {
+              singleDigit: false,
+              bivalueOnly: false,
+              useGrouped: false,
+              useAhs: true,
+              maxCycle: 1,
+              nameOverride: t("teks_AHS_XZ"),
+              ringNamePrefix: t("teks_msg_doubly_linked"),
+              allowedOrLinkTypes: ["ahs", "region"],
+              maxPathNodes: 4,
+              pathFilter: (path) => path.length === 4,
+            },
+            findAll,
+          ),
 
     ahsXYWing: (board, pencils, findAll = false) =>
-      findAhsAic(
-        board,
-        pencils,
-        {
-          kind: "XY-Wing",
-          maxCycle: 2,
-          searchCycles: [1],
-          nameOverride: t("teks_AHS_XY_Wing"),
-          allowedOrLinkTypes: ["ahs"],
-          maxPathNodes: 6,
-          gateRole: () => "ahs",
-          orRole: () => "ahs",
-          ringLengths: [6],
-          pathFilter: (path, { isAhsGate }) =>
-            path.length === 6 && allAhsGates(path, isAhsGate),
-        },
-        findAll,
-      ),
+      techniques._ahsUseHls === true
+        ? findAhsAic(
+            board,
+            pencils,
+            {
+              kind: "XY-Wing",
+              maxCycle: 2,
+              searchCycles: [1],
+              nameOverride: t("teks_AHS_XY_Wing"),
+              allowedOrLinkTypes: ["ahs"],
+              maxPathNodes: 6,
+              gateRole: () => "ahs",
+              orRole: () => "ahs",
+              ringLengths: [6],
+              pathFilter: (path, { isAhsGate }) =>
+                path.length === 6 && allAhsGates(path, isAhsGate),
+            },
+            findAll,
+          )
+        : techniques._findAic(
+            board,
+            pencils,
+            {
+              singleDigit: false,
+              bivalueOnly: false,
+              useGrouped: false,
+              useAhs: true,
+              maxCycle: 2,
+              searchCycle: 1,
+              nameOverride: t("teks_AHS_XY_Wing"),
+              ringNamePrefix: t("teks_msg_triply_linked"),
+              allowedOrLinkTypes: ["ahs", "region"],
+              maxPathNodes: 6,
+              pathFilter: (path) => path.length === 6,
+            },
+            findAll,
+          ),
 
     ahsWWing: (board, pencils, findAll = false) =>
-      findAhsAic(
-        board,
-        pencils,
-        {
-          kind: "W-Wing",
-          maxCycle: 2,
-          searchCycles: [1],
-          nameOverride: t("teks_AHS_W_Wing"),
-          allowedOrLinkTypes: ["ahs", "cell"],
-          maxPathNodes: 6,
-          maxRingNodes: 8,
-          gateRole: (gate) => (gate % 2 === 0 ? "ahs" : "cell"),
-          orRole: (orIndex) => (orIndex % 2 === 0 ? "ahs" : "cell"),
-          ringLengths: [6, 8],
-          pathFilter: (path, { kind, getOrLinkType, isAhsGate }) => {
-            if (path.length !== 6 && !(kind === "ring" && path.length === 8)) {
-              return false;
-            }
-            for (let i = 0; i < path.length; i += 2) {
-              const u = path[i];
-              const v = path[i + 1];
-              const ok =
-                (i >> 1) % 2 === 0
-                  ? isAhsGate(u, v)
-                  : getOrLinkType(u, v) === "cell";
-              if (!ok) return false;
-            }
-            return true;
-          },
-        },
-        findAll,
-      ),
+      techniques._ahsUseHls === true
+        ? findAhsAic(
+            board,
+            pencils,
+            {
+              kind: "W-Wing",
+              maxCycle: 2,
+              searchCycles: [1],
+              nameOverride: t("teks_AHS_W_Wing"),
+              allowedOrLinkTypes: ["ahs", "cell"],
+              maxPathNodes: 6,
+              maxRingNodes: 8,
+              gateRole: (gate) => (gate % 2 === 0 ? "ahs" : "cell"),
+              orRole: (orIndex) => (orIndex % 2 === 0 ? "ahs" : "cell"),
+              ringLengths: [6, 8],
+              pathFilter: (path, { kind, getOrLinkType, isAhsGate }) => {
+                if (
+                  path.length !== 6 &&
+                  !(kind === "ring" && path.length === 8)
+                ) {
+                  return false;
+                }
+                for (let i = 0; i < path.length; i += 2) {
+                  const u = path[i];
+                  const v = path[i + 1];
+                  const ok =
+                    (i >> 1) % 2 === 0
+                      ? isAhsGate(u, v)
+                      : getOrLinkType(u, v) === "cell";
+                  if (!ok) return false;
+                }
+                return true;
+              },
+            },
+            findAll,
+          )
+        : techniques._findAic(
+            board,
+            pencils,
+            {
+              singleDigit: false,
+              bivalueOnly: false,
+              useGrouped: false,
+              useAhs: true,
+              maxCycle: 2,
+              searchCycle: 1,
+              maxChainNodes: 6,
+              nameOverride: t("teks_AHS_W_Wing"),
+              ringNamePrefix: t("teks_msg_doubly_linked"),
+              allowedOrLinkTypes: ["ahs", "region", "bivalue"],
+              orLinkRule: (orIndex, type) =>
+                orIndex % 2 === 0
+                  ? type === "ahs" || type === "region"
+                  : type === "bivalue",
+              pathFilter: (path, cache, { kind, getOrLinkType }) => {
+                if (
+                  path.length !== 6 &&
+                  !(kind === "ring" && path.length === 8)
+                ) {
+                  return false;
+                }
+                for (let i = 0; i < path.length; i += 2) {
+                  const type = getOrLinkType(path[i], path[i + 1]);
+                  const ok =
+                    (i >> 1) % 2 === 0
+                      ? type === "ahs" || type === "region"
+                      : type === "bivalue";
+                  if (!ok) return false;
+                }
+                return true;
+              },
+            },
+            findAll,
+          ),
 
     ahsAic: (board, pencils, findAll = false) =>
-      findAhsAic(
-        board,
-        pencils,
-        {
-          kind: "AIC",
-          useGrouped: true,
-          maxCycle: 3,
-          requireAhs: true,
-          nameOverride: t("teks_AHS_AIC"),
-        },
-        findAll,
-      ),
+      techniques._ahsUseHls === true
+        ? findAhsAic(
+            board,
+            pencils,
+            {
+              kind: "AIC",
+              useGrouped: true,
+              maxCycle: 3,
+              requireAhs: true,
+              nameOverride: t("teks_AHS_AIC"),
+            },
+            findAll,
+          )
+        : techniques._findAic(
+            board,
+            pencils,
+            {
+              singleDigit: false,
+              bivalueOnly: false,
+              useGrouped: true,
+              useAhs: true,
+              requireAhs: true,
+              maxCycle: 3,
+              nameOverride: t("teks_AHS_AIC"),
+            },
+            findAll,
+          ),
   });
 })();

@@ -441,6 +441,7 @@ Object.assign(techniques, {
       isCell ? "cell" : isRegion ? "region" : "aals",
       isCell ? 4 : Infinity,
       Infinity,
+      alsOnly,
     );
 
     // 2. Every stem candidate grows one branch; an elimination has to survive
@@ -477,6 +478,7 @@ Object.assign(techniques, {
             startNodes.map((node) => node.cells[0] * 9 + node.digits[0] - 1),
           )
         : null;
+      const isAlsStem = isAals && stem.startDigits.length === 2;
 
       const maskToElims = (mask) => {
         const found = [];
@@ -705,7 +707,7 @@ Object.assign(techniques, {
         if (branches.length < startNodes.length) continue;
 
         const grouping = groupBranches(branches);
-        if (!grouping || grouping.length < 2) continue;
+        if (!grouping || grouping.length < (isAlsStem ? 3 : 2)) continue;
         const groups = grouping.map((members) => buildGroup(members, branches));
         const starts = groups.map((group) => group.node);
         // A written chain may not pass through one of its own grouped starts.
@@ -906,7 +908,9 @@ Object.assign(techniques, {
 
         const techniqueName = alsOnly
           ? isAals
-            ? t("teks_AALS_DB")
+            ? isAlsStem
+              ? t("teks_ALS_DB")
+              : t("teks_AALS_DB")
             : isRegion
               ? t("teks_region_DB")
               : t("teks_cell_DB")
@@ -916,7 +920,11 @@ Object.assign(techniques, {
               ? t("teks_region_AAIC")
               : t("teks_cell_AAIC");
         const mainInfoStr = isAals
-          ? t("teks_stem_AALS", stem.startDigits.join(""), stem.houseName)
+          ? t(
+              isAlsStem ? "teks_stem_ALS" : "teks_stem_AALS",
+              stem.startDigits.join(""),
+              stem.houseName,
+            )
           : isRegion
             ? t("teks_blossom_house_stem", stem.digit, stem.houseName)
             : t("teks_blossom_cell_stem", stem.r + 1, stem.c + 1);

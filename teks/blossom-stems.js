@@ -5,6 +5,7 @@ Object.assign(techniques, {
     kind,
     maxBranches,
     maxAalsCandidates,
+    includeAls = false,
   ) => {
     const stems = [];
     if (kind === "cell") {
@@ -78,7 +79,9 @@ Object.assign(techniques, {
               cellsByDigit[digit].push(id);
             }
           }
-          if (techniques._bits.popcount(mask) !== cells.length + 2) return;
+          const digitCount = techniques._bits.popcount(mask);
+          const isAls = includeAls && digitCount === cells.length + 1;
+          if (!isAls && digitCount !== cells.length + 2) return;
           const key = [...cells].sort((a, b) => a - b).join(",");
           if (seenAals.has(key)) return;
           seenAals.add(key);
@@ -88,6 +91,24 @@ Object.assign(techniques, {
             if (mask & (1 << digit)) digits.push(digit);
           }
           const aals = { unit, cells: [...cells], houseName, cellsByDigit };
+          if (isAls) {
+            for (let first = 0; first < digits.length - 1; first++) {
+              for (let second = first + 1; second < digits.length; second++) {
+                const size =
+                  cellsByDigit[digits[first]].length +
+                  cellsByDigit[digits[second]].length;
+                if (size < 3 || size > maxAalsCandidates) continue;
+                stems.push({
+                  size,
+                  aals,
+                  first: digits[first],
+                  second: digits[second],
+                  als: true,
+                });
+              }
+            }
+            return;
+          }
           for (let first = 0; first < digits.length - 2; first++) {
             for (let second = first + 1; second < digits.length - 1; second++) {
               for (let third = second + 1; third < digits.length; third++) {
@@ -146,17 +167,20 @@ Object.assign(techniques, {
         }
       }
     }
-    stems.sort((left, right) => left.size - right.size);
+    stems.sort(
+      (left, right) =>
+        left.size - right.size || (left.als ? 0 : 1) - (right.als ? 0 : 1),
+    );
     if (kind !== "aals") return stems;
     return (function* () {
-      for (const { size, aals, first, second, third } of stems) {
+      for (const { size, aals, first, second, third, als } of stems) {
         yield {
           size,
           kind: "aals",
           unit: aals.unit,
           cells: aals.cells,
           houseName: aals.houseName,
-          startDigits: [first, second, third],
+          startDigits: als ? [first, second] : [first, second, third],
           cellsByDigit: aals.cellsByDigit,
         };
       }
