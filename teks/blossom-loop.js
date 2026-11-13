@@ -1,16 +1,51 @@
 Object.assign(techniques, {
-  _buildBlossomVisualPlan: (blossom, removals, pencils) => {
+  _buildBlossomVisualPlan: (
+    blossom,
+    removals,
+    pencils,
+    getFishForLink = () => null,
+  ) => {
     const usedAlses = blossom.alses;
     const burrNodes = blossom.burr;
     const paths = [blossom.mainPath, ...blossom.branches];
     const alsColorIndices = [6, 7, 2, 3, 4, 5, 8, 1];
     const cellColors = [];
     const candidateColors = [];
+    const candidateMarks = removals.map(({ r, c, num }) => ({
+      r,
+      c,
+      num,
+      marker: "slash",
+      color: 0,
+    }));
     const links = [];
     usedAlses.forEach((als, index) => {
       const color = alsColorIndices[index % alsColorIndices.length];
       for (const [r, c] of als.cells) {
         cellColors.push({ r, c, color, mode: "add" });
+      }
+    });
+
+    const fishNodes = new Set();
+    const usedFishes = [];
+    for (const path of paths) {
+      for (let i = 1; i + 1 < path.length; i += 2) {
+        const fish = getFishForLink(path[i], path[i + 1]);
+        if (!fish) continue;
+        fishNodes.add(path[i]);
+        fishNodes.add(path[i + 1]);
+        if (!usedFishes.includes(fish)) usedFishes.push(fish);
+      }
+    }
+    usedFishes.forEach((fish, index) => {
+      const color =
+        alsColorIndices[(usedAlses.length + index) % alsColorIndices.length];
+      for (const id of fish.allCells) {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        if (pencils[r][c].has(fish.d)) {
+          candidateMarks.push({ r, c, num: fish.d, marker: "circle", color });
+        }
       }
     });
 
@@ -53,6 +88,7 @@ Object.assign(techniques, {
       const pathColorIndices = isBurringLoop ? [4, 2] : [7, 5, 8, 3];
       const lineColorIndex = isBurringLoop ? 0 : 1 + ((pathIndex - 1) % 8);
       path.forEach((node, nodeIndex) => {
+        if (fishNodes.has(node)) return;
         const color = pathColorIndices[nodeIndex % pathColorIndices.length];
         for (const id of node.cells) {
           const r = Math.floor(id / 9);
@@ -70,7 +106,7 @@ Object.assign(techniques, {
       });
 
       path.forEach((node, nodeIndex) => {
-        if (node.cells.length < 2) return;
+        if (node.cells.length < 2 || fishNodes.has(node)) return;
         const key = `${node.digits[0]}:${[...node.cells]
           .sort((a, b) => a - b)
           .join(",")}`;
@@ -95,6 +131,7 @@ Object.assign(techniques, {
         }
       });
       for (let i = 0; i + 1 < path.length; i++) {
+        if (i % 2 === 1 && getFishForLink(path[i], path[i + 1])) continue;
         const [x, y] = closest(path[i], path[i + 1]);
         links.push({
           r1: Math.floor(x / 9),
@@ -114,25 +151,12 @@ Object.assign(techniques, {
       highlight: { digit: null, state: 0 },
       cellColors,
       candidateColors,
-      candidateMarks: removals.map(({ r, c, num }) => ({
-        r,
-        c,
-        num,
-        marker: "slash",
-        color: 0,
-      })),
+      candidateMarks,
       links,
     };
   },
 
-  _blossomLoopCore: (
-    board,
-    pencils,
-    isRegion,
-    findAll = false,
-    focusKindOverride = null,
-  ) => {
-    const focusKind = focusKindOverride || (isRegion ? "region" : "cell");
+  _blossomLoopCore: (board, pencils, isRegion, findAll = false) => {
     techniques._useSharedAICCache(board, pencils);
     const cache = techniques._aicCache;
     if (cache.AllNodes.length === 0) {
@@ -199,6 +223,21 @@ Object.assign(techniques, {
     const blossomAlsMap = blossomAlsPolicy.map;
     const blossomAlsLinkRegistry = blossomAlsPolicy.registry;
     orMap = techniques.mergeOrMaps(orMap, blossomAlsMap);
+
+    if (cache.FishMap.size === 0) {
+      cache.FishMap = techniques.buildFishOrMap(
+        board,
+        pencils,
+        (cells, digit) => getNode(cells, digit),
+        cache.FishLinkRegistry,
+      );
+    }
+    const fishLinkRegistry = cache.FishLinkRegistry;
+    orMap = techniques.mergeOrMaps(orMap, cache.FishMap);
+    const getFishForLink = (left, right) => {
+      if (blossomAlsLinkRegistry.get(left)?.get(right)) return null;
+      return fishLinkRegistry.get(left)?.get(right) || null;
+    };
 
     const candidateCode = (id, digit) => (digit - 1) * 81 + id;
     const candidateId = (code) => code % 81;
@@ -492,7 +531,7 @@ Object.assign(techniques, {
     };
 
     const burrSets = [];
-    if (focusKind === "cell") {
+    if (!isRegion) {
       for (let id = 0; id < 81; id++) {
         const r = Math.floor(id / 9);
         const c = id % 9;
@@ -509,7 +548,7 @@ Object.assign(techniques, {
           homeUnit: -1,
         });
       }
-    } else if (focusKind === "region") {
+    } else {
       for (let digit = 1; digit <= 9; digit++) {
         for (let unit = 0; unit < 27; unit++) {
           const cells = [];
@@ -532,104 +571,6 @@ Object.assign(techniques, {
             homeCells: cells,
             homeUnit: unit,
           });
-        }
-      }
-    } else {
-      const seenAals = new Set();
-      const aalsUnitOrder = [
-        ...Array.from({ length: 9 }, (_, index) => 9 + index),
-        ...Array.from({ length: 9 }, (_, index) => index),
-        ...Array.from({ length: 9 }, (_, index) => 18 + index),
-      ];
-      for (const unit of aalsUnitOrder) {
-        const eligibleCells = [];
-        for (let id = 0; id < 81; id++) {
-          const part = Math.floor(id / 27);
-          const bit = id % 27;
-          if ((UNIT_BITSETS[unit][part] & (1 << bit)) === 0) continue;
-          const r = Math.floor(id / 9);
-          const c = id % 9;
-          if (board[r][c] === 0 && pencils[r][c].size >= 2) {
-            eligibleCells.push(id);
-          }
-        }
-        if (eligibleCells.length < 5) continue;
-
-        const maximumSize = eligibleCells.length - 2;
-        const choose = (start, size, cells) => {
-          if (cells.length === size) {
-            let unionMask = 0;
-            const digitCounts = Array(10).fill(0);
-            const digitCells = Array(10).fill(-1);
-            for (const id of cells) {
-              const r = Math.floor(id / 9);
-              const c = id % 9;
-              for (const digit of pencils[r][c]) {
-                unionMask |= 1 << digit;
-                digitCounts[digit]++;
-                digitCells[digit] = id;
-              }
-            }
-            if (techniques._bits.popcount(unionMask) !== size + 2) return;
-
-            const onlyDigits = [];
-            for (let digit = 1; digit <= 9; digit++) {
-              if (digitCounts[digit] === 1) onlyDigits.push(digit);
-            }
-            if (onlyDigits.length !== 3) return;
-
-            const key = [...cells].sort((a, b) => a - b).join(",");
-            if (seenAals.has(key)) return;
-            seenAals.add(key);
-            const allDigits = [];
-            for (let digit = 1; digit <= 9; digit++) {
-              if (unionMask & (1 << digit)) allDigits.push(digit);
-            }
-            const alsCells = cells.map((id) => [Math.floor(id / 9), id % 9]);
-            burrSets.push({
-              kind: "aals",
-              unit,
-              cells: [...cells],
-              digits: onlyDigits,
-              allDigits,
-              nodes: onlyDigits.map((digit) =>
-                getNode([digitCells[digit]], digit),
-              ),
-              candidates: onlyDigits.map((digit) =>
-                candidateCode(digitCells[digit], digit),
-              ),
-              homeCells: [...cells],
-              homeUnit: unit,
-              als: {
-                cells: alsCells,
-                candidates: unionMask,
-                mask: unionMask,
-                size,
-                candMap: Object.fromEntries(
-                  allDigits.map((digit) => [
-                    digit,
-                    alsCells.filter(([r, c]) => pencils[r][c].has(digit)),
-                  ]),
-                ),
-                unitName: `AALS ${unit + 1}`,
-              },
-            });
-            return;
-          }
-          const needed = size - cells.length;
-          for (
-            let index = start;
-            index <= eligibleCells.length - needed;
-            index++
-          ) {
-            cells.push(eligibleCells[index]);
-            choose(index + 1, size, cells);
-            cells.pop();
-          }
-        };
-
-        for (let size = 3; size <= maximumSize; size++) {
-          choose(0, size, []);
         }
       }
     }
@@ -721,6 +662,8 @@ Object.assign(techniques, {
       return `(${left.digits[0]}=${right.digits[0]})${getLoc(ids, preferBox)}`;
     };
 
+    const getFishLoc = techniques._formatFishNodeLocation;
+
     const getPlainNodeText = (node, previousDigit = null) => {
       const digit = node.digits[0];
       return `${previousDigit === digit ? "" : `(${digit})`}${getLoc(node.cells)}`;
@@ -745,8 +688,10 @@ Object.assign(techniques, {
         }
 
         const als = getAlsForLink(nandEnd, orEnd);
+        const fish = getFishForLink(nandEnd, orEnd);
         const isBivalueCell =
           !als &&
+          !fish &&
           nandEnd.digits[0] !== orEnd.digits[0] &&
           nandEnd.cells.length === 1 &&
           orEnd.cells.length === 1 &&
@@ -754,6 +699,11 @@ Object.assign(techniques, {
 
         if (als) {
           text += getAlsText(nandEnd, orEnd, als);
+        } else if (fish) {
+          text += `(${fish.d})(${getFishLoc(fish, nandEnd)}=${getFishLoc(
+            fish,
+            orEnd,
+          )})(${fish.basesStr}\\${fish.coversStr})`;
         } else if (isBivalueCell) {
           text += `(${nandEnd.digits[0]}=${orEnd.digits[0]})${getLoc(nandEnd.cells)}`;
         } else {
@@ -771,15 +721,12 @@ Object.assign(techniques, {
       const root = path[0];
       const rootDigit = root.digits[0];
       const peers = peerRoots || burr.nodes.filter((node) => node !== root);
-      if (burr.kind === "cell" || burr.kind === "aals") {
+      if (burr.kind === "cell") {
         const otherDigits = peers
           .map((node) => node.digits[0])
           .sort((a, b) => a - b)
           .join("");
-        const gate = `(${otherDigits}=${rootDigit})${getLoc(
-          burr.cells,
-          burr.kind === "aals" && burr.unit >= 18,
-        )}`;
+        const gate = `(${otherDigits}=${rootDigit})${getLoc(burr.cells)}`;
         return buildBlossomEureka(path, gate, rootDigit);
       }
       const otherCells = peers.flatMap((node) => node.cells);
@@ -794,7 +741,7 @@ Object.assign(techniques, {
     const buildMultiBurrGate = (burr, mainPath, branches) => {
       const mainRoots = [mainPath[0], mainPath[mainPath.length - 1]];
       const branchRoots = branches.map((path) => path[0]);
-      if (burr.kind === "cell" || burr.kind === "aals") {
+      if (burr.kind === "cell") {
         const mainDigits = mainRoots
           .map((node) => node.digits[0])
           .sort((a, b) => a - b)
@@ -803,10 +750,7 @@ Object.assign(techniques, {
           .map((node) => node.digits[0])
           .sort((a, b) => a - b)
           .join("");
-        return `(${mainDigits}=${branchDigits})${getLoc(
-          burr.cells,
-          burr.kind === "aals" && burr.unit >= 18,
-        )}`;
+        return `(${mainDigits}=${branchDigits})${getLoc(burr.cells)}`;
       }
 
       const digit = mainRoots[0].digits[0];
@@ -1009,32 +953,18 @@ Object.assign(techniques, {
                 path[i + 1].digits[0],
               );
             }
+            const fish = getFishForLink(path[i], path[i + 1]);
+            // Fins in more than one house can be true together, which leaves another cover empty.
+            if (!fish || !fish.isDof1) continue;
+            for (const coverNode of fish.coverBodyNodes) {
+              if (coverNode === path[i] || coverNode === path[i + 1]) continue;
+              addMaskCandidates(coverNode.NandBitset[fish.d - 1], fish.d - 1);
+            }
           }
         }
         addExitEliminations(paths.map((path) => path[path.length - 1]));
-        if (burr.kind === "aals") {
-          const onlyDigits = new Set(burr.digits);
-          for (const digit of burr.allDigits) {
-            if (onlyDigits.has(digit)) continue;
-            for (let id = 0; id < 81; id++) {
-              const part = Math.floor(id / 27);
-              const bit = id % 27;
-              if ((UNIT_BITSETS[burr.unit][part] & (1 << bit)) === 0) continue;
-              addElim(candidateCode(id, digit));
-            }
-          }
-        }
 
         const structureKeys = new Set(burr.candidates);
-        if (burr.kind === "aals") {
-          for (const id of burr.cells) {
-            const r = Math.floor(id / 9);
-            const c = id % 9;
-            for (const digit of pencils[r][c]) {
-              structureKeys.add(candidateCode(id, digit));
-            }
-          }
-        }
         for (const path of paths) {
           for (const node of path) {
             for (const id of node.cells) {
@@ -1099,12 +1029,7 @@ Object.assign(techniques, {
         const burrText =
           burr.kind === "cell"
             ? `(${burr.digits.join("")})${getLoc(burr.cells)}`
-            : burr.kind === "region"
-              ? `(${burr.digits[0]})${getLoc(burr.cells, burr.unit >= 18)}`
-              : `AALS(${burr.allDigits.join("")})${getLoc(
-                  burr.cells,
-                  burr.unit >= 18,
-                )}`;
+            : `(${burr.digits[0]})${getLoc(burr.cells, burr.unit >= 18)}`;
 
         const loopHead = paths[0];
         const loopTail = paths[paths.length - 1];
@@ -1114,7 +1039,6 @@ Object.assign(techniques, {
           .filter((path) => path.length > 1);
 
         const usedAlses = getUsedAlses([mainPath, ...visibleBranches]);
-        if (burr.kind === "aals") usedAlses.unshift(burr.als);
 
         const eurekaParts = [`[${buildBlossomEureka(mainPath)}]`];
         if (visibleBranches.length > 1) {
@@ -1149,9 +1073,7 @@ Object.assign(techniques, {
             name:
               burr.kind === "cell"
                 ? t("teks_cell_BLo")
-                : burr.kind === "region"
-                  ? t("teks_region_BLo")
-                  : t("teks_AALS_BLo"),
+                : t("teks_region_BLo"),
             mainInfo: t("teks_burr_on", burrText),
             detail: eurekaText,
           },
@@ -1160,6 +1082,7 @@ Object.assign(techniques, {
             blossom,
             removals,
             pencils,
+            getFishForLink,
           ),
         };
 
@@ -1176,14 +1099,11 @@ Object.assign(techniques, {
       return [
         ...techniques.cellBlossomLoop(board, pencils, true),
         ...techniques.regionBlossomLoop(board, pencils, true),
-        ...techniques.aalsBlossomLoop(board, pencils, true),
       ];
     }
     const cell = techniques.cellBlossomLoop(board, pencils, false);
     if (cell.change) return cell;
-    const region = techniques.regionBlossomLoop(board, pencils, false);
-    if (region.change) return region;
-    return techniques.aalsBlossomLoop(board, pencils, false);
+    return techniques.regionBlossomLoop(board, pencils, false);
   },
 
   cellBlossomLoop: (board, pencils, findAll = false) => {
@@ -1194,7 +1114,4 @@ Object.assign(techniques, {
     return techniques._blossomLoopCore(board, pencils, true, findAll);
   },
 
-  aalsBlossomLoop: (board, pencils, findAll = false) => {
-    return techniques._blossomLoopCore(board, pencils, false, findAll, "aals");
-  },
 });

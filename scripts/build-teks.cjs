@@ -28,7 +28,6 @@ const sources = [
   "aic/hls-ahs.js",
   "aic/wxyz.js",
   "aic/blossom-als.js",
-  "aic/death-blossom.js",
   "aic/almost-aic.js",
   "complex-fish.js",
   "coloring.js",

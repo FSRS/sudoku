@@ -1,7 +1,7 @@
 Object.assign(techniques, {
   // --- Almost AIC ---
   _almostAicMaxBranchNodes: 16,
-  _buildAlmostAicGraph: (board, pencils, alsOnly = false) => {
+  _buildAlmostAicGraph: (board, pencils) => {
     techniques._useSharedAICCache(board, pencils);
     const cache = techniques._aicCache;
 
@@ -35,7 +35,7 @@ Object.assign(techniques, {
       return newNode;
     };
 
-    const cacheKey = alsOnly ? "DeathBlossomGraph" : "AlmostAicGraph";
+    const cacheKey = "AlmostAicGraph";
     if (cache[cacheKey] && cache[cacheKey].nodeCount === allNodes.length) {
       return cache[cacheKey];
     }
@@ -44,28 +44,24 @@ Object.assign(techniques, {
     let orMap = new Map();
     allNodes.forEach((n) => orMap.set(n, new Set()));
 
-    if (!alsOnly) {
-      if (cache.BilocationOrMap.size === 0) {
-        cache.BilocationOrMap = techniques.buildBilocationOrMap(allNodes);
-      }
-      orMap = techniques.mergeOrMaps(orMap, cache.BilocationOrMap);
+    if (cache.BilocationOrMap.size === 0) {
+      cache.BilocationOrMap = techniques.buildBilocationOrMap(allNodes);
     }
+    orMap = techniques.mergeOrMaps(orMap, cache.BilocationOrMap);
 
     if (cache.BivalueOrMap.size === 0) {
       cache.BivalueOrMap = techniques.buildBivalueOrMap(allNodes);
     }
     orMap = techniques.mergeOrMaps(orMap, cache.BivalueOrMap);
 
-    if (!alsOnly) {
-      if (cache.GroupedOrMap.size === 0) {
-        cache.GroupedOrMap = techniques.buildGroupedOrMap(
-          pencils,
-          (cells, d) => getNode(cells, [d]),
-          cache.GroupedLinkRegistry,
-        );
-      }
-      orMap = techniques.mergeOrMaps(orMap, cache.GroupedOrMap);
+    if (cache.GroupedOrMap.size === 0) {
+      cache.GroupedOrMap = techniques.buildGroupedOrMap(
+        pencils,
+        (cells, d) => getNode(cells, [d]),
+        cache.GroupedLinkRegistry,
+      );
     }
+    orMap = techniques.mergeOrMaps(orMap, cache.GroupedOrMap);
 
     if (cache.AlsMap.size === 0) {
       cache.AlsMap = techniques.buildAlsOrMap(
@@ -77,17 +73,15 @@ Object.assign(techniques, {
     }
     orMap = techniques.mergeOrMaps(orMap, cache.AlsMap);
 
-    if (!alsOnly) {
-      if (cache.FishMap.size === 0) {
-        cache.FishMap = techniques.buildFishOrMap(
-          board,
-          pencils,
-          (cells, d) => getNode(cells, [d]),
-          cache.FishLinkRegistry,
-        );
-      }
-      orMap = techniques.mergeOrMaps(orMap, cache.FishMap);
+    if (cache.FishMap.size === 0) {
+      cache.FishMap = techniques.buildFishOrMap(
+        board,
+        pencils,
+        (cells, d) => getNode(cells, [d]),
+        cache.FishLinkRegistry,
+      );
     }
+    orMap = techniques.mergeOrMaps(orMap, cache.FishMap);
 
     // 2. Flatten to index based adjacency so a branch walk stays cheap.
     const nodes = [];
@@ -191,7 +185,7 @@ Object.assign(techniques, {
       orAdj,
       nandOf,
       seersOf,
-      maxBranchNodes: alsOnly ? 3 : techniques._almostAicMaxBranchNodes,
+      maxBranchNodes: techniques._almostAicMaxBranchNodes,
       basicNode: (cell, digit) => basicNodes[cell * 9 + digit - 1],
       alsLinkRegistry: cache.AlsLinkRegistry,
       groupedLinkRegistry: cache.GroupedLinkRegistry,
@@ -333,7 +327,6 @@ Object.assign(techniques, {
     findAll = false,
     focusKind = null,
     seenEliminations = null,
-    alsOnly = false,
   ) => {
     const results = [];
     const recordedEliminations = findAll
@@ -342,7 +335,7 @@ Object.assign(techniques, {
     const isAals = focusKind === "aals";
     const isCell = !isRegion && !isAals;
 
-    const graph = techniques._buildAlmostAicGraph(board, pencils, alsOnly);
+    const graph = techniques._buildAlmostAicGraph(board, pencils);
     const alsLinkRegistry = graph.alsLinkRegistry;
     const groupedLinkRegistry = graph.groupedLinkRegistry;
     const fishLinkRegistry = graph.fishLinkRegistry;
@@ -441,7 +434,6 @@ Object.assign(techniques, {
       isCell ? "cell" : isRegion ? "region" : "aals",
       isCell ? 4 : Infinity,
       Infinity,
-      alsOnly,
     );
 
     // 2. Every stem candidate grows one branch; an elimination has to survive
@@ -531,34 +523,15 @@ Object.assign(techniques, {
       };
 
       const branchesFor = (startNode, digit, part, bit) => {
-        const sees = (node) =>
-          (node.NandBitset[digit - 1][part] & (1 << bit)) !== 0;
         const paths = [];
         const byWeak = new Map();
-        const add = (path, listed = true) => {
-          if (listed && paths.length < 6) paths.push(path);
+        const add = (path) => {
+          if (paths.length < 6) paths.push(path);
           const key = path.length > 1 ? path[1] : null;
           const list = byWeak.get(key);
           if (!list) byWeak.set(key, [path]);
           else if (list.length < 6) list.push(path);
         };
-        if (alsOnly) {
-          // Not the walk: it keeps one parent per node, which may be a stem
-          // candidate while another weak link reaches the same node.
-          if (sees(startNode)) add([startNode]);
-          const reached = new Set([startNode]);
-          for (const weak of graph.nandOf(graph.nodeIndex.get(startNode))) {
-            const n = graph.nodes[weak];
-            if (isStemNode(n)) continue;
-            for (const strong of graph.orAdj[weak]) {
-              const o = graph.nodes[strong];
-              const fresh = !reached.has(o);
-              reached.add(o);
-              if (o !== startNode && sees(o)) add([startNode, n, o], fresh);
-            }
-          }
-          return { paths, byWeak };
-        }
         const walk = techniques._almostAicWalk(graph, startNode);
         const reached = graph
           .seersOf(digit, part * 27 + bit)
@@ -725,7 +698,6 @@ Object.assign(techniques, {
               !path.some(
                 (node, position) =>
                   position > 0 &&
-                  !(alsOnly && position === path.length - 1) &&
                   isMergedStart(node),
               ),
           ),
@@ -906,19 +878,11 @@ Object.assign(techniques, {
           }
         }
 
-        const techniqueName = alsOnly
-          ? isAals
-            ? isAlsStem
-              ? t("teks_ALS_DB")
-              : t("teks_AALS_DB")
-            : isRegion
-              ? t("teks_region_DB")
-              : t("teks_cell_DB")
-          : isAals
-            ? t("teks_AALS_AAIC")
-            : isRegion
-              ? t("teks_region_AAIC")
-              : t("teks_cell_AAIC");
+        const techniqueName = isAals
+          ? t("teks_complex_AAIC")
+          : isRegion
+            ? t("teks_region_AAIC")
+            : t("teks_cell_AAIC");
         const mainInfoStr = isAals
           ? t(
               isAlsStem ? "teks_stem_ALS" : "teks_stem_AALS",

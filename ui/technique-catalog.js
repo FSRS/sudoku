@@ -70,15 +70,6 @@
     ["ui_AHS_W_Wing", "ahsWWing", null, 9, 350, false],
     ["ui_AHS_AIC", "ahsAic", null, 9, 360],
     [
-      "ui_DB",
-      "deathBlossom",
-      null,
-      10,
-      350,
-      true,
-      ["ui_cell_DB", "ui_region_DB", "ui_AALS_DB"],
-    ],
-    [
       "ui_complex_swordfish",
       "complexFish",
       3,
@@ -105,6 +96,7 @@
       true,
       ["ui_finned_franken_squirmbag", "ui_finned_mutant_squirmbag"],
     ],
+    ["ui_Complex_AIC", "complexAic", null, 10, 420],
     [
       "ui_BLo",
       "blossomLoop",
@@ -112,9 +104,8 @@
       10,
       400,
       true,
-      ["ui_cell_BLo", "ui_region_BLo", "ui_AALS_BLo"],
+      ["ui_cell_BLo", "ui_region_BLo"],
     ],
-    ["ui_Complex_AIC", "complexAic", null, 10, 420],
     [
       "ui_AAIC",
       "almostAic",

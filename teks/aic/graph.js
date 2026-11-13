@@ -591,7 +591,6 @@ Object.assign(techniques, {
     AhsLinkRegistry: new Map(),
     BlossomSearchCache: null,
     AlmostAicGraph: null,
-    DeathBlossomGraph: null,
   },
 
   _getTemplating: (board, pencils, num) => {
@@ -757,7 +756,6 @@ Object.assign(techniques, {
       AhsLinkRegistry: new Map(),
       BlossomSearchCache: null,
       AlmostAicGraph: null,
-      DeathBlossomGraph: null,
     };
   },
 

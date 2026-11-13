@@ -30,7 +30,8 @@ const serializeResult = (result) => ({
 });
 
 self.onmessage = ({ data }) => {
-  const { id, kind, board, candidateLists, findAll } = data;
+  const { id, kind, board, candidateLists, findAll, useDof2Fish } = data;
+  techniques._aicUseDof2Fish = useDof2Fish === true;
   try {
     const pencils = candidateLists.map((row) =>
       row.map((digits) => new Set(digits)),
@@ -40,9 +41,7 @@ self.onmessage = ({ data }) => {
         ? techniques.blossomLoop
         : kind === "region"
           ? techniques.regionBlossomLoop
-          : kind === "aals"
-            ? techniques.aalsBlossomLoop
-            : techniques.cellBlossomLoop;
+          : techniques.cellBlossomLoop;
     const found = finder(board, pencils, findAll);
     const results = Array.isArray(found)
       ? found.map(serializeResult)

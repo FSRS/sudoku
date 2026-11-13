@@ -5,7 +5,6 @@ Object.assign(techniques, {
     kind,
     maxBranches,
     maxAalsCandidates,
-    includeAls = false,
   ) => {
     const stems = [];
     if (kind === "cell") {
@@ -80,7 +79,7 @@ Object.assign(techniques, {
             }
           }
           const digitCount = techniques._bits.popcount(mask);
-          const isAls = includeAls && digitCount === cells.length + 1;
+          const isAls = digitCount === cells.length + 1;
           if (!isAls && digitCount !== cells.length + 2) return;
           const key = [...cells].sort((a, b) => a - b).join(",");
           if (seenAals.has(key)) return;

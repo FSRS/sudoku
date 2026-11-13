@@ -508,18 +508,13 @@ function getBlossomWorkerKind(func) {
   if (func === techniques.blossomLoop) return "all";
   if (func === techniques.cellBlossomLoop) return "cell";
   if (func === techniques.regionBlossomLoop) return "region";
-  if (func === techniques.aalsBlossomLoop) return "aals";
   return null;
 }
 
 function hydrateBlossomWorkerResult(result) {
   const kind = result.blossom.kind;
   result.hint.name =
-    kind === "cell"
-      ? t("teks_cell_BLo")
-      : kind === "region"
-        ? t("teks_region_BLo")
-        : t("teks_AALS_BLo");
+    kind === "cell" ? t("teks_cell_BLo") : t("teks_region_BLo");
   result.hint.mainInfo = t("teks_burr_on", result.blossom.burrText);
   return result;
 }
@@ -571,7 +566,7 @@ function getBlossomWorker(kind) {
 
 function warmBlossomWorkers() {
   if (typeof Worker === "undefined") return;
-  for (const kind of ["cell", "region", "aals"]) getBlossomWorker(kind);
+  for (const kind of ["cell", "region"]) getBlossomWorker(kind);
 }
 
 const BLOSSOM_DEADMAN_MS = 600000;
@@ -627,6 +622,7 @@ function runBlossomWorkerKind(kind, fallback, board, pencils, findAll) {
         board,
         candidateLists: pencils.map((row) => row.map((digits) => [...digits])),
         findAll,
+        useDof2Fish: techniques._aicUseDof2Fish === true,
       });
     } catch (error) {
       // The request never reached the worker, so nothing will ever answer it.
@@ -647,7 +643,6 @@ function runBlossomTechniqueInWorker(func, board, pencils, findAll = false) {
     const variants = [
       ["cell", techniques.cellBlossomLoop],
       ["region", techniques.regionBlossomLoop],
-      ["aals", techniques.aalsBlossomLoop],
     ];
     return Promise.all(
       variants.map(([workerKind, fallback]) =>
