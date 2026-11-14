@@ -670,10 +670,14 @@ function getTechniqueOrder() {
   return _activeTechniqueOrder || getDefaultTechniques();
 }
 
+function isTouchDevice() {
+  return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+}
+
 function updateSolverToggleButton() {
   const btn = document.getElementById("toggle-solver-mode-btn");
   if (!btn) return;
-  const isMobile = window.innerWidth <= 550;
+  const isMobile = isTouchDevice();
 
   if (isViewAllTechniquesMode && vatSelectedHint) {
     btn.textContent = isMobile
@@ -972,7 +976,7 @@ function swapThemeColors() {
 }
 
 function updateButtonLabels() {
-  const isMobile = window.innerWidth <= 550;
+  const isMobile = isTouchDevice();
   const useShortTitle = window.innerWidth < 880;
   const titleText = document.getElementById("sudoku-title-text");
   for (const [toggleId, mobileKey, desktopKey] of [
@@ -1096,7 +1100,7 @@ function addSudokuCoachLink(puzzleString) {
   container.innerHTML = "";
   if (!puzzleString) return;
 
-  const isMobile = window.innerWidth <= 550;
+  const isMobile = isTouchDevice();
 
   const btn = document.createElement("button");
   btn.id = "toggle-solver-mode-btn";
@@ -1968,7 +1972,7 @@ function showTooltip(targetElement) {
   if (!tooltipText) return;
 
   // Conditionally remove ALL parenthetical phrases on mobile
-  const isMobile = window.innerWidth <= 550;
+  const isMobile = isTouchDevice();
   if (isMobile) {
     // This regex now globally removes any parenthetical phrase from the string
     tooltipText = tooltipText.replace(/\s*\([^)]+\)/g, "").trim();
@@ -2058,7 +2062,7 @@ function hideTooltip(targetElement) {
 }
 
 function attachTooltipEvents(element) {
-  const isMobile = window.innerWidth <= 550;
+  const isMobile = isTouchDevice();
 
   if (isMobile) {
     // --- Mobile Touch Behavior (REVISED) ---
@@ -2166,7 +2170,7 @@ function updateLamp(color, { record = true, level = null } = {}) {
     tooltipText = `${label}: ${desc}`;
   }
 
-  if (window.innerWidth <= 550 && currentLang === "en") {
+  if (isTouchDevice() && currentLang === "en") {
     tooltipText = tooltipText.replace(t("ui_difficulty_level_term"), "Lv.");
   }
 
@@ -2815,7 +2819,7 @@ function setupEventListeners() {
 
   document.addEventListener("keydown", handleKeyDown);
 
-  const isMobile = window.innerWidth <= 550;
+  const isMobile = isTouchDevice();
   if (!isMobile) {
     modeToggleButton.addEventListener("mouseenter", () => {
       if (currentMode === "concrete") {
@@ -4040,7 +4044,7 @@ function handleModeChange(e, reverse = false) {
   }
 
   // --- Visuals (Buttons & Tips) ---
-  const isMobile = window.innerWidth <= 550;
+  const isMobile = isTouchDevice();
   let tip = "";
 
   if (currentMode === "concrete") {
@@ -4053,9 +4057,12 @@ function handleModeChange(e, reverse = false) {
     if (coloringSubMode === "cell") {
       tip = isMobile ? t("ui_cell_color_tip_mobile") : t("ui_msg_124_desktop");
     } else if (coloringSubMode === "candidate") {
-      tip = isMobile
-        ? t("ui_cand_color_select_tip_mobile")
-        : t("ui_cand_color_preview_tip");
+      tip =
+        window.innerWidth <= 550
+          ? t("ui_cand_color_select_tip_mobile")
+          : isMobile
+            ? t("ui_cand_color_tip_touch")
+            : t("ui_cand_color_preview_tip");
     } else if (coloringSubMode === "circle") {
       tip = isMobile ? t("ui_msg_circle_tip_mobile") : t("ui_msg_circle_tip");
     } else {
@@ -5026,7 +5033,7 @@ function autoPencil(skipConfirm = false) {
   showMessage(t("ui_auto_pencil_complete"), "green");
   isAutoPencilPending = false;
 
-  const isMobile = window.innerWidth <= 550;
+  const isMobile = isTouchDevice();
   const tip = isMobile
     ? t("ui_bivalue_highlight_tip_mobile")
     : t("ui_bivalue_highlight_tip");
@@ -5394,7 +5401,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
 
   autoPencilTipTimer = setTimeout(() => {
     if (!hasUsedAutoPencil) {
-      const isMobile = window.innerWidth <= 550;
+      const isMobile = isTouchDevice();
       const tip = isMobile
         ? t("ui_auto_pencil_tip_mobile")
         : t("ui_msg_auto_pencil_tip_desktop");
@@ -5403,7 +5410,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
   }, 10000);
 
   copyTipTimer = setTimeout(() => {
-    const isMobile = window.innerWidth <= 550;
+    const isMobile = isTouchDevice();
     if (!isMobile) {
       // Detect if the user is on a Mac/iOS device
       const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
@@ -5925,7 +5932,7 @@ function applySavedProgress(puzzleData) {
         magenta: t("ui_unmeasured_level_12"),
       };
       let tooltipText = tooltips[last] || t("ui_difficulty_tooltip");
-      if (window.innerWidth <= 550 && currentLang === "en")
+      if (isTouchDevice() && currentLang === "en")
         tooltipText = tooltipText.replace(t("ui_difficulty_level_term"), "Lv.");
       difficultyLamp.dataset.tooltip = tooltipText;
     }

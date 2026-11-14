@@ -10,12 +10,10 @@ const TLG = (() => {
   const BOARD_BOTTOM_3D_KEY = "sudokuTlg3dBoardBottom";
   const NODE_LABELS_3D_KEY = "sudokuTlg3dNodeLabels";
   const MENU_MODE_KEY = "sudokuTlgMenuMode";
-  // Touch-only devices have no right-click, so they get the set-menu toggle.
-  const touchOnly = () =>
-    window.matchMedia("(hover: none) and (pointer: coarse)").matches;
 
   const PANEL_HTML = [
     '<div id="tlg-grid-2d" class="grid grid-cols-3 gap-1">',
+    '<button type="button" id="tlg-role-set" class="tlg-btn tlg-role" style="grid-column: span 2" aria-pressed="true" data-i18n="tlg_role_set">Truth / Link</button>',
     '<button type="button" id="tlg-role-truth" class="tlg-btn tlg-role" aria-pressed="true" data-i18n="tlg_role_truth">Truth</button>',
     '<button type="button" id="tlg-role-link" class="tlg-btn tlg-role" aria-pressed="false" data-i18n="tlg_role_link">Link</button>',
     '<select id="tlg-kind" class="tlg-select text-center" style="text-align-last: center">',
@@ -34,7 +32,7 @@ const TLG = (() => {
     '<button type="button" id="tlg-reevaluate" class="tlg-btn" data-i18n="tlg_reevaluate">Re-evaluate</button>',
     '<button type="button" id="tlg-remove-unused" class="tlg-btn text-xs" data-i18n="tlg_remove_unused">Remove unused links</button>',
     '<button type="button" id="tlg-clear-all" class="tlg-btn tlg-danger" data-i18n="tlg_clear_all">Clear all</button>',
-    '<button type="button" id="tlg-menu-toggle" class="tlg-btn hidden" style="grid-column: 1 / -1" aria-pressed="false" data-i18n="tlg_menu_toggle">Set menu</button>',
+    '<button type="button" id="tlg-menu-toggle" class="tlg-btn" style="grid-column: 1 / -1" aria-pressed="false" data-i18n="tlg_menu_toggle">Set menu</button>',
     "</div>",
     '<div id="tlg-grid-3d" class="grid grid-cols-3 gap-1 hidden">',
     '<button type="button" id="tlg-3d-off" class="tlg-btn" data-i18n="tlg_3d_off">Exit 3D</button>',
@@ -378,12 +376,16 @@ const TLG = (() => {
     if (!cell) return;
     const visible = mark && mark.style.visibility !== "hidden";
     if (e.type === "contextmenu") {
-      if (visible) {
-        const cand = markCand(cell, mark);
+      if (!visible) return;
+      const cand = markCand(cell, mark);
+      if (isTouchDevice() || menuMode) {
         openMenu(cand, e);
         // openMenu resets these through closeMenu, so set them afterwards.
         lastMenuCand = cand;
         lastMenuOpenAt = Date.now();
+      } else if (role === "truth" || role === "link") {
+        role = "link";
+        handleCandidate(cand);
       }
       return;
     }
@@ -403,6 +405,7 @@ const TLG = (() => {
       return;
     }
     closeMenu();
+    if (role === "link" && !isTouchDevice()) role = "truth";
     handleCandidate(cand);
   }
 
@@ -998,7 +1001,7 @@ const TLG = (() => {
       });
     }
     const editControls = ROLES.map((r) => `tlg-role-${r}`);
-    for (const id of [...editControls, "tlg-kind", "tlg-menu-toggle"]) {
+    for (const id of [...editControls, "tlg-role-set", "tlg-kind", "tlg-menu-toggle"]) {
       $(id).disabled = on;
     }
     $("tlg-cancel").disabled = on || !pending;
@@ -1055,9 +1058,12 @@ const TLG = (() => {
     updateSolverToggleButton();
     if (!active) return;
 
-    if (!touchOnly()) menuMode = false;
     for (const r of ROLES) setPressed(`tlg-role-${r}`, role === r);
-    $("tlg-menu-toggle").classList.toggle("hidden", !touchOnly());
+    const mouse = !isTouchDevice();
+    $("tlg-role-set").classList.toggle("hidden", !mouse);
+    $("tlg-role-truth").classList.toggle("hidden", mouse);
+    $("tlg-role-link").classList.toggle("hidden", mouse);
+    setPressed("tlg-role-set", role === "truth" || role === "link");
     setPressed("tlg-menu-toggle", menuMode);
     $("tlg-kind").value = kind;
     $("tlg-cancel").disabled = !pending;
@@ -1305,6 +1311,11 @@ const TLG = (() => {
         renderAll();
       });
     }
+    $("tlg-role-set").addEventListener("click", () => {
+      if (role !== "link") role = "truth";
+      resetInputState();
+      renderAll();
+    });
     $("tlg-kind").addEventListener("change", (e) => {
       kind = e.target.value;
       resetInputState();
@@ -1438,7 +1449,7 @@ const TLG = (() => {
     showPlayControls(false);
     resetEdits();
     resetInputState();
-    showMessage(t(touchOnly() ? "tlg_mode_tip_mobile" : "tlg_mode_tip"), "gray");
+    showMessage(t(isTouchDevice() ? "tlg_mode_tip_mobile" : "tlg_mode_tip"), "gray");
     scheduleEvaluate();
   }
 

@@ -463,6 +463,8 @@ const TRANSLATIONS = {
       "Tip: Pick a color, then click a&nbsp;cell&nbsp;<span class='shortcut-highlight'>(or press 'C')</span> to paint it.",
     ui_cand_color_select_tip_mobile:
       "Tip: Pick a color, then touch a cell to select a candidate.",
+    ui_cand_color_tip_touch:
+      "Tip: Pick a color, then touch a candidate to apply it.",
     ui_cand_color_preview_tip:
       "Tip: Pick a color, hover over a candidate to preview, and click to apply.",
     ui_draw_tip_mobile: "Draw ({0}): Touch start then end candidate.",
@@ -1042,9 +1044,10 @@ const TRANSLATIONS = {
     tlg_mode_tooltip: "Truth/Link logic editor (D)",
     tlg_solver_toggle_tooltip: "Toggle TLG for this step (D)",
     tlg_mode_tip:
-      "TLG: pick two candidates to add a Truth or Link. Right-click a candidate for the set menu.",
+      "TLG: left-click two candidates to add a Truth, right-click two to add a Link. Turn on 'Set menu' to open the menu with one click.",
     tlg_mode_tip_mobile:
       "TLG: tap two candidates to add a Truth or Link. Turn on 'Set menu' to open the menu with one tap.",
+    tlg_role_set: "Truth / Link",
     tlg_role_truth: "Truth",
     tlg_role_link: "Link",
     tlg_role_aur: "AUR Corner",
@@ -1575,6 +1578,8 @@ const TRANSLATIONS = {
       "팁: 색상을 선택한 후 칸을 클릭&nbsp;<span class='shortcut-highlight'>(또는 'C' 입력)</span>하여 칠하세요.",
     ui_cand_color_select_tip_mobile:
       "팁: 색상을 선택한 후 칸을 터치하여 후보수를 선택하세요.",
+    ui_cand_color_tip_touch:
+      "팁: 색상을 선택한 후 후보수를 터치하여 칠하세요.",
     ui_cand_color_preview_tip:
       "팁: 색상을 선택한 후 후보수 위에 마우스를 올려 미리보고 클릭하여 적용하세요.",
     ui_draw_tip_mobile:
@@ -2162,9 +2167,10 @@ const TRANSLATIONS = {
     tlg_mode_tooltip: "Truth/Link 논리 편집기 (D)",
     tlg_solver_toggle_tooltip: "이 단계에 대한 TLG 켜기/끄기 (D)",
     tlg_mode_tip:
-      "TLG: 후보 두 개를 차례로 선택해 Truth/Link를 추가합니다. 후보를 우클릭하면 집합 메뉴가 열립니다.",
+      "TLG: 후보 두 개를 좌클릭하면 Truth, 우클릭하면 Link를 추가합니다. '집합 메뉴'를 켜면 클릭 한 번으로 메뉴가 열립니다.",
     tlg_mode_tip_mobile:
       "TLG: 후보 두 개를 탭해 Truth/Link를 추가합니다. '집합 메뉴'를 켜면 탭 한 번으로 메뉴가 열립니다.",
+    tlg_role_set: "Truth / Link",
     tlg_role_truth: "Truth",
     tlg_role_link: "Link",
     tlg_role_aur: "AUR 모서리",
