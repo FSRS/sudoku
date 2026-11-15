@@ -4,6 +4,7 @@ Object.assign(techniques, {
     removals,
     pencils,
     getFishForLink = () => null,
+    getGuardianForLink = () => null,
   ) => {
     const usedAlses = blossom.alses;
     const burrNodes = blossom.burr;
@@ -49,6 +50,32 @@ Object.assign(techniques, {
       }
     });
 
+    const seenGuardians = new Set();
+    let guardianCount = 0;
+    for (const path of paths) {
+      for (let i = 0; i + 1 < path.length; i++) {
+        const guardian = getGuardianForLink(path[i], path[i + 1]);
+        if (!guardian) continue;
+        const key = techniques._guardianPatternKey(guardian);
+        if (seenGuardians.has(key)) continue;
+        seenGuardians.add(key);
+        const color =
+          alsColorIndices[
+            (usedAlses.length + usedFishes.length + guardianCount++) %
+              alsColorIndices.length
+          ];
+        for (const [id, num] of guardian.baseCands) {
+          candidateMarks.push({
+            r: Math.floor(id / 9),
+            c: id % 9,
+            num,
+            marker: "circle",
+            color,
+          });
+        }
+      }
+    }
+
     for (const node of burrNodes) {
       for (const id of node.cells) {
         const r = Math.floor(id / 9);
@@ -93,14 +120,16 @@ Object.assign(techniques, {
         for (const id of node.cells) {
           const r = Math.floor(id / 9);
           const c = id % 9;
-          if (pencils[r][c].has(node.digits[0])) {
-            candidateColors.push({
-              r,
-              c,
-              num: node.digits[0],
-              color,
-              mode: "add",
-            });
+          for (const num of node.digits) {
+            if (pencils[r][c].has(num)) {
+              candidateColors.push({
+                r,
+                c,
+                num,
+                color,
+                mode: "add",
+              });
+            }
           }
         }
       });
@@ -156,7 +185,13 @@ Object.assign(techniques, {
     };
   },
 
-  _blossomLoopCore: (board, pencils, isRegion, findAll = false) => {
+  _blossomLoopCore: (
+    board,
+    pencils,
+    isRegion,
+    findAll = false,
+    guardianPass = false,
+  ) => {
     techniques._useSharedAICCache(board, pencils);
     const cache = techniques._aicCache;
     if (cache.AllNodes.length === 0) {
@@ -239,6 +274,35 @@ Object.assign(techniques, {
       return fishLinkRegistry.get(left)?.get(right) || null;
     };
 
+    if (guardianPass) {
+      if (cache.GuardianMap === null) {
+        cache.GuardianMap = techniques.buildGuardianOrMap(
+          board,
+          pencils,
+          (cells, digits) =>
+            digits.length === 1
+              ? getNode(cells, digits[0])
+              : (() => {
+                  const key = `${digits.join(",")}_${cells.join(",")}`;
+                  if (nodeCache.has(key)) return nodeCache.get(key);
+                  const node = new AICNode(cells, digits);
+                  nodeCache.set(key, node);
+                  allNodes.push(node);
+                  return node;
+                })(),
+          cache.GuardianLinkRegistry,
+          [cache.BilocationOrMap, cache.BivalueOrMap, cache.GroupedOrMap],
+        );
+      }
+      orMap = techniques.mergeOrMaps(orMap, cache.GuardianMap);
+    }
+    const getGuardianForLink = (left, right) =>
+      guardianPass &&
+      !blossomAlsLinkRegistry.get(left)?.get(right) &&
+      !fishLinkRegistry.get(left)?.get(right)
+        ? cache.GuardianLinkRegistry.get(left)?.get(right) || null
+        : null;
+
     const candidateCode = (id, digit) => (digit - 1) * 81 + id;
     const candidateId = (code) => code % 81;
     const candidateDigit = (code) => Math.floor(code / 81) + 1;
@@ -257,8 +321,19 @@ Object.assign(techniques, {
       }
     };
 
-    let search = cache.BlossomSearchCache;
-    if (!search || search.nodeCount !== allNodes.length) {
+    const searchKey = guardianPass
+      ? "BlossomGuardianSearchCache"
+      : "BlossomSearchCache";
+    let search = cache[searchKey];
+    // Nodes added since the search was built are unreachable while they
+    // carry no strong link of this pass.
+    if (
+      !search ||
+      search.nodeCount > allNodes.length ||
+      allNodes
+        .slice(search.nodeCount)
+        .some((node) => orMap.get(node)?.size > 0)
+    ) {
       const nodeCount = allNodes.length;
       const indexOf = new Map();
       for (let index = 0; index < nodeCount; index++) {
@@ -416,7 +491,7 @@ Object.assign(techniques, {
         reachNodes: null,
         reachDepth: null,
       };
-      cache.BlossomSearchCache = search;
+      cache[searchKey] = search;
     }
 
     const {
@@ -665,6 +740,9 @@ Object.assign(techniques, {
     const getFishLoc = techniques._formatFishNodeLocation;
 
     const getPlainNodeText = (node, previousDigit = null) => {
+      if (node.digits.length > 1) {
+        return `(${node.digits.join("")})${getLoc(node.cells)}`;
+      }
       const digit = node.digits[0];
       return `${previousDigit === digit ? "" : `(${digit})`}${getLoc(node.cells)}`;
     };
@@ -689,6 +767,12 @@ Object.assign(techniques, {
 
         const als = getAlsForLink(nandEnd, orEnd);
         const fish = getFishForLink(nandEnd, orEnd);
+        const guardian = getGuardianForLink(nandEnd, orEnd);
+        if (guardian) {
+          text += techniques._formatGuardianLink(nandEnd, orEnd, guardian);
+          lastDigit = null;
+          continue;
+        }
         const isBivalueCell =
           !als &&
           !fish &&
@@ -968,7 +1052,9 @@ Object.assign(techniques, {
         for (const path of paths) {
           for (const node of path) {
             for (const id of node.cells) {
-              structureKeys.add(candidateCode(id, node.digits[0]));
+              for (const digit of node.digits) {
+                structureKeys.add(candidateCode(id, digit));
+              }
             }
           }
         }
@@ -1025,6 +1111,17 @@ Object.assign(techniques, {
     for (const chosen of [...bestByRemoval.values()].sort(
       (left, right) => left.order - right.order,
     )) {
+      if (
+        guardianPass &&
+        !chosen.paths.some((path) =>
+          path.some(
+            (node, i) =>
+              i + 1 < path.length && getGuardianForLink(node, path[i + 1]),
+          ),
+        )
+      ) {
+        continue;
+      }
       {
         const burr = chosen.burr;
         const paths = chosen.paths;
@@ -1087,6 +1184,7 @@ Object.assign(techniques, {
             removals,
             pencils,
             getFishForLink,
+            getGuardianForLink,
           ),
           tlg: techniques._tlgStemBranches(
             pencils,
@@ -1111,8 +1209,10 @@ Object.assign(techniques, {
                   index: Math.floor(chosen.exitKey / 9) % 9,
                   digit: (chosen.exitKey % 9) + 1,
                 },
+            getGuardianForLink,
           ),
         };
+        if (!result.tlg) delete result.tlg;
 
         results.push(result);
       }
@@ -1129,17 +1229,48 @@ Object.assign(techniques, {
         ...techniques.regionBlossomLoop(board, pencils, true),
       ];
     }
-    const cell = techniques.cellBlossomLoop(board, pencils, false);
-    if (cell.change) return cell;
-    return techniques.regionBlossomLoop(board, pencils, false);
+    for (const guardianPass of [false, true]) {
+      if (guardianPass && techniques._aicUseGuardianLinks !== true) break;
+      for (const isRegion of [false, true]) {
+        const found = techniques._blossomLoopCore(
+          board,
+          pencils,
+          isRegion,
+          false,
+          guardianPass,
+        );
+        if (found.change) return found;
+      }
+    }
+    return { change: false };
+  },
+
+  // Guardian links are searched in a second pass, so the first pass keeps
+  // every hint and chain the search finds without them.
+  _blossomLoopPasses: (board, pencils, isRegion, findAll) => {
+    const plain = techniques._blossomLoopCore(board, pencils, isRegion, findAll);
+    if (techniques._aicUseGuardianLinks !== true) return plain;
+    if (!findAll) {
+      return plain.change
+        ? plain
+        : techniques._blossomLoopCore(board, pencils, isRegion, false, true);
+    }
+    const removalKey = (result) =>
+      result.cells.map(({ r, c, num }) => `${r}${c}${num}`).join(",");
+    const known = new Set(plain.map(removalKey));
+    return plain.concat(
+      techniques
+        ._blossomLoopCore(board, pencils, isRegion, true, true)
+        .filter((result) => !known.has(removalKey(result))),
+    );
   },
 
   cellBlossomLoop: (board, pencils, findAll = false) => {
-    return techniques._blossomLoopCore(board, pencils, false, findAll);
+    return techniques._blossomLoopPasses(board, pencils, false, findAll);
   },
 
   regionBlossomLoop: (board, pencils, findAll = false) => {
-    return techniques._blossomLoopCore(board, pencils, true, findAll);
+    return techniques._blossomLoopPasses(board, pencils, true, findAll);
   },
 
 });

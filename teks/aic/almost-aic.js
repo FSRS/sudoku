@@ -36,7 +36,12 @@ Object.assign(techniques, {
     };
 
     const cacheKey = "AlmostAicGraph";
-    if (cache[cacheKey] && cache[cacheKey].nodeCount === allNodes.length) {
+    const useGuardian = techniques._aicUseGuardianLinks === true;
+    if (
+      cache[cacheKey] &&
+      cache[cacheKey].nodeCount === allNodes.length &&
+      cache[cacheKey].useGuardian === useGuardian
+    ) {
       return cache[cacheKey];
     }
 
@@ -83,6 +88,19 @@ Object.assign(techniques, {
     }
     orMap = techniques.mergeOrMaps(orMap, cache.FishMap);
 
+    if (useGuardian) {
+      if (cache.GuardianMap === null) {
+        cache.GuardianMap = techniques.buildGuardianOrMap(
+          board,
+          pencils,
+          getNode,
+          cache.GuardianLinkRegistry,
+          [cache.BilocationOrMap, cache.BivalueOrMap, cache.GroupedOrMap],
+        );
+      }
+      orMap = techniques.mergeOrMaps(orMap, cache.GuardianMap);
+    }
+
     // 2. Flatten to index based adjacency so a branch walk stays cheap.
     const nodes = [];
     for (const node of allNodes) {
@@ -113,9 +131,13 @@ Object.assign(techniques, {
     const nodesByDigit = Array.from({ length: 10 }, () => []);
     const singleCellNodes = Array.from({ length: 81 }, () => []);
     const basicNodes = new Array(81 * 9);
+    const multiDigitNodes = Array.from({ length: 81 }, () => []);
 
     for (const node of nodes) {
-      if (node.digits.length !== 1) continue;
+      if (node.digits.length !== 1) {
+        if (node.cells.length === 1) multiDigitNodes[node.cells[0]].push(node);
+        continue;
+      }
       nodesByDigit[node.digits[0]].push(node);
       if (node.cells.length === 1) {
         singleCellNodes[node.cells[0]].push(node);
@@ -124,7 +146,25 @@ Object.assign(techniques, {
     }
 
     const weakTargets = (node) => {
-      if (node.digits.length !== 1) return Int32Array.from([]);
+      if (node.digits.length !== 1) {
+        if (node.cells.length !== 1) return Int32Array.from([]);
+        const cell = node.cells[0];
+        const targets = [];
+        for (const other of singleCellNodes[cell]) {
+          if (!node.digits.includes(other.digits[0])) {
+            targets.push(nodeIndex.get(other));
+          }
+        }
+        for (const other of multiDigitNodes[cell]) {
+          if (
+            other !== node &&
+            !other.digits.some((d) => node.digits.includes(d))
+          ) {
+            targets.push(nodeIndex.get(other));
+          }
+        }
+        return Int32Array.from(targets);
+      }
 
       const digit = node.digits[0];
       const targets = new Set();
@@ -149,6 +189,9 @@ Object.assign(techniques, {
           if (other !== node && other.digits[0] !== digit) {
             targets.add(nodeIndex.get(other));
           }
+        }
+        for (const other of multiDigitNodes[node.cells[0]]) {
+          if (!other.digits.includes(digit)) targets.add(nodeIndex.get(other));
         }
       }
 
@@ -190,6 +233,8 @@ Object.assign(techniques, {
       alsLinkRegistry: cache.AlsLinkRegistry,
       groupedLinkRegistry: cache.GroupedLinkRegistry,
       fishLinkRegistry: cache.FishLinkRegistry,
+      guardianLinkRegistry: useGuardian ? cache.GuardianLinkRegistry : null,
+      useGuardian,
       walkCache: new Map(),
       maskCache: new Map(),
     };
@@ -329,8 +374,10 @@ Object.assign(techniques, {
     getAls,
     getFish,
     exitSet = null,
+    getGuardian = null,
   ) => {
     const tlg = techniques._tlgBuilder(removals);
+    const guardianLinks = [];
     const candsOf = (node) => {
       const cands = [];
       for (const id of node.cells) {
@@ -364,7 +411,11 @@ Object.assign(techniques, {
         const v = path[i + 1];
         const als = getAls(u, v);
         const fish = als ? null : getFish(u, v);
-        if (als) {
+        const guardian =
+          als || fish || !getGuardian ? null : getGuardian(u, v);
+        if (guardian) {
+          guardianLinks.push(guardian);
+        } else if (als) {
           const cellIds = als.cells.map(([r, c]) => r * 9 + c);
           for (const id of cellIds) tlg.truth({ kind: "cell", cell: id });
           for (const key of Object.keys(als.candMap)) {
@@ -402,6 +453,8 @@ Object.assign(techniques, {
         }
       }
     }
+
+    techniques._tlgGuardianLinks(tlg, guardianLinks, pencils);
 
     for (const path of paths) {
       for (let i = 0; i + 1 < path.length; i += 2) weak(path[i], path[i + 1]);
@@ -464,6 +517,12 @@ Object.assign(techniques, {
     const alsLinkRegistry = graph.alsLinkRegistry;
     const groupedLinkRegistry = graph.groupedLinkRegistry;
     const fishLinkRegistry = graph.fishLinkRegistry;
+    const getGuardian = (u, v) =>
+      graph.guardianLinkRegistry &&
+      !alsLinkRegistry.get(u)?.get(v) &&
+      !fishLinkRegistry.get(u)?.get(v)
+        ? graph.guardianLinkRegistry.get(u)?.get(v) || null
+        : null;
 
     const getLoc = techniques._formatAicLocation;
 
@@ -490,6 +549,14 @@ Object.assign(techniques, {
             v,
           )})(${fish.basesStr}\\${fish.coversStr})`,
           digit: fish.d,
+        };
+      }
+
+      const guardian = getGuardian(u, v);
+      if (guardian) {
+        return {
+          text: techniques._formatGuardianLink(u, v, guardian),
+          digit: null,
         };
       }
 
@@ -778,7 +845,9 @@ Object.assign(techniques, {
         for (const path of paths) {
           for (let i = 0; i < path.length; i += 2) {
             for (const id of path[i].cells) {
-              asserted.add(`${id}:${path[i].digits[0]}`);
+              for (const digit of path[i].digits) {
+                asserted.add(`${id}:${digit}`);
+              }
             }
           }
         }
@@ -971,6 +1040,8 @@ Object.assign(techniques, {
         const fishNodes = new Set();
         const seenAlsKeys = new Set();
         const seenFishKeys = new Set();
+        const usedGuardians = [];
+        const seenGuardianKeys = new Set();
 
         for (const path of chosenPaths) {
           for (let i = 1; i + 1 < path.length; i += 2) {
@@ -999,6 +1070,16 @@ Object.assign(techniques, {
               }
               fishNodes.add(u);
               fishNodes.add(v);
+              continue;
+            }
+
+            const guardian = getGuardian(u, v);
+            if (guardian) {
+              const key = techniques._guardianPatternKey(guardian);
+              if (!seenGuardianKeys.has(key)) {
+                seenGuardianKeys.add(key);
+                usedGuardians.push(guardian);
+              }
             }
           }
         }
@@ -1057,6 +1138,20 @@ Object.assign(techniques, {
                 color,
               });
             }
+          }
+        }
+
+        for (const guardian of usedGuardians) {
+          colorCount++;
+          const color = colorCodes[colorCount % colorCodes.length];
+          for (const [id, num] of guardian.baseCands) {
+            candidateMarks.push({
+              r: Math.floor(id / 9),
+              c: id % 9,
+              num,
+              marker: "circle",
+              color,
+            });
           }
         }
 
@@ -1136,6 +1231,39 @@ Object.assign(techniques, {
           })),
         );
 
+        const tlg = techniques._tlgStemBranches(
+          pencils,
+          elims,
+          isCell
+            ? [{ kind: "cell", cell: stem.cellId }]
+            : isRegion
+              ? [
+                  {
+                    kind: ["row", "col", "box"][Math.floor(stem.unit / 9)],
+                    index: stem.unit % 9,
+                    digit: stem.digit,
+                  },
+                ]
+              : stem.cells.map((id) => ({ kind: "cell", cell: id })),
+          isAals
+            ? stem.cellsByDigit.flatMap((ids, d) =>
+                ids.length === 0 || stem.startDigits.includes(d)
+                  ? []
+                  : [
+                      {
+                        cellIds: stem.cells,
+                        cands: ids.map((id) => [id, d]),
+                      },
+                    ],
+              )
+            : [],
+          chosenPaths,
+          (u, v) => alsLinkRegistry.get(u)?.get(v),
+          (u, v) => fishLinkRegistry.get(u)?.get(v),
+          null,
+          getGuardian,
+        );
+
         const resultObj = {
           change: true,
           type: "remove",
@@ -1152,36 +1280,7 @@ Object.assign(techniques, {
             candidateMarks,
             links,
           },
-          tlg: techniques._tlgStemBranches(
-            pencils,
-            elims,
-            isCell
-              ? [{ kind: "cell", cell: stem.cellId }]
-              : isRegion
-                ? [
-                    {
-                      kind: ["row", "col", "box"][Math.floor(stem.unit / 9)],
-                      index: stem.unit % 9,
-                      digit: stem.digit,
-                    },
-                  ]
-                : stem.cells.map((id) => ({ kind: "cell", cell: id })),
-            isAals
-              ? stem.cellsByDigit.flatMap((ids, d) =>
-                  ids.length === 0 || stem.startDigits.includes(d)
-                    ? []
-                    : [
-                        {
-                          cellIds: stem.cells,
-                          cands: ids.map((id) => [id, d]),
-                        },
-                      ],
-                )
-              : [],
-            chosenPaths,
-            (u, v) => alsLinkRegistry.get(u)?.get(v),
-            (u, v) => fishLinkRegistry.get(u)?.get(v),
-          ),
+          ...(tlg ? { tlg } : {}),
         };
 
         if (!findAll) return resultObj;

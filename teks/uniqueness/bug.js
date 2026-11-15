@@ -129,9 +129,7 @@ Object.assign(techniques, {
     return findAll ? [] : { change: false };
   },
 
-  bugPlusN: (board, pencils, findAll = false) => {
-    const maxTrueCandidates = 5; // BUG+n limit.
-    const results = [];
+  _bugFloorGuardians: (board, pencils) => {
     const emptyCells = [];
     const bivalueCells = [];
     const multivalueCells = [];
@@ -141,7 +139,7 @@ Object.assign(techniques, {
       for (let c = 0; c < 9; c++) {
         if (board[r][c] !== 0) continue;
         const digits = [...pencils[r][c]].sort((a, b) => a - b);
-        if (digits.length < 2) return findAll ? [] : { change: false };
+        if (digits.length < 2) return null;
         const cell = { r, c, digits };
         emptyCells.push(cell);
         candidatesCount += digits.length;
@@ -154,8 +152,93 @@ Object.assign(techniques, {
       multivalueCells.length === 0 ||
       candidatesCount > emptyCells.length * 2 + 28
     ) {
-      return findAll ? [] : { change: false };
+      return null;
     }
+
+    const boxOf = techniques._getBoxIndex;
+    const housesOf = (r, c) => [r, 9 + c, 18 + boxOf(r, c)];
+
+    // Choose a two-candidate BUG floor for every multi-value cell.
+    const houseCounts = Array.from({ length: 10 }, () => new Uint8Array(27));
+    for (const cell of bivalueCells) {
+      for (const num of cell.digits) {
+        for (const house of housesOf(cell.r, cell.c)) {
+          if (++houseCounts[num][house] > 2) return null;
+        }
+      }
+    }
+
+    const chosenPairs = new Array(multivalueCells.length);
+    const chooseFloor = (index) => {
+      if (index === multivalueCells.length) return true;
+      const cell = multivalueCells[index];
+      const houses = housesOf(cell.r, cell.c);
+      for (let i = 0; i < cell.digits.length - 1; i++) {
+        for (let j = i + 1; j < cell.digits.length; j++) {
+          const pair = [cell.digits[i], cell.digits[j]];
+          let valid = true;
+          for (const num of pair) {
+            for (const house of houses) {
+              if (houseCounts[num][house] >= 2) valid = false;
+            }
+          }
+          if (!valid) continue;
+          for (const num of pair) {
+            for (const house of houses) houseCounts[num][house]++;
+          }
+          chosenPairs[index] = pair;
+          if (chooseFloor(index + 1)) return true;
+          for (const num of pair) {
+            for (const house of houses) houseCounts[num][house]--;
+          }
+        }
+      }
+      return false;
+    };
+
+    if (!chooseFloor(0)) return null;
+
+    const trueCandidates = [];
+    for (let i = 0; i < multivalueCells.length; i++) {
+      const cell = multivalueCells[i];
+      const floorPair = new Set(chosenPairs[i]);
+      for (const num of cell.digits) {
+        if (!floorPair.has(num))
+          trueCandidates.push({ r: cell.r, c: cell.c, num });
+      }
+    }
+    return { emptyCells, trueCandidates };
+  },
+
+  _bugGuardianPatterns: (board, pencils) => {
+    const floor = techniques._bugFloorGuardians(board, pencils);
+    if (!floor) return [];
+    const guarded = new Set(
+      floor.trueCandidates.map(({ r, c, num }) => (r * 9 + c) * 9 + num),
+    );
+    const baseCands = [];
+    for (const { r, c, digits } of floor.emptyCells) {
+      for (const d of digits) {
+        if (!guarded.has((r * 9 + c) * 9 + d)) baseCands.push([r * 9 + c, d]);
+      }
+    }
+    return [
+      {
+        kind: "BUG",
+        digits: [],
+        cells: floor.emptyCells.map(({ r, c }) => r * 9 + c),
+        guardians: floor.trueCandidates.map(({ r, c, num }) => [r * 9 + c, num]),
+        baseCands,
+      },
+    ];
+  },
+
+  bugPlusN: (board, pencils, findAll = false) => {
+    const maxTrueCandidates = 5; // BUG+n limit.
+    const results = [];
+    const floor = techniques._bugFloorGuardians(board, pencils);
+    if (!floor) return findAll ? [] : { change: false };
+    const { emptyCells, trueCandidates } = floor;
 
     const boxOf = techniques._getBoxIndex;
     const housesOf = (r, c) => [r, 9 + c, 18 + boxOf(r, c)];
@@ -206,57 +289,6 @@ Object.assign(techniques, {
         .join(",");
     };
 
-    // Choose a two-candidate BUG floor for every multi-value cell.
-    const houseCounts = Array.from({ length: 10 }, () => new Uint8Array(27));
-    for (const cell of bivalueCells) {
-      for (const num of cell.digits) {
-        for (const house of housesOf(cell.r, cell.c)) {
-          if (++houseCounts[num][house] > 2) {
-            return findAll ? [] : { change: false };
-          }
-        }
-      }
-    }
-
-    const chosenPairs = new Array(multivalueCells.length);
-    const chooseFloor = (index) => {
-      if (index === multivalueCells.length) return true;
-      const cell = multivalueCells[index];
-      const houses = housesOf(cell.r, cell.c);
-      for (let i = 0; i < cell.digits.length - 1; i++) {
-        for (let j = i + 1; j < cell.digits.length; j++) {
-          const pair = [cell.digits[i], cell.digits[j]];
-          let valid = true;
-          for (const num of pair) {
-            for (const house of houses) {
-              if (houseCounts[num][house] >= 2) valid = false;
-            }
-          }
-          if (!valid) continue;
-          for (const num of pair) {
-            for (const house of houses) houseCounts[num][house]++;
-          }
-          chosenPairs[index] = pair;
-          if (chooseFloor(index + 1)) return true;
-          for (const num of pair) {
-            for (const house of houses) houseCounts[num][house]--;
-          }
-        }
-      }
-      return false;
-    };
-
-    if (!chooseFloor(0)) return findAll ? [] : { change: false };
-
-    const trueCandidates = [];
-    for (let i = 0; i < multivalueCells.length; i++) {
-      const cell = multivalueCells[i];
-      const floorPair = new Set(chosenPairs[i]);
-      for (const num of cell.digits) {
-        if (!floorPair.has(num))
-          trueCandidates.push({ r: cell.r, c: cell.c, num });
-      }
-    }
     if (trueCandidates.length < 2) return findAll ? [] : { change: false };
     const guardiansStr = formatCandidates(trueCandidates);
 

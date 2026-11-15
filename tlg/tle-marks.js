@@ -14,6 +14,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     st.applyAur = !!o.applyAur;
     st.highlightAls = !!o.highlightAls;
     st.wantPerms = input.wantPerms;
+    st.givens = input.givens || null;
     st.vapply = !!input.vapply;
     st.vcount = input.vcount | 0;
     st.vN = st.vcount & 15;
@@ -21,6 +22,20 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     var marks = st.marks;
     var i, c;
     if (input.aurMarks) for (i = 0; i < input.aurMarks.length; i++) marks[input.aurMarks[i]] |= 1;
+    if (input.aurGroups) {
+      st.aurGroups = [];
+      for (var g = 0; g < input.aurGroups.length; g++) {
+        var src = input.aurGroups[g];
+        var flag = new Uint8Array(729);
+        for (i = 0; i < src.length; i++) {
+          flag[src[i]] = 1;
+          marks[src[i]] |= 1;
+        }
+        var group = [];
+        for (c = 0; c < 729; c++) if (flag[c]) group.push(c);
+        if (group.length > 0) st.aurGroups.push(group);
+      }
+    }
     if (input.vset) {
       var kept = 0;
       for (i = 0; i < input.vset.length; i++) {
@@ -61,13 +76,26 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
 
   TLE.buildAur = function (st) {
     st.aurList = [];
-    var marks = st.aurMarks;
-    var n = marks.length;
-    if (n <= 1) return;
-    if (!st.uniqueSolution) return;
-    if (n <= 9) classicAur(st, marks);
-    else generalAur(st, marks);
+    var groups = st.aurGroups || [st.aurMarks];
+    for (var g = 0; g < groups.length; g++) {
+      var marks = groups[g];
+      var n = marks.length;
+      if (n <= 1) continue;
+      if (!st.uniqueSolution) return;
+      if (st.aurList.length >= 32) return;
+      if (n <= 9) classicAur(st, marks);
+      else generalAur(st, marks);
+    }
   };
+
+  function addGeneral(st, cands, thr) {
+    var mask = maskOf(cands);
+    for (var k = 0; k < st.aurList.length; k++) {
+      var e = st.aurList[k];
+      if (!e.nominal && e.thr === thr && sameMask(e.mask, mask)) return;
+    }
+    st.aurList.push({ cands: cands, mask: mask, thr: thr });
+  }
 
   function maskOf(cands) {
     var m = new Uint32Array(NW);
@@ -80,38 +108,58 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     return true;
   }
 
+  function solvedDigit(cs, cell) {
+    for (var d = 0; d < 9; d++) if (cs[cell * 9 + d] === 2) return d;
+    return -1;
+  }
+
+  function byNumber(p, q) {
+    return p - q;
+  }
+
   function classicAur(st, marks) {
     var n = marks.length;
     var cs = st.cs;
-    var cnt = 0;
+    var givens = st.givens;
     for (var i = 0; i < n - 1; i++) {
       for (var j = i + 1; j < n; j++) {
         var a = marks[i];
         var b = marks[j];
         if (cRow[a] === cRow[b] || cCol[a] === cCol[b]) continue;
         if (cD0[a] === cD0[b]) continue;
+        var V = [];
         var U = [];
+        var fixed = 0;
         var rs = [cRow[a], cRow[b]];
         var ks = [cCol[a], cCol[b]];
         var ds = [cD0[a], cD0[b]];
         var okAll = true;
         for (var x = 0; x < 2; x++) {
           for (var y = 0; y < 2; y++) {
+            var cell = rs[x] * 9 + ks[y];
+            var v = givens ? solvedDigit(cs, cell) : -1;
+            var any = false;
             for (var z = 0; z < 2; z++) {
-              var c = rs[x] * 81 + ks[y] * 9 + ds[z];
-              if (cs[c] !== 1) okAll = false;
-              U.push(c);
+              var c = cell * 9 + ds[z];
+              V.push(c);
+              if (cs[c] === 1) {
+                U.push(c);
+                any = true;
+              } else if (!givens) okAll = false;
             }
+            if (v >= 0) {
+              if (givens[cell] || (v !== ds[0] && v !== ds[1])) okAll = false;
+              else fixed++;
+            } else if (!any) okAll = false;
           }
         }
-        if (!okAll) continue;
-        U.sort(function (p, q) {
-          return p - q;
-        });
-        var m = maskOf(U);
+        if (!okAll || fixed === 4) continue;
+        V.sort(byNumber);
+        U.sort(byNumber);
+        var nominal = maskOf(V);
         var dup = false;
         for (var k = 0; k < st.aurList.length; k++) {
-          if (sameMask(st.aurList[k].mask, m)) {
+          if (st.aurList[k].nominal && sameMask(st.aurList[k].nominal, nominal)) {
             dup = true;
             break;
           }
@@ -121,7 +169,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
         var ns = 0;
         for (k = 0; k < 8; k++) {
           for (var q = 0; q < 4; q++) {
-            var s = cSets[U[k] * 4 + q];
+            var s = cSets[V[k] * 4 + q];
             if (!seen[s]) {
               seen[s] = 1;
               ns++;
@@ -129,18 +177,60 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
           }
         }
         if (ns !== 16) continue;
-        st.aurList.push({ cands: U, mask: m, thr: 3 });
-        cnt++;
-        if (cnt === 32) return;
+        st.aurList.push({ cands: U, mask: maskOf(U), nominal: nominal, thr: 3 - fixed });
+        if (st.aurList.length === 32) return;
       }
     }
   }
 
   function generalAur(st, marks) {
-    var n = marks.length;
+    var size;
+    if (!st.givens) {
+      size = generalSize(st, st, marks);
+      if (size >= 0) addGeneral(st, marks.slice(), size - 1);
+      return;
+    }
     var cs = st.cs;
+    var givens = st.givens;
+    var cellMarks = new Int32Array(81);
+    var values = new Array(81);
+    var cands = new Array(81);
+    var fixed = 0;
+    var i, cell, d;
+    for (i = 0; i < marks.length; i++) cellMarks[TLE.cCell[marks[i]]] |= 1 << cD0[marks[i]];
+    for (cell = 0; cell < 81; cell++) {
+      var v = -1;
+      var bits = 0;
+      for (d = 0; d < 9; d++) {
+        if (cs[cell * 9 + d] === 2) v = d;
+        else if (cs[cell * 9 + d] === 1) bits |= 1 << d;
+      }
+      var mk = cellMarks[cell];
+      values[cell] = 0;
+      cands[cell] = bits | mk;
+      if (mk === 0) {
+        values[cell] = v + 1;
+      } else if (v >= 0) {
+        if (givens[cell] || !(mk & (1 << v))) return;
+        fixed++;
+      } else if (!(bits & mk)) {
+        return;
+      }
+    }
+    var b = TLE.newState();
+    TLE.loadBoard(b, values, cands);
+    size = generalSize(st, b, marks);
+    if (size < 0 || size - 1 - fixed < 0) return;
+    var U = [];
+    for (i = 0; i < marks.length; i++) if (cs[marks[i]] === 1) U.push(marks[i]);
+    addGeneral(st, U, size - 1 - fixed);
+  }
+
+  function generalSize(st, b, marks) {
+    var n = marks.length;
+    var cs = b.cs;
     var i, k, q, s;
-    for (i = 0; i < n; i++) if (cs[marks[i]] !== 1) return;
+    for (i = 0; i < n; i++) if (cs[marks[i]] !== 1) return -1;
     var P = maskOf(marks);
     var L = [];
     var cntIn = new Int32Array(324);
@@ -153,12 +243,12 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     }
     var typeCount = [0, 0, 0, 0];
     for (k = 0; k < L.length; k++) typeCount[(L[k] / 81) | 0]++;
-    for (s = 0; s < 324; s++) if (cntIn[s] === 1) return;
+    for (s = 0; s < 324; s++) if (cntIn[s] === 1) return -1;
     var m = Math.min(typeCount[0], typeCount[1], typeCount[2], typeCount[3]);
-    var setOff = st.setOff;
-    var setLen = st.setLen;
-    var setList = st.setList;
-    var setMask = st.setMask;
+    var setOff = b.setOff;
+    var setLen = b.setLen;
+    var setList = b.setList;
+    var setMask = b.setMask;
     function inP(c) {
       return (P[c >> 5] & (1 << (c & 31))) !== 0;
     }
@@ -201,7 +291,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       A++;
       return false;
     });
-    if (sizesDiffer) return;
+    if (sizesDiffer) return -1;
     var kind = 0;
     var B = 0;
     var sB = -1;
@@ -283,8 +373,8 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
             if (v === 0) open = true;
           });
         }
-        if (multiShape) return;
-        if (open) return;
+        if (multiShape) return -1;
+        if (open) return -1;
         B = count;
         if (B >= 1) sB = firstT;
       }
@@ -313,9 +403,8 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
         if (r === 0) kind |= 0x100;
       }
     }
-    if (kind === 0) return;
-    var size = A >= 1 ? sA : B >= 1 ? sB : m;
-    st.aurList.push({ cands: marks.slice(), mask: P, thr: size - 1 });
+    if (kind === 0) return -1;
+    return A >= 1 ? sA : B >= 1 ? sB : m;
   }
 
   function localMask(st, mask) {

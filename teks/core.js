@@ -331,6 +331,11 @@ Object.assign(techniques, {
     if (ids.length === 1) {
       return `r${Math.floor(ids[0] / 9) + 1}c${(ids[0] % 9) + 1}`;
     }
+    const rowCount = new Set(ids.map((id) => Math.floor(id / 9))).size;
+    const colCount = new Set(ids.map((id) => id % 9)).size;
+    if (rowCount > 1 && colCount > 1 && ids.length === rowCount * colCount) {
+      return techniques._formatRectangleBounds(ids);
+    }
 
     const lineToken = (isRow, line, members) => {
       const digits = members.map((n) => n + 1).join("");
@@ -604,8 +609,8 @@ Object.assign(techniques, {
     const targets = removals.map(({ r, c, num }) => [r * 9 + c, num]);
     const truths = [];
     const links = [];
-    const marks = [];
-    const restored = [];
+    const groups = [[]];
+    let board = null;
     const drawn = new Set();
     const add = (list, set) => {
       if (!set) return;
@@ -644,42 +649,66 @@ Object.assign(techniques, {
       linkSet: (set) => add(links, set),
       link,
       connect,
+      pattern: () => {
+        if (groups[groups.length - 1].length > 0) groups.push([]);
+      },
       holds: (cands) =>
         [...truths, ...links].some((set) =>
           cands.every((cand) => setHas(set, cand)),
         ),
-      // The TLG engine takes a deadly pattern only when every candidate of
-      // it exists, so the ones the position lacks are listed to be put back.
-      // A rectangle is marked on two opposite corners; a larger pattern on
-      // every candidate.
+      // A rectangle is marked on two opposite corners, preferably where each
+      // mark sits on a candidate or a solved cell; a larger pattern on every
+      // candidate.
       deadly: (ids, digits, pencils, corners) => {
-        const pattern = [];
-        for (const id of ids) {
-          for (const digit of digits) {
-            const cand = id * 9 + digit - 1;
-            pattern.push(cand);
-            if (!pencils[Math.floor(id / 9)][id % 9].has(digit)) {
-              restored.push(cand);
-            }
-          }
-        }
+        board = pencils;
+        const marks = groups[groups.length - 1];
         if (ids.length !== 4 || digits.length !== 2) {
-          marks.push(...pattern);
+          for (const id of ids) {
+            for (const digit of digits) marks.push(id * 9 + digit - 1);
+          }
           return;
         }
-        marks.push(
-          ...(corners || [
-            Math.min(...ids) * 9 + Math.min(...digits) - 1,
-            Math.max(...ids) * 9 + Math.max(...digits) - 1,
-          ]),
-        );
+        const [low, high] = [Math.min(...digits), Math.max(...digits)];
+        const sorted = [...ids].sort((a, b) => a - b);
+        const fallback = corners || [
+          sorted[0] * 9 + low - 1,
+          sorted[3] * 9 + high - 1,
+        ];
+        const shown = (cand) => {
+          const cell = pencils[Math.floor(cand / 81)][Math.floor(cand / 9) % 9];
+          return cell.size === 0 || cell.has((cand % 9) + 1);
+        };
+        const choices = [fallback];
+        for (const [a, b] of [
+          [sorted[0], sorted[3]],
+          [sorted[1], sorted[2]],
+        ]) {
+          choices.push([a * 9 + low - 1, b * 9 + high - 1]);
+          choices.push([a * 9 + high - 1, b * 9 + low - 1]);
+        }
+        marks.push(...(choices.find((pair) => pair.every(shown)) || fallback));
       },
       logic: () => {
-        const logic = techniques._tlgLogic(truths, links);
-        if (marks.length > 0) {
-          logic.aurMarks = marks;
-          logic.restored = restored;
+        // A Truth with no candidate left, on a solved pattern cell or a digit
+        // already placed in its house, would make the engine refuse the step.
+        const live = board
+          ? truths.filter((set) =>
+              set.kind === "cell"
+                ? board[Math.floor(set.cell / 9)][set.cell % 9].size > 0
+                : UNIT_CELLS[UNIT_OFFSET[set.kind] + set.index].some(([r, c]) =>
+                    board[r][c].has(set.digit),
+                  ),
+            )
+          : truths;
+        const logic = techniques._tlgLogic(live, links);
+        const marked = new Map();
+        for (const group of groups) {
+          if (group.length === 0) continue;
+          const key = [...new Set(group)].sort((a, b) => a - b).join(",");
+          if (!marked.has(key)) marked.set(key, group);
         }
+        if (marked.size === 1) logic.aurMarks = [...marked.values()][0];
+        else if (marked.size > 1) logic.aurGroups = [...marked.values()];
         return logic;
       },
     };

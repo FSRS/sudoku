@@ -64,6 +64,11 @@ const TLG = (() => {
     '<div class="tlg-section hidden" id="tlg-aur-section">',
     '<span class="tlg-heading" data-i18n="tlg_aur_title">AUR</span>',
     '<span id="tlg-aur-info"></span>',
+    '<div id="tlg-aur-stepper" class="tlg-stepper">',
+    '<button type="button" id="tlg-aur-prev" class="tlg-btn tlg-step" aria-label="previous group">\u25c0</button>',
+    '<span id="tlg-aur-label" class="tlg-summary"></span>',
+    '<button type="button" id="tlg-aur-next" class="tlg-btn tlg-step" aria-label="next group">\u25b6</button>',
+    "</div>",
     '<label class="tlg-check"><input type="checkbox" id="tlg-aur-apply" /><span data-i18n="tlg_aur_apply">Apply AURs</span></label>',
     '<button type="button" id="tlg-aur-clear" class="tlg-btn" data-i18n="tlg_aur_clear">Clear corners</button>',
     '<span id="tlg-aur-reason" class="tlg-reason"></span>',
@@ -95,7 +100,7 @@ const TLG = (() => {
     const st = {
       sets: [],
       nextId: 1,
-      aurMarks: [],
+      aurGroups: [],
       vset: [],
       vapply: false,
       vcount: 1,
@@ -128,6 +133,7 @@ const TLG = (() => {
   let status = "idle";
   let errorText = "";
   let permIndex = -1;
+  let aurGroup = 0;
   let highlightAls = false;
   let removeRequestId = 0;
   let removeSnapshot = "";
@@ -340,9 +346,16 @@ const TLG = (() => {
     else list.push(key);
   }
 
+  const aurMarkCount = () =>
+    state.aurGroups.reduce((count, group) => count + group.length, 0);
+
   function handleCandidate(cand) {
     if (role === "aur") {
-      toggleIn(state.aurMarks, cand);
+      const groups = state.aurGroups;
+      const index = Math.min(aurGroup, groups.length);
+      if (index === groups.length) groups.push([]);
+      toggleIn(groups[index], cand);
+      while (groups.length > 0 && groups[groups.length - 1].length === 0) groups.pop();
       commit();
       return;
     }
@@ -662,10 +675,12 @@ const TLG = (() => {
   function buildInput() {
     const values = [];
     const candidates = [];
+    const givens = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         const cell = boardState[r][c];
         values.push(cell.value);
+        givens.push(cell.isGiven ? 1 : 0);
         let mask = 0;
         if (cell.value === 0) {
           for (const n of cell.pencils) mask |= 1 << (n - 1);
@@ -677,9 +692,10 @@ const TLG = (() => {
     return {
       values,
       candidates,
+      givens,
       truths: drawnSets("truth").map(setDescriptor),
       links: drawnSets("link").map(setDescriptor),
-      aurMarks: [...state.aurMarks],
+      aurGroups: state.aurGroups.filter((group) => group.length > 0).map((group) => [...group]),
       vset: [...state.vset],
       vapply: state.vapply,
       vcount: state.vcount,
@@ -827,6 +843,29 @@ const TLG = (() => {
     }
     return { alsCells: [...cells.values()], alsCands: [...cands.values()] };
   }
+  // A mark on a solved cell is drawn once, beside its digit; a mark outside
+  // the group the stepper shows is drawn hollow.
+  function aurMarkModel() {
+    const shown = Math.min(aurGroup, state.aurGroups.length);
+    const marks = new Map();
+    state.aurGroups.forEach((group, index) => {
+      for (const m of group.map(candOf)) {
+        const cell = boardState[m.r][m.c];
+        const key = cell.value === 0 ? candKey(m) : `s${m.r * 9 + m.c}`;
+        if (!marks.has(key)) {
+          marks.set(
+            key,
+            cell.value === 0
+              ? { ...m, current: false }
+              : { r: m.r, c: m.c, n: cell.value, solved: true, current: false },
+          );
+        }
+        if (index === shown) marks.get(key).current = true;
+      }
+    });
+    return [...marks.values()];
+  }
+
   function buildModel() {
     const r = usableResult();
     const saturated = saturatedLinks(r);
@@ -849,8 +888,7 @@ const TLG = (() => {
         saturated: blackRank0 && saturated.has(set.id),
         selected: set.id === selectedSetId,
       })),
-      aurMarks: state.aurMarks.map(candOf).filter(candExists),
-      restored: stepRestored().map(candOf).filter(candExists),
+      aurMarks: aurMarkModel(),
       vset: state.vset.map(candOf).filter(candExists),
       ...alsVisuals(r),
       kills: r ? r.kills.map((k) => ({ ...candOf(k.cand), kind: k.kind })) : [],
@@ -928,7 +966,6 @@ const TLG = (() => {
       vset: css("vset"),
       perm: css("perm"),
       pending: css("pending"),
-      restored: markColorPalette[0],
       node: dark ? "#9ca3af" : "#6b7280",
       bg: transparent(grid.backgroundColor)
         ? getComputedStyle(document.body).backgroundColor
@@ -1150,7 +1187,7 @@ const TLG = (() => {
 
     $("tlg-aur-section").classList.toggle(
       "hidden",
-      !(role === "aur" || state.aurMarks.length > 0 || state.options.applyAur),
+      !(role === "aur" || aurMarkCount() > 0 || state.options.applyAur),
     );
     $("tlg-vset-section").classList.toggle(
       "hidden",
@@ -1161,12 +1198,21 @@ const TLG = (() => {
     const aurApply = $("tlg-aur-apply");
     aurApply.checked = state.options.applyAur;
     aurApply.disabled = !unique;
-    const restoredCount = stepRestored().length;
-    $("tlg-aur-info").textContent =
-      t("tlg_aur_count", r ? r.aur.count : 0, state.aurMarks.length) +
-      (restoredCount ? ` · ${t("tlg_aur_restored", restoredCount)}` : "");
+    $("tlg-aur-info").textContent = t(
+      "tlg_aur_count",
+      r ? r.aur.count : 0,
+      aurMarkCount(),
+    );
+    const groupCount = state.aurGroups.length + 1;
+    $("tlg-aur-label").textContent = t(
+      "tlg_aur_group",
+      Math.min(aurGroup, groupCount - 1) + 1,
+      groupCount,
+    );
+    $("tlg-aur-prev").disabled = groupCount === 1;
+    $("tlg-aur-next").disabled = groupCount === 1;
     $("tlg-aur-reason").textContent = unique ? "" : t("tlg_aur_unavailable");
-    $("tlg-aur-clear").disabled = state.aurMarks.length === 0;
+    $("tlg-aur-clear").disabled = aurMarkCount() === 0;
 
     $("tlg-vset-apply").checked = state.vapply;
     $("tlg-vset-count").value = String(state.vcount);
@@ -1219,7 +1265,7 @@ const TLG = (() => {
       ? `T: ${formatSetGroup(truths) || "-"} / L: ${formatSetGroup(links) || "-"}`
       : "";
     $("tlg-clear-all").disabled =
-      state.aurMarks.length === 0 &&
+      aurMarkCount() === 0 &&
       state.vset.length === 0 &&
       state.sets.length === 0;
   }
@@ -1356,8 +1402,16 @@ const TLG = (() => {
       state.options.applyAur = e.target.checked;
       commit();
     });
+    const stepAurGroup = (delta) => {
+      const count = state.aurGroups.length + 1;
+      aurGroup = (Math.min(aurGroup, count - 1) + delta + count) % count;
+      renderAll();
+    };
+    $("tlg-aur-prev").addEventListener("click", () => stepAurGroup(-1));
+    $("tlg-aur-next").addEventListener("click", () => stepAurGroup(1));
     $("tlg-aur-clear").addEventListener("click", () => {
-      state.aurMarks = [];
+      state.aurGroups = [];
+      aurGroup = 0;
       commit();
     });
     $("tlg-vset-apply").addEventListener("change", (e) => {
@@ -1391,6 +1445,7 @@ const TLG = (() => {
       const fresh = emptyState();
       fresh.options = state.options;
       Object.assign(state, fresh);
+      aurGroup = 0;
       selectedSetId = null;
       resetInputState();
       commit();
@@ -1458,6 +1513,7 @@ const TLG = (() => {
     set3D(false);
     cancel();
     state = emptyState();
+    aurGroup = 0;
     selectedSetId = null;
     resetInputState();
     showPlayControls(true);
@@ -1483,32 +1539,12 @@ const TLG = (() => {
         st.sets.push({ ...set, role: setRole, id: st.nextId++ });
       }
     }
-    if (logic.aurMarks) {
-      st.aurMarks = [...logic.aurMarks];
+    const groups = logic.aurGroups || (logic.aurMarks ? [logic.aurMarks] : []);
+    if (groups.length > 0) {
+      st.aurGroups = groups.map((group) => [...group]);
       st.options.applyAur = true;
     }
     return st;
-  }
-
-  // The engine takes a deadly pattern only when all its candidates exist,
-  // so a step's pattern is shown on a board that has the missing ones back.
-  function stepRestored() {
-    const logic = solverOn ? stepLogic() : null;
-    return (logic && logic.restored) || [];
-  }
-
-  function restoreStepCandidates() {
-    const restored = stepRestored();
-    for (const key of restored) {
-      const cand = candOf(key);
-      const cell = boardState[cand.r][cand.c];
-      if (cell.value !== 0) {
-        cell.value = 0;
-        cell.pencils.clear();
-      }
-      cell.pencils.add(cand.n);
-    }
-    return restored.length > 0;
   }
 
   function toggleSolver() {
@@ -1516,6 +1552,7 @@ const TLG = (() => {
     solverOn = !solverOn;
     resetInputState();
     state = solverOn ? stepLogicState() : emptyState();
+    aurGroup = 0;
     resetEdits();
     if (solverOn) solverStepIndex = currentSolverStep;
     else cancel();
@@ -1532,13 +1569,13 @@ const TLG = (() => {
     }
     if (currentSolverStep !== solverStepIndex) {
       state = stepLogicState();
+      aurGroup = 0;
       solverStepIndex = currentSolverStep;
       selectedSetId = null;
       set3D(false);
       resetInputState();
       resetEdits();
     }
-    if (restoreStepCandidates()) renderBoard();
     scheduleEvaluate();
   }
 
@@ -1553,6 +1590,7 @@ const TLG = (() => {
     cancel();
     solverOn = false;
     state = emptyState();
+    aurGroup = 0;
     resetInputState();
     renderAll();
   }
@@ -1565,6 +1603,7 @@ const TLG = (() => {
   function onPuzzleLoaded() {
     cancel(true);
     state = emptyState();
+    aurGroup = 0;
     resetEdits();
     selectedSetId = null;
     resetInputState();
@@ -1572,6 +1611,7 @@ const TLG = (() => {
 
   function reset() {
     state = emptyState();
+    aurGroup = 0;
     resetEdits();
     selectedSetId = null;
     resetInputState();
@@ -1581,7 +1621,7 @@ const TLG = (() => {
 
   function serialize(st) {
     if (
-      st.aurMarks.length === 0 &&
+      st.aurGroups.length === 0 &&
       st.vset.length === 0 &&
       !st.vapply &&
       !st.options.applyAur &&
@@ -1594,7 +1634,7 @@ const TLG = (() => {
       sets: st.sets.map((s) =>
         s.kind === "cell" ? [s.role, "cell", s.cell] : [s.role, s.kind, s.index, s.digit],
       ),
-      aur: [...st.aurMarks],
+      aur: st.aurGroups.map((group) => [...group]),
       vset: [...st.vset],
       vapply: st.vapply,
       vcount: st.vcount,
@@ -1629,12 +1669,14 @@ const TLG = (() => {
         });
       }
     }
-    for (const [field, target] of [["aur", "aurMarks"], ["vset", "vset"]]) {
-      if (saved[field] === undefined) continue;
-      if (!Array.isArray(saved[field]) || !saved[field].every((v) => isIndex(v, 729))) {
-        return null;
-      }
-      st[target] = [...saved[field]];
+    const isCandList = (list) => Array.isArray(list) && list.every((v) => isIndex(v, 729));
+    if (saved.aur !== undefined) {
+      if (!Array.isArray(saved.aur) || !saved.aur.every(isCandList)) return null;
+      st.aurGroups = saved.aur.map((group) => [...group]);
+    }
+    if (saved.vset !== undefined) {
+      if (!isCandList(saved.vset)) return null;
+      st.vset = [...saved.vset];
     }
     st.vapply = saved.vapply === true;
     st.vcount = isIndex(saved.vcount - 1, 4) ? saved.vcount : 1;

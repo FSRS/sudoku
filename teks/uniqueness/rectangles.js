@@ -118,17 +118,11 @@ Object.assign(techniques, {
       pivotDigit,
       extraDigits,
       removals,
-      placedCells = [],
     ) => {
-      const placedIds = new Set(placedCells.map(([r, c]) => r * 9 + c));
       return {
         highlight: { digit: null, state: 0 },
         cellColors: [
-          ...cells.map(([r, c]) => ({
-            r,
-            c,
-            color: placedIds.has(r * 9 + c) ? 6 : 7,
-          })),
+          ...cells.map(([r, c]) => ({ r, c, color: 7 })),
           ...wings.map(([r, c]) => ({ r, c, color: 6 })),
         ],
         candidateColors: [
@@ -189,9 +183,8 @@ Object.assign(techniques, {
         if (pencils[r][c].has(d1)) removals.push({ r, c, num: d1 });
         if (pencils[r][c].has(d2)) removals.push({ r, c, num: d2 });
         if (removals.length > 0) {
-          // An avoidable rectangle's open corner holds one base digit, so
-          // the house set of that digit stands in for the cell: a cell set
-          // would also rule out the base digit that was put back.
+          // An avoidable rectangle's open corner is drawn as the house set
+          // of the digit it loses, not as a cell set.
           const logic = techniques._tlgBuilder(removals);
           logic.deadly(
             cells.map(([cr, cc]) => cr * 9 + cc),
@@ -227,7 +220,6 @@ Object.assign(techniques, {
               d1,
               d2,
               _getUniqueRemovals(removals),
-              { placedCells },
             ),
             tlg: logic.logic(),
           };
@@ -307,7 +299,6 @@ Object.assign(techniques, {
                   d1,
                   d2,
                   _getUniqueRemovals(removals),
-                  { placedCells },
                 ),
                 tlg: logic.logic(),
               };
@@ -443,7 +434,6 @@ Object.assign(techniques, {
                   {
                     subsetCells: res.chosen,
                     subsetCands: res.union,
-                    placedCells,
                   },
                 ), // Changed union to res.unions
                 tlg: logic.logic(),
@@ -624,9 +614,6 @@ Object.assign(techniques, {
     for (const proof of xyWingProofs) {
       const removals = proof.removals.map(({ r, c, num }) => ({ r, c, num }));
       const guardianCells = proof.petals || proof.guardianCells;
-      const placedCells = avoidable
-        ? proof.cells.filter(([r, c]) => filledValues[r * 9 + c] !== 0)
-        : [];
       const logic = techniques._tlgDeadlyCells(
         proof.cells,
         [proof.d1, proof.d2],
@@ -674,7 +661,6 @@ Object.assign(techniques, {
           proof.pivotDigit,
           proof.extraDigits,
           removals,
-          placedCells,
         ),
         tlg: logic.logic(),
       };
@@ -945,11 +931,7 @@ Object.assign(techniques, {
 
             visualPlan: {
               highlight: { digit: null, state: 0 },
-              cellColors: cells.map(([r, c]) => ({
-                r,
-                c,
-                color: placedIds.has(r * 9 + c) ? 6 : 7,
-              })),
+              cellColors: cells.map(([r, c]) => ({ r, c, color: 7 })),
               candidateColors: cells.flatMap(([r, c]) =>
                 Array.from(pencils[r][c], (num) => ({
                   r,

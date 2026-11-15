@@ -551,6 +551,291 @@ Object.assign(techniques, {
     return orMap;
   },
 
+  // A deadly pattern or an oddagon proves one of its guardians true; a
+  // guardian set split into two nodes is a strong link between them.
+  _aicUseGuardianLinks: true,
+
+  _guardianPatternFromCells: (kind, board, pencils, ids, digits) => {
+    const guardians = [];
+    const baseCands = [];
+    for (const id of ids) {
+      const r = Math.floor(id / 9);
+      const c = id % 9;
+      if (board[r][c] !== 0) continue;
+      for (const d of pencils[r][c]) {
+        (digits.includes(d) ? baseCands : guardians).push([id, d]);
+      }
+    }
+    return { kind, digits, cells: ids, guardians, baseCands };
+  },
+
+  _guardianNodeShape: (cands) => {
+    const [id0, d0] = cands[0];
+    if (cands.every(([id]) => id === id0)) {
+      return {
+        cells: [id0],
+        digits: [...new Set(cands.map(([, d]) => d))].sort((a, b) => a - b),
+      };
+    }
+    if (!cands.every(([, d]) => d === d0)) return null;
+    const r0 = Math.floor(id0 / 9);
+    const c0 = id0 % 9;
+    const b0 = boxOf(r0, c0);
+    const shared = (house) =>
+      cands.every(([id]) =>
+        house === 0
+          ? Math.floor(id / 9) === r0
+          : house === 1
+            ? id % 9 === c0
+            : boxOf(Math.floor(id / 9), id % 9) === b0,
+      );
+    if (!shared(0) && !shared(1) && !shared(2)) return null;
+    return {
+      cells: [...new Set(cands.map(([id]) => id))].sort((a, b) => a - b),
+      digits: [d0],
+    };
+  },
+
+  _guardianHouseOf: (id, house) =>
+    house === 0
+      ? Math.floor(id / 9)
+      : house === 1
+        ? 9 + (id % 9)
+        : 18 + boxOf(Math.floor(id / 9), id % 9),
+
+  _guardianCoverable: (cands) => {
+    if (cands.length === 0) return true;
+    const [id0, d0] = cands[0];
+    const houseOf = techniques._guardianHouseOf;
+    for (let pick = -1; pick < 3; pick++) {
+      const h = pick < 0 ? -1 : houseOf(id0, pick);
+      let first = -1;
+      let digit = 0;
+      let sameCell = true;
+      let sameDigit = true;
+      let row = true;
+      let col = true;
+      let box = true;
+      for (let i = 0; i < cands.length; i++) {
+        const id = cands[i][0];
+        const d = cands[i][1];
+        if (pick < 0 ? id === id0 : d === d0 && houseOf(id, pick) === h) continue;
+        if (first < 0) {
+          first = id;
+          digit = d;
+          continue;
+        }
+        if (id !== first) sameCell = false;
+        if (d !== digit) sameDigit = false;
+        if (!sameCell && !sameDigit) break;
+        if (Math.floor(id / 9) !== Math.floor(first / 9)) row = false;
+        if (id % 9 !== first % 9) col = false;
+        if (houseOf(id, 2) !== houseOf(first, 2)) box = false;
+      }
+      if (first < 0 || sameCell || (sameDigit && (row || col || box))) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  _guardianPartitions: (cands) => {
+    const houseOf = techniques._guardianHouseOf;
+    const groups = new Map();
+    const addGroup = (key, cand) => {
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(cand);
+    };
+    for (const cand of cands) {
+      const [id, d] = cand;
+      addGroup(`c${id}`, cand);
+      for (let house = 0; house < 3; house++) {
+        addGroup(`d${d}h${houseOf(id, house)}`, cand);
+      }
+    }
+    const pairs = [];
+    const seen = new Set();
+    const shapeKey = (shape) => `${shape.digits.join("")}_${shape.cells.join(",")}`;
+    for (const group of groups.values()) {
+      if (group.length === cands.length) continue;
+      const rest = cands.filter((cand) => !group.includes(cand));
+      const a = techniques._guardianNodeShape(group);
+      const b = techniques._guardianNodeShape(rest);
+      if (!a || !b) continue;
+      const keyA = shapeKey(a);
+      const keyB = shapeKey(b);
+      const key = keyA < keyB ? `${keyA}|${keyB}` : `${keyB}|${keyA}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push([a, b]);
+    }
+    return pairs;
+  },
+
+  _guardianPatternKey: (link) =>
+    `${link.kind}:${link.digits.join("")}:${link.cells.join(",")}:${
+      link.family ? link.family.type + link.family.indices.join("") : ""
+    }`,
+
+  _formatGuardianLink: (u, v, link) => {
+    const node = (n) => {
+      const inLine =
+        n.cells.every((id) => Math.floor(id / 9) === Math.floor(n.cells[0] / 9)) ||
+        n.cells.every((id) => id % 9 === n.cells[0] % 9);
+      return `(${n.digits.join("")})${techniques._formatAicLocation(n.cells, !inLine)}`;
+    };
+    const name = link.kind;
+    const tag =
+      link.kind === "BUG"
+        ? name
+        : `${name} ${techniques._formatCellsRC(link.cells)}`;
+    return `${node(u)}=${node(v)}{${tag}}`;
+  },
+
+  // The sets the patterns rest on, each pattern drawn once and each deadly
+  // pattern marked as its own group.
+  _tlgGuardianLinks: (logic, links, pencils) => {
+    const patterns = new Map();
+    for (const link of links) {
+      const key = techniques._guardianPatternKey(link);
+      if (!patterns.has(key)) patterns.set(key, link);
+    }
+    const houseKinds = ["row", "col", "box"];
+    for (const link of patterns.values()) {
+      logic.pattern();
+      if (link.kind === "BW") {
+        for (const house of link.houses) {
+          logic.truth({
+            kind: houseKinds[Math.floor(house / 9)],
+            index: house % 9,
+            digit: link.digits[0],
+          });
+        }
+      } else if (link.kind === "BVO") {
+        const [d1, d2] = link.digits;
+        link.cells.forEach((id, i) => {
+          const next = link.cells[(i + 1) % link.cells.length];
+          logic.truth({ kind: "cell", cell: id });
+          logic.link([[id, d1], [next, d1]]);
+          logic.link([[id, d2], [next, d2]]);
+        });
+      } else if (link.kind === "BUG") {
+        const guarded = new Set(link.guardians.map(([id, d]) => id * 9 + d));
+        for (const id of link.cells) {
+          logic.deadly(
+            [id],
+            [...pencils[Math.floor(id / 9)][id % 9]].filter(
+              (d) => !guarded.has(id * 9 + d),
+            ),
+            pencils,
+          );
+          logic.truth({ kind: "cell", cell: id });
+        }
+      } else if (link.family) {
+        logic.deadly(link.cells, link.digits, pencils);
+        for (const index of link.family.indices) {
+          for (const digit of link.digits) {
+            logic.truth({ kind: link.family.type, index, digit });
+          }
+        }
+      } else {
+        logic.deadly(link.cells, link.digits, pencils);
+        for (const id of link.cells) logic.truth({ kind: "cell", cell: id });
+      }
+    }
+  },
+
+  // Deadly pattern families left out because their technique is not in use.
+  _aicOffGuardianFamilies: [],
+
+  _collectGuardianPatterns: (board, pencils) => [
+    ...[
+      ["UR", "_uniquenessRectangleGuardianPatterns"],
+      ["UL", "_uniqueLoopGuardianPatterns"],
+      ["EUR", "_extendedRectangleGuardianPatterns"],
+      ["UET", "_externalGuardianPatterns"],
+      ["BUG", "_bugGuardianPatterns"],
+    ].flatMap(([family, collect]) =>
+      techniques._aicOffGuardianFamilies.includes(family)
+        ? []
+        : techniques[collect](board, pencils),
+    ),
+    ...techniques._brokenWingGuardianPatterns(board, pencils),
+    ...techniques._bivalueOddagonGuardianPatterns(board, pencils),
+  ],
+
+  buildGuardianOrMap: (board, pencils, getNode, guardianLinkRegistry, strongMaps) => {
+    const orMap = new Map();
+    // A guardian set holding every candidate of a cell, or every candidate
+    // of a digit in a house, is true without the pattern.
+    const trivial = (cands) => {
+      const held = new Set(cands.map(([id, d]) => id * 9 + d));
+      const cellCounts = new Map();
+      for (const [id] of cands) cellCounts.set(id, (cellCounts.get(id) || 0) + 1);
+      for (const [id, n] of cellCounts) {
+        if (pencils[Math.floor(id / 9)][id % 9].size === n) return true;
+      }
+      for (const d of new Set(cands.map(([, digit]) => digit))) {
+        for (let h = 0; h < 27; h++) {
+          let any = false;
+          let all = true;
+          for (const id of UNIT_IDS[h]) {
+            const r = Math.floor(id / 9);
+            const c = id % 9;
+            if (board[r][c] !== 0 || !pencils[r][c].has(d)) continue;
+            any = true;
+            if (!held.has(id * 9 + d)) {
+              all = false;
+              break;
+            }
+          }
+          if (any && all) return true;
+        }
+      }
+      return false;
+    };
+    const register = (a, b, link) => {
+      if (!guardianLinkRegistry.has(a)) guardianLinkRegistry.set(a, new Map());
+      guardianLinkRegistry.get(a).set(b, link);
+    };
+
+    for (const pattern of techniques._collectGuardianPatterns(board, pencils)) {
+      const seen = new Set();
+      const cands = [];
+      for (const [id, d] of pattern.guardians) {
+        const r = Math.floor(id / 9);
+        const c = id % 9;
+        if (board[r][c] !== 0 || !pencils[r][c].has(d)) continue;
+        if (seen.has(id * 9 + d)) continue;
+        seen.add(id * 9 + d);
+        cands.push([id, d]);
+      }
+      if (
+        cands.length === 0 ||
+        techniques._guardianNodeShape(cands) ||
+        trivial(cands)
+      ) {
+        continue;
+      }
+
+      for (const [a, b] of techniques._guardianPartitions(cands)) {
+        const nodeA = getNode(a.cells, a.digits);
+        const nodeB = getNode(b.cells, b.digits);
+        if (nodeA === nodeB) continue;
+        if (strongMaps.some((map) => map.get(nodeA)?.has(nodeB))) continue;
+        if (guardianLinkRegistry.get(nodeA)?.has(nodeB)) continue;
+        if (!orMap.has(nodeA)) orMap.set(nodeA, new Set());
+        if (!orMap.has(nodeB)) orMap.set(nodeB, new Set());
+        orMap.get(nodeA).add(nodeB);
+        orMap.get(nodeB).add(nodeA);
+        const link = { ...pattern, guardians: cands };
+        register(nodeA, nodeB, link);
+        register(nodeB, nodeA, link);
+      }
+    }
+    return orMap;
+  },
+
   mergeOrMaps: (map1, map2) => {
     const merged = new Map();
 
@@ -592,7 +877,10 @@ Object.assign(techniques, {
     AlsLinkRegistry: new Map(),
     FishLinkRegistry: new Map(),
     AhsLinkRegistry: new Map(),
+    GuardianMap: null,
+    GuardianLinkRegistry: new Map(),
     BlossomSearchCache: null,
+    BlossomGuardianSearchCache: null,
     AlmostAicGraph: null,
   },
 
@@ -757,7 +1045,10 @@ Object.assign(techniques, {
       AlsLinkRegistry: new Map(),
       FishLinkRegistry: new Map(),
       AhsLinkRegistry: new Map(),
+      GuardianMap: null,
+      GuardianLinkRegistry: new Map(),
       BlossomSearchCache: null,
+      BlossomGuardianSearchCache: null,
       AlmostAicGraph: null,
     };
   },

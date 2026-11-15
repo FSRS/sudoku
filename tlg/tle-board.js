@@ -67,6 +67,8 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       applyMode: false,
       extraMult: 1,
       aurMarks: [],
+      aurGroups: null,
+      givens: null,
       aurList: [],
       aurFailed: 0,
       aurCause: 0,

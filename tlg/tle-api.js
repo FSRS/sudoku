@@ -7,7 +7,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
   var SOL_LIMIT = 8388606;
   var tag = TLE.putTag;
 
-  var INPUT_KEYS = ["values", "candidates", "truths", "links", "options", "aurMarks", "vset", "vapply", "vcount", "wantPerms"];
+  var INPUT_KEYS = ["values", "candidates", "truths", "links", "options", "aurMarks", "aurGroups", "vset", "vapply", "vcount", "wantPerms", "givens"];
   var OPTION_KEYS = ["uniqueSolution", "applyAur", "highlightAls"];
   /* @edition-slot api-001 */
 
@@ -16,6 +16,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     for (var i = 0; i < keys.length; i++) {
       if (INPUT_KEYS.indexOf(keys[i]) < 0) throw new Error("Unsupported TLG input: " + keys[i]);
     }
+    if (input.aurGroups && input.aurMarks && input.aurMarks.length > 0) throw new Error("Unsupported TLG input: aurGroups");
     if (input.options) {
       var ok = Object.keys(input.options);
       for (i = 0; i < ok.length; i++) {

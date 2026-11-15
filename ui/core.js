@@ -623,6 +623,12 @@ function runBlossomWorkerKind(kind, fallback, board, pencils, findAll) {
         candidateLists: pencils.map((row) => row.map((digits) => [...digits])),
         findAll,
         useDof2Fish: techniques._aicUseDof2Fish === true,
+        offGuardianFamilies: [...(techniques._aicOffGuardianFamilies || [])],
+        initialPuzzleString:
+          typeof initialPuzzleString === "string" &&
+          initialPuzzleString.length >= 81
+            ? initialPuzzleString
+            : "",
       });
     } catch (error) {
       // The request never reached the worker, so nothing will ever answer it.
@@ -5273,6 +5279,7 @@ async function loadPuzzle(puzzleString, puzzleData = null) {
     return false;
   }
   onlyOneCellTarget = validity.target || null;
+  applyUniquenessGuardianFamilies();
   solutionBoard = validity.solution || null;
   techniques._solution = validity.solution ? validity.solution.flat() : null;
   renderPuzzleModeMessage();
@@ -8149,11 +8156,36 @@ function readTechniquePreferences() {
  * Hands the switches to the engine. The AIC cache holds graphs built under
  * the previous switches, so it is dropped with them.
  */
+const UNIQUENESS_GUARDIAN_FAMILIES = {
+  ui_UR: "UR",
+  ui_UL: "UL",
+  ui_EUR: "EUR",
+  ui_UET: "UET",
+  ui_BUG_plus_n: "BUG",
+};
+
+/**
+ * A deadly pattern serves the chains as a strong link only while its own
+ * technique is in use: switched on, and the puzzle has a unique solution.
+ */
+function applyUniquenessGuardianFamilies() {
+  if (typeof techniques === "undefined") return;
+  const active = new Set(getActiveTechniques().map((tech) => tech.id));
+  const off = Object.keys(UNIQUENESS_GUARDIAN_FAMILIES)
+    .filter((id) => !active.has(id))
+    .map((id) => UNIQUENESS_GUARDIAN_FAMILIES[id]);
+  if (off.join() === techniques._aicOffGuardianFamilies.join()) return;
+  techniques._aicOffGuardianFamilies = off;
+  techniques._releaseAICCache();
+  techniqueResultCache.clear();
+}
+
 function applySolverLogicPreferences() {
   if (typeof techniques === "undefined") return;
   techniques._ahsUseHls = useAhsHls;
   techniques._aicUseDof2Fish = useDof2Fish;
   techniques._releaseAICCache();
+  applyUniquenessGuardianFamilies();
 }
 
 function loadSolverLogicPreferences() {

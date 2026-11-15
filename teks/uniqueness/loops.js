@@ -1,7 +1,11 @@
 Object.assign(techniques, {
-  _findUniqueLoops: function (pencils, filledValues = null) {
+  _findUniqueLoops: function (pencils, filledValues = null, coverable = null) {
     if (filledValues) {
-      return techniques._findAvoidableUniqueLoops(pencils, filledValues);
+      return techniques._findAvoidableUniqueLoops(
+        pencils,
+        filledValues,
+        coverable,
+      );
     }
     const bivalue_cells_by_pair = new Map();
 
@@ -81,10 +85,16 @@ Object.assign(techniques, {
         );
       }
 
+      const extraCands = (id) =>
+        techniques._bits
+          .maskToDigits(extraMask[id])
+          .map((digit) => [id, digit]);
+
       for (const start of bivalue_set_for_pair) {
         if (!neighbors.has(start)) continue;
         const path = [start];
         const used = new Set(path);
+        const guardCands = [];
         let guardianCount = 0;
         // Shared single extra digit of the guardians so far (-1 once broken)
         // and their shared loop parity (-1 none, 2 mixed).  Three or more
@@ -110,7 +120,7 @@ Object.assign(techniques, {
             if (used.has(next) || path.length >= maxLoopLength) continue;
             if (bivalue_set_for_pair.has(next) && next < start) continue;
             const isGuardian = guardian_set_for_pair.has(next);
-            if (isGuardian && guardianCount >= 4) continue;
+            if (!coverable && isGuardian && guardianCount >= 4) continue;
             const parity = path.length & 1;
             const parityBit = 1 << parity;
             const nextHouses = getHouses(next);
@@ -124,7 +134,14 @@ Object.assign(techniques, {
               continue;
             let nextExtra = guardianExtra;
             let nextParity = guardianParity;
-            if (isGuardian) {
+            const guardBase = guardCands.length;
+            if (isGuardian && coverable) {
+              guardCands.push(...extraCands(next));
+              if (!coverable(guardCands)) {
+                guardCands.length = guardBase;
+                continue;
+              }
+            } else if (isGuardian) {
               const extra = extraMask[next];
               if (guardianCount === 0) nextExtra = extra;
               if (nextExtra !== extra || (extra & (extra - 1)) !== 0) {
@@ -185,6 +202,7 @@ Object.assign(techniques, {
             }
             used.delete(next);
             path.pop();
+            guardCands.length = guardBase;
             if (isGuardian) guardianCount--;
             guardianExtra = oldGuardianExtra;
             guardianParity = oldGuardianParity;
@@ -200,7 +218,7 @@ Object.assign(techniques, {
     return loops;
   },
 
-  _findAvoidableUniqueLoops: function (pencils, filledValues) {
+  _findAvoidableUniqueLoops: function (pencils, filledValues, coverable = null) {
     const loops = [];
     const found = new Set();
     const maxLoopLength = 18;
@@ -277,6 +295,7 @@ Object.assign(techniques, {
         for (const start of floor) {
           const path = [start];
           const used = new Set(path);
+          const guardCands = [];
           const houseCounts = new Uint8Array(27);
           const houseParityMasks = new Uint8Array(27);
           for (const house of getHouses(start)) {
@@ -297,7 +316,7 @@ Object.assign(techniques, {
               if (used.has(next) || path.length >= maxLoopLength) continue;
               if (floor.has(next) && next < start) continue;
               const isGuardian = guardians.has(next);
-              if (isGuardian && guardianCount >= 4) continue;
+              if (!coverable && isGuardian && guardianCount >= 4) continue;
 
               const parity = path.length & 1;
               const parityBit = 1 << parity;
@@ -312,7 +331,7 @@ Object.assign(techniques, {
                 continue;
               }
               let nextExtra = guardianExtra;
-              if (isGuardian) {
+              if (isGuardian && !coverable) {
                 const extra = extraMask[next];
                 if (guardianCount === 0) nextExtra = extra;
                 if (nextExtra !== extra || (extra & (extra - 1)) !== 0) {
@@ -328,6 +347,20 @@ Object.assign(techniques, {
                 if (direction !== 0 && direction !== requiredDirection)
                   continue;
                 if (direction === 0) direction = requiredDirection;
+              }
+
+              const guardBase = guardCands.length;
+              if (isGuardian && coverable) {
+                for (const digit of techniques._bits.maskToDigits(
+                  extraMask[next],
+                )) {
+                  guardCands.push([next, digit]);
+                }
+                if (!coverable(guardCands)) {
+                  guardCands.length = guardBase;
+                  direction = oldDirection;
+                  continue;
+                }
               }
 
               path.push(next);
@@ -380,6 +413,7 @@ Object.assign(techniques, {
               }
               used.delete(next);
               path.pop();
+              guardCands.length = guardBase;
               if (isGuardian) guardianCount--;
               guardianExtra = oldGuardianExtra;
               direction = oldDirection;
@@ -395,6 +429,34 @@ Object.assign(techniques, {
       if (loops.length >= maxResults) break;
     }
     return loops;
+  },
+
+  _uniqueLoopGuardianPatterns: (board, pencils) => {
+    const coverable = techniques._guardianCoverable;
+    const toPattern = (kind) => (loop) =>
+      techniques._guardianPatternFromCells(
+        kind,
+        board,
+        pencils,
+        loop.cells.map(([r, c]) => r * 9 + c),
+        loop.digits,
+      );
+    const patterns = techniques
+      ._findUniqueLoops(pencils, null, coverable)
+      .filter(({ cells }) => cells.every(([r, c]) => board[r][c] === 0))
+      .map(toPattern("UL"));
+    const filledValues = techniques._getAvoidableFilledValues(board);
+    if (!filledValues) return patterns;
+    return patterns.concat(
+      techniques
+        ._findAvoidableUniqueLoops(pencils, filledValues, coverable)
+        .filter(({ cells }) =>
+          cells.every(
+            ([r, c]) => board[r][c] === 0 || filledValues[r * 9 + c] !== 0,
+          ),
+        )
+        .map(toPattern("AUL")),
+    );
   },
 
   _findUniqueLoopExternalBodies: function (
@@ -911,7 +973,6 @@ Object.assign(techniques, {
               cells,
               digits,
               _getUniqueRemovals(removals),
-              { placedCells },
             ),
             tlg: getULTlg(cells, digits, removals),
           };
@@ -980,7 +1041,6 @@ Object.assign(techniques, {
                 cells,
                 digits,
                 _getUniqueRemovals(removals),
-                { placedCells },
               ),
               tlg: getULTlg(cells, digits, removals, (logic) => {
                 const guards = extra_cells.map(([r, c]) => [
@@ -1100,7 +1160,6 @@ Object.assign(techniques, {
                   {
                     subsetCells: res.chosen,
                     subsetCands: res.union,
-                    placedCells,
                   },
                 ),
                 tlg: getULTlg(cells, digits, res.removals, (logic) => {

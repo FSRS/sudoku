@@ -55,7 +55,18 @@ Object.assign(techniques, {
     })),
   }),
 
-  bivalueOddagon: (board, pencils, findAll = false) => {
+  bivalueOddagon: (board, pencils, findAll = false) =>
+    techniques._bivalueOddagonSearch(board, pencils, findAll, null),
+
+  _bivalueOddagonGuardianPatterns: (board, pencils) =>
+    techniques._bivalueOddagonSearch(
+      board,
+      pencils,
+      true,
+      techniques._guardianCoverable,
+    ),
+
+  _bivalueOddagonSearch: (board, pencils, findAll, coverable) => {
     const results = [];
 
     const getHouse = (cell, type) => {
@@ -311,8 +322,20 @@ Object.assign(techniques, {
                   : [...extraCells];
 
                 let shouldProceed = false;
-                const firstSharedHouse = getSharedHouse(newExtraCells);
-                if (firstSharedHouse !== -1) shouldProceed = true;
+                const firstSharedHouse = coverable
+                  ? -1
+                  : getSharedHouse(newExtraCells);
+                if (coverable) {
+                  shouldProceed =
+                    !isExtra ||
+                    coverable(
+                      newExtraCells.flatMap((id) =>
+                        techniques._bits
+                          .maskToDigits(cellMasks[id] & ~comparer)
+                          .map((digit) => [id, digit]),
+                      ),
+                    );
+                } else if (firstSharedHouse !== -1) shouldProceed = true;
                 else if (newExtraCells.length < 3) shouldProceed = true;
                 else {
                   if (isPow2(newExtraDigitsMask)) {
@@ -357,6 +380,18 @@ Object.assign(techniques, {
           const isExtra = popCount(cellMasks[cell]) > 2;
           const extra = isExtra ? [cell] : [];
           dfs(cell, cell, -1, new Set([cell]), [cell], extra, 0);
+        }
+
+        if (coverable) {
+          for (const { loop } of resultLoops) {
+            results.push(
+              techniques._guardianPatternFromCells("BVO", board, pencils, loop, [
+                d1,
+                d2,
+              ]),
+            );
+          }
+          continue;
         }
 
         for (const oddagon of resultLoops) {

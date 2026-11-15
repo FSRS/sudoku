@@ -31,8 +31,21 @@ const serializeResult = (result) => ({
 });
 
 self.onmessage = ({ data }) => {
-  const { id, kind, board, candidateLists, findAll, useDof2Fish } = data;
+  const {
+    id,
+    kind,
+    board,
+    candidateLists,
+    findAll,
+    useDof2Fish,
+    offGuardianFamilies,
+    initialPuzzleString: givens,
+  } = data;
   techniques._aicUseDof2Fish = useDof2Fish === true;
+  techniques._aicOffGuardianFamilies = Array.isArray(offGuardianFamilies)
+    ? offGuardianFamilies
+    : [];
+  initialPuzzleString = typeof givens === "string" ? givens : "";
   try {
     const pencils = candidateLists.map((row) =>
       row.map((digits) => new Set(digits)),

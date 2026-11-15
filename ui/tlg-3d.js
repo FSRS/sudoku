@@ -109,7 +109,6 @@ const TLG3D = (() => {
           live: false,
           perm: false,
           aur: false,
-          restored: false,
           vset: false,
           alsColors: null,
           label: null,
@@ -132,7 +131,6 @@ const TLG3D = (() => {
     for (const m of model.lives || []) node(m).live = true;
     for (const m of model.perm || []) node(m).perm = true;
     for (const m of model.aurMarks || []) node(m).aur = true;
-    for (const m of model.restored || []) node(m).restored = true;
     for (const m of model.vset || []) node(m).vset = true;
     for (const m of model.alsCands || []) node(m).alsColors = m.colors.slice();
     for (const [key, item] of nodes) {
@@ -348,10 +346,6 @@ const TLG3D = (() => {
         symbols.push({ ...at, type: "live", size });
       }
       if (n.kill) symbols.push({ ...at, type: n.kill, size: symbolPx });
-      if (n.restored) {
-        const size = Math.max(symbolPx, cubePx * 1.4);
-        symbols.push({ ...at, type: "restored", size });
-      }
       if (n.aur) {
         const s = Math.max(MIN_SYMBOL_PX / 2, 0.12 * scale);
         const ax = x + cubePx + s;
@@ -598,18 +592,6 @@ const TLG3D = (() => {
       ctx.lineWidth = width + 2;
       ctx.stroke();
       ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.stroke();
-      return;
-    }
-    if (s.type === "restored") {
-      const width = Math.max(2, s.size * 0.22);
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-      ctx.strokeStyle = outline;
-      ctx.lineWidth = width + 2;
-      ctx.stroke();
-      ctx.strokeStyle = colors.restored;
       ctx.lineWidth = width;
       ctx.stroke();
       return;

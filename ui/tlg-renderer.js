@@ -8,6 +8,8 @@ const TLGRenderer = (() => {
   const X_ARM = 0.44 / 3;
   const EXPORT_X_ARM = (100 / 27) * 0.42 * 0.72;
   const EXPORT_X_WIDTH = 2.5;
+  const DIGIT_CORNER_X = 0.75;
+  const DIGIT_CORNER_Y = 0.25;
 
   function el(tag, attrs, parent) {
     const node = document.createElementNS(NS, tag);
@@ -235,30 +237,31 @@ const TLGRenderer = (() => {
       .join("\n");
   }
 
-  function drawMarks(layer, model) {
-    for (const m of model.restored || []) {
-      const { x, y } = center(m);
-      el(
-        "circle",
-        {
-          cx: x,
-          cy: y,
-          r: 1.3,
-          class: "tlg-restored-mark",
-          style: `fill: none; stroke: ${markColorPalette[0]}; stroke-width: 0.13125rem; vector-effect: non-scaling-stroke`,
-        },
-        layer,
-      );
+  const AUR_HOLLOW_WIDTH = 0.3;
+
+  function aurMarkPoint(m) {
+    if (m.solved) {
+      const { cols, rows } = getBoardGeometry();
+      const [left, width] = cols[m.c];
+      const [top, height] = rows[m.r];
+      return { x: left + DIGIT_CORNER_X * width, y: top + DIGIT_CORNER_Y * height };
     }
+    const { x, y } = center(m);
+    return { x: x + 1.3, y: y - 1.3 };
+  }
+
+  function drawMarks(layer, model) {
     for (const m of model.aurMarks) {
-      const { x, y } = center(m);
-      const cx = x + 1.3;
-      const cy = y - 1.3;
+      const { x: cx, y: cy } = aurMarkPoint(m);
+      const s = m.current === false ? 0.7 - AUR_HOLLOW_WIDTH * Math.SQRT1_2 : 0.7;
       el(
         "path",
         {
-          d: `M ${cx} ${cy - 0.7} L ${cx + 0.7} ${cy} L ${cx} ${cy + 0.7} L ${cx - 0.7} ${cy} Z`,
+          d: `M ${cx} ${cy - s} L ${cx + s} ${cy} L ${cx} ${cy + s} L ${cx - s} ${cy} Z`,
           class: "tlg-mark tlg-aur-mark",
+          ...(m.current === false && {
+            style: `fill: none; stroke: var(--tlg-aur); stroke-width: ${AUR_HOLLOW_WIDTH}`,
+          }),
         },
         layer,
       );
@@ -342,7 +345,6 @@ const TLGRenderer = (() => {
     aur: "#db2777",
     vset: "#0d9488",
     node: "#6b7280",
-    restored: "#ef4444",
   };
 
   function canvasPath(ctx, members, kind, coord) {
@@ -441,28 +443,35 @@ const TLGRenderer = (() => {
 
   function renderCanvasBadges(ctx, model, coord, unit) {
     ctx.save();
-    ctx.lineWidth = EXPORT_X_WIDTH;
-    ctx.strokeStyle = EXPORT_COLORS.restored;
-    for (const m of model.restored || []) {
-      const { x, y } = coord(m);
-      ctx.beginPath();
-      ctx.arc(x, y, 1.3 * unit, 0, Math.PI * 2);
-      ctx.stroke();
-    }
     ctx.lineCap = "round";
+    const cellSize = (unit * 100) / 9;
     for (const m of model.aurMarks) {
-      const { x, y } = coord(m);
-      const cx = x + 1.3 * unit;
-      const cy = y - 1.3 * unit;
-      const s = 0.7 * unit;
+      let cx;
+      let cy;
+      if (m.solved) {
+        cx = (m.c + DIGIT_CORNER_X) * cellSize;
+        cy = (m.r + DIGIT_CORNER_Y) * cellSize;
+      } else {
+        const { x, y } = coord(m);
+        cx = x + 1.3 * unit;
+        cy = y - 1.3 * unit;
+      }
+      const hollow = m.current === false;
+      const s = (hollow ? 0.7 - AUR_HOLLOW_WIDTH * Math.SQRT1_2 : 0.7) * unit;
       ctx.beginPath();
       ctx.moveTo(cx, cy - s);
       ctx.lineTo(cx + s, cy);
       ctx.lineTo(cx, cy + s);
       ctx.lineTo(cx - s, cy);
       ctx.closePath();
-      ctx.fillStyle = EXPORT_COLORS.aur;
-      ctx.fill();
+      if (hollow) {
+        ctx.strokeStyle = EXPORT_COLORS.aur;
+        ctx.lineWidth = AUR_HOLLOW_WIDTH * unit;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = EXPORT_COLORS.aur;
+        ctx.fill();
+      }
     }
     for (const m of model.vset) {
       const { x, y } = coord(m);

@@ -17,6 +17,7 @@ Object.assign(techniques, {
       maxPathNodes = null,
       orLinkRule = null,
       useAhs = false,
+      useGuardian = false,
       requireAhs = false,
       searchCycle = null,
       maxChainNodes = null,
@@ -132,11 +133,33 @@ Object.assign(techniques, {
       aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.AhsMap);
     }
 
+    const guardianOn = useGuardian && techniques._aicUseGuardianLinks === true;
+    if (guardianOn) {
+      if (cache.GuardianMap === null) {
+        cache.GuardianMap = techniques.buildGuardianOrMap(
+          board,
+          pencils,
+          getNode,
+          cache.GuardianLinkRegistry,
+          [cache.BilocationOrMap, cache.BivalueOrMap, cache.GroupedOrMap],
+        );
+      }
+      aicOrMap = techniques.mergeOrMaps(aicOrMap, cache.GuardianMap);
+    }
+
     const getAlsForLink = (u, v) =>
       activeAlsLinkRegistry.get(u)?.get(v) || null;
 
     const getAhsForLink = (u, v) =>
       useAhs ? activeAhsLinkRegistry.get(u)?.get(v) || null : null;
+
+    const getGuardianForLink = (u, v) =>
+      guardianOn &&
+      !getAhsForLink(u, v) &&
+      !(useAls && activeAlsLinkRegistry.get(u)?.get(v)) &&
+      !(useFish && activeFishLinkRegistry.get(u)?.get(v))
+        ? cache.GuardianLinkRegistry.get(u)?.get(v) || null
+        : null;
 
     const getOrLinkType = (u, v) => {
       if (getAhsForLink(u, v)) {
@@ -146,6 +169,10 @@ Object.assign(techniques, {
       // Multi-cell intra-ALS link.
       if (getAlsForLink(u, v)) {
         return "als";
+      }
+
+      if (getGuardianForLink(u, v)) {
+        return "guardian";
       }
 
       // One-cell ALS: two candidates in the same bivalue cell.
@@ -284,7 +311,7 @@ Object.assign(techniques, {
       }
     }
 
-    if (useAhs) {
+    if (useAhs || guardianOn) {
       const oneCellNodesByCell = Array.from({ length: 81 }, () => []);
       for (const n of interestedNodes) {
         if (n.cells.length === 1) oneCellNodesByCell[n.cells[0]].push(n);
@@ -564,6 +591,7 @@ Object.assign(techniques, {
         const ahs = getAhsForLink(u, v);
         const als = useAls ? activeAlsLinkRegistry.get(u)?.get(v) : null;
         const fish = useFish ? activeFishLinkRegistry.get(u)?.get(v) : null;
+        const guardian = getGuardianForLink(u, v);
 
         if (ahs) {
           const preferBox = ahs.type === "box";
@@ -579,6 +607,9 @@ Object.assign(techniques, {
         } else if (fish) {
           orGateStr = `(${fish.d})(${getFishLoc(fish, u)}=${getFishLoc(fish, v)})(${fish.basesStr}\\${fish.coversStr})`;
           lastDigit = fish.d;
+        } else if (guardian) {
+          orGateStr = techniques._formatGuardianLink(u, v, guardian);
+          lastDigit = null;
         } else if (
           u.digits[0] !== v.digits[0] &&
           u.cells.length === 1 &&
@@ -606,6 +637,12 @@ Object.assign(techniques, {
 
     const buildTlg = (path, isRing, removals) => {
       const logic = techniques._tlgBuilder(removals);
+      const guardianLinks = [];
+      for (let i = 0; i < path.length; i += 2) {
+        const guardian = getGuardianForLink(path[i], path[i + 1]);
+        if (guardian) guardianLinks.push(guardian);
+      }
+      techniques._tlgGuardianLinks(logic, guardianLinks, pencils);
       const candsOf = (node) => {
         const cands = [];
         for (const id of node.cells) {
@@ -675,6 +712,8 @@ Object.assign(techniques, {
               if (node !== u && node !== v) ringFishNodes.push(node);
             }
           }
+        } else if (getGuardianForLink(u, v)) {
+          continue;
         } else if (u.digits[0] !== v.digits[0]) {
           logic.truth({ kind: "cell", cell: u.cells[0] });
         } else {
@@ -770,6 +809,7 @@ Object.assign(techniques, {
       placement = null,
     ) => {
       const eurekaStr = buildCompactEureka(path, isRing);
+      const tlg = buildTlg(path, isRing, removals);
 
       const usedAlses = [];
       const usedFishes = [];
@@ -871,6 +911,31 @@ Object.assign(techniques, {
                 color,
               });
             }
+          }
+        }
+      }
+
+      if (guardianOn) {
+        const seenPatterns = new Set();
+        for (let i = 0; i < fullVisualChain.length - 1; i += 2) {
+          const guardian = getGuardianForLink(
+            fullVisualChain[i],
+            fullVisualChain[i + 1],
+          );
+          if (!guardian) continue;
+          const key = techniques._guardianPatternKey(guardian);
+          if (seenPatterns.has(key)) continue;
+          seenPatterns.add(key);
+          colorCount++;
+          const color = colorCodes[colorCount % colorCodes.length];
+          for (const [id, num] of guardian.baseCands) {
+            candidateMarks.push({
+              r: Math.floor(id / 9),
+              c: id % 9,
+              num,
+              marker: "circle",
+              color,
+            });
           }
         }
       }
@@ -1010,7 +1075,7 @@ Object.assign(techniques, {
           candidateMarks,
           links,
         },
-        tlg: buildTlg(path, isRing, removals),
+        ...(tlg ? { tlg } : {}),
       };
     };
 
@@ -1666,6 +1731,7 @@ Object.assign(techniques, {
         useGrouped: true,
         useAls: true,
         useFish: true,
+        useGuardian: true,
         maxCycle: 3,
         nameOverride: t("teks_Complex_AIC"),
       },

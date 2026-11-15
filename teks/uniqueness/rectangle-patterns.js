@@ -128,6 +128,53 @@ Object.assign(techniques, {
     return rects;
   },
 
+  _uniquenessRectangleGuardianPatterns: (board, pencils) => {
+    const patterns = [];
+    for (const { cells, digits } of techniques._findUniquenessRectangles(
+      pencils,
+      false,
+    )) {
+      if (cells.some(([r, c]) => board[r][c] !== 0)) continue;
+      patterns.push(
+        techniques._guardianPatternFromCells(
+          "UR",
+          board,
+          pencils,
+          cells.map(([r, c]) => r * 9 + c),
+          digits,
+        ),
+      );
+    }
+    const filledValues = techniques._getAvoidableFilledValues(board);
+    if (!filledValues) return patterns;
+    for (const { cells, digits } of techniques._findUniquenessRectangles(
+      pencils,
+      false,
+      filledValues,
+    )) {
+      const placed = cells.filter(([r, c]) => board[r][c] !== 0);
+      if (placed.length === 0 || placed.length === cells.length) continue;
+      if (
+        !placed.every(
+          ([r, c]) =>
+            filledValues[r * 9 + c] !== 0 && digits.includes(board[r][c]),
+        )
+      ) {
+        continue;
+      }
+      patterns.push(
+        techniques._guardianPatternFromCells(
+          "AR",
+          board,
+          pencils,
+          cells.map(([r, c]) => r * 9 + c),
+          digits,
+        ),
+      );
+    }
+    return patterns;
+  },
+
   _findUniqueRectangleXyWings: (board, pencils, rectangles = null) => {
     const rects =
       rectangles || techniques._findUniquenessRectangles(pencils) || [];

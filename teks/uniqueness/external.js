@@ -106,6 +106,99 @@ Object.assign(techniques, {
     );
   },
 
+  _externalGuardianPatterns: (board, pencils) => {
+    const filledValues = techniques._getAvoidableFilledValues(board);
+    const rectangleBodies = (values) =>
+      techniques
+        ._findUniquenessRectangles(pencils, false, values)
+        .filter(({ cells, digits }) => {
+          const placed = cells.filter(([r, c]) => board[r][c] !== 0);
+          if (placed.length > 0 !== !!values) return false;
+          return placed.every(
+            ([r, c]) =>
+              values[r * 9 + c] !== 0 && digits.includes(board[r][c]),
+          );
+        });
+    const sources = [["UET", rectangleBodies(null)]];
+    if (filledValues) sources.push(["AUET", rectangleBodies(filledValues)]);
+    sources.push([
+      "ULET",
+      techniques._findUniqueLoopExternalBodies(board, pencils),
+    ]);
+    if (filledValues) {
+      sources.push([
+        "AULET",
+        techniques._findUniqueLoopExternalBodies(board, pencils, filledValues),
+      ]);
+    }
+    sources.push([
+      "EURET",
+      techniques._findExtendedExternalBodies(board, pencils),
+    ]);
+    if (filledValues) {
+      sources.push([
+        "AEURET",
+        techniques._findExtendedExternalBodies(board, pencils, filledValues),
+      ]);
+    }
+
+    const patterns = [];
+    for (const [kind, bodies] of sources) {
+      for (const { digits, cells: body } of bodies) {
+        const bodyIds = body.map(([r, c]) => r * 9 + c);
+        const inBody = new Set(bodyIds);
+        const baseCands = [];
+        for (const id of bodyIds) {
+          const r = Math.floor(id / 9);
+          const c = id % 9;
+          if (board[r][c] !== 0) continue;
+          for (const d of digits) if (pencils[r][c].has(d)) baseCands.push([id, d]);
+        }
+        for (const type of ["row", "col", "box"]) {
+          const counts = new Map();
+          for (const [r, c] of body) {
+            const index =
+              type === "row" ? r : type === "col" ? c : boxOf(r, c);
+            counts.set(index, (counts.get(index) || 0) + 1);
+          }
+          if ([...counts.values()].some((count) => count !== digits.length)) {
+            continue;
+          }
+          const indices = [...counts.keys()].sort((a, b) => a - b);
+          const units = indices.map((index) =>
+            techniques._getUnitCells(type, index),
+          );
+          const placedDeadlyDigit = units.some((cells) =>
+            cells.some(
+              ([r, c]) =>
+                !inBody.has(r * 9 + c) && digits.includes(board[r][c]),
+            ),
+          );
+          if (placedDeadlyDigit) continue;
+          const guardians = [];
+          for (const cells of units) {
+            for (const [r, c] of cells) {
+              if (board[r][c] !== 0 || inBody.has(r * 9 + c)) continue;
+              for (const d of digits) {
+                if (pencils[r][c].has(d)) guardians.push([r * 9 + c, d]);
+              }
+            }
+          }
+          if (guardians.length === 0) continue;
+          patterns.push({
+            kind,
+            digits,
+            cells: bodyIds,
+            family: { type, indices },
+            guardians,
+            baseCands,
+          });
+        }
+      }
+    }
+    return patterns;
+  },
+
   _externalFamilyLive: (board, g, inBody, digitMask, houses) => {
     const guards = [];
     for (const house of houses) {
@@ -180,7 +273,6 @@ Object.assign(techniques, {
         body,
         digits,
         {
-          placedCells: body.filter(([r, c]) => board[r][c] !== 0),
           subsetCells: extra.subsetCells,
           subsetCands: extra.subsetDigits,
         },

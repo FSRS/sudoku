@@ -100,13 +100,8 @@ Object.assign(techniques, {
         .filter(Boolean)
         .join(", ");
     };
-    const buildVisualPlan = (cells, d1, d2, links, removals, placedCells) => {
-      const placedIds = new Set(placedCells.map(([r, c]) => r * 9 + c));
-      const cellColors = cells.map(([r, c]) => ({
-        r,
-        c,
-        color: placedIds.has(r * 9 + c) ? 6 : 7,
-      }));
+    const buildVisualPlan = (cells, d1, d2, links, removals) => {
+      const cellColors = cells.map(([r, c]) => ({ r, c, color: 7 }));
       const candidateColors = cells.flatMap(([r, c]) =>
         Array.from(pencils[r][c], (num) => ({
           r,
@@ -189,7 +184,7 @@ Object.assign(techniques, {
     };
 
     const results = proofs.map((proof) => {
-      const { cells, digits, links, removals, placedCells = [] } = proof;
+      const { cells, digits, links, removals } = proof;
       const [d1, d2] = digits;
       return {
         change: true,
@@ -207,14 +202,7 @@ Object.assign(techniques, {
             formatLinkDetails(links),
           ),
         },
-        visualPlan: buildVisualPlan(
-          cells,
-          d1,
-          d2,
-          links,
-          removals,
-          placedCells,
-        ),
+        visualPlan: buildVisualPlan(cells, d1, d2, links, removals),
         tlg: techniques._tlgUniqueRectangleType7(proof, pencils),
       };
     });
@@ -223,7 +211,7 @@ Object.assign(techniques, {
   },
 
   _tlgUniqueRectangleType7: (
-    { cells, digits, links, removals, placedCells, exclusions },
+    { cells, digits, links, removals, exclusions },
     pencils,
   ) => {
     const logic = techniques._tlgBuilder(removals);
@@ -232,10 +220,7 @@ Object.assign(techniques, {
       digits,
       pencils,
     );
-    for (const [r, c] of [
-      ...removals.map(({ r, c }) => [r, c]),
-      ...placedCells,
-    ]) {
+    for (const { r, c } of removals) {
       logic.truth({ kind: "cell", cell: r * 9 + c });
     }
     for (const { kind, digit, endpoints } of links) {
@@ -274,12 +259,8 @@ Object.assign(techniques, {
     const rectangleGeometries = filledValues ? [] : UR7_RECTANGLE_GEOMETRIES;
     if (filledValues) {
       for (const geometry of UR7_RECTANGLE_GEOMETRIES) {
-        const placedIds = geometry.rectIds.filter(
-          (id) => filledValues[id] !== 0,
-        );
-        if (placedIds.length === 1) {
-          rectangleGeometries.push({ geometry, placedIds });
-        }
+        const placed = geometry.rectIds.filter((id) => filledValues[id] !== 0);
+        if (placed.length === 1) rectangleGeometries.push({ geometry });
       }
     }
     const g = buildGrid(pencils);
@@ -533,7 +514,6 @@ Object.assign(techniques, {
         for (const entry of bucket) {
           const geometry = filledValues ? entry.geometry : entry;
           const { rectIds, edges } = geometry;
-          const placedIds = filledValues ? entry.placedIds : [];
           const biCellLinks = [];
           for (const id of rectIds) {
             if (cellMask[id] === pairMask) biCellLinks.push(id);
@@ -671,10 +651,6 @@ Object.assign(techniques, {
                     links,
                     combination,
                     removals: uniqueRemovals,
-                    placedCells: placedIds.map((id) => [
-                      Math.floor(id / 9),
-                      id % 9,
-                    ]),
                     exclusions: proofExclusions(
                       rectIds,
                       [d1, d2],

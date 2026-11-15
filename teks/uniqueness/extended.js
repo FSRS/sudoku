@@ -110,6 +110,7 @@ Object.assign(techniques, {
     pencils,
     filledValues = null,
     board = null,
+    coverable = null,
   ) {
     const rectangles = [];
     const found = new Set();
@@ -160,7 +161,15 @@ Object.assign(techniques, {
         }
       }
       if (guardians === 0) return;
-      if (guardians >= 4 && !singleCommonExtra) return;
+      if (coverable) {
+        const cands = [];
+        for (let i = 0; i < 2 * count; i++) {
+          for (const digit of maskToDigits(cellMask[ids[i]] & ~coreMask)) {
+            cands.push([ids[i], digit]);
+          }
+        }
+        if (!coverable(cands)) return;
+      } else if (guardians >= 4 && !singleCommonExtra) return;
       if (pairs === null) {
         pairs = [];
         for (let i = 0; i < count; i++) {
@@ -320,6 +329,43 @@ Object.assign(techniques, {
       }
     }
     return rectangles;
+  },
+
+  _extendedRectangleGuardianPatterns: (board, pencils) => {
+    const coverable = techniques._guardianCoverable;
+    const filledValues = techniques._getAvoidableFilledValues(board);
+    const patterns = [];
+    for (const [kind, values] of [
+      ["EUR", null],
+      ["AEUR", filledValues],
+    ]) {
+      if (kind === "AEUR" && !values) continue;
+      for (const { cells, digits } of techniques._findExtendedRectangles(
+        pencils,
+        values,
+        board,
+        coverable,
+      )) {
+        if (
+          !cells.every(
+            ([r, c]) =>
+              board[r][c] === 0 || (values && values[r * 9 + c] !== 0),
+          )
+        ) {
+          continue;
+        }
+        patterns.push(
+          techniques._guardianPatternFromCells(
+            kind,
+            board,
+            pencils,
+            cells.map(([r, c]) => r * 9 + c),
+            digits,
+          ),
+        );
+      }
+    }
+    return patterns;
   },
 
   _findExtendedExternalBodies: function (board, pencils, filledValues = null) {
@@ -638,7 +684,6 @@ Object.assign(techniques, {
               cells,
               digits,
               _getUniqueRemovals(removals),
-              { placedCells },
             ),
             ...(tlgFits && { tlg: getEURTlg(cells, digits, removals) }),
           };
@@ -709,7 +754,6 @@ Object.assign(techniques, {
                 cells,
                 digits,
                 _getUniqueRemovals(removals),
-                { placedCells },
               ),
               ...(tlgFits && {
                 tlg: getEURTlg(cells, digits, removals, (logic) => {
@@ -836,7 +880,6 @@ Object.assign(techniques, {
                   {
                     subsetCells: res.chosen,
                     subsetCands: res.union,
-                    placedCells,
                   },
                 ),
                 ...(tlgFits && {
@@ -958,7 +1001,6 @@ Object.assign(techniques, {
                       restrictedDigit: d,
                       e1: [e1r, e1c],
                       e2: [e2r, e2c],
-                      placedCells,
                     },
                   ),
                   ...(tlgHouse && {
@@ -1053,7 +1095,6 @@ Object.assign(techniques, {
                       is_nx2,
                       e1: [e1r, e1c],
                       e2: [e2r, e2c],
-                      placedCells,
                     },
                   ),
                 };
