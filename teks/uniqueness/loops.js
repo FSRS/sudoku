@@ -397,6 +397,383 @@ Object.assign(techniques, {
     return loops;
   },
 
+  _findUniqueLoopExternalBodies: function (
+    board,
+    pencils,
+    filledValues = null,
+  ) {
+    const g = buildGrid(pencils);
+    const bodies = [];
+    const maxLoopLength = 18;
+    const cellHouses = new Uint8Array(243);
+    const placedHouses = new Int32Array(10);
+    for (let id = 0; id < 81; id++) {
+      const r = (id / 9) | 0;
+      const c = id % 9;
+      cellHouses[id * 3] = r;
+      cellHouses[id * 3 + 1] = 9 + c;
+      cellHouses[id * 3 + 2] = 18 + boxOf(r, c);
+      const value = board[r][c];
+      if (value !== 0 && !(filledValues && filledValues[id])) {
+        placedHouses[value] |=
+          (1 << r) | (1 << (9 + c)) | (1 << (18 + boxOf(r, c)));
+      }
+    }
+    const many = (m0, m1, m2) =>
+      ((m0 & (m0 - 1)) | (m1 & (m1 - 1)) | (m2 & (m2 - 1))) !== 0 ||
+      (m0 !== 0) + (m1 !== 0) + (m2 !== 0) > 1;
+    const free = new Int32Array(3);
+    const spare = new Int32Array(3);
+    const above = new Int32Array(3);
+    const digitsOf = new Uint16Array(81);
+    const open = new Int32Array(27);
+    const kill = new Uint8Array(81);
+    const houseCounts = new Uint8Array(27);
+    const holders1 = new Uint8Array(27);
+    const holders2 = new Uint8Array(27);
+    const houseParityMasks = new Uint8Array(27);
+    const path = [];
+
+    for (let d1 = 1; d1 <= 8; d1++) {
+      for (let d2 = d1 + 1; d2 <= 9; d2++) {
+        const bit1 = 1 << (d1 - 1);
+        const bit2 = 1 << (d2 - 1);
+        const digitMask = bit1 | bit2;
+        const cellMask = new Int32Array(3);
+        const placedMask = new Int32Array(3);
+        const cellList = [];
+        for (let id = 0; id < 81; id++) {
+          const value = filledValues ? filledValues[id] : 0;
+          if (value === d1 || value === d2) {
+            digitsOf[id] = 1 << (value - 1);
+            placedMask[CELL_PART[id]] |= CELL_BIT[id];
+          } else if (
+            board[(id / 9) | 0][id % 9] === 0 &&
+            g.cand[id] & digitMask
+          ) {
+            digitsOf[id] = g.cand[id] & digitMask;
+            cellMask[CELL_PART[id]] |= CELL_BIT[id];
+          } else continue;
+          cellList.push(id);
+        }
+        if (cellList.length < 6) continue;
+        if (
+          filledValues &&
+          (placedMask[0] | placedMask[1] | placedMask[2]) === 0
+        )
+          continue;
+        // A family stays usable only on cells of a closed loop whose houses
+        // of that family hold no placed base digit; in every house a loop
+        // cell needs a partner taking the other base digit.
+        const housePlaced = placedHouses[d1] | placedHouses[d2];
+        const hasPartner = (id, house) =>
+          (digitsOf[id] & bit1 &&
+            holders2[house] - (digitsOf[id] & bit2 ? 1 : 0) > 0) ||
+          (digitsOf[id] & bit2 &&
+            holders1[house] - (digitsOf[id] & bit1 ? 1 : 0) > 0);
+        for (const id of cellList) kill[id] = 0;
+        for (let family = 0; family < 3; family++) {
+          const bit = 1 << family;
+          holders1.fill(0);
+          holders2.fill(0);
+          for (const id of cellList) {
+            if ((housePlaced >> cellHouses[id * 3 + family]) & 1) {
+              kill[id] |= bit;
+              continue;
+            }
+            for (let i = 0; i < 3; i++) {
+              if (digitsOf[id] & bit1) holders1[cellHouses[id * 3 + i]]++;
+              if (digitsOf[id] & bit2) holders2[cellHouses[id * 3 + i]]++;
+            }
+          }
+          for (let changed = true; changed;) {
+            changed = false;
+            for (const id of cellList) {
+              if (kill[id] & bit) continue;
+              if (
+                !hasPartner(id, cellHouses[id * 3]) ||
+                !hasPartner(id, cellHouses[id * 3 + 1]) ||
+                !hasPartner(id, cellHouses[id * 3 + 2])
+              ) {
+                kill[id] |= bit;
+                for (let i = 0; i < 3; i++) {
+                  if (digitsOf[id] & bit1) holders1[cellHouses[id * 3 + i]]--;
+                  if (digitsOf[id] & bit2) holders2[cellHouses[id * 3 + i]]--;
+                }
+                changed = true;
+              }
+            }
+          }
+        }
+        // Bit 1: even cells take d1 and odd cells d2; bit 2: the reverse.
+        const orientations = (id, parity) =>
+          (digitsOf[id] & bit1 ? (parity === 0 ? 1 : 2) : 0) |
+          (digitsOf[id] & bit2 ? (parity === 0 ? 2 : 1) : 0);
+        const mixedBody = () => {
+          const filled = path.filter((id) => filledValues[id] !== 0).length;
+          return filled > 0 && filled < path.length;
+        };
+        const found = new Set();
+        let start = 0;
+        let openHouses = 0;
+        let dead = 0;
+
+        const insideOneHouse = (anchor, fixed0, fixed1, fixed2, openCount) => {
+          for (let i = 0; i < 3; i++) {
+            const unit = cellHouses[anchor * 3 + i] * 3;
+            const out0 = ~UNIT_POS[unit];
+            const out1 = ~UNIT_POS[unit + 1];
+            const out2 = ~UNIT_POS[unit + 2];
+            if ((fixed0 & out0) | (fixed1 & out1) | (fixed2 & out2)) continue;
+            let inside = true;
+            for (let j = 0; j < openCount && inside; j++) {
+              inside = !many(
+                open[j * 3] & out0,
+                open[j * 3 + 1] & out1,
+                open[j * 3 + 2] & out2,
+              );
+            }
+            if (inside) return true;
+          }
+          return false;
+        };
+
+        // An open house keeps all its free cells but one as guardians.
+        const familyState = (family) => {
+          let fixed0 = 0;
+          let fixed1 = 0;
+          let fixed2 = 0;
+          let openCount = 0;
+          for (let cell = 0; cell < path.length; cell++) {
+            const house = cellHouses[path[cell] * 3 + family];
+            const m0 = free[0] & UNIT_POS[house * 3];
+            const m1 = free[1] & UNIT_POS[house * 3 + 1];
+            const m2 = free[2] & UNIT_POS[house * 3 + 2];
+            if (houseCounts[house] === 2) {
+              fixed0 |= m0;
+              fixed1 |= m1;
+              fixed2 |= m2;
+            } else if ((m0 | m1 | m2) === 0) {
+              if (
+                ((spare[0] & placedMask[0] & UNIT_POS[house * 3]) |
+                  (spare[1] & placedMask[1] & UNIT_POS[house * 3 + 1]) |
+                  (spare[2] & placedMask[2] & UNIT_POS[house * 3 + 2])) ===
+                0
+              ) {
+                return -1;
+              }
+            } else if (many(m0, m1, m2)) {
+              open[openCount * 3] = m0;
+              open[openCount * 3 + 1] = m1;
+              open[openCount * 3 + 2] = m2;
+              openCount++;
+            }
+          }
+          const guarded = (fixed0 | fixed1 | fixed2) !== 0 ? 1 : 0;
+          if (!guarded && openCount === 0) return 0;
+          if (guarded) {
+            const part = fixed0 ? 0 : fixed1 ? 1 : 2;
+            const anchor =
+              part * 27 +
+              lowest(part === 0 ? fixed0 : part === 1 ? fixed1 : fixed2);
+            if (insideOneHouse(anchor, fixed0, fixed1, fixed2, openCount)) {
+              return guarded;
+            }
+          } else {
+            let tried = 0;
+            for (let part = 0; part < 3 && tried < 2; part++) {
+              let m = open[part];
+              while (m && tried < 2) {
+                if (insideOneHouse(part * 27 + lowest(m), 0, 0, 0, openCount)) {
+                  return guarded;
+                }
+                m &= m - 1;
+                tried++;
+              }
+            }
+          }
+          for (let which = 0; which < 2; which++) {
+            const k = (which === 0 ? d1 : d2) - 1;
+            const other = (which === 0 ? d2 : d1) - 1;
+            const other0 = g.pos[other * 3];
+            const other1 = g.pos[other * 3 + 1];
+            const other2 = g.pos[other * 3 + 2];
+            if ((fixed0 & other0) | (fixed1 & other1) | (fixed2 & other2)) {
+              continue;
+            }
+            let blocked = false;
+            for (let j = 0; j < openCount && !blocked; j++) {
+              blocked = many(
+                open[j * 3] & other0,
+                open[j * 3 + 1] & other1,
+                open[j * 3 + 2] & other2,
+              );
+            }
+            if (blocked) continue;
+            const pos0 = g.pos[k * 3];
+            const pos1 = g.pos[k * 3 + 1];
+            const pos2 = g.pos[k * 3 + 2];
+            for (let part = 0; part < 3; part++) {
+              let seers = g.pos[k * 3 + part];
+              for (let fp = 0; fp < 3 && seers; fp++) {
+                let m = fp === 0 ? fixed0 : fp === 1 ? fixed1 : fixed2;
+                while (m) {
+                  seers &= PEER[(fp * 27 + lowest(m)) * 3 + part];
+                  m &= m - 1;
+                }
+              }
+              while (seers) {
+                const seer = part * 27 + lowest(seers);
+                seers &= seers - 1;
+                const keep0 = pos0 & ~PEER[seer * 3];
+                const keep1 = pos1 & ~PEER[seer * 3 + 1];
+                const keep2 = pos2 & ~PEER[seer * 3 + 2];
+                let ok = true;
+                for (let j = 0; j < openCount && ok; j++) {
+                  const holdsSeer =
+                    (open[j * 3 + CELL_PART[seer]] & CELL_BIT[seer]) !== 0;
+                  let m0 = open[j * 3] & keep0;
+                  let m1 = open[j * 3 + 1] & keep1;
+                  let m2 = open[j * 3 + 2] & keep2;
+                  if (CELL_PART[seer] === 0) m0 &= ~CELL_BIT[seer];
+                  else if (CELL_PART[seer] === 1) m1 &= ~CELL_BIT[seer];
+                  else m2 &= ~CELL_BIT[seer];
+                  ok = holdsSeer ? (m0 | m1 | m2) === 0 : !many(m0, m1, m2);
+                }
+                if (ok) return guarded;
+              }
+            }
+          }
+          return -1;
+        };
+
+        const search = (current, orientation) => {
+          for (let part = 0; part < 3; part++) {
+            let candidates =
+              PEER[current * 3 + part] & spare[part] & above[part];
+            while (candidates) {
+              const next = part * 27 + lowest(candidates);
+              candidates &= candidates - 1;
+              const parity = path.length & 1;
+              const parityBit = 1 << parity;
+              const h0 = cellHouses[next * 3];
+              const h1 = cellHouses[next * 3 + 1];
+              const h2 = cellHouses[next * 3 + 2];
+              if (
+                houseCounts[h0] >= 2 ||
+                (houseParityMasks[h0] & parityBit) !== 0 ||
+                houseCounts[h1] >= 2 ||
+                (houseParityMasks[h1] & parityBit) !== 0 ||
+                houseCounts[h2] >= 2 ||
+                (houseParityMasks[h2] & parityBit) !== 0
+              ) {
+                continue;
+              }
+              if ((dead | kill[next]) === 7) continue;
+              const nextOrientation = orientation & orientations(next, parity);
+              if (nextOrientation === 0) continue;
+
+              const savedDead = dead;
+              const savedOpen = openHouses;
+              path.push(next);
+              free[part] &= ~CELL_BIT[next];
+              spare[part] &= ~CELL_BIT[next];
+              dead |= kill[next];
+              for (let i = 0; i < 3; i++) {
+                const house = cellHouses[next * 3 + i];
+                houseCounts[house]++;
+                houseParityMasks[house] |= parityBit;
+                if (houseCounts[house] === 1) openHouses++;
+                else {
+                  openHouses--;
+                  if (
+                    (spare[0] & placedMask[0] & UNIT_POS[house * 3]) |
+                    (spare[1] & placedMask[1] & UNIT_POS[house * 3 + 1]) |
+                    (spare[2] & placedMask[2] & UNIT_POS[house * 3 + 2])
+                  ) {
+                    dead |= 1 << i;
+                  }
+                }
+              }
+              let guarded = false;
+              for (let family = 0; family < 3; family++) {
+                if ((dead >> family) & 1) continue;
+                const state = familyState(family);
+                if (state < 0) dead |= 1 << family;
+                else if (state > 0) guarded = true;
+              }
+
+              if (dead !== 7) {
+                if (
+                  openHouses === 0 &&
+                  guarded &&
+                  path.length >= 6 &&
+                  seesId(next, start) &&
+                  (!filledValues || mixedBody())
+                ) {
+                  const ids = [...path].sort((a, b) => a - b);
+                  const key = ids.join(",");
+                  if (!found.has(key)) {
+                    found.add(key);
+                    bodies.push({
+                      digits: [d1, d2],
+                      cells: path.map((id) => [(id / 9) | 0, id % 9]),
+                    });
+                  }
+                }
+                if (openHouses > 0 && path.length < maxLoopLength) {
+                  search(next, nextOrientation);
+                }
+              }
+
+              for (let i = 0; i < 3; i++) {
+                const house = cellHouses[next * 3 + i];
+                houseCounts[house]--;
+                houseParityMasks[house] &= ~parityBit;
+              }
+              free[part] |= cellMask[part] & CELL_BIT[next];
+              spare[part] |= CELL_BIT[next];
+              path.pop();
+              openHouses = savedOpen;
+              dead = savedDead;
+            }
+          }
+        };
+
+        for (const first of cellList) {
+          if (kill[first] === 7) continue;
+          start = first;
+          path.length = 0;
+          path.push(start);
+          for (let part = 0; part < 3; part++) {
+            free[part] = cellMask[part];
+            spare[part] = cellMask[part] | placedMask[part];
+            above[part] =
+              part < CELL_PART[start]
+                ? 0
+                : part > CELL_PART[start]
+                  ? 0x7ffffff
+                  : 0x7ffffff & ~((CELL_BIT[start] << 1) - 1);
+          }
+          free[CELL_PART[start]] &= ~CELL_BIT[start];
+          spare[CELL_PART[start]] &= ~CELL_BIT[start];
+          for (let i = 0; i < 3; i++) {
+            houseCounts[cellHouses[start * 3 + i]] = 1;
+            houseParityMasks[cellHouses[start * 3 + i]] = 1;
+          }
+          openHouses = 3;
+          dead = kill[start];
+          search(start, orientations(start, 0));
+          for (let i = 0; i < 3; i++) {
+            houseCounts[cellHouses[start * 3 + i]] = 0;
+            houseParityMasks[cellHouses[start * 3 + i]] = 0;
+          }
+        }
+      }
+    }
+    return bodies;
+  },
+
   uniqueLoop: (
     board,
     pencils,

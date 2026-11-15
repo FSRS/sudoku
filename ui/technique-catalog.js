@@ -29,6 +29,8 @@
     ["ui_UR", "combinedUniqueRectangle", null, 4, 100, true, ["ui_AR"]],
     ["ui_BUG_plus_n", "bugPlusN", null, 5, 110],
     ["ui_HR", "combinedHiddenRectangle", null, 5, 110, true, ["ui_UR_type_7"]],
+    ["ui_UL", "combinedUniqueLoop", null, 5, 120, true, ["ui_AUL"]],
+    ["ui_EUR", "combinedExtendedRectangle", null, 5, 140, true, ["ui_AEUR"]],
     [
       "ui_UET",
       "combinedUniquenessExternalTest",
@@ -38,8 +40,6 @@
       true,
       ["ui_AUET"],
     ],
-    ["ui_UL", "combinedUniqueLoop", null, 5, 120, true, ["ui_AUL"]],
-    ["ui_EUR", "combinedExtendedRectangle", null, 5, 140, true, ["ui_AEUR"]],
     ["ui_grouped_W_Wing", "groupedWWing", null, 5, 170],
     ["ui_finned_X_Wing", "finnedXWing", null, 5, 140],
     ["ui_Grouped_TSK", "groupedKite", null, 5, 150],

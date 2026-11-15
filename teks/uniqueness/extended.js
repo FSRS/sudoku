@@ -322,6 +322,140 @@ Object.assign(techniques, {
     return rectangles;
   },
 
+  _findExtendedExternalBodies: function (board, pencils, filledValues = null) {
+    const g = buildGrid(pencils);
+    const popcount = techniques._bits.popcount;
+    const maskToDigits = techniques._bits.maskToDigits;
+    const bodies = [];
+    const found = new Set();
+    const cellMask = new Uint16Array(81);
+    for (let id = 0; id < 81; id++) {
+      const value = filledValues ? filledValues[id] : 0;
+      if (value) cellMask[id] = 1 << (value - 1);
+      else if (board[(id / 9) | 0][id % 9] === 0) cellMask[id] = g.cand[id];
+    }
+    const pairUsable = (idA, idB) =>
+      cellMask[idA] !== 0 &&
+      cellMask[idB] !== 0 &&
+      popcount(cellMask[idA] | cellMask[idB]) >= 2;
+    const inBody = new Uint8Array(81);
+    const values = new Uint8Array(81);
+
+    const canForm = (ids, coreMask, depth) => {
+      if (depth === ids.length) return true;
+      const id = ids[depth];
+      let options = cellMask[id] & coreMask;
+      for (let i = 0; i < depth; i++) {
+        if (seesId(id, ids[i])) options &= ~(1 << (values[ids[i]] - 1));
+      }
+      while (options) {
+        const bit = options & -options;
+        options &= options - 1;
+        values[id] = 31 - Math.clz32(bit) + 1;
+        if (canForm(ids, coreMask, depth + 1)) return true;
+      }
+      return false;
+    };
+
+    const checkPattern = (ids, lineHouses) => {
+      const count = ids.length / 2;
+      const pairMasks = [];
+      let seenOnce = 0;
+      let seenTwice = 0;
+      for (let i = 0; i < count; i++) {
+        const mask = cellMask[ids[2 * i]] | cellMask[ids[2 * i + 1]];
+        pairMasks.push(mask);
+        seenTwice |= seenOnce & mask;
+        seenOnce |= mask;
+      }
+      if (popcount(seenTwice) < count) return;
+      if (filledValues) {
+        const filled = ids.filter((id) => filledValues[id] !== 0).length;
+        if (filled === 0 || filled === ids.length) return;
+      }
+      const boxCounts = new Map();
+      for (const id of ids) {
+        const box = 18 + HOUSE_OF.box(id);
+        boxCounts.set(box, (boxCounts.get(box) || 0) + 1);
+      }
+      const families = [lineHouses];
+      if ([...boxCounts.values()].every((n) => n === count)) {
+        families.push([...boxCounts.keys()]);
+      }
+      for (const id of ids) inBody[id] = 1;
+      const chooseCore = (need, fromBit, coreMask) => {
+        if (need > 0) {
+          for (let bit = fromBit; bit <= 9 - need; bit++) {
+            if ((seenTwice >> bit) & 1) {
+              chooseCore(need - 1, bit + 1, coreMask | (1 << bit));
+            }
+          }
+          return;
+        }
+        if (pairMasks.some((mask) => popcount(mask & coreMask) < 2)) return;
+        if (!canForm(ids, coreMask, 0)) return;
+        if (
+          !families.some((houses) =>
+            techniques._externalFamilyLive(board, g, inBody, coreMask, houses),
+          )
+        ) {
+          return;
+        }
+        const key = coreMask + ":" + [...ids].sort((a, b) => a - b).join(",");
+        if (found.has(key)) return;
+        found.add(key);
+        bodies.push({
+          digits: maskToDigits(coreMask),
+          cells: ids.map((id) => [(id / 9) | 0, id % 9]),
+        });
+      };
+      chooseCore(count, 0, 0);
+      for (const id of ids) inBody[id] = 0;
+    };
+
+    const chooseLines = (usable, need, from, chosen, cellsOf, lineHouses) => {
+      if (need === 0) {
+        checkPattern(chosen.flatMap(cellsOf), lineHouses);
+        return;
+      }
+      for (let i = from; i <= usable.length - need; i++) {
+        chosen.push(usable[i]);
+        chooseLines(usable, need - 1, i + 1, chosen, cellsOf, lineHouses);
+        chosen.pop();
+      }
+    };
+
+    for (const offset of [0, 9]) {
+      const idOf =
+        offset === 0
+          ? (line, cross) => line * 9 + cross
+          : (line, cross) => cross * 9 + line;
+      for (let l1 = 0; l1 < 8; l1++) {
+        for (let l2 = l1 + 1; l2 < 9; l2++) {
+          const cellsOf = (cross) => [idOf(l1, cross), idOf(l2, cross)];
+          const lineHouses = [offset + l1, offset + l2];
+          if (Math.floor(l1 / 3) === Math.floor(l2 / 3)) {
+            const usable = [];
+            for (let cross = 0; cross < 9; cross++) {
+              if (pairUsable(...cellsOf(cross))) usable.push(cross);
+            }
+            for (let size = 3; size <= Math.min(7, usable.length); size++) {
+              chooseLines(usable, size, 0, [], cellsOf, lineHouses);
+            }
+          } else {
+            for (let chute = 0; chute < 3; chute++) {
+              const crosses = [chute * 3, chute * 3 + 1, chute * 3 + 2];
+              if (crosses.every((cross) => pairUsable(...cellsOf(cross)))) {
+                checkPattern(crosses.flatMap(cellsOf), lineHouses);
+              }
+            }
+          }
+        }
+      }
+    }
+    return bodies;
+  },
+
   extendedRectangle: (
     board,
     pencils,

@@ -28,6 +28,11 @@ Object.assign(techniques, {
     runCombinedUniquenessTechniques(findAll, [
       (all) => techniques.uniquenessExternalTest(board, pencils, all),
       (all) => techniques.avoidableUniquenessExternalTest(board, pencils, all),
+      (all) => techniques.uniqueLoopExternalTest(board, pencils, all),
+      (all) => techniques.avoidableUniqueLoopExternalTest(board, pencils, all),
+      (all) => techniques.extendedRectangleExternalTest(board, pencils, all),
+      (all) =>
+        techniques.avoidableExtendedRectangleExternalTest(board, pencils, all),
     ]),
 
   combinedUniqueLoop: (board, pencils, findAll = false) =>

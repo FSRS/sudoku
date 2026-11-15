@@ -5,23 +5,141 @@ Object.assign(techniques, {
   avoidableUniquenessExternalTest: (board, pencils, findAll = false) =>
     techniques._uniquenessExternalTest(board, pencils, findAll, true),
 
+  uniqueLoopExternalTest: (board, pencils, findAll = false) =>
+    techniques._externalTest(
+      board,
+      pencils,
+      findAll,
+      techniques._findUniqueLoopExternalBodies(board, pencils),
+      [
+        "teks_ULET_type_2",
+        "teks_ULET_type_3",
+        "teks_ULET_type_3h",
+        "teks_ULET_plus_XY_Wing",
+      ],
+    ),
+
+  extendedRectangleExternalTest: (board, pencils, findAll = false) =>
+    techniques._externalTest(
+      board,
+      pencils,
+      findAll,
+      techniques._findExtendedExternalBodies(board, pencils),
+      [
+        "teks_EURET_type_2",
+        "teks_EURET_type_3",
+        "teks_EURET_type_3h",
+        "teks_EURET_plus_XY_Wing",
+      ],
+    ),
+
+  avoidableUniqueLoopExternalTest: (board, pencils, findAll = false) => {
+    const filledValues = techniques._getAvoidableFilledValues(board);
+    if (!filledValues) return findAll ? [] : { change: false };
+    return techniques._externalTest(
+      board,
+      pencils,
+      findAll,
+      techniques._findUniqueLoopExternalBodies(board, pencils, filledValues),
+      [
+        "teks_AULET_type_2",
+        "teks_AULET_type_3",
+        "teks_AULET_type_3h",
+        "teks_AULET_plus_XY_Wing",
+      ],
+    );
+  },
+
+  avoidableExtendedRectangleExternalTest: (board, pencils, findAll = false) => {
+    const filledValues = techniques._getAvoidableFilledValues(board);
+    if (!filledValues) return findAll ? [] : { change: false };
+    return techniques._externalTest(
+      board,
+      pencils,
+      findAll,
+      techniques._findExtendedExternalBodies(board, pencils, filledValues),
+      [
+        "teks_AEURET_type_2",
+        "teks_AEURET_type_3",
+        "teks_AEURET_type_3h",
+        "teks_AEURET_plus_XY_Wing",
+      ],
+    );
+  },
+
   _uniquenessExternalTest: (board, pencils, findAll, avoidable) => {
+    const filledValues = avoidable
+      ? techniques._getAvoidableFilledValues(board)
+      : null;
+    if (avoidable && !filledValues) return findAll ? [] : { change: false };
+
+    const bodies = techniques
+      ._findUniquenessRectangles(pencils, false, filledValues)
+      .flatMap(({ cells, digits }) => {
+        const placed = cells.filter(([r, c]) => board[r][c] !== 0);
+        if (placed.length > 0 !== avoidable) return [];
+        const usable = placed.every(
+          ([r, c]) =>
+            filledValues[r * 9 + c] !== 0 && digits.includes(board[r][c]),
+        );
+        return usable ? [{ digits, cells }] : [];
+      });
+
+    return techniques._externalTest(
+      board,
+      pencils,
+      findAll,
+      bodies,
+      avoidable
+        ? [
+            "teks_AUET_type_2",
+            "teks_AUET_type_3",
+            "teks_AUET_type_3h",
+            "teks_AUET_plus_XY_Wing",
+          ]
+        : [
+            "teks_UET_type_2",
+            "teks_UET_type_3",
+            "teks_UET_type_3h",
+            "teks_UET_plus_XY_Wing",
+          ],
+    );
+  },
+
+  _externalFamilyLive: (board, g, inBody, digitMask, houses) => {
+    const guards = [];
+    for (const house of houses) {
+      for (const id of UNIT_IDS[house]) {
+        if (inBody[id]) continue;
+        const value = board[(id / 9) | 0][id % 9];
+        if (value !== 0) {
+          if ((digitMask >> (value - 1)) & 1) return false;
+        } else if ((g.cand[id] & digitMask) !== 0) {
+          guards.push(id);
+        }
+      }
+    }
+    if (guards.length === 0) return false;
+    for (const kind of ["row", "col", "box"]) {
+      const index = HOUSE_OF[kind](guards[0]);
+      if (guards.every((id) => HOUSE_OF[kind](id) === index)) return true;
+    }
+    let held = 0;
+    for (const id of guards) held |= g.cand[id] & digitMask;
+    if ((held & (held - 1)) !== 0) return false;
+    const k = lowest(held);
+    for (let part = 0; part < 3; part++) {
+      let seers = g.pos[k * 3 + part];
+      for (const id of guards) seers &= PEER[id * 3 + part];
+      if (seers !== 0) return true;
+    }
+    return false;
+  },
+
+  _externalTest: (board, pencils, findAll, bodies, nameKeys) => {
     const results = [];
     const emitted = new Set();
-    // Type 2, Type 3, Type 3h, + XY-Wing.
-    const [type2Key, type3Key, type3hKey, xyWingKey] = avoidable
-      ? [
-          "teks_AUET_type_2",
-          "teks_AUET_type_3",
-          "teks_AUET_type_3h",
-          "teks_AUET_plus_XY_Wing",
-        ]
-      : [
-          "teks_UET_type_2",
-          "teks_UET_type_3",
-          "teks_UET_type_3h",
-          "teks_UET_plus_XY_Wing",
-        ];
+    const [type2Key, type3Key, type3hKey, xyWingKey] = nameKeys;
     const cellKey = (r, c) => r + "," + c;
     const cellId = techniques._cellToId;
     const idToCell = techniques._idToCell;
@@ -49,18 +167,18 @@ Object.assign(techniques, {
         )
         .join(",");
     };
-    const formatGuardians = (cells, d1, d2) =>
+    const formatGuardians = (cells, digits) =>
       formatCandidateCells(cells, (r, c) =>
-        [d1, d2].filter((digit) => pencils[r][c].has(digit)),
+        digits.filter((digit) => pencils[r][c].has(digit)),
       );
     const formatHouse = (type, index) =>
       `${type === "row" ? "r" : type === "col" ? "c" : "b"}${index + 1}`;
 
-    const makeVisualPlan = (body, d1, d2, guardians, removals, extra = {}) => {
+    const makeVisualPlan = (body, digits, guardians, removals, extra = {}) => {
       const plan = techniques._buildDeadlyPatternBaseVisualPlan(
         extra.subsetCells ? 3 : 2,
         body,
-        [d1, d2],
+        digits,
         {
           placedCells: body.filter(([r, c]) => board[r][c] !== 0),
           subsetCells: extra.subsetCells,
@@ -71,8 +189,7 @@ Object.assign(techniques, {
       );
       const bodyKeys = new Set(body.map(([r, c]) => cellKey(r, c)));
       plan.candidateColors = plan.candidateColors.filter(
-        ({ r, c, num }) =>
-          num === d1 || num === d2 || !bodyKeys.has(cellKey(r, c)),
+        ({ r, c, num }) => digits.includes(num) || !bodyKeys.has(cellKey(r, c)),
       );
       const paint = (
         cells,
@@ -92,7 +209,7 @@ Object.assign(techniques, {
       };
 
       const uniqueGuardians = uniqueCells(guardians);
-      paint(uniqueGuardians, [d1, d2], {
+      paint(uniqueGuardians, digits, {
         cellColor: 6,
         candidateColor: 3,
       });
@@ -105,7 +222,7 @@ Object.assign(techniques, {
         paint(
           [[r, c]],
           isGuardian
-            ? new Set([d1, d2, ...(extra.ahsDigits || [])])
+            ? new Set([...digits, ...(extra.ahsDigits || [])])
             : extra.ahsDigits || [],
           { cellColor: isGuardian ? 6 : 5 },
         );
@@ -114,7 +231,7 @@ Object.assign(techniques, {
         paint([[r, c]], pencils[r][c], { cellColor: 4 });
       }
 
-      paint(uniqueGuardians, [d1, d2], { candidateColor: 3 });
+      paint(uniqueGuardians, digits, { candidateColor: 3 });
 
       return plan;
     };
@@ -122,8 +239,7 @@ Object.assign(techniques, {
     const publish = (
       nameKey,
       body,
-      d1,
-      d2,
+      digits,
       guardians,
       removals,
       detail,
@@ -140,9 +256,7 @@ Object.assign(techniques, {
       const key =
         nameKey +
         ":" +
-        d1 +
-        ":" +
-        d2 +
+        digits.join(":") +
         ":" +
         body.map(([r, c]) => cellId(r, c)).join(",") +
         ":" +
@@ -155,16 +269,16 @@ Object.assign(techniques, {
         cells,
         hint: {
           name: t(nameKey),
-          mainInfo: t("teks_UET_digits", "" + d1 + d2),
+          mainInfo: t("teks_UET_digits", digits.join("")),
           detail,
         },
-        visualPlan: makeVisualPlan(body, d1, d2, guardians, cells, extra),
+        visualPlan: makeVisualPlan(body, digits, guardians, cells, extra),
       };
       if (addLogic) {
         const logic = techniques._tlgBuilder(cells);
-        logic.deadly(body.map(([r, c]) => cellId(r, c)), [d1, d2], pencils);
+        logic.deadly(body.map(([r, c]) => cellId(r, c)), digits, pencils);
         family.indices.forEach((index) =>
-          [d1, d2].forEach((digit) =>
+          digits.forEach((digit) =>
             logic.truth({ kind: family.type, index, digit }),
           ),
         );
@@ -176,25 +290,6 @@ Object.assign(techniques, {
       return null;
     };
 
-    const filledValues = avoidable
-      ? techniques._getAvoidableFilledValues(board)
-      : null;
-    if (avoidable && !filledValues)
-      return findAll ? results : { change: false };
-
-    const bodies = techniques
-      ._findUniquenessRectangles(pencils, false, filledValues)
-      .flatMap(({ cells, digits: [d1, d2] }) => {
-        const placed = cells.filter(([r, c]) => board[r][c] !== 0);
-        if (placed.length > 0 !== avoidable) return [];
-        const usable = placed.every(
-          ([r, c]) =>
-            filledValues[r * 9 + c] !== 0 &&
-            (board[r][c] === d1 || board[r][c] === d2),
-        );
-        return usable ? [{ d1, d2, cells }] : [];
-      });
-
     const unsolved = [];
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -204,24 +299,24 @@ Object.assign(techniques, {
     const seesEvery = (r, c, cells) =>
       cells.every(([gr, gc]) => techniques._sees([r, c], [gr, gc]));
 
-    for (const { d1, d2, cells: body } of bodies) {
+    for (const { digits, cells: body } of bodies) {
       const bodySet = new Set(body.map(([r, c]) => cellKey(r, c)));
-      const families = [
-        {
-          type: "row",
-          indices: [...new Set(body.map(([r]) => r))].sort((a, b) => a - b),
-        },
-        {
-          type: "col",
-          indices: [...new Set(body.map(([, c]) => c))].sort((a, b) => a - b),
-        },
-        {
-          type: "box",
-          indices: [
-            ...new Set(body.map(([r, c]) => techniques._getBoxIndex(r, c))),
-          ].sort((a, b) => a - b),
-        },
-      ];
+      const houseOf = {
+        row: ([r]) => r,
+        col: ([, c]) => c,
+        box: ([r, c]) => techniques._getBoxIndex(r, c),
+      };
+      const families = ["row", "col", "box"].flatMap((type) => {
+        const counts = new Map();
+        body.forEach((cell) => {
+          const index = houseOf[type](cell);
+          counts.set(index, (counts.get(index) || 0) + 1);
+        });
+        if ([...counts.values()].some((count) => count !== digits.length)) {
+          return [];
+        }
+        return [{ type, indices: [...counts.keys()].sort((a, b) => a - b) }];
+      });
 
       for (const family of families) {
         const hasPlacedDeadlyDigit = family.indices.some((index) =>
@@ -229,30 +324,24 @@ Object.assign(techniques, {
             ._getUnitCells(family.type, index)
             .some(
               ([r, c]) =>
-                !bodySet.has(cellKey(r, c)) &&
-                (board[r][c] === d1 || board[r][c] === d2),
+                !bodySet.has(cellKey(r, c)) && digits.includes(board[r][c]),
             ),
         );
         if (hasPlacedDeadlyDigit) continue;
 
         const allIds = new Set();
-        const byDigitIds = new Map([
-          [d1, new Set()],
-          [d2, new Set()],
-        ]);
+        const byDigitIds = new Map(digits.map((digit) => [digit, new Set()]));
         const houses = [];
         family.indices.forEach((index) => {
           const local = [];
           techniques._getUnitCells(family.type, index).forEach(([r, c]) => {
             if (board[r][c] !== 0 || bodySet.has(cellKey(r, c))) return;
-            const hasD1 = pencils[r][c].has(d1);
-            const hasD2 = pencils[r][c].has(d2);
-            if (!hasD1 && !hasD2) return;
+            const held = digits.filter((digit) => pencils[r][c].has(digit));
+            if (held.length === 0) return;
             const id = cellId(r, c);
             allIds.add(id);
             local.push([r, c]);
-            if (hasD1) byDigitIds.get(d1).add(id);
-            if (hasD2) byDigitIds.get(d2).add(id);
+            held.forEach((digit) => byDigitIds.get(digit).add(id));
           });
           houses.push({ index, cells: local });
         });
@@ -260,30 +349,26 @@ Object.assign(techniques, {
 
         const guardians = [...allIds].sort((a, b) => a - b).map(idToCell);
         const guardianByDigit = new Map(
-          [d1, d2].map((digit) => [
+          digits.map((digit) => [
             digit,
             [...byDigitIds.get(digit)].sort((a, b) => a - b).map(idToCell),
           ]),
         );
+        const guardedDigits = digits.filter(
+          (digit) => guardianByDigit.get(digit).length > 0,
+        );
         const detail = t(
           "teks_UET_base_guardians",
-          "" + d1 + d2,
+          digits.join(""),
           formatBody(body),
-          formatGuardians(guardians, d1, d2),
+          formatGuardians(guardians, digits),
         );
 
         // Type 2
-        for (const [targetDigit, absentDigit] of [
-          [d1, d2],
-          [d2, d1],
-        ]) {
+        for (const targetDigit of guardedDigits.length === 1
+          ? guardedDigits
+          : []) {
           const targetGuardians = guardianByDigit.get(targetDigit);
-          if (
-            targetGuardians.length === 0 ||
-            guardianByDigit.get(absentDigit).length !== 0
-          ) {
-            continue;
-          }
           const guardianSet = new Set(
             targetGuardians.map(([r, c]) => cellKey(r, c)),
           );
@@ -300,8 +385,7 @@ Object.assign(techniques, {
           const result = publish(
             type2Key,
             body,
-            d1,
-            d2,
+            digits,
             targetGuardians,
             removals,
             detail,
@@ -331,7 +415,7 @@ Object.assign(techniques, {
           },
         ];
         const extraDigits = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(
-          (digit) => digit !== d1 && digit !== d2,
+          (digit) => !digits.includes(digit),
         );
         for (const ahsCarrier of ahsCarrierSpecs) {
           const ahsHouseCells = techniques._getUnitCells(
@@ -358,15 +442,18 @@ Object.assign(techniques, {
             count <= maxAhsDigitCount;
             count++
           ) {
-            for (const digits of techniques.combinations(extraDigits, count)) {
-              const ahsDigits = new Set(digits);
+            for (const hiddenDigits of techniques.combinations(
+              extraDigits,
+              count,
+            )) {
+              const ahsDigits = new Set(hiddenDigits);
               const positions = ahsHouseCells.filter(
                 ([r, c]) =>
                   board[r][c] === 0 &&
-                  digits.some((digit) => pencils[r][c].has(digit)),
+                  hiddenDigits.some((digit) => pencils[r][c].has(digit)),
               );
               if (
-                !digits.every((digit) =>
+                !hiddenDigits.every((digit) =>
                   positions.some(([r, c]) => pencils[r][c].has(digit)),
                 )
               ) {
@@ -378,7 +465,10 @@ Object.assign(techniques, {
               );
               if (![...guardianSet].every((key) => positionSet.has(key)))
                 continue;
-              const guardianAllowedDigits = new Set([d1, d2, ...digits]);
+              const guardianAllowedDigits = new Set([
+                ...digits,
+                ...hiddenDigits,
+              ]);
               const removals = [];
               positions.forEach(([r, c]) => {
                 const allowedDigits = guardianSet.has(cellKey(r, c))
@@ -391,22 +481,21 @@ Object.assign(techniques, {
               const result = publish(
                 type3hKey,
                 body,
-                d1,
-                d2,
+                digits,
                 guardians,
                 removals,
                 t(
                   "teks_UET_type_3h_VHS_detail",
-                  "" + d1 + d2,
-                  formatBody(body),
-                  formatGuardians(guardians, d1, d2),
                   digits.join(""),
+                  formatBody(body),
+                  formatGuardians(guardians, digits),
+                  hiddenDigits.join(""),
                   formatHouse(ahsCarrier.type, ahsCarrier.index),
                 ),
                 { ahsCells: positions, ahsDigits },
                 family,
                 (logic) => {
-                  digits.forEach((digit) =>
+                  hiddenDigits.forEach((digit) =>
                     logic.truth({
                       kind: ahsCarrier.type,
                       index: ahsCarrier.index,
@@ -426,11 +515,7 @@ Object.assign(techniques, {
         // Type 3
         // One guardian cell holds a base digit, so the guardian cells stand
         // in as one cell of a naked subset whose other cells are selected.
-        const subsetCarriers = [d1, d2].every(
-          (digit) => guardianByDigit.get(digit).length > 0,
-        )
-          ? ahsCarrierSpecs
-          : [];
+        const subsetCarriers = guardedDigits.length >= 2 ? ahsCarrierSpecs : [];
         for (const subsetCarrier of subsetCarriers) {
           const houseCells = techniques._getUnitCells(
             subsetCarrier.type,
@@ -457,8 +542,7 @@ Object.assign(techniques, {
               );
               if (
                 subsetDigits.size !== count + 1 ||
-                !subsetDigits.has(d1) ||
-                !subsetDigits.has(d2)
+                !guardedDigits.every((digit) => subsetDigits.has(digit))
               ) {
                 continue;
               }
@@ -481,22 +565,21 @@ Object.assign(techniques, {
                 if (bodySet.has(key) || selectedSet.has(key)) return;
                 const isGuardian = guardianSet.has(key);
                 subsetDigits.forEach((num) => {
-                  if (isGuardian && (num === d1 || num === d2)) return;
+                  if (isGuardian && digits.includes(num)) return;
                   if (pencils[r][c].has(num)) removals.push({ r, c, num });
                 });
               });
               const result = publish(
                 type3Key,
                 body,
-                d1,
-                d2,
+                digits,
                 guardians,
                 removals,
                 t(
                   "teks_UET_type_3_VNS_detail",
-                  "" + d1 + d2,
+                  digits.join(""),
                   formatBody(body),
-                  formatGuardians(guardians, d1, d2),
+                  formatGuardians(guardians, digits),
                   formatCompactCells(selected),
                 ),
                 { subsetCells: selected, subsetDigits },
@@ -527,9 +610,10 @@ Object.assign(techniques, {
         if (!carrier) continue;
 
         // UET + XY Wing
+        if (guardedDigits.length !== 2) continue;
+        const [d1, d2] = guardedDigits;
         const guardians1 = guardianByDigit.get(d1);
         const guardians2 = guardianByDigit.get(d2);
-        if (guardians1.length === 0 || guardians2.length === 0) continue;
         const bivalue = unsolved.filter(
           ([r, c]) => pencils[r][c].size === 2 && !bodySet.has(cellKey(r, c)),
         );
@@ -568,15 +652,14 @@ Object.assign(techniques, {
             const result = publish(
               xyWingKey,
               body,
-              d1,
-              d2,
+              digits,
               guardians,
               removals,
               t(
                 "teks_UET_XY_Wing_detail",
-                "" + d1 + d2,
+                digits.join(""),
                 formatBody(body),
-                formatGuardians(guardians, d1, d2),
+                formatGuardians(guardians, digits),
                 ar + 1,
                 ac + 1,
                 br + 1,
