@@ -1,4 +1,25 @@
 Object.assign(techniques, {
+  // Every unsolved cell is a Truth and every candidate but the guardians is
+  // marked.
+  _tlgBug: (board, pencils, guardians, removals) => {
+    const guarded = new Set(
+      guardians.map(({ r, c, num }) => (r * 9 + c) * 9 + num),
+    );
+    const logic = techniques._tlgBuilder(removals);
+    for (let id = 0; id < 81; id++) {
+      const r = Math.floor(id / 9);
+      const c = id % 9;
+      if (board[r][c] !== 0) continue;
+      logic.deadly(
+        [id],
+        [...pencils[r][c]].filter((digit) => !guarded.has(id * 9 + digit)),
+        pencils,
+      );
+      logic.truth({ kind: "cell", cell: id });
+    }
+    return logic;
+  },
+
   bugPlusOne: (board, pencils, findAll = false) => {
     const unsolvedCells = [];
     const bivalueCells = [];
@@ -60,6 +81,12 @@ Object.assign(techniques, {
               num: n,
             }));
 
+          const logic = techniques._tlgBug(
+            board,
+            pencils,
+            [{ r: r_plus1, c: c_plus1, num }],
+            removals,
+          );
           // Only one candidate of the cell can be the true one, so findAll
           // reports this single proof rather than scanning the rest.
           const result = {
@@ -92,6 +119,7 @@ Object.assign(techniques, {
                 color: 0,
               })),
             },
+            tlg: logic.logic(),
           };
           return findAll ? [result] : result;
         }
@@ -294,9 +322,23 @@ Object.assign(techniques, {
       };
     };
 
+    // A removal is ruled out by each guardian: through the cell they share,
+    // or through a house of their digit.
+    const guardianLinks = (logic) => {
+      const guardians = trueCandidates.map(({ r, c, num }) => [r * 9 + c, num]);
+      for (const target of logic.targets) logic.connect([target], guardians);
+    };
+
     const addResult = (name, detail, removals, extra = {}) => {
       const uniqueRemovals = _getUniqueRemovals(removals);
       if (uniqueRemovals.length === 0) return null;
+      const logic = techniques._tlgBug(
+        board,
+        pencils,
+        trueCandidates,
+        uniqueRemovals,
+      );
+      (extra.tlg || guardianLinks)(logic);
       const result = {
         change: true,
         type: "remove",
@@ -307,6 +349,7 @@ Object.assign(techniques, {
           detail,
         },
         visualPlan: makeVisualPlan(uniqueRemovals, extra),
+        tlg: logic.logic(),
       };
       if (!findAll) return result;
       results.push(result);
@@ -430,7 +473,14 @@ Object.assign(techniques, {
               formatCells(subsetCells),
             ),
             removals,
-            { subsetCells },
+            {
+              subsetCells,
+              tlg: (logic) => {
+                for (const digit of subsetDigits) {
+                  logic.linkSet({ kind: houseType, index: houseIndex, digit });
+                }
+              },
+            },
           );
           if (result) return result;
         }
@@ -475,7 +525,11 @@ Object.assign(techniques, {
               formatCells([cell1, cell2]),
             ),
             removals,
-            { conjugate: { cell1, cell2, num } },
+            {
+              conjugate: { cell1, cell2, num },
+              tlg: (logic) =>
+                logic.truth({ kind: houseType, index: houseIndex, digit: num }),
+            },
           );
           if (result) return result;
         }

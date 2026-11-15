@@ -107,6 +107,15 @@ Object.assign(techniques, {
         const pathIds = path.flatMap((index) => nodes[index].ids);
         const pathText = path.map((index) =>
           techniques._formatCellsRC(nodes[index].ids)).join("-") + "-";
+        const tlg = techniques._tlgBuilder(cells);
+        for (const { house } of links) {
+          const kind = ["row", "col", "box"][Math.floor(house / 9)];
+          tlg.truth({ kind, index: house % 9, digit: num });
+        }
+        const guardians = guardIds.map((id) => [id, num]);
+        for (const { r, c } of cells) {
+          tlg.connect([[r * 9 + c, num]], guardians);
+        }
         const result = {
           change: true,
           type: "remove",
@@ -139,6 +148,7 @@ Object.assign(techniques, {
               r, c, num, marker: "slash", color: 0,
             })),
           },
+          tlg: tlg.logic(),
         };
         if (grouped) {
           result.groupedBrokenWing = {

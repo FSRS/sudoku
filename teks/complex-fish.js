@@ -201,6 +201,22 @@ Object.assign(techniques, {
           techniques._getUnitCells(uTypeToName(unit.type), unit.index),
         );
 
+        const tlg = techniques._tlgBuilder(elims);
+        const unitSet = (unit) => ({
+          kind: uTypeToName(unit.type),
+          index: unit.index,
+          digit: num,
+        });
+        baseUnits.forEach((unit) => tlg.truth(unitSet(unit)));
+        let baseMask = [0, 0, 0];
+        for (const unit of baseUnits) baseMask = bitOr(baseMask, unit.mask);
+        for (const unit of coverUnits) {
+          if (!isZero(bitAnd(unit.mask, baseMask))) tlg.linkSet(unitSet(unit));
+        }
+        for (const finId of getBits(allFinsMask)) {
+          for (const target of tlg.targets) tlg.link([[finId, num], target]);
+        }
+
         return {
           change: true,
           type: "remove",
@@ -264,6 +280,7 @@ Object.assign(techniques, {
               })),
             ],
           },
+          tlg: tlg.logic(),
         };
       };
 

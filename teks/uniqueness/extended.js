@@ -424,8 +424,29 @@ Object.assign(techniques, {
       return plan;
     };
 
+    const getEURTlg = (cells, digits, removals, build = () => {}) => {
+      const logic = techniques._tlgDeadlyCells(
+        cells,
+        digits,
+        pencils,
+        removals,
+      );
+      build(logic);
+      return logic.logic();
+    };
+
     for (const er of ers) {
       const { cells, digits, is_nx2, placedCells = [] } = er;
+      const tlgFits =
+        digits.length < 5 &&
+        cells.every(
+          ([r, c]) =>
+            cells.filter(
+              ([r2, c2]) =>
+                techniques._getBoxIndex(r2, c2) ===
+                techniques._getBoxIndex(r, c),
+            ).length <= digits.length,
+        );
       const placedIds = new Set(
         placedCells.map(([r, c]) => techniques._cellToId(r, c)),
       );
@@ -485,6 +506,7 @@ Object.assign(techniques, {
               _getUniqueRemovals(removals),
               { placedCells },
             ),
+            ...(tlgFits && { tlg: getEURTlg(cells, digits, removals) }),
           };
           if (!findAll) return resultObj;
           results.push(resultObj);
@@ -555,6 +577,17 @@ Object.assign(techniques, {
                 _getUniqueRemovals(removals),
                 { placedCells },
               ),
+              ...(tlgFits && {
+                tlg: getEURTlg(cells, digits, removals, (logic) => {
+                  const guards = extra_cells.map(([r, c]) => [
+                    r * 9 + c,
+                    common_extra_cand,
+                  ]);
+                  for (const { r, c, num } of removals) {
+                    logic.connect([[r * 9 + c, num]], guards);
+                  }
+                }),
+              }),
             };
             if (!findAll) return resultObj;
             results.push(resultObj);
@@ -672,6 +705,20 @@ Object.assign(techniques, {
                     placedCells,
                   },
                 ),
+                ...(tlgFits && {
+                  tlg: getEURTlg(cells, digits, res.removals, (logic) => {
+                    for (const [r, c] of res.chosen) {
+                      logic.truth({ kind: "cell", cell: r * 9 + c });
+                    }
+                    for (const digit of res.union) {
+                      logic.linkSet({
+                        kind: unit.type,
+                        index: unit.idx,
+                        digit,
+                      });
+                    }
+                  }),
+                }),
               };
               if (!findAll) return resultObj;
               results.push(resultObj);
@@ -745,6 +792,11 @@ Object.assign(techniques, {
                   [e1r, e1c],
                   [e2r, e2c],
                 ]);
+                const tlgHouse =
+                  tlgFits &&
+                  cells.filter(
+                    ([r, c]) => HOUSE_OF[unitType](r * 9 + c) === unitIndex,
+                  ).length === 2;
 
                 const resultObj = {
                   change: true,
@@ -775,6 +827,15 @@ Object.assign(techniques, {
                       placedCells,
                     },
                   ),
+                  ...(tlgHouse && {
+                    tlg: getEURTlg(cells, digits, removals, (logic) =>
+                      logic.truth({
+                        kind: unitType,
+                        index: unitIndex,
+                        digit: d,
+                      }),
+                    ),
+                  }),
                 };
                 if (!findAll) return resultObj;
                 results.push(resultObj);

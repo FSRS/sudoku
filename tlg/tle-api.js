@@ -2,7 +2,9 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
 
 (function () {
   var NW = TLE.NW;
+  var bitCount = TLE.bitCount;
   var ABORT = -999999;
+  var SOL_LIMIT = 8388606;
   var tag = TLE.putTag;
 
   var INPUT_KEYS = ["values", "candidates", "truths", "links", "options", "aurMarks", "vset", "vapply", "vcount", "wantPerms"];
@@ -85,7 +87,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
 
   function gate(st) {
     var nT = st.nT;
-    if (nT > 24) return;
+    if (nT > 24 && !(st.aurCause & 3)) return;
     st.CF = 0;
     st.pathCF = 0;
     st.bestAls = -1;
@@ -174,26 +176,121 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
 
   function solsAsLists(st, limit) {
     var W = st.solW;
-    var out = [];
+    var sols = st.sols;
     var tcList = st.tcList;
-    var n = limit >= 0 && limit < st.nsol ? limit : st.nsol;
-    for (var p = 0; p < n; p++) {
-      var arr = [];
+    var nsol = st.nsol;
+    var lone = st.lone;
+    var max = limit >= 0 && limit < SOL_LIMIT ? limit : SOL_LIMIT;
+    var out = [];
+    var order = new Int32Array(nsol);
+    var i, k, a, q;
+    for (i = 0; i < nsol; i++) order[i] = i;
+    order.sort(function (x, y) {
       for (var w = 0; w < W; w++) {
-        var v = st.sols[p * W + w];
-        while (v !== 0) {
-          var low = v & -v;
-          arr.push(tcList[(w << 5) + 31 - Math.clz32(low)]);
-          v ^= low;
-        }
+        var d = sols[x * W + w] ^ sols[y * W + w];
+        if (d !== 0) return (sols[x * W + w] & d & -d) !== 0 ? -1 : 1;
       }
-      out.push(arr);
-    }
-    out.sort(function (a, b) {
-      var n = Math.min(a.length, b.length);
-      for (var i = 0; i < n; i++) if (a[i] !== b[i]) return a[i] - b[i];
-      return a.length - b.length;
+      return 0;
     });
+    if (lone === null) {
+      for (i = 0; i < nsol && out.length < max; i++) {
+        var arr = [];
+        for (var w = 0; w < W; w++) {
+          var v = sols[order[i] * W + w];
+          while (v !== 0) {
+            var low = v & -v;
+            arr.push(tcList[(w << 5) + 31 - Math.clz32(low)]);
+            v ^= low;
+          }
+        }
+        out.push(arr);
+      }
+      return out;
+    }
+    var nA = lone.thr.length;
+    var nSets = lone.sets.length;
+    var own = new Int32Array(tcList.length).fill(-1);
+    var slot = new Int32Array(tcList.length);
+    var least = new Int32Array(nSets);
+    var taken = new Uint8Array(nSets);
+    var inside = new Int32Array(nA);
+    for (i = 0; i < nSets; i++) {
+      var set = lone.sets[i];
+      for (k = 0; k < set.cands.length; k++) {
+        own[set.cands[k]] = i;
+        slot[set.cands[k]] = k;
+      }
+      least[i] = set.min;
+      if (set.aur >= 0) inside[set.aur] += set.min;
+    }
+    var path = [];
+
+    function fits(lo, hi) {
+      for (var p = lo; p < hi; p++) {
+        var base = order[p] * W;
+        for (a = 0; a < nA; a++) {
+          var n = inside[a];
+          for (q = 0; q < W; q++) n += bitCount(sols[base + q] & lone.aurLoc[a][q]);
+          if (n > lone.thr[a]) break;
+        }
+        if (a === nA) return true;
+      }
+      return false;
+    }
+
+    function walk(t, lo, hi) {
+      if (out.length >= max) return;
+      if (t === tcList.length) {
+        for (var p = lo; p < hi && out.length < max; p++) out.push(path.slice());
+        return;
+      }
+      var j = own[t];
+      if (j < 0) {
+        var bit = 1 << (t & 31);
+        var from = lo;
+        var to = hi;
+        while (from < to) {
+          var mid = (from + to) >> 1;
+          if (sols[order[mid] * W + (t >> 5)] & bit) from = mid + 1;
+          else to = mid;
+        }
+        if (from > lo && fits(lo, from)) {
+          path.push(tcList[t]);
+          walk(t + 1, lo, from);
+          path.pop();
+        }
+        if (hi > from && fits(from, hi)) walk(t + 1, from, hi);
+        return;
+      }
+      if (taken[j]) {
+        walk(t + 1, lo, hi);
+        return;
+      }
+      var set = lone.sets[j];
+      var au = set.aur;
+      var was = least[j];
+      var k = slot[t];
+      var now = set.inside[k];
+      if (au >= 0) inside[au] += now - was;
+      if (au < 0 || fits(lo, hi)) {
+        taken[j] = 1;
+        path.push(tcList[t]);
+        walk(t + 1, lo, hi);
+        path.pop();
+        taken[j] = 0;
+      }
+      if (au >= 0) inside[au] += was - now;
+      if (k + 1 === set.cands.length) return;
+      now = 1;
+      for (var r = k + 1; r < set.cands.length; r++) if (set.inside[r] === 0) now = 0;
+      least[j] = now;
+      if (au >= 0) inside[au] += now - was;
+      if (au < 0 || fits(lo, hi)) walk(t + 1, lo, hi);
+      if (au >= 0) inside[au] += was - now;
+      least[j] = was;
+    }
+
+    if (nsol > 0) walk(0, 0, nsol);
     return out;
   }
   TLE.solsAsLists = solsAsLists;
@@ -218,7 +315,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       flags: flags,
       rank: rankOk ? st.rankField : null,
       rankText: rankOk ? String.fromCharCode(48 + st.rankField) : "?",
-      nperm: st.nsol,
+      nperm: st.nperm,
       nT: st.nT,
       nL: st.nL,
       ncand: st.ncand,
@@ -234,7 +331,8 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     res.virtual = { nvset: st.nv, applied: st.vapply && st.vN > 0, n: st.vN, isvir: st.isvir, visnp: st.visnp, visnn: st.visnn };
     res.als = { cells: Array.from(st.alsCells), sets: Array.from(st.alsSets) };
     if (st.wantPerms !== undefined) {
-      var list = st.nsol > 0 ? solsAsLists(st, -1) : [];
+      var want = typeof st.wantPerms === "number" ? Math.ceil(Math.max(0, st.wantPerms)) : -1;
+      var list = st.nsol > 0 ? solsAsLists(st, want) : [];
       if (typeof st.wantPerms === "number") list = list.slice(0, Math.max(0, st.wantPerms));
       res.perms = list;
     }

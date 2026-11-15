@@ -1004,6 +1004,8 @@ Object.assign(techniques, {
             removals,
             weight,
             alsLinks,
+            exitKind,
+            exitKey: key,
           });
         } else if (
           weight < previous.weight ||
@@ -1011,6 +1013,8 @@ Object.assign(techniques, {
         ) {
           previous.burr = burr;
           previous.paths = paths;
+          previous.exitKind = exitKind;
+          previous.exitKey = key;
           previous.removals = removals;
           previous.weight = weight;
           previous.alsLinks = alsLinks;
@@ -1083,6 +1087,30 @@ Object.assign(techniques, {
             removals,
             pencils,
             getFishForLink,
+          ),
+          tlg: techniques._tlgStemBranches(
+            pencils,
+            removals,
+            [
+              burr.kind === "cell"
+                ? { kind: "cell", cell: burr.cells[0] }
+                : {
+                    kind: ["row", "col", "box"][Math.floor(burr.unit / 9)],
+                    index: burr.unit % 9,
+                    digit: burr.digits[0],
+                  },
+            ],
+            [],
+            paths,
+            getAlsForLink,
+            getFishForLink,
+            chosen.exitKind === "cell"
+              ? { kind: "cell", cell: chosen.exitKey }
+              : {
+                  kind: ["row", "col", "box"][Math.floor(chosen.exitKey / 81)],
+                  index: Math.floor(chosen.exitKey / 9) % 9,
+                  digit: (chosen.exitKey % 9) + 1,
+                },
           ),
         };
 

@@ -320,6 +320,131 @@ Object.assign(techniques, {
     return path;
   },
 
+  _tlgStemBranches: (
+    pencils,
+    removals,
+    stemTruths,
+    stemGroups,
+    paths,
+    getAls,
+    getFish,
+    exitSet = null,
+  ) => {
+    const tlg = techniques._tlgBuilder(removals);
+    const candsOf = (node) => {
+      const cands = [];
+      for (const id of node.cells) {
+        for (const d of node.digits) {
+          if (pencils[Math.floor(id / 9)][id % 9].has(d)) cands.push([id, d]);
+        }
+      }
+      return cands;
+    };
+    const nandHas = (node, [id, d]) =>
+      (node.NandBitset[d - 1][CELL_PART[id]] & CELL_BIT[id]) !== 0;
+    const tie = (cand, node) =>
+      tlg.connect([cand], candsOf(node), (other) => nandHas(node, other));
+    const weak = (p, q) =>
+      tlg.connect(
+        candsOf(p),
+        candsOf(q),
+        (cand) => nandHas(p, cand) && nandHas(q, cand),
+      );
+    const reaches = (group, [id, d]) =>
+      d === group.cands[0][1] &&
+      !group.cellIds.includes(id) &&
+      group.cands.every(([other]) => SEES_MATRIX[id * 81 + other] === 1);
+
+    for (const set of stemTruths) tlg.truth(set);
+    const alsGroups = [...stemGroups];
+    const loopFishNodes = [];
+    for (const path of paths) {
+      for (let i = 1; i + 1 < path.length; i += 2) {
+        const u = path[i];
+        const v = path[i + 1];
+        const als = getAls(u, v);
+        const fish = als ? null : getFish(u, v);
+        if (als) {
+          const cellIds = als.cells.map(([r, c]) => r * 9 + c);
+          for (const id of cellIds) tlg.truth({ kind: "cell", cell: id });
+          for (const key of Object.keys(als.candMap)) {
+            const d = Number(key);
+            if (d === u.digits[0] || d === v.digits[0]) continue;
+            alsGroups.push({
+              cellIds,
+              cands: als.candMap[d].map(([r, c]) => [r * 9 + c, d]),
+            });
+          }
+        } else if (fish) {
+          const base = fish.isBaseRow ? "row" : "col";
+          const cover = fish.isBaseRow ? "col" : "row";
+          for (const index of fish.bases) {
+            tlg.truth({ kind: base, index, digit: fish.d });
+          }
+          for (const index of fish.covers) {
+            tlg.linkSet({ kind: cover, index, digit: fish.d });
+          }
+          if (exitSet && fish.isDof1) {
+            for (const node of fish.coverBodyNodes) {
+              if (node !== u && node !== v) loopFishNodes.push(node);
+            }
+          }
+        } else if (u.digits[0] !== v.digits[0]) {
+          tlg.truth({ kind: "cell", cell: u.cells[0] });
+        } else {
+          tlg.truth(
+            techniques._tlgExactHouse(
+              [...new Set([...u.cells, ...v.cells])],
+              u.digits[0],
+              pencils,
+            ),
+          );
+        }
+      }
+    }
+
+    for (const path of paths) {
+      for (let i = 0; i + 1 < path.length; i += 2) weak(path[i], path[i + 1]);
+    }
+    tlg.linkSet(exitSet);
+
+    const ends = paths.map((path) => path[path.length - 1]);
+    for (const cand of tlg.targets) {
+      if (!exitSet) {
+        for (const end of ends) tie(cand, end);
+        continue;
+      }
+      for (const path of paths) {
+        for (let i = 0; i + 1 < path.length; i++) {
+          const p = path[i];
+          const q = path[i + 1];
+          if (!nandHas(p, cand) || !nandHas(q, cand)) continue;
+          const seesBoth = (other) => nandHas(p, other) && nandHas(q, other);
+          if (!tlg.link([cand, ...candsOf(p), ...candsOf(q)], seesBoth)) {
+            tie(cand, p);
+            tie(cand, q);
+          }
+        }
+      }
+      for (const group of alsGroups) {
+        if (reaches(group, cand)) {
+          tlg.link([cand, ...group.cands], (other) => reaches(group, other));
+        }
+      }
+      for (const node of loopFishNodes) {
+        if (nandHas(node, cand)) tie(cand, node);
+      }
+      if (ends.every((end) => nandHas(end, cand))) {
+        for (const end of ends) tie(cand, end);
+      }
+    }
+
+    for (const { cands } of alsGroups) {
+      if (cands.length >= 2 && !tlg.holds(cands)) tlg.link(cands, () => false);
+    }
+    return tlg.logic();
+  },
+
   _almostAicCore: (
     board,
     pencils,
@@ -1027,6 +1152,36 @@ Object.assign(techniques, {
             candidateMarks,
             links,
           },
+          tlg: techniques._tlgStemBranches(
+            pencils,
+            elims,
+            isCell
+              ? [{ kind: "cell", cell: stem.cellId }]
+              : isRegion
+                ? [
+                    {
+                      kind: ["row", "col", "box"][Math.floor(stem.unit / 9)],
+                      index: stem.unit % 9,
+                      digit: stem.digit,
+                    },
+                  ]
+                : stem.cells.map((id) => ({ kind: "cell", cell: id })),
+            isAals
+              ? stem.cellsByDigit.flatMap((ids, d) =>
+                  ids.length === 0 || stem.startDigits.includes(d)
+                    ? []
+                    : [
+                        {
+                          cellIds: stem.cells,
+                          cands: ids.map((id) => [id, d]),
+                        },
+                      ],
+                )
+              : [],
+            chosenPaths,
+            (u, v) => alsLinkRegistry.get(u)?.get(v),
+            (u, v) => fishLinkRegistry.get(u)?.get(v),
+          ),
         };
 
         if (!findAll) return resultObj;

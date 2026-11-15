@@ -504,6 +504,51 @@ Object.assign(techniques, {
       return nand;
     };
 
+    // If the end's ALS partner is false, the ALS is locked on its other
+    // digits, so each of them is in the ALS.
+    const alsChainEndNand = (end, mate) => {
+      if (getAhsForLink(end, mate)) return null;
+      const als = getAlsForLink(end, mate);
+      if (!als) return null;
+      const nand = end.NandBitset.map((part) => part.slice());
+      for (const key of Object.keys(als.candMap)) {
+        const z = Number(key);
+        if (z === end.digits[0] || z === mate.digits[0]) continue;
+        const group = getNode(
+          als.candMap[z].map(([r, c]) => r * 9 + c),
+          z,
+        );
+        const groupNand = group.NandBitset[z - 1];
+        nand[z - 1][0] |= groupNand[0];
+        nand[z - 1][1] |= groupNand[1];
+        nand[z - 1][2] |= groupNand[2];
+      }
+      return nand;
+    };
+
+    // One of the two end partners is false, so one end ALS is locked. What
+    // the two ends remove by themselves is left to the caller.
+    const alsChainEndRemovals = (path) => {
+      const first = path[0];
+      const last = path[path.length - 1];
+      const extFirst = alsChainEndNand(first, path[1]);
+      const extLast = alsChainEndNand(last, path[path.length - 2]);
+      if (!extFirst && !extLast) return [];
+      const { intersection } = techniques.getBitsetIntersection(
+        extFirst || first.NandBitset,
+        extLast || last.NandBitset,
+      );
+      const plain = techniques.getBitsetIntersection(
+        first.NandBitset,
+        last.NandBitset,
+      ).intersection;
+      return extractRemovals(
+        intersection.map((part, d) =>
+          part.map((bits, k) => bits & ~plain[d][k]),
+        ),
+      );
+    };
+
     const getLoc = techniques._formatAicLocation;
     const getFishLoc = techniques._formatFishNodeLocation;
 
@@ -557,6 +602,164 @@ Object.assign(techniques, {
 
       if (isRing) str += "-";
       return str;
+    };
+
+    const buildTlg = (path, isRing, removals) => {
+      const logic = techniques._tlgBuilder(removals);
+      const candsOf = (node) => {
+        const cands = [];
+        for (const id of node.cells) {
+          for (const d of node.digits) {
+            if (pencils[Math.floor(id / 9)][id % 9].has(d)) cands.push([id, d]);
+          }
+        }
+        return cands;
+      };
+      const nandHas = (node, [id, d]) =>
+        (node.NandBitset[d - 1][CELL_PART[id]] & CELL_BIT[id]) !== 0;
+      const tie = (cand, node) =>
+        logic.connect([cand], candsOf(node), (other) => nandHas(node, other));
+      const weak = (p, q) =>
+        logic.connect(
+          candsOf(p),
+          candsOf(q),
+          (cand) => nandHas(p, cand) && nandHas(q, cand),
+        );
+      const reaches = (group, [id, d]) =>
+        d === group.cands[0][1] &&
+        !group.cellIds.includes(id) &&
+        group.cands.every(([other]) => SEES_MATRIX[id * 81 + other] === 1);
+
+      const alsGroups = [];
+      const ringFishNodes = [];
+
+      for (let i = 0; i < path.length; i += 2) {
+        const u = path[i];
+        const v = path[i + 1];
+        const ahs = getAhsForLink(u, v);
+        const als = useAls ? activeAlsLinkRegistry.get(u)?.get(v) : null;
+        const fish = useFish ? activeFishLinkRegistry.get(u)?.get(v) : null;
+
+        if (ahs) {
+          for (let d = 1; d <= 9; d++) {
+            if ((ahs.digitMask >> (d - 1)) & 1) {
+              logic.truth({ kind: ahs.type, index: ahs.index, digit: d });
+            }
+          }
+          for (const id of ahs.cellIds) {
+            logic.linkSet({ kind: "cell", cell: id });
+          }
+        } else if (als) {
+          const cellIds = als.cells.map(([r, c]) => r * 9 + c);
+          for (const id of cellIds) logic.truth({ kind: "cell", cell: id });
+          for (const key of Object.keys(als.candMap)) {
+            const d = Number(key);
+            if (d === u.digits[0] || d === v.digits[0]) continue;
+            alsGroups.push({
+              cellIds,
+              cands: als.candMap[d].map(([r, c]) => [r * 9 + c, d]),
+              atEnd: i === 0 || i === path.length - 2,
+            });
+          }
+        } else if (fish) {
+          const base = fish.isBaseRow ? "row" : "col";
+          const cover = fish.isBaseRow ? "col" : "row";
+          for (const index of fish.bases) {
+            logic.truth({ kind: base, index, digit: fish.d });
+          }
+          for (const index of fish.covers) {
+            logic.linkSet({ kind: cover, index, digit: fish.d });
+          }
+          if (fish.isDof1) {
+            for (const node of fish.coverBodyNodes) {
+              if (node !== u && node !== v) ringFishNodes.push(node);
+            }
+          }
+        } else if (u.digits[0] !== v.digits[0]) {
+          logic.truth({ kind: "cell", cell: u.cells[0] });
+        } else {
+          logic.truth(
+            techniques._tlgExactHouse(
+              [...new Set([...u.cells, ...v.cells])],
+              u.digits[0],
+              pencils,
+            ),
+          );
+        }
+      }
+
+      const first = path[0];
+      const last = path[path.length - 1];
+      for (let i = 1; i + 1 < path.length; i += 2) weak(path[i], path[i + 1]);
+      if (isRing) weak(last, first);
+
+      const within = (a, b) =>
+        techniques.isBitsetSubset(a.NodeBitset, b.NodeBitset);
+      const ends = within(first, last)
+        ? [last]
+        : within(last, first)
+          ? [first]
+          : [first, last];
+
+      for (const cand of logic.targets) {
+        if (!isRing) {
+          if (ends.every((node) => nandHas(node, cand))) {
+            for (const node of ends) tie(cand, node);
+            continue;
+          }
+          for (const [end, mate] of [
+            [first, path[1]],
+            [last, path[path.length - 2]],
+          ]) {
+            if (nandHas(end, cand)) {
+              tie(cand, end);
+              continue;
+            }
+            const ahs = getAhsForLink(end, mate);
+            if (!ahs) continue;
+            ahs.cellNodes.forEach((node, k) => {
+              if (ahs.cellIds[k] !== mate.cells[0] && nandHas(node, cand)) {
+                tie(cand, node);
+              }
+            });
+          }
+          for (const group of alsGroups) {
+            if (group.atEnd && reaches(group, cand)) {
+              logic.link([cand, ...group.cands], (other) =>
+                reaches(group, other),
+              );
+            }
+          }
+          continue;
+        }
+
+        for (let i = 0; i < path.length; i++) {
+          const p = path[i];
+          const q = path[(i + 1) % path.length];
+          if (!nandHas(p, cand) || !nandHas(q, cand)) continue;
+          const seesBoth = (other) => nandHas(p, other) && nandHas(q, other);
+          if (!logic.link([cand, ...candsOf(p), ...candsOf(q)], seesBoth)) {
+            tie(cand, p);
+            tie(cand, q);
+          }
+        }
+        for (const group of alsGroups) {
+          if (reaches(group, cand)) {
+            logic.link([cand, ...group.cands], (other) =>
+              reaches(group, other),
+            );
+          }
+        }
+        for (const node of ringFishNodes) {
+          if (nandHas(node, cand)) tie(cand, node);
+        }
+      }
+
+      for (const { cands } of alsGroups) {
+        if (cands.length > 1 && !logic.holds(cands)) logic.link(cands);
+      }
+
+      return logic.logic();
     };
 
     const buildResult = (
@@ -807,6 +1010,7 @@ Object.assign(techniques, {
           candidateMarks,
           links,
         },
+        tlg: buildTlg(path, isRing, removals),
       };
     };
 
@@ -1117,6 +1321,18 @@ Object.assign(techniques, {
                           )
                         : techniqueName;
 
+                if (useAls) {
+                  const wide = canonicalRemovalPack([
+                    ...dnRemovals,
+                    ...alsChainEndRemovals(path),
+                  ]);
+                  if (wide.removals.length > dnRemovals.length) {
+                    if (stringifiedFoundRemovals.has(wide.key)) continue;
+                    stringifiedFoundRemovals.add(wide.key);
+                    dnRemovals = wide.removals;
+                  }
+                }
+
                 const res = buildResult(
                   dnRemovals,
                   DNLName,
@@ -1202,6 +1418,17 @@ Object.assign(techniques, {
                       );
                     }
                     chainRemovals = canonicalRemovalPack(more).removals;
+                  }
+                }
+                if (useAls) {
+                  const wide = canonicalRemovalPack([
+                    ...chainRemovals,
+                    ...alsChainEndRemovals(path),
+                  ]);
+                  if (wide.removals.length > chainRemovals.length) {
+                    if (stringifiedFoundRemovals.has(wide.key)) continue;
+                    stringifiedFoundRemovals.add(wide.key);
+                    chainRemovals = wide.removals;
                   }
                 }
 

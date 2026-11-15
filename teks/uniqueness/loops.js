@@ -463,6 +463,17 @@ Object.assign(techniques, {
       return plan;
     };
 
+    const getULTlg = (cells, digits, removals, build = () => {}) => {
+      const logic = techniques._tlgDeadlyCells(
+        cells,
+        digits,
+        pencils,
+        removals,
+      );
+      build(logic);
+      return logic.logic();
+    };
+
     for (const ul of loops) {
       const { cells, digits, placedCells = [] } = ul;
       const [d1, d2] = digits;
@@ -525,6 +536,7 @@ Object.assign(techniques, {
               _getUniqueRemovals(removals),
               { placedCells },
             ),
+            tlg: getULTlg(cells, digits, removals),
           };
           if (!findAll) return resultObj;
           results.push(resultObj);
@@ -593,6 +605,15 @@ Object.assign(techniques, {
                 _getUniqueRemovals(removals),
                 { placedCells },
               ),
+              tlg: getULTlg(cells, digits, removals, (logic) => {
+                const guards = extra_cells.map(([r, c]) => [
+                  r * 9 + c,
+                  common_extra_cand,
+                ]);
+                for (const { r, c, num } of removals) {
+                  logic.connect([[r * 9 + c, num]], guards);
+                }
+              }),
             };
             if (!findAll) return resultObj;
             results.push(resultObj);
@@ -705,6 +726,14 @@ Object.assign(techniques, {
                     placedCells,
                   },
                 ),
+                tlg: getULTlg(cells, digits, res.removals, (logic) => {
+                  for (const [r, c] of res.chosen) {
+                    logic.truth({ kind: "cell", cell: r * 9 + c });
+                  }
+                  for (const digit of res.union) {
+                    logic.linkSet({ kind: unit.type, index: unit.idx, digit });
+                  }
+                }),
               };
               if (!findAll) return resultObj;
               results.push(resultObj);
@@ -792,6 +821,9 @@ Object.assign(techniques, {
                       e2: [e2r, e2c],
                     },
                   ),
+                  tlg: getULTlg(cells, digits, removals, (logic) =>
+                    logic.truth({ kind: unitType, index: unitIndex, digit: d }),
+                  ),
                 };
                 if (!findAll) return resultObj;
                 results.push(resultObj);
@@ -872,6 +904,11 @@ Object.assign(techniques, {
               },
               visualPlan: getULVisualPlan(6, cells, digits, uniqueRemovals, {
                 restrictedDigit: u,
+              }),
+              tlg: getULTlg(cells, digits, type6Removals, (logic) => {
+                for (const { type, index } of loopHouses.values()) {
+                  logic.truth({ kind: type, index, digit: u });
+                }
               }),
             };
             if (!findAll) return resultObj;

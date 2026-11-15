@@ -1892,6 +1892,160 @@
       return str;
     };
 
+    const buildTlg = (items, isRing, removals) => {
+      const tlg = techniques._tlgBuilder(removals);
+      const L = items.length;
+      const has = (bits, id) => (bits[CELL_PART[id]] & CELL_BIT[id]) !== 0;
+      const forbids = (item, [id, d]) => has(item.side.nand[d - 1], id);
+      const posOf = (item, d) =>
+        item.cells
+          .filter((id) => has(item.NodeBitset[d - 1], id))
+          .filter((id) => has(candBits[d - 1], id))
+          .map((id) => [id, d]);
+      const candsOf = (item) => item.digits.flatMap((d) => posOf(item, d));
+      const addAhs = (ahs) => {
+        for (const digit of maskDigits(ahs.digitMask)) {
+          tlg.truth({ kind: ahs.type, index: ahs.index, digit });
+        }
+        for (const cell of ahs.cellIds) tlg.linkSet({ kind: "cell", cell });
+      };
+      const kill = (item, z) => {
+        const carries = (other) => forbids(item, other);
+        if (!item.isHls) return tlg.connect([z], candsOf(item), carries);
+        const [id, d] = z;
+        if (has(commonPeersOfBits(item.side.dCells[d - 1]), id)) {
+          return tlg.connect([z], posOf(item, d), carries);
+        }
+        const { ahs } = item;
+        const forced = item.cells.find(
+          (x) =>
+            ahs.cellDigitMask[ahs.cellIds.indexOf(x)] === BIT(d) &&
+            has(PEER_BITSETS[x], id),
+        );
+        tlg.connect([z], [[forced, d]], carries);
+      };
+      const weak = (x, y) => {
+        if (!x.isHls && !y.isHls) {
+          tlg.connect(
+            candsOf(x),
+            candsOf(y),
+            (z) => forbids(x, z) && forbids(y, z),
+          );
+          return;
+        }
+        if (nodeForbidden(y, x.side)) {
+          for (const z of candsOf(y)) kill(x, z);
+          return;
+        }
+        if (nodeForbidden(x, y.side)) {
+          for (const z of candsOf(x)) kill(y, z);
+          return;
+        }
+        for (const [p, q] of [
+          [x, y],
+          [y, x],
+        ]) {
+          if (!p.side.dCells) continue;
+          let m = p.side.dMask & q.side.nandDigits;
+          while (m) {
+            const k = lowest(m);
+            m &= m - 1;
+            if (!partSubset(p.side.dCells[k], q.side.nand[k])) continue;
+            for (const z of posOf(p, k + 1)) kill(q, z);
+            return;
+          }
+        }
+      };
+      const extend = (end, mate, z) => {
+        const ahs = gateAhs(end, mate);
+        addAhs(ahs);
+        ahs.cellNodes.forEach((node, i) => {
+          if (mate.cells.includes(ahs.cellIds[i])) return;
+          if (!has(node.NandBitset[z[1] - 1], z[0])) return;
+          tlg.connect([z], candsOf(node), (other) =>
+            has(node.NandBitset[other[1] - 1], other[0]),
+          );
+        });
+      };
+
+      for (let i = 0; i < L; i += 2) {
+        const u = items[i];
+        const v = items[(i + 1) % L];
+        const ahs = gateAhs(u, v);
+        if (itemsSameCell(u, v)) tlg.truth({ kind: "cell", cell: u.cells[0] });
+        else if (ahs) {
+          if (u.isHls && v.isHls) {
+            ahs.cellIds.forEach((cell, k) => {
+              if (!(ahs.leftoverMask & (1 << k))) {
+                tlg.truth({ kind: "cell", cell });
+              }
+            });
+          }
+          addAhs(ahs);
+        } else {
+          tlg.truth(
+            techniques._tlgExactHouse(
+              [...new Set([...u.cells, ...v.cells])],
+              u.digits[0],
+              pencils,
+            ),
+          );
+        }
+      }
+      for (let i = 1; i + 1 < L; i += 2) weak(items[i], items[i + 1]);
+      if (isRing) weak(items[L - 1], items[0]);
+
+      for (const z of tlg.targets) {
+        const [id, d] = z;
+        if (!isRing) {
+          const a = items[0];
+          const e = items[L - 1];
+          const inA = forbids(a, z);
+          const inE = forbids(e, z);
+          if (inA) kill(a, z);
+          if (inE) kill(e, z);
+          if (inA && !inE) extend(e, items[L - 2], z);
+          if (inE && !inA) extend(a, items[1], z);
+          continue;
+        }
+        for (let i = 0; i < L; i++) {
+          const p = items[i];
+          const q = items[(i + 1) % L];
+          if (forbids(p, z) && forbids(q, z)) {
+            kill(p, z);
+            kill(q, z);
+          }
+        }
+        for (let i = 1; i < L; i += 2) {
+          const u = items[i];
+          const v = items[(i + 1) % L];
+          if (u.isHls && v.isHls) {
+            if (!(u.side.dMask & v.side.dMask & BIT(d))) continue;
+            const cpu = commonPeersOfBits(u.side.dCells[d - 1]);
+            const cpv = commonPeersOfBits(v.side.dCells[d - 1]);
+            if (!partSubset(v.side.dCells[d - 1], cpu)) continue;
+            if (!has(cpu, id) || !has(cpv, id)) continue;
+            tlg.connect([z], posOf(u, d));
+            tlg.connect([z], posOf(v, d));
+          } else if (u.isHls || v.isHls) {
+            const H = u.isHls ? u : v;
+            const P = u.isHls ? v : u;
+            if (P.cells.length !== 1 || P.digitMask !== H.digitMask) continue;
+            if (!(H.digitMask & BIT(d))) continue;
+            const pb = PEER_BITSETS[P.cells[0]];
+            if (!H.digits.every((k) => partSubset(H.NodeBitset[k - 1], pb))) {
+              continue;
+            }
+            const cp = commonPeersOfBits(H.cellBits || cellBitsOf(H.cells));
+            if (!has(pb, id) || !has(cp, id)) continue;
+            tlg.connect([z], [[P.cells[0], d]]);
+            tlg.connect([z], posOf(H, d));
+          }
+        }
+      }
+      return tlg.logic();
+    };
+
     const buildResult = (removals, name, items, isRing) => {
       const eurekaStr = buildEureka(items, isRing);
       const fullChain = isRing ? [...items, items[0]] : items;
@@ -2066,6 +2220,7 @@
           candidateMarks,
           links,
         },
+        tlg: buildTlg(items, isRing, removals),
       };
     };
 

@@ -22,6 +22,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     st.nlive = 0;
     st.ndkill = 0;
     st.nsol = 0;
+    st.nperm = 0;
     st.nlsat = 0;
     st.nspan = 0;
     st.ncand = 0;
@@ -44,6 +45,8 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     st.aurFailed = 0;
     st.aurCause = 0;
     st.failSols = null;
+    st.nfail = 0;
+    st.lone = null;
     /* @edition-slot eval-001 */
   }
 
@@ -65,12 +68,13 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     var tc = st.TC;
     var lc = st.LC;
     var i, j, k, w, s, c;
-    var excluding = nT > 7 && nT - nL > 5;
+    var aurOn = st.aurList.length > 0 && st.applyAur;
+    var excluding = nT > 7 && nT - nL > 5 && !aurOn;
     var mult = st.extraMult;
-    if (st.aurList.length > 0 && st.applyAur) excluding = false;
+    var lone = [];
     var lu = null;
     var shared = null;
-    if (excluding) {
+    if (excluding || aurOn) {
       lu = new Uint32Array(NW);
       for (j = 0; j < nL; j++) {
         s = links[j];
@@ -97,7 +101,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       s = truths[i];
       var off = setOff[s];
       var len = setLen[s];
-      if (excluding) {
+      if (lu !== null) {
         var drop = true;
         if (len > 0) {
           for (w = 0; w < NW; w++) {
@@ -115,7 +119,13 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
             }
           }
         }
-        if (drop) continue;
+        if (drop && excluding) continue;
+        if (drop && len > 0 && s !== 324 && TLE.aurOf(st, s) > -2) {
+          lone.push(s);
+          for (w = 0; w < NW; w++) tc[w] |= setMask[s * NW + w];
+          st.anaMark[s] |= 1;
+          continue;
+        }
       }
       var need = s === 324 ? mult : 1;
       itemId++;
@@ -201,10 +211,11 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     var optLocal = new Int32Array(optCand.length);
     for (k = 0; k < optCand.length; k++) optLocal[k] = optCand[k] >= 0 ? tcLocal[optCand[k]] : -1;
 
-    var filt = TLE.permFilter(st);
+    var filt = TLE.permFilter(st, lone);
 
     var overflow = false;
     var count = 0;
+    var total = 0;
     cover.run(function (sel, depth) {
       var base = count * W;
       var buf = st.sols;
@@ -214,7 +225,9 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
         var li = optLocal[sel[t]];
         if (li >= 0) buf[base + (li >> 5)] |= 1 << (li & 31);
       }
-      if (filt !== null && !filt(st, buf, base)) return false;
+      var ways = filt === null ? 1 : filt(buf, base);
+      if (ways === 0) return false;
+      total += ways;
       count++;
       if (count > SOL_LIMIT) {
         overflow = true;
@@ -223,9 +236,11 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
       return false;
     });
     st.nsol = count;
+    st.nperm = total;
 
     if (overflow) {
       st.nsol = 0;
+      st.nperm = 0;
       st.flags |= 0x20000000 | 0x1000000;
       st.rc = ABORT;
       return;
@@ -240,7 +255,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     st.rc = 0;
   }
 
-  function sweepCounts(st, sols, nsol, record) {
+  function sweepCounts(st, sols, nsol, record, lone) {
     var W = st.solW;
     var tc = st.TC;
     var lc = st.LC;
@@ -308,6 +323,12 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
         all[k] &= sols[p * W + k];
       }
     }
+    if (lone) {
+      for (k = 0; k < W; k++) {
+        uni[k] |= lone[0][k];
+        all[k] |= lone[1][k];
+      }
+    }
     for (var t = 0; t < tcList.length; t++) {
       var bit = 1 << (t & 31);
       var cc = tcList[t];
@@ -334,7 +355,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     st.kills = [];
     st.lives = [];
     st.killMask.fill(0);
-    sweepCounts(st, st.sols, st.nsol, true);
+    sweepCounts(st, st.sols, st.nsol, true, TLE.loneMasks(st, false));
     st.nkill = st.kills.length;
     st.nlive = st.lives.length;
     if (st.nkill > 0) st.flags |= 0x40000000;

@@ -48,6 +48,30 @@ Object.assign(techniques, {
             }
             if (removals.length > 0) {
               const allCands = [x, y, z].sort().join("");
+              const pivotId = pivot.r * 9 + pivot.c;
+              const wing1Id = pincer1.r * 9 + pincer1.c;
+              const wing2Id = pincer2.r * 9 + pincer2.c;
+              const tlg = techniques._tlgBuilder(removals);
+              for (const id of [pivotId, wing1Id, wing2Id]) {
+                tlg.truth({ kind: "cell", cell: id });
+              }
+              tlg.link([
+                [pivotId, x],
+                [wing1Id, x],
+              ]);
+              tlg.link([
+                [pivotId, y],
+                [wing2Id, y],
+              ]);
+              for (const target of tlg.targets) {
+                tlg.connect(
+                  [target],
+                  [
+                    [wing1Id, z],
+                    [wing2Id, z],
+                  ],
+                );
+              }
 
               const res = {
                 change: true,
@@ -90,6 +114,7 @@ Object.assign(techniques, {
                     color: 0,
                   })),
                 },
+                tlg: tlg.logic(),
               };
               if (!findAll) return res;
               results.push(res);
@@ -166,6 +191,27 @@ Object.assign(techniques, {
             const pivotCands = [...pivot.cands].sort().join("");
             const x = [...wing1.cands].find((candidate) => candidate !== z);
             const y = [...wing2.cands].find((candidate) => candidate !== z);
+            const pivotId = pivot.r * 9 + pivot.c;
+            const wing1Id = wing1.r * 9 + wing1.c;
+            const wing2Id = wing2.r * 9 + wing2.c;
+            const tlg = techniques._tlgBuilder(removals);
+            for (const id of [pivotId, wing1Id, wing2Id]) {
+              tlg.truth({ kind: "cell", cell: id });
+            }
+            tlg.link([
+              [pivotId, x],
+              [wing1Id, x],
+            ]);
+            tlg.link([
+              [pivotId, y],
+              [wing2Id, y],
+            ]);
+            for (const target of tlg.targets) {
+              tlg.connect(
+                [target],
+                [pivotId, wing1Id, wing2Id].map((id) => [id, z]),
+              );
+            }
             const resultObj = {
               change: true,
               type: "remove",
@@ -216,6 +262,7 @@ Object.assign(techniques, {
                   color: 0,
                 })),
               },
+              tlg: tlg.logic(),
             };
             if (!findAll) return resultObj;
             results.push(resultObj);
@@ -335,6 +382,24 @@ Object.assign(techniques, {
           const linkStr2 = formatGroup(group2, unitType, unitIndex);
           const strongLinkDetail = `(${linkDigit})(${linkStr1}=${linkStr2})`;
 
+          const tlg = techniques._tlgBuilder(removals);
+          tlg.truth({ kind: "cell", cell: cell1.id });
+          tlg.truth({ kind: "cell", cell: cell2.id });
+          tlg.truth({ kind: unitType, index: unitIndex, digit: linkDigit });
+          const linkCands = (cells) =>
+            cells.map(([r, c]) => [r * 9 + c, linkDigit]);
+          tlg.connect([[cell1.id, linkDigit]], linkCands(group1));
+          tlg.connect([[cell2.id, linkDigit]], linkCands(group2));
+          for (const target of tlg.targets) {
+            tlg.connect(
+              [target],
+              [
+                [cell1.id, elimDigit],
+                [cell2.id, elimDigit],
+              ],
+            );
+          }
+
           const res = {
             change: true,
             type: "remove",
@@ -386,6 +451,7 @@ Object.assign(techniques, {
                 color: 0,
               })),
             },
+            tlg: tlg.logic(),
           };
 
           if (!findAll) return res;
@@ -480,6 +546,26 @@ Object.assign(techniques, {
               const pathStr = path
                 .map(([r, c]) => `r${r + 1}c${c + 1}`)
                 .join("-");
+              const pathIds = path.map(([r, c]) => r * 9 + c);
+              const tlg = techniques._tlgBuilder(removals);
+              for (const id of pathIds) tlg.truth({ kind: "cell", cell: id });
+              for (let i = 0; i + 1 < pathIds.length; i++) {
+                for (const d of pair) {
+                  tlg.link([
+                    [pathIds[i], d],
+                    [pathIds[i + 1], d],
+                  ]);
+                }
+              }
+              for (const target of tlg.targets) {
+                tlg.connect(
+                  [target],
+                  [
+                    [pathIds[0], target[1]],
+                    [pathIds[pathIds.length - 1], target[1]],
+                  ],
+                );
+              }
               const res = {
                 change: true,
                 type: "remove",
@@ -511,6 +597,7 @@ Object.assign(techniques, {
                     color: 0,
                   })),
                 },
+                tlg: tlg.logic(),
               };
               if (!findAll) return res;
               results.push(res);
@@ -606,6 +693,16 @@ Object.assign(techniques, {
             ? [link2.line, baseLoc]
             : [baseLoc, link2.line];
 
+          const lineKind = isRowBased ? "row" : "col";
+          const candOf = ([r, c]) => [r * 9 + c, num];
+          const tlg = techniques._tlgBuilder(removals);
+          tlg.truth({ kind: lineKind, index: link1.line, digit: num });
+          tlg.truth({ kind: lineKind, index: link2.line, digit: num });
+          tlg.link([candOf(base1), candOf(base2)]);
+          for (const target of tlg.targets) {
+            tlg.connect([target], [candOf(p1), candOf(p2)]);
+          }
+
           const resultObj = {
             change: true,
             type: "remove",
@@ -625,6 +722,7 @@ Object.assign(techniques, {
               ],
               removals,
             ),
+            tlg: tlg.logic(),
           };
           if (!findAll) return { change: true, res: resultObj };
           results.push(resultObj);
@@ -715,6 +813,15 @@ Object.assign(techniques, {
               const link1Str = `r${p1[0] + 1}c${p1[1] + 1}=r${pBox1[0] + 1}c${pBox1[1] + 1}`;
               const link2Str = `r${pBox2[0] + 1}c${pBox2[1] + 1}=r${p2[0] + 1}c${p2[1] + 1}`;
 
+              const candOf = ([r, c]) => [r * 9 + c, num];
+              const tlg = techniques._tlgBuilder(removals);
+              tlg.truth({ kind: "row", index: r_base, digit: num });
+              tlg.truth({ kind: "col", index: c_base, digit: num });
+              tlg.link([candOf(pBox1), candOf(pBox2)]);
+              for (const target of tlg.targets) {
+                tlg.connect([target], [candOf(p1), candOf(p2)]);
+              }
+
               const resultObj = {
                 change: true,
                 type: "remove",
@@ -734,6 +841,7 @@ Object.assign(techniques, {
                   ],
                   removals,
                 ),
+                tlg: tlg.logic(),
               };
               if (!findAll) return resultObj;
               results.push(resultObj);
@@ -816,6 +924,19 @@ Object.assign(techniques, {
               const link1Str = `b${b + 1}p${p1BoxIndex}=b${b + 1}p${p2BoxIndex}`;
               const link2Str = `r${pC[0] + 1}c${pC[1] + 1}=r${pD[0] + 1}c${pD[1] + 1}`;
 
+              const candOf = ([r, c]) => [r * 9 + c, num];
+              const tlg = techniques._tlgBuilder(removals);
+              tlg.truth({ kind: "box", index: b, digit: num });
+              tlg.truth({
+                kind: isRowBased ? "row" : "col",
+                index: strongIdx,
+                digit: num,
+              });
+              tlg.link([candOf(pB), candOf(pC)]);
+              for (const target of tlg.targets) {
+                tlg.connect([target], [candOf(pA), candOf(pD)]);
+              }
+
               const resultObj = {
                 change: true,
                 type: "remove",
@@ -835,6 +956,7 @@ Object.assign(techniques, {
                   ],
                   removals,
                 ),
+                tlg: tlg.logic(),
               };
               if (!findAll) return { change: true, res: resultObj };
               results.push(resultObj);
@@ -913,6 +1035,21 @@ Object.assign(techniques, {
             const group1 = box_n_cells.filter(([r]) => r === r1);
             const group2 = box_n_cells.filter(([, c]) => c === c1);
 
+            const candOf = ([r, c]) => [r * 9 + c, num];
+            const tlg = techniques._tlgBuilder([{ r: r2, c: c2, num }]);
+            tlg.truth({ kind: "row", index: r1, digit: num });
+            tlg.truth({ kind: "col", index: c1, digit: num });
+            tlg.link([...group1, ...group2].map(candOf));
+            for (const target of tlg.targets) {
+              tlg.connect(
+                [target],
+                [
+                  [r1 * 9 + c2, num],
+                  [r2 * 9 + c1, num],
+                ],
+              );
+            }
+
             const resultObj = {
               change: true,
               type: "remove",
@@ -933,6 +1070,7 @@ Object.assign(techniques, {
                 [{ r: r2, c: c2, num }],
                 true,
               ),
+              tlg: tlg.logic(),
             };
             if (!findAll) return resultObj;
             results.push(resultObj);
@@ -1026,6 +1164,25 @@ Object.assign(techniques, {
                   ? `r${r2 + 1}c${c1 + 1}=r${r2 + 1}c${c2 + 1}`
                   : `r${r1 + 1}c${c2 + 1}=r${r2 + 1}c${c2 + 1}`;
 
+                const candOf = ([r, c]) => [r * 9 + c, num];
+                const tlg = techniques._tlgBuilder([
+                  { r: elimR, c: elimC, num },
+                ]);
+                tlg.truth({ kind: "box", index: b, digit: num });
+                tlg.truth({
+                  kind: isRowVersion ? "row" : "col",
+                  index: idx2,
+                  digit: num,
+                });
+                tlg.link(
+                  [...baseCells, isRowVersion ? [r2, c1] : [r1, c2]].map(
+                    candOf,
+                  ),
+                );
+                for (const target of tlg.targets) {
+                  tlg.connect([target], [...groupCells, [r2, c2]].map(candOf));
+                }
+
                 const resultObj = {
                   change: true,
                   type: "remove",
@@ -1046,6 +1203,7 @@ Object.assign(techniques, {
                     [{ r: elimR, c: elimC, num }],
                     true,
                   ),
+                  tlg: tlg.logic(),
                 };
                 if (!findAll) return { change: true, res: resultObj };
                 results.push(resultObj);

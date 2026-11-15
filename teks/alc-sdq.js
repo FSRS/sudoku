@@ -192,6 +192,23 @@ Object.assign(techniques, {
                     isLineToBox ? targetIdx + 1 : baseIdx + 1,
                   );
 
+                  const tlg = techniques._tlgBuilder(uniqueElims);
+                  for (const [r, c] of baseCells) {
+                    tlg.truth({ kind: "cell", cell: r * 9 + c });
+                  }
+                  for (const v of V) {
+                    tlg.linkSet({ kind: baseType, index: baseIdx, digit: v });
+                    const placed = outsideIntersection.some(
+                      ({ r, c }) => board[r][c] === v,
+                    );
+                    if (placed) continue;
+                    tlg.truth({ kind: targetType, index: targetIdx, digit: v });
+                  }
+                  for (const { r, c } of outsideIntersection) {
+                    if (board[r][c] !== 0) continue;
+                    tlg.linkSet({ kind: "cell", cell: r * 9 + c });
+                  }
+
                   const resultObj = {
                     change: true,
                     type: "remove",
@@ -244,6 +261,7 @@ Object.assign(techniques, {
                         color: 0,
                       })),
                     },
+                    tlg: tlg.logic(),
                   };
                   if (!findAll) return resultObj;
                   results.push(resultObj);
@@ -500,6 +518,19 @@ Object.assign(techniques, {
                         ),
                       );
 
+                      const tlg = techniques._tlgBuilder(eliminations);
+                      const lineKind = isRow ? "row" : "col";
+                      const digitsOf = techniques._bits.maskToDigits;
+                      for (const [r, c] of allPatternCells) {
+                        tlg.truth({ kind: "cell", cell: r * 9 + c });
+                      }
+                      for (const digit of digitsOf(D_mask | remaining_V)) {
+                        tlg.linkSet({ kind: lineKind, index: lineIdx, digit });
+                      }
+                      for (const digit of digitsOf(E_mask | remaining_V)) {
+                        tlg.linkSet({ kind: "box", index: b, digit });
+                      }
+
                       const resultObj = {
                         change: true,
                         type: "remove",
@@ -539,6 +570,7 @@ Object.assign(techniques, {
                             color: 0,
                           })),
                         },
+                        tlg: tlg.logic(),
                       };
                       if (!findAll) return resultObj;
                       results.push(resultObj);

@@ -259,6 +259,66 @@ Object.assign(techniques, {
     return { removals: [] };
   },
 
+  _tlgColoring: (component, coloring, result, grid, singleDigit, removals) => {
+    const tlg = techniques._tlgBuilder(removals);
+    const kinds = ["row", "col", "box"];
+    for (let k = 0; k < 9; k++) {
+      if (singleDigit !== null && k !== singleDigit - 1) continue;
+      for (let u = 0; u < 27; u++) {
+        const kind = kinds[(u / 9) | 0];
+        const m = grid[kind][k * 9 + (u % 9)];
+        if (pop(m) !== 2 || coloring[UNIT_IDS[u][lowest(m)] * 9 + k] === 0) {
+          continue;
+        }
+        tlg.truth({ kind, index: u % 9, digit: k + 1 });
+      }
+    }
+    if (singleDigit === null) {
+      for (let id = 0; id < 81; id++) {
+        const cm = grid.cand[id];
+        if (pop(cm) !== 2 || coloring[id * 9 + lowest(cm)] === 0) continue;
+        tlg.truth({ kind: "cell", cell: id });
+      }
+    }
+    const source = (cell, digit, color) => {
+      for (const id of component) {
+        if (coloring[id] !== color) continue;
+        const sourceCell = (id / 9) | 0;
+        const n = (id % 9) + 1;
+        if (sourceCell === cell && n !== digit) return [cell, n];
+        if (n === digit && seesId(sourceCell, cell)) return [sourceCell, n];
+      }
+      return null;
+    };
+    const { rule, targetColor: color, data } = result;
+    if (rule === "A_Cell") {
+      tlg.linkSet({ kind: "cell", cell: data.r * 9 + data.c });
+    } else if (rule === "A_Peer") {
+      const cand = [data.r * 9 + data.c, data.n];
+      tlg.link([cand, source(cand[0], data.n, color)]);
+    } else if (rule === "B_Cell") {
+      const cell = data.r * 9 + data.c;
+      tlg.truth({ kind: "cell", cell });
+      for (const k of bits9(grid.cand[cell])) {
+        tlg.link([[cell, k + 1], source(cell, k + 1, color)]);
+      }
+    } else if (rule === "B_House") {
+      const { unitType: kind, idx: index, d } = data;
+      tlg.truth({ kind, index, digit: d });
+      for (const id of UNIT_IDS[UNIT_OFFSET[kind] + index]) {
+        if ((grid.cand[id] & (1 << (d - 1))) === 0) continue;
+        tlg.link([[id, d], source(id, d, color)]);
+      }
+    } else {
+      for (const { r, c, num } of result.trapDetails) {
+        const cand = [r * 9 + c, num];
+        tlg.link([cand, source(cand[0], num, 1)]);
+        tlg.link([cand, source(cand[0], num, 2)]);
+      }
+    }
+    return tlg.logic();
+  },
+
   _solveColoring: (
     board,
     pencils,
@@ -479,6 +539,14 @@ Object.assign(techniques, {
               })),
               links,
             },
+            tlg: techniques._tlgColoring(
+              component,
+              coloring,
+              result,
+              grid,
+              singleDigit,
+              uniqueElims,
+            ),
           };
 
           if (!findAll) return resObj;

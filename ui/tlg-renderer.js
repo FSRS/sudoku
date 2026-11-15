@@ -236,6 +236,20 @@ const TLGRenderer = (() => {
   }
 
   function drawMarks(layer, model) {
+    for (const m of model.restored || []) {
+      const { x, y } = center(m);
+      el(
+        "circle",
+        {
+          cx: x,
+          cy: y,
+          r: 1.3,
+          class: "tlg-restored-mark",
+          style: `fill: none; stroke: ${markColorPalette[0]}; stroke-width: 0.13125rem; vector-effect: non-scaling-stroke`,
+        },
+        layer,
+      );
+    }
     for (const m of model.aurMarks) {
       const { x, y } = center(m);
       const cx = x + 1.3;
@@ -328,6 +342,7 @@ const TLGRenderer = (() => {
     aur: "#db2777",
     vset: "#0d9488",
     node: "#6b7280",
+    restored: "#ef4444",
   };
 
   function canvasPath(ctx, members, kind, coord) {
@@ -426,6 +441,14 @@ const TLGRenderer = (() => {
 
   function renderCanvasBadges(ctx, model, coord, unit) {
     ctx.save();
+    ctx.lineWidth = EXPORT_X_WIDTH;
+    ctx.strokeStyle = EXPORT_COLORS.restored;
+    for (const m of model.restored || []) {
+      const { x, y } = coord(m);
+      ctx.beginPath();
+      ctx.arc(x, y, 1.3 * unit, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.lineCap = "round";
     for (const m of model.aurMarks) {
       const { x, y } = coord(m);

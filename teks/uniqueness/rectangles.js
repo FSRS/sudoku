@@ -189,6 +189,25 @@ Object.assign(techniques, {
         if (pencils[r][c].has(d1)) removals.push({ r, c, num: d1 });
         if (pencils[r][c].has(d2)) removals.push({ r, c, num: d2 });
         if (removals.length > 0) {
+          // An avoidable rectangle's open corner holds one base digit, so
+          // the house set of that digit stands in for the cell: a cell set
+          // would also rule out the base digit that was put back.
+          const logic = techniques._tlgBuilder(removals);
+          logic.deadly(
+            cells.map(([cr, cc]) => cr * 9 + cc),
+            [d1, d2],
+            pencils,
+          );
+          for (const [cr, cc] of cells) {
+            if (!avoidable || cr !== r || cc !== c) {
+              logic.truth({ kind: "cell", cell: cr * 9 + cc });
+            }
+          }
+          if (avoidable) {
+            for (const { num } of removals) {
+              logic.truth({ kind: "row", index: r, digit: num });
+            }
+          }
           const resultObj = {
             change: true,
             type: "remove",
@@ -210,6 +229,7 @@ Object.assign(techniques, {
               _getUniqueRemovals(removals),
               { placedCells },
             ),
+            tlg: logic.logic(),
           };
           if (!findAll) return resultObj;
           results.push(resultObj);
@@ -253,6 +273,19 @@ Object.assign(techniques, {
               }
             }
             if (removals.length > 0) {
+              const logic = techniques._tlgDeadlyCells(
+                cells,
+                [d1, d2],
+                pencils,
+                removals,
+              );
+              const guardians = extraCells.map(([r, c]) => [
+                r * 9 + c,
+                commonExtraDigit,
+              ]);
+              for (const target of logic.targets) {
+                logic.connect([target], guardians);
+              }
               const resultObj = {
                 change: true,
                 type: "remove",
@@ -276,6 +309,7 @@ Object.assign(techniques, {
                   _getUniqueRemovals(removals),
                   { placedCells },
                 ),
+                tlg: logic.logic(),
               };
 
               if (!findAll) return resultObj;
@@ -366,6 +400,18 @@ Object.assign(techniques, {
                 unit.type === "box"
                   ? formatBP(res.chosen, unit.idx)
                   : formatRC(res.chosen);
+              const logic = techniques._tlgDeadlyCells(
+                cells,
+                [d1, d2],
+                pencils,
+                res.removals,
+              );
+              for (const [r, c] of res.chosen) {
+                logic.truth({ kind: "cell", cell: r * 9 + c });
+              }
+              for (const digit of res.union) {
+                logic.linkSet({ kind: unit.type, index: unit.idx, digit });
+              }
               const resultObj = {
                 change: true,
                 type: "remove",
@@ -400,6 +446,7 @@ Object.assign(techniques, {
                     placedCells,
                   },
                 ), // Changed union to res.unions
+                tlg: logic.logic(),
               };
               if (!findAll) return resultObj;
               results.push(resultObj);
@@ -475,6 +522,20 @@ Object.assign(techniques, {
                     _getUniqueRemovals(removals),
                     { restrictedDigit: u, e1: [e1r, e1c], e2: [e2r, e2c] },
                   ),
+                  tlg: (() => {
+                    const logic = techniques._tlgDeadlyCells(
+                      cells,
+                      [d1, d2],
+                      pencils,
+                      removals,
+                    );
+                    logic.truth(
+                      e1r === e2r
+                        ? { kind: "row", index: e1r, digit: u }
+                        : { kind: "col", index: e1c, digit: u },
+                    );
+                    return logic.logic();
+                  })(),
                 };
                 if (!findAll) return resultObj;
                 results.push(resultObj);
@@ -532,6 +593,19 @@ Object.assign(techniques, {
                     _getUniqueRemovals(removals),
                     { restrictedDigit: u },
                   ),
+                  tlg: (() => {
+                    const logic = techniques._tlgDeadlyCells(
+                      cells,
+                      [d1, d2],
+                      pencils,
+                      removals,
+                    );
+                    for (const [row, col] of [cells[0], cells[3]]) {
+                      logic.truth({ kind: "row", index: row, digit: u });
+                      logic.linkSet({ kind: "col", index: col, digit: u });
+                    }
+                    return logic.logic();
+                  })(),
                 };
                 if (!findAll) return resultObj;
                 results.push(resultObj);
@@ -553,6 +627,22 @@ Object.assign(techniques, {
       const placedCells = avoidable
         ? proof.cells.filter(([r, c]) => filledValues[r * 9 + c] !== 0)
         : [];
+      const logic = techniques._tlgDeadlyCells(
+        proof.cells,
+        [proof.d1, proof.d2],
+        pencils,
+        removals,
+      );
+      const wingIds = proof.branches.map(([r, c]) => r * 9 + c);
+      for (const id of wingIds) logic.truth({ kind: "cell", cell: id });
+      proof.extraDigits.forEach((digit, index) => {
+        const guardians = proof.cells
+          .filter(([r, c]) => pencils[r][c].has(digit))
+          .map(([r, c]) => [r * 9 + c, digit]);
+        logic.connect([[wingIds[index], digit]], guardians);
+      });
+      const pivots = wingIds.map((id) => [id, proof.pivotDigit]);
+      for (const target of logic.targets) logic.connect([target], pivots);
       const resultObj = {
         change: true,
         type: "remove",
@@ -586,6 +676,7 @@ Object.assign(techniques, {
           removals,
           placedCells,
         ),
+        tlg: logic.logic(),
       };
       if (!findAll) return resultObj;
       results.push(resultObj);
@@ -702,6 +793,7 @@ Object.assign(techniques, {
       const strongLinks = [];
       const visualLinks = [];
       const visualLinkKeys = new Set();
+      const tlgPairs = [];
 
       const addRemoval = (r, c, num) => {
         if (
@@ -794,6 +886,7 @@ Object.assign(techniques, {
           // Preserve the existing visual strong-link structure.
           addVisualLink(linkDigit, "row", or, fc, oc);
           addVisualLink(linkDigit, "col", oc, fr, or);
+          tlgPairs.push({ fr, fc, or, oc, linkDigit, elimDigit });
         }
       }
 
@@ -805,6 +898,24 @@ Object.assign(techniques, {
           const guardiansStr = getGuardiansStr(extraCells, d1, d2, pencils);
           const bivalueStr = getBivalueStr(bivalueCells);
           const uniqueLinks = Array.from(new Set(strongLinks)).join(",");
+          const logic = techniques._tlgBuilder(uniqueRemovals);
+          const [first] = tlgPairs;
+          logic.deadly(
+            cells.map(([r, c]) => r * 9 + c),
+            [d1, d2],
+            pencils,
+            [
+              (first.or * 9 + first.oc) * 9 + first.elimDigit - 1,
+              (first.fr * 9 + first.fc) * 9 + first.linkDigit - 1,
+            ],
+          );
+          for (const { fr, fc, or, oc, linkDigit } of tlgPairs) {
+            logic.truth({ kind: "cell", cell: fr * 9 + fc });
+            logic.truth({ kind: "cell", cell: or * 9 + oc });
+            logic.truth({ kind: "row", index: or, digit: linkDigit });
+            logic.truth({ kind: "col", index: oc, digit: linkDigit });
+            logic.linkSet({ kind: "col", index: fc, digit: linkDigit });
+          }
 
           const resultObj = {
             change: true,
@@ -856,6 +967,7 @@ Object.assign(techniques, {
               })),
               links: visualLinks,
             },
+            tlg: logic.logic(),
           };
 
           if (!findAll) return resultObj;

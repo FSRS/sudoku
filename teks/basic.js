@@ -90,6 +90,7 @@ Object.assign(techniques, {
           t("teks_FH_row", r + 1),
           "row",
           r,
+          pencils,
         );
         if (!findAll) return res;
         results.push(res);
@@ -119,6 +120,7 @@ Object.assign(techniques, {
           t("teks_FH_col", c + 1),
           "col",
           c,
+          pencils,
         );
         if (!findAll) return res;
         results.push(res);
@@ -154,6 +156,7 @@ Object.assign(techniques, {
           t("teks_FH_box", b + 1),
           "box",
           b,
+          pencils,
         );
         if (!findAll) return res;
         results.push(res);
@@ -163,7 +166,15 @@ Object.assign(techniques, {
   },
 
   // Helper to calculate missing digit and format the return object
-  _resolveFullHouse: (r, c, solvedMask, unitName, unitType, unitIndex) => {
+  _resolveFullHouse: (
+    r,
+    c,
+    solvedMask,
+    unitName,
+    unitType,
+    unitIndex,
+    pencils,
+  ) => {
     let missingNum = 0;
     // Find which bit is 0 in the mask (111111111)
     for (let d = 1; d <= 9; d++) {
@@ -196,8 +207,37 @@ Object.assign(techniques, {
           .map(([ur, uc]) => ({ r: ur, c: uc, color: 7 })),
         candidateColors: [{ r, c, num: missingNum, color: 3 }],
       },
+      tlg: techniques._tlgSingle(
+        { kind: unitType, index: unitIndex, digit: missingNum },
+        r,
+        c,
+        missingNum,
+        pencils,
+      ),
     };
   },
+
+  _tlgHouseCands: (kind, index, digit, pencils) =>
+    UNIT_CELLS[UNIT_OFFSET[kind] + index]
+      .filter(([r, c]) => pencils[r][c] && pencils[r][c].has(digit))
+      .map(([r, c]) => [r * 9 + c, digit]),
+
+  _tlgSingle: (truth, r, c, num, pencils) => {
+    const id = r * 9 + c;
+    const links = [];
+    if (pencils[r][c].size > 1) links.push({ kind: "cell", cell: id });
+    for (const kind of ["row", "col", "box"]) {
+      const index = HOUSE_OF[kind](id);
+      if (techniques._tlgHouseCands(kind, index, num, pencils).length > 1) {
+        links.push({ kind, index, digit: num });
+      }
+    }
+    return techniques._tlgLogic([truth], links);
+  },
+
+  _tlgNeeded: (set, cands, targets) =>
+    cands.filter((cand) => techniques._tlgSetHas(set, cand)).length > 1 ||
+    targets.some((cand) => techniques._tlgSetHas(set, cand)),
 
   nakedSingle: (board, pencils, findAll = false) => {
     const results = [];
@@ -221,6 +261,13 @@ Object.assign(techniques, {
               cellColors: [{ r, c, color: 7 }],
               candidateColors: [{ r, c, num, color: 3 }],
             },
+            tlg: techniques._tlgSingle(
+              { kind: "cell", cell: r * 9 + c },
+              r,
+              c,
+              num,
+              pencils,
+            ),
           };
           if (!findAll) return res;
           results.push(res);
@@ -286,6 +333,13 @@ Object.assign(techniques, {
                 ],
                 candidateColors: [{ r, c, num, color: 3 }],
               },
+              tlg: techniques._tlgSingle(
+                { kind: name, index: i, digit: num },
+                r,
+                c,
+                num,
+                pencils,
+              ),
             };
             if (!findAll) return res;
             results.push(res);
@@ -391,6 +445,29 @@ Object.assign(techniques, {
                   ? t("teks_unit_row")
                   : t("teks_unit_col");
 
+                const logic = techniques._tlgBuilder(removals);
+                const subsetCands = [];
+                for (const [r, c] of combo) {
+                  const id = r * 9 + c;
+                  logic.truth({ kind: "cell", cell: id });
+                  for (const num of union) {
+                    if (pencils[r][c].has(num)) subsetCands.push([id, num]);
+                  }
+                }
+                const lineKind = isRow ? "row" : "col";
+                for (const digit of union) {
+                  for (const set of [
+                    { kind: lineKind, index: line_idx, digit },
+                    { kind: "box", index: b, digit },
+                  ]) {
+                    if (
+                      techniques._tlgNeeded(set, subsetCands, logic.targets)
+                    ) {
+                      logic.linkSet(set);
+                    }
+                  }
+                }
+
                 const res = {
                   change: true,
                   type: "remove",
@@ -428,6 +505,7 @@ Object.assign(techniques, {
                       color: 0,
                     })),
                   },
+                  tlg: logic.logic(),
                 };
                 if (!findAll) return res;
                 results.push(res);
@@ -579,6 +657,12 @@ Object.assign(techniques, {
             const [color8Cells, color7Cells] = is_pointing
               ? [lineCells, boxCells]
               : [boxCells, lineCells];
+            const boxSet = { kind: "box", index: boxIdx, digit: num };
+            const lineSet = {
+              kind: isRow ? "row" : "col",
+              index: lineIdx,
+              digit: num,
+            };
 
             const res = {
               change: true,
@@ -615,6 +699,9 @@ Object.assign(techniques, {
                   color: 0,
                 })),
               },
+              tlg: is_pointing
+                ? techniques._tlgLogic([boxSet], [lineSet])
+                : techniques._tlgLogic([lineSet], [boxSet]),
             };
             if (!findAll) return res;
             results.push(res);
@@ -710,6 +797,32 @@ Object.assign(techniques, {
                 cellStr = `r${rows}c${cols}`;
               }
 
+              const logic = techniques._tlgBuilder(removals);
+              const subsetCands = [];
+              for (const [r, c] of cellGroup) {
+                const id = r * 9 + c;
+                logic.truth({ kind: "cell", cell: id });
+                for (const num of union) {
+                  if (pencils[r][c].has(num)) subsetCands.push([id, num]);
+                }
+              }
+              for (const digit of union) {
+                const set = { kind: name, index: i, digit };
+                if (techniques._tlgNeeded(set, subsetCands, logic.targets)) {
+                  logic.linkSet(set);
+                }
+                for (const cUnit of commonUnits) {
+                  const other = { kind: cUnit.type, index: cUnit.idx, digit };
+                  if (
+                    logic.targets.some((cand) =>
+                      techniques._tlgSetHas(other, cand),
+                    )
+                  ) {
+                    logic.linkSet(other);
+                  }
+                }
+              }
+
               const res = {
                 change: true,
                 type: "remove",
@@ -750,6 +863,7 @@ Object.assign(techniques, {
                     color: 0,
                   })),
                 },
+                tlg: logic.logic(),
               };
               if (!findAll) return res;
               results.push(res);
@@ -839,6 +953,21 @@ Object.assign(techniques, {
               // Extract and sort the digits for the string
               const digitsStr = [...numGroup].sort().join("");
 
+              const logic = techniques._tlgBuilder(removals);
+              const subsetCands = [];
+              for (const num of numGroup) {
+                logic.truth({ kind: name, index: i, digit: num });
+                for (const [r, c] of candMap.get(num)) {
+                  subsetCands.push([r * 9 + c, num]);
+                }
+              }
+              for (const [r, c] of cells) {
+                const set = { kind: "cell", cell: r * 9 + c };
+                if (techniques._tlgNeeded(set, subsetCands, logic.targets)) {
+                  logic.linkSet(set);
+                }
+              }
+
               const res = {
                 change: true,
                 type: "remove",
@@ -875,6 +1004,7 @@ Object.assign(techniques, {
                     color: 0,
                   })),
                 },
+                tlg: logic.logic(),
               };
               if (!findAll) return res;
               results.push(res);
@@ -996,6 +1126,18 @@ Object.assign(techniques, {
                 })),
               ],
             },
+            tlg: techniques._tlgLogic(
+              lines.map(([index]) => ({
+                kind: isRowBased ? "row" : "col",
+                index,
+                digit: num,
+              })),
+              coverOrder.map((index) => ({
+                kind: isRowBased ? "col" : "row",
+                index,
+                digit: num,
+              })),
+            ),
           };
           if (!findAll) return res;
           results.push(res);
@@ -1221,6 +1363,21 @@ Object.assign(techniques, {
                 })),
               ],
             },
+            tlg: techniques._tlgLogic(
+              baseLines.map(({ line }) => ({
+                kind: isRowBased ? "row" : "col",
+                index: line,
+                digit: num,
+              })),
+              [
+                ...coverBaseIndices.map((index) => ({
+                  kind: isRowBased ? "col" : "row",
+                  index,
+                  digit: num,
+                })),
+                { kind: "box", index: finBoxIndex, digit: num },
+              ],
+            ),
           };
           if (!findAll) return resultObj;
           results.push(resultObj);

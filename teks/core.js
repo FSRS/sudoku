@@ -68,6 +68,12 @@ const bits9 = (m) => {
 const boxOf = (r, c) => ((r / 3) | 0) * 3 + ((c / 3) | 0);
 const pointOf = (r, c) => (r % 3) * 3 + (c % 3);
 
+const HOUSE_OF = {
+  row: (id) => (id / 9) | 0,
+  col: (id) => id % 9,
+  box: (id) => boxOf((id / 9) | 0, id % 9),
+};
+
 const buildGrid = (pencils) => {
   const cand = new Uint16Array(81);
   const row = new Uint16Array(81);
@@ -540,5 +546,150 @@ Object.assign(techniques, {
       }
     }
     return ids;
+  },
+
+  _tlgSetKey: (set) =>
+    set.kind === "cell"
+      ? "cell" + set.cell
+      : set.kind + set.index + "," + set.digit,
+
+  _tlgSetHas: (set, [id, digit]) =>
+    set.kind === "cell"
+      ? set.cell === id
+      : set.digit === digit && HOUSE_OF[set.kind](id) === set.index,
+
+  _tlgCommonSets: (cands) => {
+    const [id0, digit] = cands[0];
+    if (cands.every(([id]) => id === id0)) {
+      return [{ kind: "cell", cell: id0 }];
+    }
+    if (!cands.every(([, d]) => d === digit)) return [];
+    const sets = [];
+    for (const kind of ["row", "col", "box"]) {
+      const index = HOUSE_OF[kind](id0);
+      if (cands.every(([id]) => HOUSE_OF[kind](id) === index)) {
+        sets.push({ kind, index, digit });
+      }
+    }
+    return sets;
+  },
+
+  _tlgExactHouse: (ids, digit, pencils) => {
+    for (const kind of ["row", "col", "box"]) {
+      const index = HOUSE_OF[kind](ids[0]);
+      if (!ids.every((id) => HOUSE_OF[kind](id) === index)) continue;
+      const holders = UNIT_CELLS[UNIT_OFFSET[kind] + index].filter(
+        ([r, c]) => pencils[r][c] && pencils[r][c].has(digit),
+      );
+      if (holders.length === ids.length) return { kind, index, digit };
+    }
+    return null;
+  },
+
+  _tlgLogic: (truths, links) => {
+    const seen = new Set();
+    const unique = (sets) =>
+      sets.filter((set) => {
+        const key = techniques._tlgSetKey(set);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    return { truths: unique(truths), links: unique(links) };
+  },
+
+  _tlgBuilder: (removals = []) => {
+    const setKey = techniques._tlgSetKey;
+    const setHas = techniques._tlgSetHas;
+    const targets = removals.map(({ r, c, num }) => [r * 9 + c, num]);
+    const truths = [];
+    const links = [];
+    const marks = [];
+    const restored = [];
+    const drawn = new Set();
+    const add = (list, set) => {
+      if (!set) return;
+      list.push(set);
+      drawn.add(setKey(set));
+    };
+    const link = (cands, carries = () => true) => {
+      const options = techniques._tlgCommonSets(cands);
+      if (options.length === 0) return false;
+      if (options.some((set) => drawn.has(setKey(set)))) return true;
+      const score = (set) =>
+        targets.filter((cand) => setHas(set, cand) && carries(cand)).length;
+      let best = options[0];
+      let bestScore = options.length > 1 ? score(best) : 0;
+      for (let i = 1; i < options.length; i++) {
+        const optionScore = score(options[i]);
+        if (optionScore > bestScore) {
+          best = options[i];
+          bestScore = optionScore;
+        }
+      }
+      add(links, best);
+      return true;
+    };
+    const connect = (a, b, carries) => {
+      if (link([...a, ...b], carries)) return;
+      if (a.length > 1) {
+        for (const cand of a) connect([cand], b, carries);
+      } else if (b.length > 1) {
+        for (const cand of b) connect(a, [cand], carries);
+      }
+    };
+    return {
+      targets,
+      truth: (set) => add(truths, set),
+      linkSet: (set) => add(links, set),
+      link,
+      connect,
+      holds: (cands) =>
+        [...truths, ...links].some((set) =>
+          cands.every((cand) => setHas(set, cand)),
+        ),
+      // The TLG engine takes a deadly pattern only when every candidate of
+      // it exists, so the ones the position lacks are listed to be put back.
+      // A rectangle is marked on two opposite corners; a larger pattern on
+      // every candidate.
+      deadly: (ids, digits, pencils, corners) => {
+        const pattern = [];
+        for (const id of ids) {
+          for (const digit of digits) {
+            const cand = id * 9 + digit - 1;
+            pattern.push(cand);
+            if (!pencils[Math.floor(id / 9)][id % 9].has(digit)) {
+              restored.push(cand);
+            }
+          }
+        }
+        if (ids.length !== 4 || digits.length !== 2) {
+          marks.push(...pattern);
+          return;
+        }
+        marks.push(
+          ...(corners || [
+            Math.min(...ids) * 9 + Math.min(...digits) - 1,
+            Math.max(...ids) * 9 + Math.max(...digits) - 1,
+          ]),
+        );
+      },
+      logic: () => {
+        const logic = techniques._tlgLogic(truths, links);
+        if (marks.length > 0) {
+          logic.aurMarks = marks;
+          logic.restored = restored;
+        }
+        return logic;
+      },
+    };
+  },
+
+  _tlgDeadlyCells: (cells, digits, pencils, removals) => {
+    const logic = techniques._tlgBuilder(removals);
+    const ids = cells.map(([r, c]) => r * 9 + c);
+    logic.deadly(ids, digits, pencils);
+    for (const id of ids) logic.truth({ kind: "cell", cell: id });
+    return logic;
   },
 });

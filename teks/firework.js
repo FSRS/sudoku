@@ -258,6 +258,30 @@ Object.assign(techniques, {
                     const pair1Visuals = buildPairVisuals(pivot1, pair1Mask, 5);
                     const pair2Visuals = buildPairVisuals(pivot2, pair2Mask, 6);
                     const resultEliminations = [...eliminations];
+                    const tlg = techniques._tlgBuilder(resultEliminations);
+                    const addIfHeld = (add, kind, index, digit) => {
+                      const held = techniques
+                        ._getUnitCells(kind, index)
+                        .some(
+                          ([r, c]) =>
+                            board[r][c] === 0 && pencils[r][c].has(digit),
+                        );
+                      if (held) add({ kind, index, digit });
+                    };
+                    for (const [[r, c], mask] of [
+                      [pivot1, pair1Mask],
+                      [pivot2, pair2Mask],
+                    ]) {
+                      const box = boxIndex(r, c);
+                      for (const digit of maskToDigits(mask)) {
+                        addIfHeld(tlg.truth, "row", r, digit);
+                        addIfHeld(tlg.truth, "col", c, digit);
+                        addIfHeld(tlg.linkSet, "box", box, digit);
+                      }
+                    }
+                    for (const [r, c] of [pivot1, pivot2, other1, other2]) {
+                      tlg.linkSet({ kind: "cell", cell: r * 9 + c });
+                    }
                     const res = {
                       change: true,
                       type: "remove",
@@ -301,6 +325,7 @@ Object.assign(techniques, {
                           }),
                         ),
                       },
+                      tlg: tlg.logic(),
                     };
                     if (!findAll) return res;
                     results.push(res);
@@ -541,6 +566,32 @@ Object.assign(techniques, {
                                     ).values(),
                                   ];
 
+                                  const tlg =
+                                    techniques._tlgBuilder(eliminations);
+                                  for (const digit of ahsDigitArr) {
+                                    for (const [kind, index] of [
+                                      ["row", rIdx],
+                                      ["col", cIdx],
+                                    ]) {
+                                      tlg.truth({ kind, index, digit });
+                                    }
+                                    tlg.linkSet({
+                                      kind: "box",
+                                      index: boxIdx,
+                                      digit,
+                                    });
+                                  }
+                                  for (const [r, c] of [
+                                    rowExtra,
+                                    colExtra,
+                                    intersect,
+                                  ]) {
+                                    tlg.linkSet({
+                                      kind: "cell",
+                                      cell: r * 9 + c,
+                                    });
+                                  }
+
                                   const resultObj = {
                                     change: true,
                                     type: "remove",
@@ -590,6 +641,7 @@ Object.assign(techniques, {
                                         }),
                                       ),
                                     },
+                                    tlg: tlg.logic(),
                                   };
                                   if (!findAll) return resultObj;
                                   results.push(resultObj);

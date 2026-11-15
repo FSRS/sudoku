@@ -27,6 +27,7 @@ const serializeResult = (result) => ({
     alses: result.blossom.alses.map((als) => ({ cells: als.cells })),
     rank: result.blossom.rank,
   },
+  tlg: result.tlg,
 });
 
 self.onmessage = ({ data }) => {

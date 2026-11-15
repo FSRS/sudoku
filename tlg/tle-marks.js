@@ -46,7 +46,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
           st.setMask[324 * NW + (c >> 5)] |= 1 << (c & 31);
         }
       }
-      if ((marks[c] & 1) && aurMarks.length < 64) aurMarks.push(c);
+      if (marks[c] & 1) aurMarks.push(c);
     }
     st.nv = nv;
     st.extraMembers = members;
@@ -147,10 +147,7 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     for (i = 0; i < n; i++) {
       for (q = 0; q < 4; q++) {
         s = cSets[marks[i] * 4 + q];
-        if (cntIn[s] === 0) {
-          if (L.length === 200) return;
-          L.push(s);
-        }
+        if (cntIn[s] === 0) L.push(s);
         cntIn[s]++;
       }
     }
@@ -332,62 +329,157 @@ var TLE = globalThis.TLE || (globalThis.TLE = {});
     return out;
   }
 
-  TLE.permFilter = function (st) {
+  TLE.aurOf = function (st, s) {
+    var hit = -1;
+    for (var a = 0; a < st.aurList.length; a++) {
+      var m = st.aurList[a].mask;
+      for (var w = 0; w < NW; w++) {
+        if (st.setMask[s * NW + w] & m[w]) {
+          if (hit >= 0) return -2;
+          hit = a;
+          break;
+        }
+      }
+    }
+    return hit;
+  };
+
+  TLE.permFilter = function (st, lone) {
     var useAur = st.aurList.length > 0 && st.applyAur;
     var useExtra = st.applyMode;
     if (!useAur && !useExtra) return null;
     var W = st.solW;
+    var tcLocal = st.tcLocal;
+    var nA = useAur ? st.aurList.length : 0;
     var aurLoc = [];
     var thr = [];
-    if (useAur) {
-      for (var k = 0; k < st.aurList.length; k++) {
-        aurLoc.push(localMask(st, st.aurList[k].mask));
-        thr.push(st.aurList[k].thr);
-      }
-      st.failSols = new Uint32Array(16 * W);
+    var ways = [];
+    var floor = new Int32Array(nA);
+    var low = new Int32Array(nA).fill(0x7fffffff);
+    var seen = new Int32Array(nA);
+    var free = 1;
+    var sets = [];
+    var a, d, k;
+    for (a = 0; a < nA; a++) {
+      aurLoc.push(localMask(st, st.aurList[a].mask));
+      thr.push(st.aurList[a].thr);
+      ways.push([1]);
     }
+    for (var i = 0; i < lone.length; i++) {
+      var s = lone[i];
+      a = TLE.aurOf(st, s);
+      var cands = [];
+      var inside = [];
+      var nIn = 0;
+      for (k = st.setOff[s]; k < st.setOff[s] + st.setLen[s]; k++) {
+        var li = tcLocal[st.setList[k]];
+        var hit = a >= 0 && (aurLoc[a][li >> 5] & (1 << (li & 31))) !== 0 ? 1 : 0;
+        cands.push(li);
+        inside.push(hit);
+        nIn += hit;
+      }
+      var all = nIn === cands.length ? 1 : 0;
+      sets.push({ aur: a, cands: cands, inside: inside, min: all });
+      if (a < 0) {
+        free *= cands.length;
+        continue;
+      }
+      var g = ways[a];
+      var h = new Array(g.length + 1).fill(0);
+      for (k = 0; k < g.length; k++) {
+        h[k] += g[k] * (cands.length - nIn);
+        h[k + 1] += g[k] * nIn;
+      }
+      ways[a] = h;
+      floor[a] += all;
+    }
+    var upTo = [];
+    var above = [];
+    for (a = 0; a < nA; a++) {
+      var n = ways[a].length;
+      var lo = new Array(n + 1).fill(0);
+      var hi = new Array(n + 1).fill(0);
+      for (d = 0; d < n; d++) lo[d + 1] = lo[d] + ways[a][d];
+      for (d = n - 1; d >= 0; d--) hi[d] = hi[d + 1] + ways[a][d];
+      upTo.push(lo);
+      above.push(hi);
+    }
+    if (sets.length > 0) st.lone = { sets: sets, aurLoc: aurLoc, thr: thr, floor: floor, low: low };
+    if (useAur) st.failSols = new Uint32Array(16 * W);
     var vLoc = useExtra ? localMask(st, st.setMask.subarray(324 * NW, 325 * NW)) : null;
     var N = st.vN;
-    return function (st2, buf, base) {
+    var fails = 0;
+    return function (buf, base) {
       var q;
-      if (useAur) {
-        for (var a = 0; a < aurLoc.length; a++) {
-          var um = aurLoc[a];
-          var n = 0;
-          for (q = 0; q < W; q++) n += bitCount(buf[base + q] & um[q]);
-          if (n > thr[a]) {
-            if (st.aurFailed < 1000) {
-              var need = (st.aurFailed + 1) * W;
-              if (st.failSols.length < need) {
-                var nb = new Uint32Array(Math.max(need, st.failSols.length * 2));
-                nb.set(st.failSols);
-                st.failSols = nb;
-              }
-              for (q = 0; q < W; q++) st.failSols[st.aurFailed * W + q] = buf[base + q];
-              st.aurFailed++;
-            }
-            return false;
-          }
-        }
+      var ok = free;
+      var bad = 0;
+      for (var a = 0; a < nA; a++) {
+        var um = aurLoc[a];
+        var n = 0;
+        for (q = 0; q < W; q++) n += bitCount(buf[base + q] & um[q]);
+        seen[a] = n;
+        var cut = Math.min(Math.max(thr[a] - n + 1, 0), ways[a].length);
+        bad = bad * upTo[a][ways[a].length] + ok * above[a][cut];
+        ok *= upTo[a][cut];
       }
-      if (useExtra) {
+      fails += bad;
+      st.aurFailed = fails < 1000 ? fails : 1000;
+      var pass = ok > 0;
+      if (pass && useExtra) {
         var nw = 0;
         for (q = 0; q < W; q++) nw += bitCount(buf[base + q] & vLoc[q]);
-        if (N === 1 ? nw === 0 : nw < N) return false;
+        if (N === 1 ? nw === 0 : nw < N) pass = false;
       }
-      return true;
+      if (!pass) {
+        if (bad > 0 && st.nfail < 1000) {
+          var need = (st.nfail + 1) * W;
+          if (st.failSols.length < need) {
+            var nb = new Uint32Array(Math.max(need, st.failSols.length * 2));
+            nb.set(st.failSols);
+            st.failSols = nb;
+          }
+          for (q = 0; q < W; q++) st.failSols[st.nfail * W + q] = buf[base + q];
+          st.nfail++;
+        }
+        return 0;
+      }
+      for (a = 0; a < nA; a++) if (seen[a] < low[a]) low[a] = seen[a];
+      return ok;
     };
+  };
+
+  TLE.loneMasks = function (st, open) {
+    var lone = st.lone;
+    if (lone === null) return null;
+    var W = st.solW;
+    var uni = new Uint32Array(W);
+    var all = new Uint32Array(W);
+    for (var i = 0; i < lone.sets.length; i++) {
+      var set = lone.sets[i];
+      var a = set.aur;
+      var room = open || a < 0 ? 1 : lone.thr[a] - lone.low[a] - lone.floor[a] + set.min;
+      var alive = -1;
+      var count = 0;
+      for (var k = 0; k < set.cands.length; k++) {
+        if (set.inside[k] > room) continue;
+        alive = set.cands[k];
+        uni[alive >> 5] |= 1 << (alive & 31);
+        count++;
+      }
+      if (count === 1) all[alive >> 5] |= 1 << (alive & 31);
+    }
+    return [uni, all];
   };
 
   TLE.aurPreMeasure = function (st) {
     if (!(st.aurList.length > 0 && st.applyAur && st.aurFailed > 0)) return null;
     var W = st.solW;
-    var n = st.nsol + st.aurFailed;
+    var n = st.nsol + st.nfail;
     var ext = new Uint32Array(n * W);
     ext.set(st.sols.subarray(0, st.nsol * W));
-    ext.set(st.failSols.subarray(0, st.aurFailed * W), st.nsol * W);
+    ext.set(st.failSols.subarray(0, st.nfail * W), st.nsol * W);
     var saveKz = st.kz.slice();
-    var r = TLE.sweepCounts(st, ext, n, false);
+    var r = TLE.sweepCounts(st, ext, n, false, TLE.loneMasks(st, true));
     st.kz.set(saveKz);
     return r;
   };

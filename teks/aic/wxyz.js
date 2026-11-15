@@ -234,6 +234,25 @@
         color: 0,
       }));
 
+      const tlg = techniques._tlgBuilder(removals);
+      const alsCands = (d) => holders(als, d).map((id) => [id, d]);
+      tlg.truth({ kind: "cell", cell: a });
+      for (const id of als.cells) tlg.truth({ kind: "cell", cell: id });
+      const commons = ring ? [x, z] : [x];
+      for (const d of commons) tlg.connect([[a, d]], alsCands(d));
+      for (let d = 1; d <= 9; d++) {
+        if ((als.mask & (1 << d)) !== 0 && alsCands(d).length > 1) {
+          tlg.link(alsCands(d));
+        }
+      }
+      for (const target of tlg.targets) {
+        const d = target[1];
+        tlg.connect(
+          [target],
+          d === x || d === z ? [[a, d], ...alsCands(d)] : alsCands(d),
+        );
+      }
+
       const links = [];
       const closestCells = (nodeA, nodeB) => {
         let minD = Infinity;
@@ -307,6 +326,7 @@
           candidateMarks,
           links,
         },
+        tlg: tlg.logic(),
       };
     };
 

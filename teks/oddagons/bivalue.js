@@ -174,6 +174,23 @@ Object.assign(techniques, {
         .join(",");
     };
 
+    const loopTlg = (loop, d1, d2, removals) => {
+      const tlg = techniques._tlgBuilder(removals);
+      for (const id of loop) tlg.truth({ kind: "cell", cell: id });
+      loop.forEach((id, i) => {
+        const next = loop[(i + 1) % loop.length];
+        tlg.link([
+          [id, d1],
+          [next, d1],
+        ]);
+        tlg.link([
+          [id, d2],
+          [next, d2],
+        ]);
+      });
+      return tlg;
+    };
+
     for (let d1 = 1; d1 <= 8; d1++) {
       for (let d2 = d1 + 1; d2 <= 9; d2++) {
         const cellsContainingBothTwoDigits = [];
@@ -375,6 +392,11 @@ Object.assign(techniques, {
             }
 
             if (elimMap.length > 0) {
+              const tlg = loopTlg(loop, d1, d2, elimMap);
+              const guardians = extraCells.map((id) => [id, extraDigit]);
+              for (const { r, c } of elimMap) {
+                tlg.connect([[r * 9 + c, extraDigit]], guardians);
+              }
               return {
                 change: true,
                 type: "remove",
@@ -398,6 +420,7 @@ Object.assign(techniques, {
                   elimMap,
                   pencils,
                 ),
+                tlg: tlg.logic(),
               };
             }
             return null;
@@ -508,6 +531,15 @@ Object.assign(techniques, {
                     const subsetStr = combo
                       .map((id) => `r${Math.floor(id / 9) + 1}c${(id % 9) + 1}`)
                       .join("-");
+                    const tlg = loopTlg(loop, d1, d2, elimMap);
+                    for (const id of combo) {
+                      tlg.truth({ kind: "cell", cell: id });
+                    }
+                    const kind = ["row", "col", "box"][(house / 9) | 0];
+                    for (let digit = 1; digit <= 9; digit++) {
+                      if ((comboMask & (1 << (digit - 1))) === 0) continue;
+                      tlg.linkSet({ kind, index: house % 9, digit });
+                    }
                     const result = {
                       change: true,
                       type: "remove",
@@ -534,6 +566,7 @@ Object.assign(techniques, {
                         pencils,
                         combo,
                       ),
+                      tlg: tlg.logic(),
                     };
                     if (!findAll) return result;
                     type3Results.push(result);
@@ -646,6 +679,22 @@ Object.assign(techniques, {
             }
 
             if (elims.length > 0) {
+              const tlg = loopTlg(loop, d1, d2, elims);
+              const extraDigit = trailingZeroCount(mask) + 1;
+              tlg.link([
+                [c1, extraDigit],
+                [c2, extraDigit],
+              ]);
+              for (const { r, c, num } of elims) {
+                const id = r * 9 + c;
+                const seen = [c1, c2, ...loopCellsCanSee].filter(
+                  (other) => other === c1 || other === c2 || seesId(id, other),
+                );
+                tlg.connect(
+                  [[id, num]],
+                  seen.map((other) => [other, num]),
+                );
+              }
               return {
                 change: true,
                 type: "remove",
@@ -669,6 +718,7 @@ Object.assign(techniques, {
                   elims,
                   pencils,
                 ),
+                tlg: tlg.logic(),
               };
             }
             return null;

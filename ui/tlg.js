@@ -850,6 +850,7 @@ const TLG = (() => {
         selected: set.id === selectedSetId,
       })),
       aurMarks: state.aurMarks.map(candOf).filter(candExists),
+      restored: stepRestored().map(candOf).filter(candExists),
       vset: state.vset.map(candOf).filter(candExists),
       ...alsVisuals(r),
       kills: r ? r.kills.map((k) => ({ ...candOf(k.cand), kind: k.kind })) : [],
@@ -927,6 +928,7 @@ const TLG = (() => {
       vset: css("vset"),
       perm: css("perm"),
       pending: css("pending"),
+      restored: markColorPalette[0],
       node: dark ? "#9ca3af" : "#6b7280",
       bg: transparent(grid.backgroundColor)
         ? getComputedStyle(document.body).backgroundColor
@@ -1159,11 +1161,10 @@ const TLG = (() => {
     const aurApply = $("tlg-aur-apply");
     aurApply.checked = state.options.applyAur;
     aurApply.disabled = !unique;
-    $("tlg-aur-info").textContent = t(
-      "tlg_aur_count",
-      r ? r.aur.count : 0,
-      state.aurMarks.length,
-    );
+    const restoredCount = stepRestored().length;
+    $("tlg-aur-info").textContent =
+      t("tlg_aur_count", r ? r.aur.count : 0, state.aurMarks.length) +
+      (restoredCount ? ` · ${t("tlg_aur_restored", restoredCount)}` : "");
     $("tlg-aur-reason").textContent = unique ? "" : t("tlg_aur_unavailable");
     $("tlg-aur-clear").disabled = state.aurMarks.length === 0;
 
@@ -1465,11 +1466,56 @@ const TLG = (() => {
     $("tlg-panel").classList.add("hidden");
   }
 
+  function stepLogic() {
+    const step = solverSteps[currentSolverStep];
+    return step && step.type === "step" ? step.result.tlg : null;
+  }
+
+  function stepLogicState() {
+    const st = emptyState();
+    const logic = stepLogic();
+    if (!logic) return st;
+    for (const [setRole, sets] of [
+      ["truth", logic.truths],
+      ["link", logic.links],
+    ]) {
+      for (const set of sets) {
+        st.sets.push({ ...set, role: setRole, id: st.nextId++ });
+      }
+    }
+    if (logic.aurMarks) {
+      st.aurMarks = [...logic.aurMarks];
+      st.options.applyAur = true;
+    }
+    return st;
+  }
+
+  // The engine takes a deadly pattern only when all its candidates exist,
+  // so a step's pattern is shown on a board that has the missing ones back.
+  function stepRestored() {
+    const logic = solverOn ? stepLogic() : null;
+    return (logic && logic.restored) || [];
+  }
+
+  function restoreStepCandidates() {
+    const restored = stepRestored();
+    for (const key of restored) {
+      const cand = candOf(key);
+      const cell = boardState[cand.r][cand.c];
+      if (cell.value !== 0) {
+        cell.value = 0;
+        cell.pencils.clear();
+      }
+      cell.pencils.add(cand.n);
+    }
+    return restored.length > 0;
+  }
+
   function toggleSolver() {
     if (!isSolverMode) return;
     solverOn = !solverOn;
     resetInputState();
-    state = emptyState();
+    state = solverOn ? stepLogicState() : emptyState();
     resetEdits();
     if (solverOn) solverStepIndex = currentSolverStep;
     else cancel();
@@ -1485,13 +1531,14 @@ const TLG = (() => {
       return;
     }
     if (currentSolverStep !== solverStepIndex) {
-      state = emptyState();
+      state = stepLogicState();
       solverStepIndex = currentSolverStep;
       selectedSetId = null;
       set3D(false);
       resetInputState();
       resetEdits();
     }
+    if (restoreStepCandidates()) renderBoard();
     scheduleEvaluate();
   }
 

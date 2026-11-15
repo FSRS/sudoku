@@ -705,7 +705,13 @@ function updateSolverToggleButton() {
   const tlgBtn = document.getElementById("tlg-toggle-btn");
   if (tlgBtn) {
     const tlgOn = TLG.isActive();
-    const tlgKey = tlgOn ? "tlg_exit_btn" : "tlg_enter_btn";
+    const tlgKey = isSolverMode
+      ? tlgOn
+        ? "tlg_solver_exit_btn"
+        : "tlg_solver_enter_btn"
+      : tlgOn
+        ? "tlg_exit_btn"
+        : "tlg_enter_btn";
     tlgBtn.textContent = t(isMobile ? `${tlgKey}_mobile` : tlgKey);
     tlgBtn.dataset.tooltip = t(
       isSolverMode ? "tlg_solver_toggle_tooltip" : "tlg_mode_tooltip",

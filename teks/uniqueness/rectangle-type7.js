@@ -215,10 +215,44 @@ Object.assign(techniques, {
           removals,
           placedCells,
         ),
+        tlg: techniques._tlgUniqueRectangleType7(proof, pencils),
       };
     });
 
     return findAll ? results : results[0];
+  },
+
+  _tlgUniqueRectangleType7: (
+    { cells, digits, links, removals, placedCells, exclusions },
+    pencils,
+  ) => {
+    const logic = techniques._tlgBuilder(removals);
+    logic.deadly(
+      cells.map(([r, c]) => r * 9 + c),
+      digits,
+      pencils,
+    );
+    for (const [r, c] of [
+      ...removals.map(({ r, c }) => [r, c]),
+      ...placedCells,
+    ]) {
+      logic.truth({ kind: "cell", cell: r * 9 + c });
+    }
+    for (const { kind, digit, endpoints } of links) {
+      logic.truth(
+        kind === "biCell"
+          ? { kind: "cell", cell: endpoints[0][0] }
+          : techniques
+              ._tlgCommonSets(endpoints.flat().map((id) => [id, digit]))
+              .find((set) => set.kind !== "box"),
+      );
+    }
+    for (const cands of exclusions) {
+      if (logic.holds(cands)) continue;
+      const sets = techniques._tlgCommonSets(cands);
+      logic.linkSet(sets.find((set) => set.kind === "box") || sets[0]);
+    }
+    return logic.logic();
   },
 
   avoidableRectangleType7: (board, pencils, findAll = false) =>
@@ -313,7 +347,13 @@ Object.assign(techniques, {
         : pencils[Math.floor(id / 9)][id % 9].has(digit);
     };
 
-    const closesDeadlyRectangle = (rectIds, digits, links, targetKey) => {
+    const closesDeadlyRectangle = (
+      rectIds,
+      digits,
+      links,
+      targetKey,
+      trace,
+    ) => {
       const falseCandidates = new Set();
       const trueCandidates = new Set();
       const trueGroups = new Set();
@@ -328,30 +368,36 @@ Object.assign(techniques, {
         node.members.every((id) =>
           falseCandidates.has(candidateKey(id, node.digit)),
         );
-      const setFalse = (key) => {
+      const setFalse = (key, source) => {
         if (trueCandidates.has(key)) contradiction = true;
         if (falseCandidates.has(key)) return false;
         falseCandidates.add(key);
+        if (trace) trace.falseBy.set(key, source);
         linksDirty = true;
         return true;
       };
-      const setCandidateTrue = (key) => {
+      const setCandidateTrue = (key, source) => {
         if (falseCandidates.has(key)) contradiction = true;
         if (trueCandidates.has(key)) return false;
         trueCandidates.add(key);
+        if (trace) trace.trueBy.set(key, source);
         trueCandidateQueue.push(key);
         return true;
       };
-      const setNodeTrue = (node) => {
+      const setNodeTrue = (node, source) => {
         if (nodeIsFalse(node)) {
           contradiction = true;
           return false;
         }
         if (node.members.length === 1) {
-          return setCandidateTrue(candidateKey(node.members[0], node.digit));
+          return setCandidateTrue(
+            candidateKey(node.members[0], node.digit),
+            source,
+          );
         }
         if (trueGroups.has(node.id)) return false;
         trueGroups.add(node.id);
+        if (trace) trace.trueBy.set(node.id, source);
         trueGroupQueue.push(node);
         return true;
       };
@@ -379,13 +425,13 @@ Object.assign(techniques, {
           const id = Math.floor(key / 10);
           for (const otherDigit of digits) {
             if (otherDigit !== digit) {
-              setFalse(candidateKey(id, otherDigit));
+              setFalse(candidateKey(id, otherDigit), key);
             }
           }
           for (let part = 0; part < 3; part++) {
             let peers = PEER[id * 3 + part] & g.pos[(digit - 1) * 3 + part];
             while (peers) {
-              setFalse(candidateKey(part * 27 + lowest(peers), digit));
+              setFalse(candidateKey(part * 27 + lowest(peers), digit), key);
               peers &= peers - 1;
             }
           }
@@ -398,7 +444,7 @@ Object.assign(techniques, {
             let peers = g.pos[(digit - 1) * 3 + part];
             for (const memberId of members) peers &= PEER[memberId * 3 + part];
             while (peers) {
-              setFalse(candidateKey(part * 27 + lowest(peers), digit));
+              setFalse(candidateKey(part * 27 + lowest(peers), digit), node);
               peers &= peers - 1;
             }
           }
@@ -408,8 +454,8 @@ Object.assign(techniques, {
         linksDirty = false;
         for (const link of links) {
           const [left, right] = link.nodes;
-          if (nodeIsFalse(left)) setNodeTrue(right);
-          if (nodeIsFalse(right)) setNodeTrue(left);
+          if (nodeIsFalse(left)) setNodeTrue(right, left);
+          if (nodeIsFalse(right)) setNodeTrue(left, right);
         }
       }
 
@@ -421,6 +467,44 @@ Object.assign(techniques, {
         (isTrue(0, d1) && isTrue(1, d2) && isTrue(2, d2) && isTrue(3, d1)) ||
         (isTrue(0, d2) && isTrue(1, d1) && isTrue(2, d1) && isTrue(3, d2))
       );
+    };
+
+    // The exclusions each removal's proof rests on: the true candidates,
+    // then the candidate they rule out.
+    const proofExclusions = (rectIds, digits, links, removals) => {
+      const exclusions = [];
+      for (const { r, c, num } of removals) {
+        const trace = { falseBy: new Map(), trueBy: new Map() };
+        closesDeadlyRectangle(
+          rectIds,
+          digits,
+          links,
+          candidateKey(r * 9 + c, num),
+          trace,
+        );
+        const pending = rectIds
+          .flatMap((id) => digits.map((digit) => candidateKey(id, digit)))
+          .filter((key) => trace.trueBy.has(key));
+        const followed = new Set();
+        while (pending.length > 0) {
+          const key = pending.pop();
+          const ruledOut = trace.trueBy.get(key);
+          if (!ruledOut || followed.has(key)) continue;
+          followed.add(key);
+          for (const id of ruledOut.members) {
+            const source = trace.falseBy.get(candidateKey(id, ruledOut.digit));
+            const grouped = typeof source !== "number";
+            exclusions.push([
+              ...(grouped
+                ? source.members.map((member) => [member, source.digit])
+                : [[Math.floor(source / 10), source % 10]]),
+              [id, ruledOut.digit],
+            ]);
+            pending.push(grouped ? source.id : source);
+          }
+        }
+      }
+      return exclusions;
     };
 
     const patterns = filledValues
@@ -591,6 +675,12 @@ Object.assign(techniques, {
                       Math.floor(id / 9),
                       id % 9,
                     ]),
+                    exclusions: proofExclusions(
+                      rectIds,
+                      [d1, d2],
+                      links,
+                      uniqueRemovals,
+                    ),
                   });
                   if (firstOnly) return results;
                 }

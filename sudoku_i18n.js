@@ -1041,8 +1041,12 @@ const TRANSLATIONS = {
     tlg_enter_btn_mobile: "TLG Mode",
     tlg_exit_btn: "Exit TLG Mode (D)",
     tlg_exit_btn_mobile: "Exit TLG Mode",
+    tlg_solver_enter_btn: "View as TLG (D)",
+    tlg_solver_enter_btn_mobile: "View as TLG",
+    tlg_solver_exit_btn: "Exit TLG View (D)",
+    tlg_solver_exit_btn_mobile: "Exit TLG View",
     tlg_mode_tooltip: "Truth/Link logic editor (D)",
-    tlg_solver_toggle_tooltip: "Toggle TLG for this step (D)",
+    tlg_solver_toggle_tooltip: "View this step's logic as Truths and Links (D)",
     tlg_mode_tip:
       "TLG: left-click two candidates to add a Truth, right-click two to add a Link. Turn on 'Set menu' to open the menu with one click.",
     tlg_mode_tip_mobile:
@@ -1084,6 +1088,7 @@ const TRANSLATIONS = {
     tlg_list_none: "—",
     tlg_aur_title: "AUR",
     tlg_aur_count: "{0} UR(s) from {1} corner mark(s)",
+    tlg_aur_restored: "{0} candidate(s) put back",
     tlg_aur_apply: "Apply AURs",
     tlg_aur_unavailable:
       "The puzzle has no unique solution (Just one Cell), so AURs are not applied.",
@@ -2164,8 +2169,12 @@ const TRANSLATIONS = {
     tlg_enter_btn_mobile: "TLG 모드",
     tlg_exit_btn: "TLG 모드 종료 (D)",
     tlg_exit_btn_mobile: "TLG 모드 종료",
+    tlg_solver_enter_btn: "TLG로 보기 (D)",
+    tlg_solver_enter_btn_mobile: "TLG로 보기",
+    tlg_solver_exit_btn: "TLG 보기 종료 (D)",
+    tlg_solver_exit_btn_mobile: "TLG 보기 종료",
     tlg_mode_tooltip: "Truth/Link 논리 편집기 (D)",
-    tlg_solver_toggle_tooltip: "이 단계에 대한 TLG 켜기/끄기 (D)",
+    tlg_solver_toggle_tooltip: "이 단계의 논리를 TLG로 보기 (D)",
     tlg_mode_tip:
       "TLG: 후보 두 개를 좌클릭하면 Truth, 우클릭하면 Link를 추가합니다. '집합 메뉴'를 켜면 클릭 한 번으로 메뉴가 열립니다.",
     tlg_mode_tip_mobile:
@@ -2207,6 +2216,7 @@ const TRANSLATIONS = {
     tlg_list_none: "없음",
     tlg_aur_title: "AUR",
     tlg_aur_count: "모서리 표시 {1}개 → UR {0}개",
+    tlg_aur_restored: "되돌린 후보 {0}개",
     tlg_aur_apply: "AUR 적용",
     tlg_aur_unavailable:
       "해가 유일하지 않아(Just one Cell) AUR을 적용하지 않습니다.",
