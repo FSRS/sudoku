@@ -1504,6 +1504,7 @@ const TLG = (() => {
       if (role !== "link") role = "truth";
       resetInputState();
       renderAll();
+      showMessage(t("tlg_mode_tip"), "gray");
     });
     $("tlg-kind").addEventListener("change", (e) => {
       kind = e.target.value;

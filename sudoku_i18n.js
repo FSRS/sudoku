@@ -1105,7 +1105,7 @@ const TRANSLATIONS = {
     tlg_aur_title: "AUR",
     tlg_aur_count: "{0} UR(s) from {1} corner mark(s)",
     tlg_aur_group: "AUR {0}/{1}",
-    tlg_aur_given: "A given digit cannot be a pattern cell.",
+    tlg_aur_given: "AUR corners cannot be marked on a given digit.",
     tlg_aur_apply: "Apply AURs",
     tlg_aur_unavailable:
       "The puzzle has no unique solution (Just one Cell), so AURs are not applied.",
@@ -2250,7 +2250,7 @@ const TRANSLATIONS = {
     tlg_aur_title: "AUR",
     tlg_aur_count: "모서리 표시 {1}개 → UR {0}개",
     tlg_aur_group: "AUR {0}/{1}",
-    tlg_aur_given: "주어진 수는 패턴 칸이 될 수 없습니다.",
+    tlg_aur_given: "주어진 수에는 AUR 모서리를 표시할 수 없습니다.",
     tlg_aur_apply: "AUR 적용",
     tlg_aur_unavailable:
       "해가 유일하지 않아(Just one Cell) AUR을 적용하지 않습니다.",
