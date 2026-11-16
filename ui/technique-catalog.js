@@ -36,7 +36,7 @@
       "combinedUniquenessExternalTest",
       null,
       5,
-      130,
+      150,
       true,
       ["ui_AUET"],
     ],
@@ -96,7 +96,7 @@
       true,
       ["ui_finned_franken_squirmbag", "ui_finned_mutant_squirmbag"],
     ],
-    ["ui_Complex_AIC", "complexAic", null, 10, 420],
+    ["ui_Complex_AIC", "complexAic", null, 10, 400],
     [
       "ui_BLo",
       "blossomLoop",

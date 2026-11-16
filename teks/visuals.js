@@ -36,7 +36,9 @@ Object.assign(techniques, {
         marker === "circle"
           ? boardState[r][c].candCircles
           : boardState[r][c].candSlashes;
-      target.set(num, markColorPalette[color]);
+      const value = markColorPalette[color];
+      const existing = target.get(num);
+      target.set(num, existing ? addColor(existing, value) : value);
     }
 
     for (const link of plan.links || []) {

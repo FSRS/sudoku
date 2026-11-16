@@ -330,6 +330,9 @@
   .-top-1 {
     top: calc(var(--spacing) * -1);
   }
+  .top-1\/2 {
+    top: calc(1 / 2 * 100%);
+  }
   .top-3 {
     top: calc(var(--spacing) * 3);
   }
@@ -344,6 +347,9 @@
   }
   .left-0 {
     left: 0px;
+  }
+  .left-1\/2 {
+    left: calc(1 / 2 * 100%);
   }
   .left-3 {
     left: calc(var(--spacing) * 3);
@@ -435,6 +441,9 @@
   .inline-flex {
     display: inline-flex;
   }
+  .aspect-square {
+    aspect-ratio: 1 / 1;
+  }
   .h-3 {
     height: calc(var(--spacing) * 3);
   }
@@ -501,11 +510,17 @@
   .w-80 {
     width: calc(var(--spacing) * 80);
   }
+  .w-\[88\%\] {
+    width: 88%;
+  }
   .w-\[90vw\] {
     width: 90vw;
   }
   .w-\[95vw\] {
     width: 95vw;
+  }
+  .w-\[calc\(88\%-0\.15625rem\)\] {
+    width: calc(88% - 0.15625rem);
   }
   .w-auto {
     width: auto;
@@ -539,6 +554,10 @@
   }
   .-translate-x-1\/2 {
     --tw-translate-x: calc(calc(1 / 2 * 100%) * -1);
+    translate: var(--tw-translate-x) var(--tw-translate-y);
+  }
+  .-translate-y-1\/2 {
+    --tw-translate-y: calc(calc(1 / 2 * 100%) * -1);
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
   .cursor-default {
@@ -1305,6 +1324,15 @@
     .dark\:hover\:text-gray-300:where(.dark, .dark *):hover {
       color: var(--color-gray-300);
     }
+  }
+  .cand-highlighted
+    .cand-hl
+    > .\[\.cand-highlighted_\.cand-hl\>\&\]\:\[filter\:drop-shadow\(0_0_1px_var\(--cand-hl-ink\)\)_drop-shadow\(0_0_1px_var\(--cand-hl-ink\)\)\] {
+    filter: drop-shadow(0 0 1px var(--cand-hl-ink))
+      drop-shadow(0 0 1px var(--cand-hl-ink));
+  }
+  .tlg-active .\[\.tlg-active_\&\]\:hidden {
+    display: none;
   }
 }
 @property --tw-translate-x {

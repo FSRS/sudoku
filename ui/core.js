@@ -1754,12 +1754,71 @@ function applyCandidateMarks(mark, state, digit) {
 
   mark.classList.toggle("cand-circle", !!circleColor);
   mark.classList.toggle("cand-slash", !!slashColor);
+  mark.querySelectorAll("svg").forEach((svg) => svg.remove());
 
-  if (circleColor) mark.style.setProperty("--cand-circle-color", circleColor);
-  else mark.style.removeProperty("--cand-circle-color");
+  if (Array.isArray(circleColor)) {
+    mark.style.setProperty("--cand-circle-color", "transparent");
+    mark.appendChild(buildMultiColorCircle(circleColor));
+  } else if (circleColor) {
+    mark.style.setProperty("--cand-circle-color", circleColor);
+  } else mark.style.removeProperty("--cand-circle-color");
 
-  if (slashColor) mark.style.setProperty("--cand-slash-color", slashColor);
-  else mark.style.removeProperty("--cand-slash-color");
+  if (Array.isArray(slashColor)) {
+    mark.style.setProperty("--cand-slash-color", "transparent");
+    mark.appendChild(buildMultiColorSlash(slashColor));
+  } else if (slashColor) {
+    mark.style.setProperty("--cand-slash-color", slashColor);
+  } else mark.style.removeProperty("--cand-slash-color");
+}
+
+function buildMultiColorCircle(colors) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute(
+    "class",
+    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(88%-0.15625rem)] aspect-square overflow-visible pointer-events-none [.tlg-active_&]:hidden",
+  );
+  const n = colors.length;
+  colors.forEach((color, i) => {
+    const arc = document.createElementNS(svg.namespaceURI, "circle");
+    arc.setAttribute("cx", "50%");
+    arc.setAttribute("cy", "50%");
+    arc.setAttribute("r", "50%");
+    arc.setAttribute("fill", "none");
+    arc.setAttribute("stroke", color);
+    arc.setAttribute("pathLength", n);
+    arc.setAttribute("stroke-dasharray", `1 ${n - 1}`);
+    arc.setAttribute("stroke-dashoffset", -(n / 2 + i));
+    arc.style.strokeWidth = "0.15625rem";
+    svg.appendChild(arc);
+  });
+  return svg;
+}
+
+function buildMultiColorSlash(colors) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute(
+    "class",
+    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[88%] aspect-square overflow-hidden pointer-events-none [.tlg-active_&]:hidden [.cand-highlighted_.cand-hl>&]:[filter:drop-shadow(0_0_1px_var(--cand-hl-ink))_drop-shadow(0_0_1px_var(--cand-hl-ink))]",
+  );
+  const n = colors.length;
+  colors.forEach((color, i) => {
+    const y1 = (100 * i) / n;
+    const y2 = (100 * (i + 1)) / n;
+    for (const [x1, x2] of [
+      [y1, y2],
+      [100 - y1, 100 - y2],
+    ]) {
+      const line = document.createElementNS(svg.namespaceURI, "line");
+      line.setAttribute("x1", `${x1}%`);
+      line.setAttribute("y1", `${y1}%`);
+      line.setAttribute("x2", `${x2}%`);
+      line.setAttribute("y2", `${y2}%`);
+      line.setAttribute("stroke", color);
+      line.style.strokeWidth = "0.15rem";
+      svg.appendChild(line);
+    }
+  });
+  return svg;
 }
 
 function pruneInvalidLines() {
@@ -3818,8 +3877,9 @@ function toggleCandidateMark(row, col, num) {
     coloringSubMode === "circle"
       ? cellState.candCircles
       : cellState.candSlashes;
-  if (marks.get(num) === selectedColor) marks.delete(num);
-  else marks.set(num, selectedColor);
+  const newColor = toggleColor(marks.get(num), selectedColor);
+  if (newColor === null) marks.delete(num);
+  else marks.set(num, newColor);
 
   saveState();
   renderBoard();
@@ -4916,8 +4976,13 @@ function showCandidatePopup(row, col) {
           onBoardUpdated();
         } else {
           const currentMarkColor = markerSet.get(i);
-          if (currentMarkColor === selectedColor) markerSet.delete(i);
-          else markerSet.set(i, selectedColor);
+          const newColor = toggleColor(currentMarkColor, selectedColor);
+
+          if (newColor === null) {
+            markerSet.delete(i);
+          } else {
+            markerSet.set(i, newColor);
+          }
 
           saveState();
           candidateModal.classList.add("hidden");
@@ -5500,7 +5565,7 @@ const isCoordinate = (value) =>
 const isPlainObject = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 // Colours are stored as the palette strings the board paints with. Cell and
-// candidate colours stack, so those may also be an array of several.
+// candidate colours and markers stack, so those may also be an array of several.
 const isColor = (value) => typeof value === "string";
 const isColorStack = (value) =>
   isColor(value) ||
@@ -5563,8 +5628,8 @@ function parseSavedCell(savedCell) {
 
   const pencils = parseDigitList(savedCell.p);
   const pencilColors = parseDigitMap(savedCell.pc, isColorStack);
-  const candCircles = parseDigitMap(savedCell.cr, isColor);
-  const candSlashes = parseDigitMap(savedCell.sx, isColor);
+  const candCircles = parseDigitMap(savedCell.cr, isColorStack);
+  const candSlashes = parseDigitMap(savedCell.sx, isColorStack);
   if (!pencils || !pencilColors || !candCircles || !candSlashes) return null;
 
   const cellColor =
@@ -7581,7 +7646,7 @@ function cloneHistoryCell(cell) {
 function areHistoryMarksEqual(a, b) {
   if (a.size !== b.size) return false;
   for (const [digit, color] of a) {
-    if (b.get(digit) !== color) return false;
+    if (!areHistoryColorsEqual(b.get(digit), color)) return false;
   }
   return true;
 }
@@ -9981,13 +10046,44 @@ function renderGridImage(size) {
             ctx.lineWidth = 2.5;
             ctx.setLineDash([]);
             ctx.lineCap = "round";
-            if (circleColor) {
+            if (Array.isArray(circleColor)) {
+              ctx.lineCap = "butt";
+              const step = (Math.PI * 2) / circleColor.length;
+              circleColor.forEach((color, i) => {
+                ctx.strokeStyle = color;
+                ctx.beginPath();
+                ctx.arc(
+                  coords.x,
+                  coords.y,
+                  markR,
+                  Math.PI + step * i,
+                  Math.PI + step * (i + 1),
+                );
+                ctx.stroke();
+              });
+              ctx.lineCap = "round";
+            } else if (circleColor) {
               ctx.strokeStyle = circleColor;
               ctx.beginPath();
               ctx.arc(coords.x, coords.y, markR, 0, Math.PI * 2);
               ctx.stroke();
             }
-            if (slashColor) {
+            if (Array.isArray(slashColor)) {
+              ctx.lineCap = "butt";
+              const d = markR * 0.72;
+              const n = slashColor.length;
+              slashColor.forEach((color, i) => {
+                const t1 = -d + (2 * d * i) / n;
+                const t2 = -d + (2 * d * (i + 1)) / n;
+                ctx.strokeStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(coords.x + t1, coords.y + t1);
+                ctx.lineTo(coords.x + t2, coords.y + t2);
+                ctx.moveTo(coords.x - t1, coords.y + t1);
+                ctx.lineTo(coords.x - t2, coords.y + t2);
+                ctx.stroke();
+              });
+            } else if (slashColor) {
               ctx.strokeStyle = slashColor;
               const d = markR * 0.72;
               ctx.beginPath();
@@ -10227,10 +10323,14 @@ function getDiffDescription(before, after) {
           for (let n = 1; n <= 9; n++) {
             let markKey = null;
             let color;
-            if (b.candCircles.get(n) !== a.candCircles.get(n)) {
+            if (
+              !areHistoryColorsEqual(b.candCircles.get(n), a.candCircles.get(n))
+            ) {
               markKey = "ui_msg_circle_short";
               color = a.candCircles.get(n);
-            } else if (b.candSlashes.get(n) !== a.candSlashes.get(n)) {
+            } else if (
+              !areHistoryColorsEqual(b.candSlashes.get(n), a.candSlashes.get(n))
+            ) {
               markKey = "ui_msg_slash_short";
               color = a.candSlashes.get(n);
             }
