@@ -139,6 +139,7 @@ let vatCurrentBoard = null;
 let vatCurrentPencils = null;
 let vatActiveTechniques = [];
 let vatSelectedHint = null;
+let vatSelectedMessage = "";
 
 let vatSearchRunId = 0;
 let isSolverLanguageRefreshInProgress = false;
@@ -722,7 +723,7 @@ function updateSolverToggleButton() {
     tlgBtn.dataset.tooltip = t(
       isSolverMode ? "tlg_solver_toggle_tooltip" : "tlg_mode_tooltip",
     );
-    tlgBtn.disabled = isViewAllTechniquesMode;
+    tlgBtn.disabled = isViewAllTechniquesMode && !vatSelectedHint && !tlgOn;
     tlgBtn.setAttribute("aria-pressed", tlgOn ? "true" : "false");
   }
 }
@@ -3910,7 +3911,9 @@ function setTlgMode(on) {
 function toggleTlgMode() {
   if (!document.getElementById("tlg-toggle-btn")) return;
   if (isSolverMode) {
-    if (!isViewAllTechniquesMode) TLG.toggleSolver();
+    if (!isViewAllTechniquesMode || vatSelectedHint || TLG.isActive()) {
+      TLG.toggleSolver();
+    }
     return;
   }
   setTlgMode(currentMode !== "tlg");
@@ -6464,6 +6467,20 @@ function groupVatHints(hints) {
   return groupedHints;
 }
 
+function renderVatSelectedHint(srcBoard, srcPencils) {
+  boardState = cloneToBoardState(srcBoard, srcPencils);
+  drawnLines = [];
+  clearAllColors();
+  if (vatSelectedHint) {
+    if (!TLG.isActive()) techniques._applyResultVisuals(vatSelectedHint);
+    showMessage(vatSelectedMessage, "blue");
+  }
+  renderBoard();
+  renderLines();
+  renderPuzzleLevelLabel();
+  TLG.onSolverStepRendered();
+}
+
 /**
  * Renders the two-level View All Techniques accordion into `list`.
  * `getBoardSource` is read at click time and returns the [board, pencils] a
@@ -6550,16 +6567,8 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
         e.stopPropagation(); // Prevent the parent click event from firing
 
         vatSelectedHint = subItem.result;
+        vatSelectedMessage = `${group.displayName}: ${detail} => ${group.actionStr}`;
         updateSolverToggleButton();
-
-        // Reset board visuals
-        const [srcBoard, srcPencils] = getBoardSource();
-        boardState = cloneToBoardState(srcBoard, srcPencils);
-        drawnLines = [];
-        clearAllColors();
-
-        // Apply this specific hint's visuals
-        techniques._applyResultVisuals(subItem.result);
 
         // Highlight active sub-row globally. Rows may have been built in a
         // detached container, so query the list that is actually on screen.
@@ -6576,13 +6585,7 @@ function renderVatHintGroups(list, groupedHints, isDark, getBoardSource) {
           ? "rgba(255,255,255,0.15)"
           : "rgba(0,0,0,0.08)";
 
-        showMessage(
-          `${group.displayName}: ${detail} => ${group.actionStr}`,
-          "blue",
-        );
-        renderBoard();
-        renderLines();
-        renderPuzzleLevelLabel();
+        renderVatSelectedHint(...getBoardSource());
       });
 
       subListContainer.appendChild(childRow);

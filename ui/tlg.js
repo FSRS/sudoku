@@ -113,7 +113,7 @@ const TLG = (() => {
 
   let state = emptyState();
   let solverOn = false;
-  let solverStepIndex = -1;
+  let solverShownKey = -1;
 
   let role = "truth";
   let kind = "auto";
@@ -486,7 +486,7 @@ const TLG = (() => {
       return true;
     }
     if (e.key === "Delete" || e.key === "Backspace") return true;
-    if (isSolverMode) return lower === "a";
+    if (isSolverMode) return lower === "a" && !isViewAllTechniquesMode;
     return !e.altKey && BLOCKED_PLAY_KEYS.includes(lower);
   }
 
@@ -1670,7 +1670,12 @@ const TLG = (() => {
     $("tlg-panel").classList.add("hidden");
   }
 
+  function shownSolverKey() {
+    return (isViewAllTechniquesMode && vatSelectedHint) || currentSolverStep;
+  }
+
   function stepLogic() {
+    if (isViewAllTechniquesMode && vatSelectedHint) return vatSelectedHint.tlg;
     const step = solverSteps[currentSolverStep];
     return step && step.type === "step" ? step.result.tlg : null;
   }
@@ -1702,12 +1707,13 @@ const TLG = (() => {
     state = solverOn ? stepLogicState() : emptyState();
     aurGroup = 0;
     resetEdits();
-    if (solverOn) solverStepIndex = currentSolverStep;
+    if (solverOn) solverShownKey = shownSolverKey();
     else cancel();
     const bar = $("solver-bar-container");
     bar.classList.toggle("hidden", solverOn);
     bar.classList.toggle("flex", !solverOn);
-    renderSolverStep(currentSolverStep);
+    if (isViewAllTechniquesMode) renderVatSelectedHint(vatCurrentBoard, vatCurrentPencils);
+    else renderSolverStep(currentSolverStep);
   }
 
   function onSolverStepRendered() {
@@ -1715,10 +1721,10 @@ const TLG = (() => {
       renderAll();
       return;
     }
-    if (currentSolverStep !== solverStepIndex) {
+    if (shownSolverKey() !== solverShownKey) {
       state = stepLogicState();
       aurGroup = 0;
-      solverStepIndex = currentSolverStep;
+      solverShownKey = shownSolverKey();
       selectedSetId = null;
       set3D(false);
       resetInputState();
