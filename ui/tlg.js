@@ -68,6 +68,7 @@ const TLG = (() => {
     '<button type="button" id="tlg-aur-prev" class="tlg-btn tlg-step" aria-label="previous group">\u25c0</button>',
     '<span id="tlg-aur-label" class="tlg-summary"></span>',
     '<button type="button" id="tlg-aur-next" class="tlg-btn tlg-step" aria-label="next group">\u25b6</button>',
+    '<button type="button" id="tlg-aur-add" class="tlg-btn tlg-step" aria-label="new group">+</button>',
     "</div>",
     '<label class="tlg-check"><input type="checkbox" id="tlg-aur-apply" /><span data-i18n="tlg_aur_apply">Apply AURs</span></label>',
     '<button type="button" id="tlg-aur-clear" class="tlg-btn" data-i18n="tlg_aur_clear">Clear corners</button>',
@@ -1348,8 +1349,10 @@ const TLG = (() => {
       swatch,
       ` ${t("tlg_aur_group", shownGroup + 1, Math.max(groupCount, shownGroup + 1))}`,
     );
-    $("tlg-aur-prev").disabled = groupCount === 0;
-    $("tlg-aur-next").disabled = groupCount === 0;
+    const noOtherGroup = groupCount === 0 || (groupCount === 1 && shownGroup === 0);
+    $("tlg-aur-prev").disabled = noOtherGroup;
+    $("tlg-aur-next").disabled = noOtherGroup;
+    $("tlg-aur-add").disabled = shownGroup >= groupCount;
     $("tlg-aur-reason").textContent = unique ? "" : t("tlg_aur_unavailable");
     $("tlg-aur-clear").disabled = aurMarkCount() === 0;
 
@@ -1542,12 +1545,17 @@ const TLG = (() => {
       commit();
     });
     const stepAurGroup = (delta) => {
-      const count = state.aurGroups.length + 1;
-      aurGroup = (Math.min(aurGroup, count - 1) + delta + count) % count;
+      const count = state.aurGroups.length;
+      aurGroup =
+        aurGroup >= count ? (delta < 0 ? count - 1 : 0) : (aurGroup + delta + count) % count;
       renderAll();
     };
     $("tlg-aur-prev").addEventListener("click", () => stepAurGroup(-1));
     $("tlg-aur-next").addEventListener("click", () => stepAurGroup(1));
+    $("tlg-aur-add").addEventListener("click", () => {
+      aurGroup = state.aurGroups.length;
+      renderAll();
+    });
     $("tlg-aur-clear").addEventListener("click", () => {
       state.aurGroups = [];
       aurGroup = 0;
