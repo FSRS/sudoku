@@ -642,7 +642,7 @@ Object.assign(techniques, {
         const guardian = getGuardianForLink(path[i], path[i + 1]);
         if (guardian) guardianLinks.push(guardian);
       }
-      techniques._tlgGuardianLinks(logic, guardianLinks, pencils);
+      techniques._tlgGuardianLinks(logic, guardianLinks, pencils, board);
       const candsOf = (node) => {
         const cands = [];
         for (const id of node.cells) {

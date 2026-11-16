@@ -52,6 +52,7 @@ const TLGRenderer = (() => {
     const inner = document.getElementById("tlg-layer");
     if (inner) inner.innerHTML = "";
     styleAlsCands([]);
+    styleMissingCands([]);
   }
 
   function center(cand) {
@@ -237,7 +238,42 @@ const TLGRenderer = (() => {
       .join("\n");
   }
 
-  const AUR_HOLLOW_WIDTH = 0.3;
+  // A candidate an AUR mark sits on but the cell no longer holds shows its
+  // digit in red in its own slot.
+  function styleMissingCands(cands) {
+    let style = document.getElementById("tlg-missing-style");
+    if (!cands.length) {
+      if (style) style.remove();
+      return;
+    }
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "tlg-missing-style";
+      document.head.appendChild(style);
+    }
+    style.textContent = cands
+      .map((m) => {
+        const mark = `.tlg-active .sudoku-cell[data-row="${m.r}"][data-col="${m.c}"] .pencil-mark[data-num="${m.n}"]`;
+        return `${mark} { visibility: visible !important; color: var(--tlg-cannibal) !important; -webkit-text-fill-color: var(--tlg-cannibal) !important; }\n${mark}:empty::after { content: "${m.n}"; }`;
+      })
+      .join("\n");
+  }
+
+  // The diamond cut into equal vertical slices, one per colour.
+  function diamondSlices(cx, cy, s, count) {
+    const half = (x) => s - Math.abs(x - cx);
+    const slices = [];
+    for (let i = 0; i < count; i++) {
+      const x0 = cx - s + (2 * s * i) / count;
+      const x1 = cx - s + (2 * s * (i + 1)) / count;
+      const top = [[x0, cy - half(x0)]];
+      if (x0 < cx && cx < x1) top.push([cx, cy - s]);
+      top.push([x1, cy - half(x1)]);
+      const bottom = top.map(([x]) => [x, cy + half(x)]).reverse();
+      slices.push([...top, ...bottom]);
+    }
+    return slices;
+  }
 
   function aurMarkPoint(m) {
     if (m.solved) {
@@ -253,18 +289,17 @@ const TLGRenderer = (() => {
   function drawMarks(layer, model) {
     for (const m of model.aurMarks) {
       const { x: cx, y: cy } = aurMarkPoint(m);
-      const s = m.current === false ? 0.7 - AUR_HOLLOW_WIDTH * Math.SQRT1_2 : 0.7;
-      el(
-        "path",
-        {
-          d: `M ${cx} ${cy - s} L ${cx + s} ${cy} L ${cx} ${cy + s} L ${cx - s} ${cy} Z`,
-          class: "tlg-mark tlg-aur-mark",
-          ...(m.current === false && {
-            style: `fill: none; stroke: var(--tlg-aur); stroke-width: ${AUR_HOLLOW_WIDTH}`,
-          }),
-        },
-        layer,
-      );
+      diamondSlices(cx, cy, 0.7, m.colors.length).forEach((points, i) => {
+        el(
+          "path",
+          {
+            d: `M ${points.map(([x, y]) => `${x} ${y}`).join(" L ")} Z`,
+            class: "tlg-mark tlg-aur-mark",
+            style: `fill: ${m.colors[i]}`,
+          },
+          layer,
+        );
+      });
     }
     for (const m of model.vset) {
       const { x, y } = center(m);
@@ -320,6 +355,7 @@ const TLGRenderer = (() => {
     const defs = el("defs", {}, layer);
     drawAls(layer, model);
     styleAlsCands(model.alsCands || []);
+    styleMissingCands(model.missingCands || []);
     const order = { cell: 0, box: 1, row: 2, col: 2 };
     const sets = [...model.sets].sort(
       (a, b) =>
@@ -456,22 +492,13 @@ const TLGRenderer = (() => {
         cx = x + 1.3 * unit;
         cy = y - 1.3 * unit;
       }
-      const hollow = m.current === false;
-      const s = (hollow ? 0.7 - AUR_HOLLOW_WIDTH * Math.SQRT1_2 : 0.7) * unit;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - s);
-      ctx.lineTo(cx + s, cy);
-      ctx.lineTo(cx, cy + s);
-      ctx.lineTo(cx - s, cy);
-      ctx.closePath();
-      if (hollow) {
-        ctx.strokeStyle = EXPORT_COLORS.aur;
-        ctx.lineWidth = AUR_HOLLOW_WIDTH * unit;
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = EXPORT_COLORS.aur;
+      diamondSlices(cx, cy, 0.7 * unit, m.exportColors.length).forEach((points, i) => {
+        ctx.beginPath();
+        points.forEach(([x, y], k) => (k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+        ctx.closePath();
+        ctx.fillStyle = m.exportColors[i];
         ctx.fill();
-      }
+      });
     }
     for (const m of model.vset) {
       const { x, y } = coord(m);

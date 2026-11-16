@@ -349,13 +349,42 @@ const TLG = (() => {
   const aurMarkCount = () =>
     state.aurGroups.reduce((count, group) => count + group.length, 0);
 
+  function editAurGroup(edit) {
+    const groups = state.aurGroups;
+    const index = Math.min(aurGroup, groups.length);
+    if (index === groups.length) groups.push([]);
+    edit(groups[index]);
+    while (groups.length > 0 && groups[groups.length - 1].length === 0) groups.pop();
+  }
+
+  const shownAurGroup = () => state.aurGroups[Math.min(aurGroup, state.aurGroups.length)] || [];
+
+  // A solved cell is marked as a whole: one click adds its digit or clears
+  // every mark it has in the group.
+  function handleAurCell(cell, e) {
+    const r = parseInt(cell.dataset.row);
+    const c = parseInt(cell.dataset.col);
+    const square = boardState[r][c];
+    if (square.isGiven) {
+      showMessage(t("tlg_aur_given"), "orange");
+      return;
+    }
+    if (square.value === 0) {
+      openDigitPad(r, c, e);
+      return;
+    }
+    const id = r * 9 + c;
+    editAurGroup((group) => {
+      const kept = group.filter((key) => Math.floor(key / 9) !== id);
+      if (kept.length === group.length) kept.push(candKey({ r, c, n: square.value }));
+      group.splice(0, group.length, ...kept);
+    });
+    commit();
+  }
+
   function handleCandidate(cand) {
     if (role === "aur") {
-      const groups = state.aurGroups;
-      const index = Math.min(aurGroup, groups.length);
-      if (index === groups.length) groups.push([]);
-      toggleIn(groups[index], cand);
-      while (groups.length > 0 && groups[groups.length - 1].length === 0) groups.pop();
+      editAurGroup((group) => toggleIn(group, cand));
       commit();
       return;
     }
@@ -405,7 +434,8 @@ const TLG = (() => {
     if (!visible) {
       closeMenu();
       cancelPending();
-      if (!isSolverMode) handleCellClick({ target: cell });
+      if (role === "aur") handleAurCell(cell, e);
+      else if (!isSolverMode) handleCellClick({ target: cell });
       return;
     }
     const cand = markCand(cell, mark);
@@ -525,12 +555,86 @@ const TLG = (() => {
     close.textContent = t("tlg_menu_close");
     close.addEventListener("click", closeMenu);
     menu.appendChild(close);
+    showMenu(menu, e);
+  }
+
+  function openDigitPad(r, c, e) {
+    closeMenu();
+    const menu = document.createElement("div");
+    menu.id = "tlg-cand-menu";
+    menu.className = "tlg-menu";
+    const title = document.createElement("div");
+    title.className = "tlg-menu-title";
+    title.textContent = rc({ r, c });
+    menu.appendChild(title);
+    const order =
+      candidatePopupFormat === "A" ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [7, 8, 9, 4, 5, 6, 1, 2, 3];
+    const buttons = [];
+    const refresh = () => {
+      const group = shownAurGroup();
+      for (const btn of buttons) {
+        const n = parseInt(btn.dataset.num);
+        const pressed = group.includes(candKey({ r, c, n }));
+        btn.setAttribute("aria-pressed", pressed ? "true" : "false");
+        btn.style.color =
+          pressed || boardState[r][c].pencils.has(n) ? "" : "var(--tlg-cannibal)";
+      }
+    };
+    for (let i = 0; i < 9; i += 3) {
+      const row = document.createElement("div");
+      row.className = "tlg-menu-row";
+      for (const n of order.slice(i, i + 3)) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tlg-menu-btn";
+        btn.dataset.num = n;
+        btn.textContent = n;
+        btn.addEventListener("click", () => {
+          editAurGroup((group) => toggleIn(group, { r, c, n }));
+          recordEdit();
+          scheduleEvaluate();
+          refresh();
+        });
+        buttons.push(btn);
+        row.appendChild(btn);
+      }
+      menu.appendChild(row);
+    }
+    refresh();
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "tlg-menu-btn tlg-menu-close";
+    close.textContent = t("tlg_menu_close");
+    close.addEventListener("click", closeMenu);
+    menu.appendChild(close);
+    showMenu(menu, e, e.target.closest(".sudoku-cell").getBoundingClientRect());
+  }
+
+  // With a cell box the menu sits beside the cell: right, left, below, above.
+  function showMenu(menu, e, box) {
     document.body.appendChild(menu);
 
     const width = menu.offsetWidth;
     const height = menu.offsetHeight;
-    const x = Math.min(Math.max(8, e.clientX), window.innerWidth - width - 8);
-    const y = Math.min(Math.max(8, e.clientY), window.innerHeight - height - 8);
+    const clampX = (x) => Math.min(Math.max(8, x), window.innerWidth - width - 8);
+    const clampY = (y) => Math.min(Math.max(8, y), window.innerHeight - height - 8);
+    let x = clampX(e.clientX);
+    let y = clampY(e.clientY);
+    if (box) {
+      if (box.right + 4 + width + 8 <= window.innerWidth) {
+        x = box.right + 4;
+        y = clampY(box.top);
+      } else if (box.left - 4 - width >= 8) {
+        x = box.left - 4 - width;
+        y = clampY(box.top);
+      } else {
+        x = clampX(box.left);
+        y =
+          box.bottom + 4 + height + 8 <= window.innerHeight
+            ? box.bottom + 4
+            : clampY(box.top - 4 - height);
+      }
+    }
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
     setTimeout(() => {
@@ -672,6 +776,20 @@ const TLG = (() => {
       : { kind: set.kind, index: set.index, digit: set.digit };
   }
 
+  // A mark on a solved cell stands for the cell: it is sent on every digit
+  // the group marks.
+  function fillSolvedMarks(group) {
+    const marks = new Set(group);
+    const digits = new Set(group.map((key) => (key % 9) + 1));
+    for (const key of group) {
+      const { r, c } = candOf(key);
+      const cell = boardState[r][c];
+      if (cell.value === 0 || cell.isGiven) continue;
+      for (const n of digits) marks.add(candKey({ r, c, n }));
+    }
+    return [...marks];
+  }
+
   function buildInput() {
     const values = [];
     const candidates = [];
@@ -695,7 +813,7 @@ const TLG = (() => {
       givens,
       truths: drawnSets("truth").map(setDescriptor),
       links: drawnSets("link").map(setDescriptor),
-      aurGroups: state.aurGroups.filter((group) => group.length > 0).map((group) => [...group]),
+      aurGroups: state.aurGroups.filter((group) => group.length > 0).map(fillSolvedMarks),
       vset: [...state.vset],
       vapply: state.vapply,
       vcount: state.vcount,
@@ -804,6 +922,8 @@ const TLG = (() => {
   // an AHS colours its digits, and overlaps are striped.
   const ALS_COLOR_CODES = [6, 7, 2, 3, 4, 1, 8];
   const alsSlot = (index) => ALS_COLOR_CODES[(index - 1) % ALS_COLOR_CODES.length];
+  const AUR_COLOR_CODES = [8, 6, 4, 7, 5, 1, 3, 2, 0];
+  const aurSlot = (index) => AUR_COLOR_CODES[index % AUR_COLOR_CODES.length];
   function alsOfSet(r, set) {
     const index = r && r.als ? r.als.sets[setOrder(set)] : 0;
     return index ? cellColorPalette[alsSlot(index)] : null;
@@ -843,10 +963,9 @@ const TLG = (() => {
     }
     return { alsCells: [...cells.values()], alsCands: [...cands.values()] };
   }
-  // A mark on a solved cell is drawn once, beside its digit; a mark outside
-  // the group the stepper shows is drawn hollow.
+  // A mark on a solved cell is drawn once, beside its digit; each group takes
+  // its own palette colour and a mark shared by groups is split between them.
   function aurMarkModel() {
-    const shown = Math.min(aurGroup, state.aurGroups.length);
     const marks = new Map();
     state.aurGroups.forEach((group, index) => {
       for (const m of group.map(candOf)) {
@@ -856,14 +975,30 @@ const TLG = (() => {
           marks.set(
             key,
             cell.value === 0
-              ? { ...m, current: false }
-              : { r: m.r, c: m.c, n: cell.value, solved: true, current: false },
+              ? { ...m, groups: [] }
+              : { r: m.r, c: m.c, n: cell.value, solved: true, groups: [] },
           );
         }
-        if (index === shown) marks.get(key).current = true;
+        const groups = marks.get(key).groups;
+        if (!groups.includes(index)) groups.push(index);
       }
     });
-    return [...marks.values()];
+    return [...marks.values()].map(({ groups, ...m }) => ({
+      ...m,
+      colors: groups.map((index) => colorPalette500[aurSlot(index)]),
+      exportColors: groups.map((index) => colorPalette600[aurSlot(index)]),
+    }));
+  }
+
+  function missingAurCands() {
+    const missing = new Map();
+    for (const group of state.aurGroups) {
+      for (const m of group.map(candOf)) {
+        const cell = boardState[m.r][m.c];
+        if (cell.value === 0 && !cell.pencils.has(m.n)) missing.set(candKey(m), m);
+      }
+    }
+    return [...missing.values()];
   }
 
   function buildModel() {
@@ -889,6 +1024,7 @@ const TLG = (() => {
         selected: set.id === selectedSetId,
       })),
       aurMarks: aurMarkModel(),
+      missingCands: missingAurCands(),
       vset: state.vset.map(candOf).filter(candExists),
       ...alsVisuals(r),
       kills: r ? r.kills.map((k) => ({ ...candOf(k.cand), kind: k.kind })) : [],
@@ -1203,14 +1339,17 @@ const TLG = (() => {
       r ? r.aur.count : 0,
       aurMarkCount(),
     );
-    const groupCount = state.aurGroups.length + 1;
-    $("tlg-aur-label").textContent = t(
-      "tlg_aur_group",
-      Math.min(aurGroup, groupCount - 1) + 1,
-      groupCount,
+    const groupCount = state.aurGroups.length;
+    const shownGroup = Math.min(aurGroup, groupCount);
+    const swatch = document.createElement("span");
+    swatch.style.color = colorPalette500[aurSlot(shownGroup)];
+    swatch.textContent = "◆";
+    $("tlg-aur-label").replaceChildren(
+      swatch,
+      ` ${t("tlg_aur_group", shownGroup + 1, Math.max(groupCount, shownGroup + 1))}`,
     );
-    $("tlg-aur-prev").disabled = groupCount === 1;
-    $("tlg-aur-next").disabled = groupCount === 1;
+    $("tlg-aur-prev").disabled = groupCount === 0;
+    $("tlg-aur-next").disabled = groupCount === 0;
     $("tlg-aur-reason").textContent = unique ? "" : t("tlg_aur_unavailable");
     $("tlg-aur-clear").disabled = aurMarkCount() === 0;
 

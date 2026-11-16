@@ -1210,6 +1210,7 @@ Object.assign(techniques, {
                   digit: (chosen.exitKey % 9) + 1,
                 },
             getGuardianForLink,
+            board,
           ),
         };
         if (!result.tlg) delete result.tlg;

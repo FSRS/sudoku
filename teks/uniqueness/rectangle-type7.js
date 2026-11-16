@@ -203,7 +203,7 @@ Object.assign(techniques, {
           ),
         },
         visualPlan: buildVisualPlan(cells, d1, d2, links, removals),
-        tlg: techniques._tlgUniqueRectangleType7(proof, pencils),
+        tlg: techniques._tlgUniqueRectangleType7(proof, pencils, board),
       };
     });
 
@@ -213,12 +213,15 @@ Object.assign(techniques, {
   _tlgUniqueRectangleType7: (
     { cells, digits, links, removals, exclusions },
     pencils,
+    board,
   ) => {
     const logic = techniques._tlgBuilder(removals);
     logic.deadly(
       cells.map(([r, c]) => r * 9 + c),
       digits,
       pencils,
+      undefined,
+      board,
     );
     for (const { r, c } of removals) {
       logic.truth({ kind: "cell", cell: r * 9 + c });

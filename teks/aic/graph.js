@@ -694,7 +694,7 @@ Object.assign(techniques, {
 
   // The sets the patterns rest on, each pattern drawn once and each deadly
   // pattern marked as its own group.
-  _tlgGuardianLinks: (logic, links, pencils) => {
+  _tlgGuardianLinks: (logic, links, pencils, board) => {
     const patterns = new Map();
     for (const link of links) {
       const key = techniques._guardianPatternKey(link);
@@ -732,14 +732,14 @@ Object.assign(techniques, {
           logic.truth({ kind: "cell", cell: id });
         }
       } else if (link.family) {
-        logic.deadly(link.cells, link.digits, pencils);
+        logic.deadly(link.cells, link.digits, pencils, undefined, board);
         for (const index of link.family.indices) {
           for (const digit of link.digits) {
             logic.truth({ kind: link.family.type, index, digit });
           }
         }
       } else {
-        logic.deadly(link.cells, link.digits, pencils);
+        logic.deadly(link.cells, link.digits, pencils, undefined, board);
         for (const id of link.cells) logic.truth({ kind: "cell", cell: id });
       }
     }

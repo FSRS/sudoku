@@ -657,9 +657,10 @@ Object.assign(techniques, {
           cands.every((cand) => setHas(set, cand)),
         ),
       // A rectangle is marked on two opposite corners, preferably where each
-      // mark sits on a candidate or a solved cell; a larger pattern on every
-      // candidate.
-      deadly: (ids, digits, pencils, corners) => {
+      // mark sits on a candidate or on a solved cell's own digit; a larger
+      // pattern on every candidate. Without values a solved cell takes any
+      // digit.
+      deadly: (ids, digits, pencils, corners, values) => {
         board = pencils;
         const marks = groups[groups.length - 1];
         if (ids.length !== 4 || digits.length !== 2) {
@@ -674,10 +675,16 @@ Object.assign(techniques, {
           sorted[0] * 9 + low - 1,
           sorted[3] * 9 + high - 1,
         ];
+        const onValue = (cand) =>
+          values[Math.floor(cand / 81)][Math.floor(cand / 9) % 9] === (cand % 9) + 1;
         const shown = (cand) => {
           const cell = pencils[Math.floor(cand / 81)][Math.floor(cand / 9) % 9];
-          return cell.size === 0 || cell.has((cand % 9) + 1);
+          if (cell.size === 0) return !values || onValue(cand);
+          return cell.has((cand % 9) + 1);
         };
+        const placed = (cand) =>
+          pencils[Math.floor(cand / 81)][Math.floor(cand / 9) % 9].size > 0 ||
+          onValue(cand);
         const choices = [fallback];
         for (const [a, b] of [
           [sorted[0], sorted[3]],
@@ -686,7 +693,11 @@ Object.assign(techniques, {
           choices.push([a * 9 + low - 1, b * 9 + high - 1]);
           choices.push([a * 9 + high - 1, b * 9 + low - 1]);
         }
-        marks.push(...(choices.find((pair) => pair.every(shown)) || fallback));
+        marks.push(
+          ...(choices.find((pair) => pair.every(shown)) ||
+            (values && choices.find((pair) => pair.every(placed))) ||
+            fallback),
+        );
       },
       logic: () => {
         // A Truth with no candidate left, on a solved pattern cell or a digit
@@ -714,10 +725,10 @@ Object.assign(techniques, {
     };
   },
 
-  _tlgDeadlyCells: (cells, digits, pencils, removals) => {
+  _tlgDeadlyCells: (cells, digits, pencils, removals, values) => {
     const logic = techniques._tlgBuilder(removals);
     const ids = cells.map(([r, c]) => r * 9 + c);
-    logic.deadly(ids, digits, pencils);
+    logic.deadly(ids, digits, pencils, undefined, values);
     for (const id of ids) logic.truth({ kind: "cell", cell: id });
     return logic;
   },

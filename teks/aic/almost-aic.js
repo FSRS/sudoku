@@ -375,6 +375,7 @@ Object.assign(techniques, {
     getFish,
     exitSet = null,
     getGuardian = null,
+    board = null,
   ) => {
     const tlg = techniques._tlgBuilder(removals);
     const guardianLinks = [];
@@ -454,7 +455,7 @@ Object.assign(techniques, {
       }
     }
 
-    techniques._tlgGuardianLinks(tlg, guardianLinks, pencils);
+    techniques._tlgGuardianLinks(tlg, guardianLinks, pencils, board);
 
     for (const path of paths) {
       for (let i = 0; i + 1 < path.length; i += 2) weak(path[i], path[i + 1]);
@@ -1262,6 +1263,7 @@ Object.assign(techniques, {
           (u, v) => fishLinkRegistry.get(u)?.get(v),
           null,
           getGuardian,
+          board,
         );
 
         const resultObj = {

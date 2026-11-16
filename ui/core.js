@@ -10000,7 +10000,15 @@ function renderGridImage(size) {
     }
   }
 
-  if (tlgModel) TLGRenderer.renderCanvasBadges(ctx, tlgModel, tlgCoord, size / 100);
+  if (tlgModel) {
+    ctx.font = `700 ${skewed ? Math.round(24 * TLG_CANDIDATE_SCALE) : 24}px sans-serif`;
+    ctx.fillStyle = TLGRenderer.EXPORT_COLORS.cannibal;
+    for (const m of tlgModel.missingCands) {
+      const coords = getCandCoords(m.r, m.c, m.n);
+      ctx.fillText(m.n, coords.x, coords.y + 2);
+    }
+    TLGRenderer.renderCanvasBadges(ctx, tlgModel, tlgCoord, size / 100);
+  }
   return canvas;
 }
 

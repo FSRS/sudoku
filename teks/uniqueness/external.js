@@ -368,7 +368,13 @@ Object.assign(techniques, {
       };
       if (addLogic) {
         const logic = techniques._tlgBuilder(cells);
-        logic.deadly(body.map(([r, c]) => cellId(r, c)), digits, pencils);
+        logic.deadly(
+          body.map(([r, c]) => cellId(r, c)),
+          digits,
+          pencils,
+          undefined,
+          board,
+        );
         family.indices.forEach((index) =>
           digits.forEach((digit) =>
             logic.truth({ kind: family.type, index, digit }),

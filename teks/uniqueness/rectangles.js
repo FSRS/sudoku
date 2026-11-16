@@ -190,6 +190,8 @@ Object.assign(techniques, {
             cells.map(([cr, cc]) => cr * 9 + cc),
             [d1, d2],
             pencils,
+            undefined,
+            board,
           );
           for (const [cr, cc] of cells) {
             if (!avoidable || cr !== r || cc !== c) {
@@ -270,6 +272,7 @@ Object.assign(techniques, {
                 [d1, d2],
                 pencils,
                 removals,
+                board,
               );
               const guardians = extraCells.map(([r, c]) => [
                 r * 9 + c,
@@ -396,6 +399,7 @@ Object.assign(techniques, {
                 [d1, d2],
                 pencils,
                 res.removals,
+                board,
               );
               for (const [r, c] of res.chosen) {
                 logic.truth({ kind: "cell", cell: r * 9 + c });
@@ -619,6 +623,7 @@ Object.assign(techniques, {
         [proof.d1, proof.d2],
         pencils,
         removals,
+        board,
       );
       const wingIds = proof.branches.map(([r, c]) => r * 9 + c);
       for (const id of wingIds) logic.truth({ kind: "cell", cell: id });
@@ -894,6 +899,7 @@ Object.assign(techniques, {
               (first.or * 9 + first.oc) * 9 + first.elimDigit - 1,
               (first.fr * 9 + first.fc) * 9 + first.linkDigit - 1,
             ],
+            board,
           );
           for (const { fr, fc, or, oc, linkDigit } of tlgPairs) {
             logic.truth({ kind: "cell", cell: fr * 9 + fc });
