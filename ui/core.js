@@ -6165,7 +6165,11 @@ async function solve() {
   }
 
   // If nearly solved (<= 3 empty cells) but not fully correct/completed
-  if (!onlyOneCellTarget && emptyCount <= 3) {
+  if (
+    !onlyOneCellTarget &&
+    emptyCount <= 3 &&
+    currentLampColor !== "black"
+  ) {
     showMessage(t("ui_nearly_complete_solver_disabled"), "orange");
     return;
   }
